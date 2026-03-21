@@ -1,0 +1,348 @@
+Rediseñar completamente la lógica de
+análisis entre cargas.
+
+PRINCIPIO FUNDAMENTAL:
+El tiempo entre cargas es irrelevante.
+Lo único que importa es:
+  km recorridos según GPS Volvo
+  litros consumidos según ECU Volvo
+  litros cargados según Sigetra
+
+Sin límites de horas. Sin clasificación
+por momento del día. Sin suposiciones.
+Solo física del camión.
+
+═══════════════════════════════════════════════
+REDISEÑAR calcularPeriodoEntreCargas()
+server/utils/snapshots-carga.ts
+═══════════════════════════════════════════════
+
+La función ya existe. Mejorarla para:
+
+1. No tener límite de tiempo máximo
+   entre carga A y carga B
+   
+   ANTES:
+     ventanaFin = cargaA.fecha + 26 horas
+   
+   AHORA:
+     ventanaFin = cargaB.fecha (cuando ocurra)
+     Si no hay carga B → usar último snapshot
+     disponible del VIN como cierre parcial
+     Marcar como: periodo_abierto = true
+
+2. Tomar TODOS los snapshots entre A y B
+   sin importar cuántos días sean
+   
+   const snapshotsPeriodo = await db.select()
+     .from(volvoFuelSnapshots)
+     .where(
+       and(
+         eq(volvoFuelSnapshots.vin, vin),
+         gte(volvoFuelSnapshots.capturedAt, 
+           cargaA.fecha),
+         lte(volvoFuelSnapshots.capturedAt,
+           cargaB?.fecha || new Date())
+       )
+     )
+     .orderBy(asc(volvoFuelSnapshots.capturedAt))
+
+3. El snapshot de inicio es el primero
+   DESPUÉS de la carga A
+   (el camión ya tiene el combustible cargado)
+   
+   const snapInicio = snapshotsPeriodo
+     .filter(s => 
+       new Date(s.capturedAt) >= 
+       new Date(cargaA.fecha.getTime() + 10*60*1000)
+     )[0]
+   
+   // 10 minutos de gracia para que el camión
+   // arranque y el ECU registre el nuevo nivel
+
+4. El snapshot de fin es el último
+   ANTES de la carga B
+   
+   const snapFin = cargaB
+     ? snapshotsPeriodo
+         .filter(s => 
+           new Date(s.capturedAt) <= cargaB.fecha
+         )
+         .at(-1)
+     : snapshotsPeriodo.at(-1)
+
+5. Retornar también la calidad del cruce
+   basada en cobertura de snapshots:
+   
+   const horasPeriodo = snapFin y snapInicio
+     ? (snapFin.capturedAt - snapInicio.capturedAt) 
+       / 3600000
+     : null
+   
+   const snapsPorHora = horasPeriodo
+     ? snapshotsPeriodo.length / horasPeriodo
+     : 0
+   
+   // Volvo genera ~40 snaps/hora (cada 90s)
+   // Si tenemos menos, hay gaps en la cobertura
+   const coberturaPct = Math.min(100, 
+     Math.round(snapsPorHora / 40 * 100)
+   )
+   
+   return {
+     ...resultado,
+     horas_periodo: horasPeriodo,
+     snap_count: snapshotsPeriodo.length,
+     cobertura_pct: coberturaPct,
+     periodo_abierto: !cargaB,
+     // Calidad del cruce
+     calidad: coberturaPct >= 80 ? 'ALTA'
+            : coberturaPct >= 40 ? 'MEDIA'
+            : coberturaPct >= 10 ? 'BAJA'
+            : 'SIN_DATOS'
+   }
+
+═══════════════════════════════════════════════
+REDISEÑAR evaluarPeriodo()
+Basado en física, sin tiempo
+═══════════════════════════════════════════════
+
+ELIMINAR completamente:
+  ❌ clasificarMomentoCarga()
+  ❌ tipo_carga PREPARACION_TURNO
+  ❌ momento_carga INICIO/FIN_TURNO
+  ❌ Cualquier lógica basada en hora del día
+  ❌ Límites de horas entre cargas
+
+REEMPLAZAR por esta lógica limpia:
+
+function evaluarPeriodo(datos: {
+  km_ecu: number | null
+  litros_ecu: number | null
+  litros_cargados: number      // de carga A (Sigetra)
+  rendimiento_historico: number | null  // del corredor
+  nivel_estanque_antes_pct: number | null
+  calidad_cruce: string
+  snap_count: number
+  periodo_abierto: boolean
+  cobertura_pct: number
+}) {
+  
+  const razones: string[] = []
+  let nivel = 'NORMAL'
+  let score = 100
+
+  // ─── PERÍODO ABIERTO ──────────────────────
+  // No evaluar hasta que se cierre con carga B
+  if (datos.periodo_abierto) {
+    return {
+      nivel: 'PENDIENTE',
+      razones: ['Período abierto — esperando próxima carga'],
+      score: 100,
+      evaluable: false
+    }
+  }
+
+  // ─── SIN DATOS ECU ────────────────────────
+  // No evaluar sin datos Volvo
+  if (!datos.km_ecu || !datos.litros_ecu) {
+    return {
+      nivel: 'SIN_DATOS',
+      razones: ['Sin snapshots Volvo para este período'],
+      score: 100,
+      evaluable: false
+    }
+  }
+
+  // ─── CALIDAD BAJA ─────────────────────────
+  // Advertir si hay pocos snapshots
+  if (datos.cobertura_pct < 20) {
+    razones.push(
+      `⚠️ Cruce parcial: ${datos.snap_count} snapshots ` +
+      `(${datos.cobertura_pct}% de cobertura esperada). ` +
+      `Resultado orientativo.`
+    )
+  }
+
+  // ─── SEÑAL PRINCIPAL: BALANCE FÍSICO ──────
+  // Cuánto cargó vs cuánto consumió
+  const balance = datos.litros_cargados - datos.litros_ecu
+  const balancePct = Math.round(
+    (balance / datos.litros_ecu) * 100
+  )
+  
+  if (balance > 0) {
+    // Cargó más de lo que consumió
+    // Esto puede ser normal si el estanque
+    // estaba bajo al inicio del período
+    
+    // Verificar con nivel de estanque si disponible
+    if (datos.nivel_estanque_antes_pct !== null) {
+      // Capacidad típica 700L
+      const capacidad = 700
+      const litrosEnEstanque = 
+        (datos.nivel_estanque_antes_pct / 100) * capacidad
+      const espacioDisponible = capacidad - litrosEnEstanque
+      
+      if (datos.litros_cargados > espacioDisponible * 1.15) {
+        // Declaró más de lo que cabía físicamente
+        nivel = 'CRITICO'
+        score -= 50
+        razones.push(
+          `Físicamente imposible: estanque al ` +
+          `${datos.nivel_estanque_antes_pct}% ` +
+          `(~${litrosEnEstanque.toFixed(0)}L), ` +
+          `solo cabían ~${espacioDisponible.toFixed(0)}L, ` +
+          `declaró ${datos.litros_cargados}L`
+        )
+      }
+    }
+    
+    // Evaluar el balance independientemente
+    if (balancePct > 80 && balance > 100) {
+      nivel = nivel === 'NORMAL' ? 'CRITICO' : nivel
+      score -= 40
+      razones.push(
+        `Cargó ${datos.litros_cargados}L pero el período ` +
+        `(${datos.km_ecu.toFixed(0)}km) solo consumió ` +
+        `${datos.litros_ecu.toFixed(0)}L según ECU. ` +
+        `Exceso: ${balance.toFixed(0)}L (${balancePct}%)`
+      )
+    } else if (balancePct > 40 && balance > 50) {
+      nivel = nivel === 'NORMAL' ? 'SOSPECHOSO' : nivel
+      score -= 20
+      razones.push(
+        `Cargó ${balance.toFixed(0)}L más de lo ` +
+        `consumido en el período según ECU`
+      )
+    } else if (balancePct > 20 && balance > 30) {
+      nivel = nivel === 'NORMAL' ? 'REVISAR' : nivel
+      score -= 8
+      razones.push(
+        `Balance levemente alto: +${balance.toFixed(0)}L ` +
+        `vs consumo ECU del período`
+      )
+    }
+  }
+
+  // ─── SEÑAL SECUNDARIA: RENDIMIENTO ────────
+  // Solo si hay historial del corredor
+  if (datos.rendimiento_historico && 
+      datos.litros_ecu > 10 && 
+      datos.km_ecu > 20) {
+    
+    const rendReal = datos.km_ecu / datos.litros_ecu
+    const desviacion = (
+      (rendReal - datos.rendimiento_historico) / 
+      datos.rendimiento_historico
+    ) * 100
+    
+    if (desviacion < -30) {
+      nivel = nivel === 'NORMAL' ? 'REVISAR' : nivel
+      score -= 15
+      razones.push(
+        `Rendimiento del período: ${rendReal.toFixed(2)} km/L ` +
+        `vs histórico ${datos.rendimiento_historico.toFixed(2)} km/L ` +
+        `(${Math.abs(desviacion).toFixed(0)}% bajo lo esperado)`
+      )
+    }
+  }
+
+  return {
+    nivel,
+    razones,
+    score: Math.max(0, score),
+    evaluable: true,
+    balance_litros: Math.round(balance),
+    balance_pct: balancePct,
+    rendimiento_real: datos.litros_ecu > 0
+      ? Math.round(datos.km_ecu / datos.litros_ecu * 100) / 100
+      : null
+  }
+}
+
+═══════════════════════════════════════════════
+ACTUALIZAR EL FRONTEND
+En la vista ENTRE CARGAS
+═══════════════════════════════════════════════
+
+Cada fila del período muestra:
+
+┌────────────────────────────────────────────────────┐
+│ SLHT29 · Gómez Pablo · CENCOSUD                   │
+│                                                    │
+│ Carga A: 320L · Copec Lampa · Lunes 06:15         │
+│ Carga B: 290L · Copec Rancagua · Martes 19:40     │
+│ Período: 37h 25min · 412 km ECU                   │
+│                                                    │
+│ CONSUMO ECU:     187L                              │
+│ CARGADO A:       320L                              │
+│ BALANCE:        +133L  ← 71% más de lo consumido  │
+│                                                    │
+│ Rendimiento real: 2.20 km/L                       │
+│ vs histórico corredor: 2.91 km/L (-24%)           │
+│                                                    │
+│ Cobertura ECU: 78% · 312 snapshots                │
+│                                                    │
+│ Estado: 🟡 REVISAR                                │
+└────────────────────────────────────────────────────┘
+
+IMPORTANTE — mostrar claramente:
+  La duración del período (puede ser 37h, 28h, etc.)
+  Sin límite máximo — el sistema acepta cualquier duración
+  
+  El número de snapshots usados
+  y el % de cobertura para que el operador
+  sepa qué tan confiable es el resultado
+
+Para períodos PENDIENTE (sin carga B):
+  Mostrar con badge gris:
+  "⏳ Período abierto — sin carga siguiente registrada"
+  No mostrar en la sección de anomalías
+
+═══════════════════════════════════════════════
+ELIMINAR DE LA BASE DE DATOS
+═══════════════════════════════════════════════
+
+Si ya se crearon estos campos eliminarlos:
+  tipo_carga
+  momento_carga
+  periodo_cruza_dia
+
+Ya no son necesarios con esta nueva lógica.
+La física del camión reemplaza todas esas
+clasificaciones artificiales.
+
+═══════════════════════════════════════════════
+REGLAS FINALES
+═══════════════════════════════════════════════
+
+REGLA 1:
+  Sin carga B → período PENDIENTE → no evaluar
+  No importa si pasaron 5 horas o 5 días
+
+REGLA 2:
+  Sin datos ECU → SIN_DATOS → no evaluar
+  No inventar anomalías sin evidencia
+
+REGLA 3:
+  La duración del período no es una señal
+  Puede ser 4h o 40h → ambos son válidos
+  Solo importa km/litros
+
+REGLA 4:
+  Con cobertura ECU < 20% → resultado orientativo
+  Mostrar advertencia pero no ocultar
+
+REGLA 5:
+  El balance se evalúa sobre el período completo
+  No sobre el día calendario
+
+ORDEN:
+1. Rediseñar calcularPeriodoEntreCargas()
+2. Rediseñar evaluarPeriodo()
+3. Eliminar campos tipo_carga, momento_carga
+4. Migración
+5. Actualizar frontend con nueva visualización
+
+Muéstrame calcularPeriodoEntreCargas() primero.

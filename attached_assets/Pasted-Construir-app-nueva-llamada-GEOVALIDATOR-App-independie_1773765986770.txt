@@ -1,0 +1,419 @@
+Construir app nueva llamada GEOVALIDATOR.
+App independiente de SOTRASER pero que se conecta
+a su base de datos PostgreSQL.
+Misma base de datos, mismas credenciales.
+Mismo diseño oscuro: fondo #020508, azul #00d4ff,
+verde #00c97a, rojo #ff2244, amarillo #ffcc00.
+Stack: React + Node.js + Express.
+
+═══════════════════════════════════════════════════
+BASE DE DATOS — tablas nuevas
+═══════════════════════════════════════════════════
+
+-- Trayectorias por camión (puntos GPS agrupados)
+CREATE TABLE IF NOT EXISTS geo_trayectorias (
+  id SERIAL PRIMARY KEY,
+  camion_id INTEGER REFERENCES camiones(id),
+  patente VARCHAR(20) NOT NULL,
+  fecha_inicio TIMESTAMP NOT NULL,
+  fecha_fin TIMESTAMP,
+  estado VARCHAR(20) DEFAULT 'ACTIVA',
+  -- ACTIVA · CERRADA · PROCESADA
+  total_puntos INTEGER DEFAULT 0,
+  km_calculados NUMERIC(10,2) DEFAULT 0,
+  creada_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Puntos GPS normalizados de cualquier fuente
+CREATE TABLE IF NOT EXISTS geo_puntos (
+  id SERIAL PRIMARY KEY,
+  trayectoria_id INTEGER 
+    REFERENCES geo_trayectorias(id),
+  camion_id INTEGER REFERENCES camiones(id),
+  patente VARCHAR(20),
+  lat NUMERIC(10,7) NOT NULL,
+  lng NUMERIC(10,7) NOT NULL,
+  timestamp_punto TIMESTAMP NOT NULL,
+  velocidad_kmh NUMERIC(6,1) DEFAULT 0,
+  rumbo_grados NUMERIC(5,1),
+  km_odometro NUMERIC(10,1),
+  fuente VARCHAR(20) DEFAULT 'VOLVO',
+  -- VOLVO · COPILOT · GEOTAB · MANUAL
+  creado_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_geo_puntos_camion
+  ON geo_puntos(camion_id, timestamp_punto);
+CREATE INDEX IF NOT EXISTS idx_geo_puntos_tray
+  ON geo_puntos(trayectoria_id);
+
+-- Viajes detectados automáticamente
+CREATE TABLE IF NOT EXISTS geo_viajes (
+  id SERIAL PRIMARY KEY,
+  camion_id INTEGER REFERENCES camiones(id),
+  patente VARCHAR(20) NOT NULL,
+  contrato VARCHAR(100),
+
+  -- Origen detectado
+  origen_lat NUMERIC(10,7),
+  origen_lng NUMERIC(10,7),
+  origen_nombre VARCHAR(200),
+  origen_timestamp TIMESTAMP,
+
+  -- Destino detectado
+  destino_lat NUMERIC(10,7),
+  destino_lng NUMERIC(10,7),
+  destino_nombre VARCHAR(200),
+  destino_timestamp TIMESTAMP,
+
+  -- Paradas intermedias
+  paradas JSONB DEFAULT '[]',
+
+  -- Métricas del viaje
+  km_gps NUMERIC(10,2),
+  km_odometro_inicio NUMERIC(10,1),
+  km_odometro_fin NUMERIC(10,1),
+  km_odometro_delta NUMERIC(10,1),
+  duracion_minutos INTEGER,
+  velocidad_promedio NUMERIC(6,1),
+  velocidad_maxima NUMERIC(6,1),
+  tiempo_detenido_min INTEGER DEFAULT 0,
+  tiempo_movimiento_min INTEGER DEFAULT 0,
+
+  -- Validación vs Sigetra
+  validacion_estado VARCHAR(20) DEFAULT 'PENDIENTE',
+  -- PENDIENTE · VALIDADO · REVISAR · ANOMALIA
+  validacion_detalle JSONB,
+  sigetra_carga_id INTEGER,
+  sigetra_km_delta_pct NUMERIC(5,2),
+  sigetra_surtidor_en_ruta BOOLEAN,
+  sigetra_litros NUMERIC(8,2),
+
+  -- Control
+  validado_manualmente BOOLEAN DEFAULT false,
+  validado_por VARCHAR(100),
+  notas TEXT,
+  trayectoria_id INTEGER 
+    REFERENCES geo_trayectorias(id),
+  creado_at TIMESTAMP DEFAULT NOW(),
+  actualizado_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Bases de camiones (punto de partida/llegada)
+CREATE TABLE IF NOT EXISTS geo_bases (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(200) NOT NULL,
+  lat NUMERIC(10,7) NOT NULL,
+  lng NUMERIC(10,7) NOT NULL,
+  radio_metros INTEGER DEFAULT 3000,
+  contrato VARCHAR(100),
+  activa BOOLEAN DEFAULT true
+);
+
+-- Insertar bases conocidas CENCOSUD
+INSERT INTO geo_bases 
+  (nombre, lat, lng, radio_metros, contrato)
+VALUES
+  ('Base Santiago CENCOSUD',
+   -33.4489, -70.6693, 5000, 'CENCOSUD'),
+  ('CD Cencosud La Serena',
+   -29.9027, -71.2519, 3000, 'CENCOSUD'),
+  ('CD Cencosud Coquimbo',
+   -29.9533, -71.3395, 3000, 'CENCOSUD'),
+  ('CD Cencosud Puerto Montt',
+   -41.4693, -72.9424, 3000, 'CENCOSUD'),
+  ('CD Cencosud Chillán',
+   -36.6066, -72.1034, 3000, 'CENCOSUD')
+ON CONFLICT DO NOTHING;
+
+═══════════════════════════════════════════════════
+BACKEND — MOTOR DE DETECCIÓN
+═══════════════════════════════════════════════════
+
+── SERVICIO 1: INGESTA DE PUNTOS GPS ────────────
+
+Función ingestPuntosVolvo():
+Correr cada 5 minutos como cron job.
+
+1. Obtener camiones CENCOSUD activos
+2. Para cada camión consultar volvo_ecu o
+   gps_registros con timestamp > último punto
+   guardado en geo_puntos
+3. Insertar puntos nuevos en geo_puntos
+   con fuente = 'VOLVO'
+4. Llamar a procesarPuntosCamion(camion_id)
+
+POST /api/geo/puntos/ingest
+Endpoint para recibir puntos de GPS externo:
+Body: [{
+  patente, lat, lng, timestamp,
+  velocidad_kmh, km_odometro, fuente
+}]
+Insertar en geo_puntos y procesar.
+
+── SERVICIO 2: DETECCIÓN DE VIAJES ─────────────
+
+Función procesarPuntosCamion(camion_id):
+Corre cada vez que llegan puntos nuevos.
+
+REGLAS DE DETECCIÓN:
+
+INICIO DE VIAJE:
+- Camión estaba en base (dentro de radio_metros)
+- Nuevo punto está FUERA de cualquier base
+- Velocidad > 5 km/h
+→ Crear nuevo geo_viaje con origen = 
+  último punto dentro de la base
+
+PARADA INTERMEDIA:
+- Camión lleva > 20 minutos con velocidad < 5 km/h
+- No está en su base de origen
+→ Registrar parada en viaje actual:
+  { lat, lng, nombre, llegada, salida }
+- Geocodificar con Nominatim para obtener nombre
+
+FIN DE VIAJE:
+- Camión entra a radio de UNA base (cualquiera)
+  Y velocidad < 5 km/h
+  Y lleva > 10 minutos dentro del radio
+→ Cerrar viaje:
+  destino = base donde llegó (o geocodificar)
+  Calcular métricas
+  Llamar a validarConSigetra(viaje_id)
+
+── SERVICIO 3: CÁLCULO DE KM ───────────────────
+
+Función calcularKmViaje(trayectoria_id):
+
+1. Obtener todos los puntos ordenados por timestamp
+2. Para cada par de puntos consecutivos
+   donde velocidad > 5 km/h:
+   distancia = haversine(lat1,lng1,lat2,lng2)
+3. Sumar todas las distancias
+4. Ignorar gaps > 10 minutos (túneles, sin señal)
+   para esos gaps usar distancia directa * 1.1
+
+Fórmula haversine:
+function haversineKm(lat1,lon1,lat2,lon2) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180)*
+    Math.cos(lat2*Math.PI/180)*
+    Math.sin(dLon/2)**2;
+  return R*2*Math.asin(Math.sqrt(a));
+}
+
+── SERVICIO 4: VALIDACIÓN VS SIGETRA ───────────
+
+Función validarConSigetra(viaje_id):
+
+1. Obtener viaje desde geo_viajes
+2. Buscar en cargas_tarjeta:
+   WHERE patente = viaje.patente
+   AND DATE(fecha_hora) BETWEEN 
+     DATE(viaje.origen_timestamp) - 1
+     AND DATE(viaje.destino_timestamp) + 1
+   AND cliente ILIKE '%CENCOSUD%'
+
+3. Si hay carga encontrada:
+
+   CHECK A — Km coinciden:
+   delta_pct = ABS(carga.km - viaje.km_gps) 
+               / viaje.km_gps * 100
+   ✅ OK si delta_pct <= 10%
+   ⚠️ REVISAR si delta_pct 10-25%
+   🔴 ANOMALÍA si delta_pct > 25%
+
+   CHECK B — Surtidor en la ruta:
+   Geocodificar surtidor si no está en caché.
+   Verificar si las coordenadas del surtidor
+   están dentro de 50km de algún punto 
+   de la trayectoria.
+   ✅ OK si está en ruta
+   ⚠️ REVISAR si está fuera de ruta
+
+   CHECK C — Timing coherente:
+   Carga debe ser durante o cerca del viaje.
+   ✅ OK si fecha_carga entre inicio y fin ± 4h
+   ⚠️ REVISAR si está fuera de ese rango
+
+4. Calcular estado final:
+   VALIDADO = todos los checks OK
+   REVISAR = 1 check con advertencia
+   ANOMALÍA = algún check falla
+   PENDIENTE = no hay carga Sigetra encontrada
+
+5. Guardar en geo_viajes:
+   validacion_estado, validacion_detalle (JSON),
+   sigetra_carga_id, sigetra_km_delta_pct,
+   sigetra_surtidor_en_ruta
+
+── SERVICIO 5: GEOCODIFICACIÓN ─────────────────
+
+Función geocodificar(lat, lng):
+Usar Nominatim OpenStreetMap (gratuito):
+GET https://nominatim.openstreetmap.org/reverse
+  ?lat={lat}&lon={lng}&format=json
+
+Extraer: ciudad, región, país
+Cachear en tabla surtidores_geo o nueva tabla
+geo_geocache para no repetir requests.
+Rate limit: máximo 1 request/segundo a Nominatim.
+
+═══════════════════════════════════════════════════
+FRONTEND — 3 PANTALLAS
+═══════════════════════════════════════════════════
+
+Navegación superior:
+┌──────────────────────────────────────────────────┐
+│ 🌍 GEOVALIDATOR  [MAPA] [VIAJES] [VALIDACIÓN]   │
+│                         [🏢 CENCOSUD]  [⚙️]     │
+└──────────────────────────────────────────────────┘
+
+══════════════════════════════════════════════════
+PANTALLA 1 — 🗺️ MAPA EN VIVO
+══════════════════════════════════════════════════
+
+Mapa fullscreen usando Leaflet.js.
+Tiles: OpenStreetMap (gratuito).
+
+CAPA 1 — Camiones en tiempo real:
+Un marcador por camión con:
+- Ícono 🚛 rotado según rumbo
+- Color según estado:
+  Verde = moviendo (velocidad > 5 km/h)
+  Amarillo = detenido < 30 min
+  Rojo = detenido > 30 min
+  Gris = sin señal > 1 hora
+
+Al hacer clic en camión → popup con:
+Patente · Conductor · Velocidad actual
+Última señal · Km hoy · Estado viaje
+
+CAPA 2 — Trayectorias del día:
+Línea dibujada con los puntos GPS del día.
+Color degradado: azul (mañana) → verde (tarde)
+Toggle para mostrar/ocultar trayectorias.
+
+CAPA 3 — Bases y destinos:
+Marcadores de geo_bases con radio visual.
+Marcadores de destinos frecuentes.
+
+PANEL LATERAL (derecha, colapsable):
+Lista de camiones activos con mini-status:
+🟢 DKPW78 · 85 km/h · En ruta a La Serena
+🟡 FJKP21 · Detenido 12 min · Copec Vespucio
+🔴 BKRT34 · Sin señal 2h
+
+Filtros del mapa:
+[Todos] [En movimiento] [Detenidos] [Sin señal]
+
+Auto-refresh: actualizar posiciones cada 60 seg.
+
+══════════════════════════════════════════════════
+PANTALLA 2 — 📋 VIAJES DETECTADOS
+══════════════════════════════════════════════════
+
+HEADER con KPIs:
+┌─────────┬─────────┬─────────┬─────────┐
+│ VIAJES  │   KM    │PROMEDIO │  HOY    │
+│ SEMANA  │ TOTALES │  km/L   │ACTIVOS  │
+│   47    │ 28.450  │  2.41   │   8     │
+└─────────┴─────────┴─────────┴─────────┘
+
+FILTROS:
+[Fecha desde] [Fecha hasta] 
+[Patente ▼] [Estado ▼]
+[Validado ▼]
+
+TABLA de viajes:
+FECHA · PATENTE · ORIGEN → DESTINO · 
+KM GPS · KM ODÓMETRO · DIFERENCIA · 
+DURACIÓN · VEL MAX · ESTADO · ACCIÓN
+
+Columna ESTADO badge:
+✅ VALIDADO (verde)
+⚠️ REVISAR (amarillo)  
+🔴 ANOMALÍA (rojo)
+⏳ PENDIENTE (gris)
+
+Columna ACCIÓN:
+[🗺️ Ver ruta] [✅ Validar] [📝 Notas]
+
+Al hacer clic en [Ver ruta]:
+Abre modal con mapa del viaje específico.
+Trayectoria completa dibujada.
+Marcadores de origen, destino y paradas.
+Timeline lateral con eventos del viaje.
+Datos del viaje en panel inferior.
+
+Al hacer clic en [Validar]:
+Abre modal de validación manual:
+Muestra detalle de los 3 checks automáticos.
+Botones: [✅ Aprobar] [🔴 Rechazar] [📝 Agregar nota]
+
+══════════════════════════════════════════════════
+PANTALLA 3 — ✅ VALIDACIÓN vs SIGETRA
+══════════════════════════════════════════════════
+
+Es el corazón del sistema.
+
+HEADER:
+"VALIDACIÓN GPS vs SIGETRA"
+"Cruzando kilometraje real con cargas registradas"
+Período: [últimos 7 días ▼]
+
+KPIs de validación:
+┌──────────┬──────────┬──────────┬──────────┐
+│VALIDADOS │ REVISAR  │ANOMALÍAS │PENDIENTES│
+│    31    │    8     │    3     │    5     │
+│  65.9%   │  17.0%   │  6.4%   │  10.6%   │
+└──────────┴──────────┴──────────┴──────────┘
+
+TABLA PRINCIPAL — ordenada por prioridad:
+Primero ANOMALÍAS, luego REVISAR, luego resto.
+
+Por cada viaje mostrar:
+
+┌─────────────────────────────────────────────────┐
+│ 🔴 ANOMALÍA          DKPW78 · 04 Mar 2026       │
+│                                                  │
+│ GPS detectó:    Santiago → La Serena · 487 km   │
+│ Sigetra dice:   Km delta: +892 km  ← sospechoso │
+│                 Litros cargados: 198L            │
+│                 Surtidor: Copec Pudahuel ✅      │
+│                                                  │
+│ ⚠️ Diferencia km: 83% — fuera de rango          │
+│ ✅ Surtidor en ruta: sí                          │
+│ ✅ Fecha coherente: sí                           │
+│                                                  │
+│ [Ver en mapa] [Aprobar] [Rechazar] [Notas]      │
+└─────────────────────────────────────────────────┘
+
+SEMÁFORO GLOBAL:
+Barra de progreso con 3 colores mostrando
+el porcentaje de cada estado del período.
+
+BOTÓN ACCIÓN MASIVA:
+[✅ Aprobar todos los VALIDADOS automáticos]
+→ Confirma los viajes donde los 3 checks
+  pasaron sin problemas.
+
+═══════════════════════════════════════════════════
+ENDPOINTS
+═══════════════════════════════════════════════════
+
+GET /api/geo/camiones-live
+Posición actual de cada camión CENCOSUD:
+Último punto en geo_puntos por camion_id.
+{[{camion_id, patente, lat, lng, 
+   velocidad, rumbo, timestamp, estado}]}
+
+GET /api/geo/trayectoria/:camion_id?fecha=hoy
+Todos los puntos GPS del camión en esa fecha.
+Para dibujar en el mapa.
+
+GET /api/geo/viajes?desde=&hasta=&patente=&estado=
+Lista de viajes detectados con filtros.

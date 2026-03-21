@@ -1,0 +1,483 @@
+Agregar un mini-mapa en vivo al dashboard HOY
+y las geocercas con activación progresiva.
+
+NO modificar nada de lo que ya funciona.
+Solo AGREGAR los elementos nuevos.
+
+═══════════════════════════════════════════════
+PASO 1 — IMPORTAR GEOCERCAS CON RADIO 1KM
+═══════════════════════════════════════════════
+
+Crear endpoint POST /api/geocercas/importar-json
+en server/geo-routes.ts:
+
+app.post("/api/geocercas/importar-json", async (req, res) => {
+  try {
+    const { geocercas } = req.body
+    let insertadas = 0
+    let actualizadas = 0
+    
+    for (const g of geocercas) {
+      const existe = await db.select()
+        .from(geoBases)
+        .where(eq(geoBases.nombre, g.nombre))
+        .limit(1)
+      
+      if (existe.length > 0) {
+        await db.update(geoBases)
+          .set({
+            lat: String(g.lat),
+            lng: String(g.lng),
+            radioMetros: 1000,
+            contrato: g.contrato || 'TODOS',
+            activo: true
+          })
+          .where(eq(geoBases.nombre, g.nombre))
+        actualizadas++
+      } else {
+        await db.insert(geoBases).values({
+          nombre: g.nombre,
+          lat: String(g.lat),
+          lng: String(g.lng),
+          radioMetros: 1000,
+          contrato: g.contrato || 'TODOS',
+          activo: true
+        })
+        insertadas++
+      }
+    }
+    
+    res.json({ insertadas, actualizadas, total: insertadas + actualizadas })
+  } catch (error: any) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+También actualizar todas las geocercas existentes a 1km:
+
+app.post("/api/geocercas/actualizar-radio", async (req, res) => {
+  await db.update(geoBases)
+    .set({ radioMetros: 1000 })
+    .where(eq(geoBases.activo, true))
+  res.json({ ok: true })
+})
+
+Endpoint para recalibrar viajes con geocercas:
+
+app.post("/api/geocercas/recalibrar-viajes", async (req, res) => {
+  try {
+    const viajes = await db.select()
+      .from(viajesAprendizaje)
+      .where(
+        or(
+          eq(viajesAprendizaje.origenNombre, 'Punto desconocido'),
+          isNull(viajesAprendizaje.origenNombre)
+        )
+      )
+    
+    const bases = await db.select().from(geoBases)
+      .where(eq(geoBases.activo, true))
+    
+    let actualizados = 0
+    
+    for (const viaje of viajes) {
+      if (!viaje.origenLat || !viaje.origenLng) continue
+      
+      let mejorOrigen = null
+      let mejorDestino = null
+      let menorDistOrigen = 999
+      let menorDistDestino = 999
+      
+      for (const base of bases) {
+        const distO = haversineKm(
+          viaje.origenLat, viaje.origenLng,
+          parseFloat(base.lat), parseFloat(base.lng)
+        )
+        const distD = haversineKm(
+          viaje.destinoLat || 0, viaje.destinoLng || 0,
+          parseFloat(base.lat), parseFloat(base.lng)
+        )
+        
+        if (distO < menorDistOrigen && distO < 1.0) {
+          menorDistOrigen = distO
+          mejorOrigen = base.nombre
+        }
+        if (distD < menorDistDestino && distD < 1.0) {
+          menorDistDestino = distD
+          mejorDestino = base.nombre
+        }
+      }
+      
+      if (mejorOrigen || mejorDestino) {
+        await db.update(viajesAprendizaje)
+          .set({
+            origenNombre: mejorOrigen || viaje.origenNombre,
+            destinoNombre: mejorDestino || viaje.destinoNombre
+          })
+          .where(eq(viajesAprendizaje.id, viaje.id))
+        actualizados++
+      }
+    }
+    
+    res.json({ actualizados, total_viajes: viajes.length })
+  } catch (error: any) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371
+  const dLat = (lat2-lat1)*Math.PI/180
+  const dLng = (lng2-lng1)*Math.PI/180
+  const a = Math.sin(dLat/2)**2 + 
+    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+    Math.sin(dLng/2)**2
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+}
+
+═══════════════════════════════════════════════
+PASO 2 — MINI MAPA EN EL DASHBOARD HOY
+client/src/pages/hoy.tsx — AGREGAR SECCIÓN
+═══════════════════════════════════════════════
+
+Agregar esta sección ENTRE los KPIs y las alertas
+en el return del componente Hoy.
+
+Buscar en hoy.tsx el comentario o sección
+{/* BLOQUE B — 4 KPIs */} o similar
+y DESPUÉS de los KPIs agregar:
+
+{/* BLOQUE MAPA EN VIVO */}
+<div 
+  className="border"
+  style={{ borderColor: '#0d2035', background: '#020508' }}
+  data-testid="hoy-mapa-minivivo"
+>
+  {/* Header del mapa */}
+  <div className="flex items-center justify-between px-4 py-2 border-b"
+    style={{ borderColor: '#0d2035' }}>
+    <div className="flex items-center gap-2">
+      <span className="w-2 h-2 rounded-full"
+        style={{ background: '#00ff88', 
+                 animation: 'blink 2s infinite',
+                 boxShadow: '0 0 6px #00ff88' }} />
+      <span className="font-space text-[11px] font-bold tracking-[0.15em]"
+        style={{ color: '#00d4ff' }}>
+        FLOTA EN VIVO
+      </span>
+      <span className="font-exo text-[10px]"
+        style={{ color: '#3a6080' }}>
+        {kpis?.camionesActivos || 0} activos
+      </span>
+    </div>
+    <button
+      onClick={() => onNavigateFlota?.()}
+      className="font-exo text-[10px] font-bold px-3 py-1 border cursor-pointer
+                 transition-all hover:border-[#00d4ff] hover:text-[#00d4ff]"
+      style={{ borderColor: '#0d2035', color: '#3a6080' }}
+    >
+      VER MAPA COMPLETO →
+    </button>
+  </div>
+  
+  {/* Contenedor del mapa */}
+  <div style={{ height: '280px', position: 'relative' }}>
+    <MiniMapaVivo />
+  </div>
+</div>
+
+═══════════════════════════════════════════════
+PASO 3 — COMPONENTE MiniMapaVivo
+Agregar DENTRO de hoy.tsx antes del return
+═══════════════════════════════════════════════
+
+function MiniMapaVivo() {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstance = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
+  const geocercaLayersRef = useRef<any[]>([])
+
+  const { data: camiones } = useQuery<any[]>({
+    queryKey: ['/api/geo/camiones-live'],
+    refetchInterval: 60000,
+  })
+
+  const { data: bases } = useQuery<any[]>({
+    queryKey: ['/api/geo/bases'],
+  })
+
+  // Inicializar mapa Leaflet
+  useEffect(() => {
+    if (!mapRef.current || mapInstance.current) return
+
+    const loadLeaflet = async () => {
+      const L = (window as any).L
+      if (!L) {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+        document.head.appendChild(link)
+
+        const script = document.createElement('script')
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        script.onload = () => initMap()
+        document.body.appendChild(script)
+      } else {
+        initMap()
+      }
+    }
+
+    const initMap = () => {
+      const L = (window as any).L
+      if (!L || !mapRef.current) return
+
+      const map = L.map(mapRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,        // mini mapa no se arrastra
+        scrollWheelZoom: false, // no zoom con scroll
+        doubleClickZoom: false,
+      }).setView([-33.45, -70.65], 6)
+
+      // Tile oscuro para que combine con el diseño
+      L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        { maxZoom: 19 }
+      ).addTo(map)
+
+      mapInstance.current = map
+    }
+
+    loadLeaflet()
+  }, [])
+
+  // Actualizar marcadores de camiones
+  useEffect(() => {
+    const L = (window as any).L
+    if (!L || !mapInstance.current || !camiones) return
+
+    // Limpiar marcadores anteriores
+    markersRef.current.forEach(m => m.remove())
+    markersRef.current = []
+
+    const statusColors: Record<string, string> = {
+      EN_MOVIMIENTO:     '#00ff88',
+      DETENIDO_RECIENTE: '#ffcc00',
+      DETENIDO:          '#ff2244',
+      'SIN_SEÑAL':       '#3a6080',
+    }
+
+    for (const c of camiones) {
+      if (!c.lat || !c.lng) continue
+      const color = statusColors[c.estado] || '#3a6080'
+
+      const icon = L.divIcon({
+        html: `<div style="
+          width:10px;height:10px;
+          background:${color};
+          border:1px solid #020508;
+          border-radius:50%;
+          box-shadow:0 0 4px ${color}
+        "></div>`,
+        className: '',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5],
+      })
+
+      const marker = L.marker([c.lat, c.lng], { icon })
+        .addTo(mapInstance.current)
+        .bindPopup(`
+          <div style="font-family:monospace;font-size:11px;
+                      background:#020508;color:#c8e8ff;
+                      padding:6px;min-width:140px">
+            <b style="color:#00d4ff">${c.patente}</b><br/>
+            ${c.conductor || 'Sin conductor'}<br/>
+            ${c.velocidad} km/h
+          </div>
+        `)
+
+      markersRef.current.push(marker)
+    }
+  }, [camiones])
+
+  // Actualizar geocercas ACTIVAS (solo las que tienen camiones dentro)
+  useEffect(() => {
+    const L = (window as any).L
+    if (!L || !mapInstance.current || !bases || !camiones) return
+
+    // Limpiar geocercas anteriores
+    geocercaLayersRef.current.forEach(l => l.remove())
+    geocercaLayersRef.current = []
+
+    const tipoColores: Record<string, string> = {
+      BASE:     '#00d4ff',
+      CD:       '#00ff88',
+      MINA:     '#ffcc00',
+      ESTACION: '#ff6b35',
+      PATIO:    '#a0a0ff',
+      OTRO:     '#3a6080',
+    }
+
+    for (const base of bases) {
+      const bLat = parseFloat(base.lat)
+      const bLng = parseFloat(base.lng)
+      const radio = base.radioMetros || 1000
+
+      // Verificar cuántos camiones están dentro (radio 1km)
+      const camionesDentro = (camiones || []).filter(c => {
+        if (!c.lat || !c.lng) return false
+        const R = 6371000
+        const dLat = (c.lat - bLat) * Math.PI / 180
+        const dLng = (c.lng - bLng) * Math.PI / 180
+        const a = Math.sin(dLat/2)**2 +
+          Math.cos(bLat*Math.PI/180) * Math.cos(c.lat*Math.PI/180) *
+          Math.sin(dLng/2)**2
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+        return dist < radio
+      })
+
+      // Solo dibujar si hay camiones dentro
+      if (camionesDentro.length === 0) continue
+
+      const color = tipoColores[base.tipo] || '#3a6080'
+
+      // Círculo de geocerca
+      const circle = L.circle([bLat, bLng], {
+        radius: radio,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.08,
+        weight: 1.5,
+        dashArray: '4,4',
+      })
+        .addTo(mapInstance.current)
+        .bindPopup(`
+          <div style="font-family:monospace;font-size:11px;
+                      background:#020508;color:#c8e8ff;padding:6px">
+            <b style="color:${color}">${base.nombre}</b><br/>
+            ${base.tipo}<br/>
+            ${camionesDentro.length} camión(es) dentro
+          </div>
+        `)
+
+      // Pulso en el centro
+      const pulse = L.circleMarker([bLat, bLng], {
+        radius: 5,
+        color: color,
+        fillColor: color,
+        fillOpacity: 1,
+        weight: 0,
+      }).addTo(mapInstance.current)
+
+      geocercaLayersRef.current.push(circle, pulse)
+    }
+  }, [bases, camiones])
+
+  return (
+    <div
+      ref={mapRef}
+      style={{ width: '100%', height: '100%' }}
+      data-testid="mini-mapa-vivo"
+    />
+  )
+}
+
+═══════════════════════════════════════════════
+PASO 4 — BOTÓN ACCESO RÁPIDO AL MAPA COMPLETO
+En el header de hoy.tsx (junto al botón de periodo)
+═══════════════════════════════════════════════
+
+Buscar la sección del header donde están los
+botones HOY / 7D / 30D y AGREGAR al lado:
+
+<button
+  onClick={() => onNavigateFlota?.('geo')}
+  className="flex items-center gap-1.5 font-space text-[10px] 
+             font-bold px-3 py-1 cursor-pointer border
+             transition-all hover:border-[#00d4ff]"
+  style={{ borderColor: '#0d2035', color: '#3a6080' }}
+  data-testid="btn-ir-mapa"
+>
+  ◎ MAPA
+</button>
+
+═══════════════════════════════════════════════
+PASO 5 — DESPUÉS DE DEPLOY: IMPORTAR GEOCERCAS
+═══════════════════════════════════════════════
+
+Una vez que el servidor reinicie, ejecutar
+automáticamente la importación del JSON:
+
+En server/index.ts, después de iniciarJobs(),
+agregar importación inicial si geo_bases está vacía:
+
+setTimeout(async () => {
+  try {
+    const count = await db.select({ count: count() })
+      .from(geoBases)
+    
+    if (count[0].count < 10) {
+      console.log('[GEOCERCAS] Tabla vacía, importando geocercas...')
+      // El JSON se importará via el endpoint
+      // Log para recordar hacerlo manual si no se hizo
+      console.log('[GEOCERCAS] Llamar POST /api/geocercas/importar-json')
+      console.log('[GEOCERCAS] con el archivo geocercas_sotraser.json')
+    } else {
+      // Actualizar radio a 1km en todas
+      await db.update(geoBases)
+        .set({ radioMetros: 1000 })
+        .where(eq(geoBases.activo, true))
+      console.log('[GEOCERCAS] Radio actualizado a 1km en todas las geocercas')
+    }
+  } catch (e: any) {
+    console.error('[GEOCERCAS] Error:', e.message)
+  }
+}, 5000)
+
+═══════════════════════════════════════════════
+RESULTADO ESPERADO
+═══════════════════════════════════════════════
+
+En el dashboard HOY:
+  KPIs arriba
+  ↓
+  FLOTA EN VIVO [mini mapa oscuro 280px]
+    - Puntos verdes/amarillos/rojos = camiones
+    - Círculos punteados = geocercas activas
+    - Solo aparecen geocercas con camiones dentro
+    - Botón "VER MAPA COMPLETO →" navega al GEO
+  ↓
+  Alertas y resto del dashboard
+
+En el mapa:
+  Fondo oscuro (CartoDB dark)
+  Camiones como puntos pequeños de color
+  Geocercas activas con círculo punteado
+    + pulso en el centro
+  Click en geocerca = popup con nombre y camiones
+
+═══════════════════════════════════════════════
+REGLAS
+═══════════════════════════════════════════════
+
+- No tocar nada del hoy.tsx existente
+  solo AGREGAR el bloque del mapa
+- El mini mapa NO tiene controles de zoom
+  ni arrastre — es solo visualización
+- Si Leaflet ya está cargado en otra página
+  no volver a cargarlo (verificar window.L)
+- Si no hay camiones con GPS: mostrar
+  mensaje "Sin datos GPS en este momento"
+- Radio de geocercas: siempre 1km (1000m)
+- TypeScript estricto
+- Logs con prefijo [GEOCERCAS]
+
+ORDEN:
+1. Endpoints en geo-routes.ts
+2. Componente MiniMapaVivo en hoy.tsx
+3. Bloque FLOTA EN VIVO en el return
+4. Botón MAPA en el header
+5. Lógica de importación en index.ts
+
+Muéstrame geo-routes.ts primero.
+Luego confirmo para el frontend.

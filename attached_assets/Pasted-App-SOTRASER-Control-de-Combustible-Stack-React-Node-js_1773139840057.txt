@@ -1,0 +1,322 @@
+App: SOTRASER Control de Combustible
+Stack: React + Node.js + PostgreSQL + Leaflet.js
+
+CAMBIOS DE ESTRUCTURA:
+1. Mover pestaña CAMIONES dentro de VOLVO como tab interno
+2. Agregar pestaña TMS al lado de DASHBOARD
+
+Nueva estructura de pestañas:
+DASHBOARD · TMS · VOLVO · DATOS · IA · CONFIGURACIÓN
+
+VOLVO ahora tiene tabs internos:
+[TELEMETRÍA] [CAMIONES]
+
+═══════════════════════════════════════════════════
+BASE DE DATOS — tablas nuevas TMS
+═══════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS viajes (
+  id SERIAL PRIMARY KEY,
+  codigo VARCHAR(20) UNIQUE NOT NULL,
+  camion_id INTEGER REFERENCES camiones(id),
+  conductor VARCHAR(100) NOT NULL,
+  cliente VARCHAR(100),
+  origen_nombre VARCHAR(200),
+  origen_lat NUMERIC(10,7),
+  origen_lng NUMERIC(10,7),
+  fecha_salida TIMESTAMP,
+  fecha_llegada_estimada TIMESTAMP,
+  fecha_cierre TIMESTAMP,
+  estado VARCHAR(20) DEFAULT 'PROGRAMADO',
+  -- PROGRAMADO · EN_RUTA · COMPLETADO · CANCELADO
+  km_inicio NUMERIC(10,1),
+  km_cierre NUMERIC(10,1),
+  km_recorridos NUMERIC(10,1),
+  litros_cargados NUMERIC(8,2),
+  litros_ecu NUMERIC(8,2),
+  diferencia_litros NUMERIC(8,2),
+  carga_descripcion TEXT,
+  notas TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS viaje_paradas (
+  id SERIAL PRIMARY KEY,
+  viaje_id INTEGER REFERENCES viajes(id),
+  orden INTEGER NOT NULL,
+  nombre VARCHAR(200) NOT NULL,
+  direccion VARCHAR(300),
+  lat NUMERIC(10,7),
+  lng NUMERIC(10,7),
+  tipo VARCHAR(20) DEFAULT 'ENTREGA',
+  -- ENTREGA · CARGA · DESCANSO · COMBUSTIBLE
+  estado VARCHAR(20) DEFAULT 'PENDIENTE',
+  -- PENDIENTE · EN_CAMINO · LLEGADO · COMPLETADO
+  hora_estimada TIMESTAMP,
+  hora_real TIMESTAMP,
+  notas TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_viajes_estado 
+  ON viajes(estado);
+CREATE INDEX IF NOT EXISTS idx_viajes_camion 
+  ON viajes(camion_id);
+CREATE INDEX IF NOT EXISTS idx_paradas_viaje 
+  ON viaje_paradas(viaje_id, orden);
+
+═══════════════════════════════════════════════════
+ENDPOINTS TMS
+═══════════════════════════════════════════════════
+
+GET  /api/tms/viajes
+     Query params: estado, fecha_desde, fecha_hasta
+     Devuelve viajes con sus paradas y datos Volvo
+     actuales del camión (GPS, km, velocidad)
+
+GET  /api/tms/viajes/:id
+     Viaje completo con paradas, historial GPS
+     del camión desde Volvo y cargas Sigetra
+
+POST /api/tms/viajes
+     Crear viaje nuevo con paradas
+
+PUT  /api/tms/viajes/:id
+     Actualizar viaje (estado, datos cierre)
+
+PUT  /api/tms/viajes/:id/parada/:parada_id
+     Actualizar estado de una parada
+
+POST /api/tms/viajes/:id/cerrar
+     Cierre de viaje:
+     1. Calcular km recorridos (km_cierre - km_inicio)
+     2. Buscar cargas Sigetra del camión en el período
+     3. Calcular litros ECU del período en volvo_ecu
+     4. Calcular diferencia (cuadratura del viaje)
+     5. Marcar estado COMPLETADO con fecha_cierre
+
+GET  /api/tms/viajes/:id/posicion
+     Posición GPS actual del camión desde volvo_ecu
+     más reciente + progreso hacia siguiente parada
+
+═══════════════════════════════════════════════════
+PESTAÑA TMS — diseño completo
+═══════════════════════════════════════════════════
+
+Mismo diseño oscuro que el resto de la app.
+Responsive: funciona en móvil para conductores.
+
+HEADER DE LA PESTAÑA:
+Título "TMS · GESTIÓN DE VIAJES"
+Subtítulo: "X viajes activos · X completados hoy"
+Botón destacado "+ NUEVO VIAJE" azul a la derecha
+
+LAYOUT PRINCIPAL — dos columnas en desktop,
+una columna en móvil:
+
+━━━━━━━━━━━━━━━━━━━━━━
+COLUMNA IZQUIERDA — Lista de viajes
+━━━━━━━━━━━━━━━━━━━━━━
+
+Filtros arriba:
+[EN RUTA] [PROGRAMADO] [COMPLETADO] [TODOS]
++ buscador por código, conductor o patente
+
+TARJETA por cada viaje:
+┌────────────────────────────────────────┐
+│ #VJ-001  ● EN RUTA          [Ver mapa] │
+│ DKPW78 · JUAN PÉREZ                    │
+│ Santiago → Antofagasta                 │
+│ ████████████░░░░ 65% · 3 de 5 paradas │
+│ Próxima: Planta Norte · est. 14:30     │
+│ KM: 342 recorridos · 187 restantes     │
+└────────────────────────────────────────┘
+
+Color del borde izquierdo según estado:
+- Azul = PROGRAMADO
+- Verde = EN RUTA
+- Gris = COMPLETADO
+- Rojo = CANCELADO
+
+Al hacer clic expande el detalle del viaje
+con todas las paradas y botones de acción.
+
+━━━━━━━━━━━━━━━━━━━━━━
+COLUMNA DERECHA — Mapa en tiempo real
+━━━━━━━━━━━━━━━━━━━━━━
+
+Mapa Leaflet fullheight con OpenStreetMap.
+
+Mostrar para cada viaje EN RUTA:
+- Posición actual del camión (ícono camión animado)
+- Línea de ruta entre paradas (azul)
+- Marcadores de paradas:
+  ✅ Verde = COMPLETADA
+  🔵 Azul = EN CAMINO (próxima)
+  ⚪ Gris = PENDIENTE
+- Info popup al hacer clic en camión:
+  Patente · Conductor · Velocidad · Última sync
+
+Al seleccionar un viaje en la lista izquierda
+el mapa hace zoom a ese viaje específico.
+
+Botón toggle [TODOS LOS VIAJES] [VIAJE SELECCIONADO]
+
+━━━━━━━━━━━━━━━━━━━━━━
+MODAL CREAR VIAJE — responsive móvil
+━━━━━━━━━━━━━━━━━━━━━━
+
+Paso 1 de 3 — Datos del viaje:
+- Código: auto-generado VJ-YYYYMMDD-XXX (editable)
+- Camión: dropdown buscable por patente
+  (al seleccionar auto-completa conductor si está en BD)
+- Conductor: texto (pre-llenado o editable)
+- Cliente/Faena: dropdown de faenas existentes
+- Descripción de carga: texto libre
+- Fecha y hora de salida: datetime picker
+- Km inicio: número (pre-llenado con km actual 
+  de Volvo si está disponible)
+- Notas: texto libre
+
+Paso 2 de 3 — Origen y paradas:
+- Origen: input con búsqueda de dirección
+  + pin en mini mapa para confirmar coordenadas
+- Botón "+ Agregar parada"
+  Por cada parada:
+  · Nombre/descripción
+  · Dirección con búsqueda
+  · Tipo: ENTREGA / CARGA / DESCANSO / COMBUSTIBLE
+  · Hora estimada
+  · Notas
+  Las paradas se pueden reordenar con drag
+  y eliminar con botón X
+
+Paso 3 de 3 — Confirmación:
+Resumen visual del viaje:
+- Ruta en mini mapa con todos los puntos
+- Lista de paradas en orden
+- Datos del camión y conductor
+- Botón "CREAR Y ACTIVAR VIAJE" azul grande
+- Botón "Guardar como PROGRAMADO" gris
+
+━━━━━━━━━━━━━━━━━━━━━━
+DETALLE DE VIAJE — panel expandible
+━━━━━━━━━━━━━━━━━━━━━━
+
+Al hacer clic en una tarjeta de viaje mostrar:
+
+SECCIÓN PARADAS:
+Lista vertical con línea conectora:
+  🟢 ✅ SANTIAGO ORIGEN — Salida 08:00 real
+  │
+  🔵 → PLANTA NORTE — Est. 14:30 · En camino
+  │     "Entregar 20 pallets sector B"
+  │
+  ⚪    LA SERENA — Est. 18:00 · Pendiente
+  │
+  ⚪    ANTOFAGASTA DESTINO — Est. 22:00
+
+Botones por parada (si viaje EN RUTA):
+[MARCAR LLEGADA] [MARCAR COMPLETADA]
+
+SECCIÓN DATOS VOLVO EN VIVO:
+Actualización automática cada 2 minutos:
+- Velocidad actual
+- Km recorridos en este viaje
+- Km restantes estimados
+- Horas motor en este viaje
+- % ralentí acumulado
+- Última posición GPS
+
+SECCIÓN CARGAS SIGETRA (durante el viaje):
+Cargas registradas del camión desde inicio del viaje:
+Fecha · Surtidor · Litros · Estado
+
+Botón grande al final:
+[🔒 CERRAR VIAJE] — solo si estado EN RUTA
+
+━━━━━━━━━━━━━━━━━━━━━━
+MODAL CIERRE DE VIAJE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Al presionar CERRAR VIAJE:
+
+CUADRATURA AUTOMÁTICA DEL VIAJE:
+El sistema calcula y muestra:
+
+┌────────────────────────────────────┐
+│ RESUMEN DEL VIAJE                  │
+│                                    │
+│ KM RECORRIDOS                      │
+│ Inicio: 125.430 km                 │
+│ Cierre: 125.842 km                 │
+│ Total:  412 km                     │
+│                                    │
+│ COMBUSTIBLE                        │
+│ Cargado (Sigetra): 180 L           │
+│ Consumido (ECU):   165 L           │
+│ Diferencia:        +15 L  ✅ OK    │
+│                                    │
+│ RENDIMIENTO REAL                   │
+│ 412 km / 165 L = 2.49 km/L        │
+│ vs P50 flota: +2.8% ↑              │
+│                                    │
+│ DURACIÓN: 14h 32min                │
+│ PARADAS: 3 de 3 completadas        │
+└────────────────────────────────────┘
+
+Campos editables para correcciones manuales:
+- Km cierre real (si odómetro difiere)
+- Litros cargados total (si Sigetra no los capturó)
+- Notas de cierre
+
+Botón "CONFIRMAR CIERRE" verde grande
+Botón "Cancelar" gris
+
+Al confirmar:
+1. Guardar todos los datos en viajes
+2. Marcar todas las paradas como COMPLETADAS
+3. Mostrar tarjeta de resumen en la lista
+   con badge COMPLETADO verde
+
+━━━━━━━━━━━━━━━━━━━━━━
+VISTA MÓVIL — para conductores
+━━━━━━━━━━━━━━━━━━━━━━
+
+En pantallas < 768px mostrar:
+
+Solo el viaje ACTIVO del día (EN RUTA):
+- Próxima parada grande y clara
+- Botón grande "MARCAR LLEGADA"
+- Botón grande "MARCAR ENTREGA COMPLETA"
+- Lista de paradas restantes
+- Datos básicos: km · velocidad · hora
+
+Sin mapa en móvil para no sobrecargar.
+Botón "Ver en mapa" abre Google Maps nativo
+con las coordenadas de la próxima parada.
+
+═══════════════════════════════════════════════════
+VOLVO — agregar tab CAMIONES interno
+═══════════════════════════════════════════════════
+
+La pestaña VOLVO ahora tiene dos tabs internos:
+[TELEMETRÍA] [CAMIONES]
+
+TELEMETRÍA = todo el contenido actual de VOLVO
+sin cambios.
+
+CAMIONES = todo el contenido actual de la 
+pestaña CAMIONES sin cambios.
+
+Eliminar CAMIONES de la barra de pestañas principal.
+
+═══════════════════════════════════════════════════
+NO TOCAR
+═══════════════════════════════════════════════════
+- Dashboard y todas las demás pestañas
+- Toda la lógica de cálculo existente
+- Conexiones Volvo rFMS y Sigetra
+- Base de datos existente
+- Diseño visual y colores actuales
+- Todo lo que ya está funcionando

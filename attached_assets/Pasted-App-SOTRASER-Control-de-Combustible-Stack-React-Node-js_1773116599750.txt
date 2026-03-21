@@ -1,0 +1,326 @@
+App: SOTRASER Control de Combustible
+Stack: React + Node.js + PostgreSQL
+Objetivo: dejar la app lista para primer demo profesional.
+
+═══════════════════════════════════════════════════
+BLOQUE 1 — REORGANIZAR PESTAÑAS
+═══════════════════════════════════════════════════
+
+Nueva estructura de pestañas (en este orden exacto):
+
+DASHBOARD · CAMIONES · VOLVO · DATOS · IA · CONFIGURACIÓN
+
+Donde cada pestaña agrupa lo siguiente:
+
+DASHBOARD → igual que ahora, sin cambios de contenido
+
+CAMIONES → igual que ahora, sin cambios de contenido
+
+VOLVO → igual que ahora, sin cambios de contenido
+
+DATOS → agrupa estas 3 pestañas actuales con 
+tabs internos:
+  [SIGETRA-VOLVO] [DESVIACIONES] [CALIDAD DE DATOS]
+  
+IA → agrupa estas pestañas actuales con tabs internos:
+  [SOTRA IA] [INTELIGENCIA] [RANKING CONDUCTORES] [TARIFAS]
+
+CONFIGURACIÓN → igual que ahora + agregar 
+tab interno [PARÁMETROS] con los umbrales del sistema
+
+Las tabs internas usan el mismo estilo visual actual
+pero más pequeñas, con línea azul bajo la activa.
+
+═══════════════════════════════════════════════════
+BLOQUE 2 — DASHBOARD: limpiar para el demo
+═══════════════════════════════════════════════════
+
+Eliminar "Minera Test Faena" de los filtros de faena.
+Cargar faenas dinámicamente desde BD.
+Mostrar solo faenas con camiones reales asignados.
+Si no hay faenas reales mostrar solo "Todas las faenas".
+
+En la tabla de camiones:
+- Camiones con confianza BAJA y 0L en surtidor 
+  y conductor "Sin conductor": 
+  Ocultarlos por defecto del dashboard principal.
+  Agregar botón toggle al final de la tabla:
+  "Mostrar camiones sin datos (X)" en gris pequeño.
+  Esto limpia la vista para el demo sin borrar datos.
+
+- Columna CONDUCTOR: si no tiene conductor asignado
+  mostrar "—" en gris en lugar de "Sin conductor"
+  
+- Columna TURNO: si no hay datos de hora
+  mostrar "—" en gris en lugar de "NOCHE"
+
+- Ordenar tabla por prioridad:
+  Primero CRÍTICOS → luego ALERTAS → luego OK con datos
+  → al final los sin datos (ocultos por defecto)
+
+Confianza BAJA con 0 datos reales:
+Cambiar badge de naranja a gris suave.
+La confianza BAJA en naranja genera alarma visual 
+innecesaria cuando el camión simplemente no tiene 
+datos aún.
+
+═══════════════════════════════════════════════════
+BLOQUE 3 — MODAL BIENVENIDA — instructivo del equipo
+═══════════════════════════════════════════════════
+
+Al cargar la app por primera vez en el día
+(o cuando el usuario presiona "?" en el header)
+mostrar modal de bienvenida fullscreen oscuro.
+
+El modal solo aparece una vez por sesión.
+Agregar botón "?" pequeño en el header junto a ACTIVO
+que permite volver a abrirlo cuando quieran.
+
+Contenido del modal:
+
+─── PÁGINA 1 de 4 ───
+Título grande: "SOTRASER"
+Subtítulo: "Control Operacional de Flota"
+Ícono ⛽ con glow azul
+
+Texto:
+"Sistema de control de combustible, rendimiento 
+y detección de anomalías en tiempo real.
+177 camiones · Volvo rFMS conectado · Sigetra activo
+Datos desde 01-03-2026"
+
+Botón: "Ver capacidades →"
+
+─── PÁGINA 2 de 4 ───
+Título: "🔍 QUÉ PUEDES CONTROLAR"
+
+4 bloques en grid 2x2:
+┌─────────────────┬─────────────────┐
+│ 🛡 ANTI-ROBO    │ 📊 RENDIMIENTO  │
+│ Cruce automático│ km/L real por   │
+│ Sigetra vs ECU  │ camión y faena  │
+│ Alertas en      │ Ranking de      │
+│ tiempo real     │ conductores     │
+├─────────────────┼─────────────────┤
+│ 🗺 RUTAS        │ 🤖 IA           │
+│ Puntos de carga │ Análisis        │
+│ y entrega       │ automático y    │
+│ Tarifas por     │ consultas en    │
+│ ruta            │ lenguaje natural│
+└─────────────────┴─────────────────┘
+
+Botón: "← Anterior · Siguiente →"
+
+─── PÁGINA 3 de 4 ───
+Título: "📍 CÓMO NAVEGAR"
+
+Lista visual de la nueva estructura:
+DASHBOARD   → Vista general de la flota
+CAMIONES    → Detalle por camión con ficha completa  
+VOLVO       → Telemetría en tiempo real + mapa
+DATOS       → Cruces Sigetra-Volvo y desviaciones
+IA          → Análisis inteligente + ranking + tarifas
+CONFIGURACIÓN → Parámetros del sistema
+
+Cada ítem con ícono y descripción de una línea.
+
+─── PÁGINA 4 de 4 ───
+Título: "🤖 CÓMO USAR LA IA"
+
+Explicación simple:
+"ANÁLISIS AUTOMÁTICO"
+Presiona el botón [Análisis] en el header.
+Claude analiza toda la flota y te entrega
+un diagnóstico completo en segundos.
+
+"CONSULTA LIBRE 🔍"
+Presiona el botón [Consultar] y escribe 
+cualquier pregunta sobre tu flota en español.
+Ejemplos:
+· ¿Qué camión tiene peor rendimiento?
+· ¿Hay patrones sospechosos esta semana?
+· ¿Qué faena consume más combustible?
+
+Botón grande: "ENTENDIDO — IR AL DASHBOARD"
+Checkbox pequeño: "No mostrar al inicio de sesión"
+
+Diseño del modal:
+- Fondo #07090F con borde azul sutil
+- Puntos de navegación abajo (● ○ ○ ○)
+- Animación fade entre páginas
+- Botón X para cerrar en cualquier momento
+- Responsive: funciona bien en móvil
+
+═══════════════════════════════════════════════════
+BLOQUE 4 — HEADER: pulir para el demo
+═══════════════════════════════════════════════════
+
+Agregar en el header junto a ACTIVO:
+- Punto verde parpadeante + texto "EN VIVO" verde
+- Botón "?" gris pequeño que abre el modal instructivo
+
+Botón CONSULTAR:
+- Ícono lupa 🔍 más grande y visible
+- Hover: lupa rota 15 grados suavemente
+- Modal consulta: campo de texto con lupa 
+  animada dentro, borde brilla azul al hacer foco
+- Chips de sugerencias con hover glow azul:
+  · "¿Peor rendimiento?"
+  · "¿Patrones sospechosos?"
+  · "¿Faena que más consume?"
+  · "¿Conductores con alertas?"
+  · "¿Cuántos bajo meta?"
+  · "Resumen ejecutivo"
+
+Botón ANÁLISIS:
+- Loader animado al abrir:
+  "Leyendo datos de flota..."  (0.8s)
+  "Analizando 177 camiones..." (0.8s)
+  "Detectando patrones..."     (0.8s)
+  "Generando diagnóstico..."   (0.8s)
+
+═══════════════════════════════════════════════════
+BLOQUE 5 — PANTALLA DE INICIO: impacto en el demo
+═══════════════════════════════════════════════════
+
+Al cargar la app mostrar por 2.5 segundos:
+
+Fondo negro completo:
+- Ícono ⛽ grande con glow azul pulsante
+- "SOTRASER" tipografía grande bold blanco
+- "CONTROL OPERACIONAL DE FLOTA" subtítulo gris
+- Barra de progreso azul de 0 a 100%
+- Textos que rotan con fade:
+  "Conectando Volvo rFMS..."
+  "Sincronizando Sigetra..."
+  "Procesando 177 camiones..."
+  "Sistema listo ✓"
+
+Luego fade suave al dashboard.
+Después de la pantalla de inicio, 
+si es primera sesión del día, abrir modal bienvenida.
+
+═══════════════════════════════════════════════════
+BLOQUE 6 — VOLVO: pequeño ajuste demo
+═══════════════════════════════════════════════════
+
+KPI "OFFLINE 78" cambiar presentación a:
+"PENDIENTE SYNC" con ícono ⚙ gris
+El número en gris, no en rojo.
+
+Agregar barra de progreso:
+"Cobertura telemetría: XX% de la flota"
+Verde si > 70%, amarillo si 50-70%, rojo si < 50%
+
+En cada camión con GPS mostrar coordenadas
+como link que abre Google Maps en nueva pestaña.
+
+Badge según última sync:
+🟢 LIVE = sync < 1 hora
+🔵 RECIENTE = sync < 6 horas  
+⚫ OFFLINE = sync > 6 horas
+
+═══════════════════════════════════════════════════
+BLOQUE 7 — DATOS (ex SIGETRA-VOLVO)
+═══════════════════════════════════════════════════
+
+En tab SIGETRA-VOLVO dentro de DATOS:
+Reemplazar "5% match" por presentación positiva:
+"120 camiones cruzados con datos de ambas fuentes"
+
+Agregar tabla de estado:
+CRUCE COMPLETO (ECU+Sigetra) → verde
+SOLO SIGETRA                 → amarillo
+SOLO VOLVO                   → amarillo  
+SIN DATOS                    → gris
+
+Nota: "A mayor historial acumulado desde 01-03-2026,
+mayor precisión del cruce automático."
+
+En tab CALIDAD DE DATOS (ex ERRORES DE DATOS):
+- Renombrar título interno a "MONITOR DE CALIDAD"
+- KPI nuevo: "CALIDAD GENERAL XX%"
+  = (registros totales - errores) / total * 100
+  Verde > 85%, amarillo 70-85%, rojo < 70%
+- Botón "📥 Exportar CSV"
+- Mostrar patente + fecha en cada registro
+
+═══════════════════════════════════════════════════
+BLOQUE 8 — IA: agregar TARIFAS como tab interno
+═══════════════════════════════════════════════════
+
+Dentro de la pestaña IA agregar tab [TARIFAS]
+con estas dos sub-secciones:
+
+[PUNTOS CONFIRMADOS] [TARIFAS POR RUTA]
+
+PUNTOS CONFIRMADOS:
+Muestra puntos de puntos_ruta donde confirmado=true
+Tabla: TIPO · NOMBRE · COORDENADAS · ACCIONES
+Botón "✏ Editar nombre"
+Filtro: TODOS / CARGA / ENTREGA / COMBUSTIBLE
+
+TARIFAS POR RUTA:
+Tabla de tarifas activas:
+RUTA · ORIGEN · DESTINO · KM · LITROS PROM · 
+TARIFA CLP · TARIFA USD · ACCIONES
+
+Formulario crear tarifa:
+- Nombre ruta (texto libre)
+- Origen: dropdown puntos confirmados tipo CARGA
+- Destino: dropdown puntos confirmados tipo ENTREGA
+- Distancia km (editable)
+- Litros promedio (editable)
+- Tiempo horas (editable)
+- Tarifa CLP (campo principal)
+- Tarifa USD (opcional)
+- Notas (texto libre)
+
+Crear tablas si no existen:
+CREATE TABLE IF NOT EXISTS puntos_ruta (
+  id SERIAL PRIMARY KEY,
+  camion_id INTEGER REFERENCES camiones(id),
+  lat NUMERIC(10,7),
+  lng NUMERIC(10,7),
+  tipo VARCHAR(20),
+  nombre_inferido VARCHAR(200),
+  duracion_min INTEGER,
+  fecha TIMESTAMP,
+  confirmado BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tarifas_ruta (
+  id SERIAL PRIMARY KEY,
+  nombre_ruta VARCHAR(200) NOT NULL,
+  punto_origen_id INTEGER REFERENCES puntos_ruta(id),
+  punto_destino_id INTEGER REFERENCES puntos_ruta(id),
+  origen_nombre VARCHAR(200),
+  destino_nombre VARCHAR(200),
+  distancia_km NUMERIC(8,1),
+  litros_promedio NUMERIC(8,2),
+  tiempo_horas NUMERIC(5,2),
+  tarifa_clp NUMERIC(12,0),
+  tarifa_usd NUMERIC(10,2),
+  notas TEXT,
+  activa BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+Endpoints necesarios:
+GET  /api/tarifas/puntos-confirmados
+GET  /api/tarifas
+POST /api/tarifas
+PUT  /api/tarifas/:id
+DELETE /api/tarifas/:id
+
+═══════════════════════════════════════════════════
+NO TOCAR — mantener exactamente:
+═══════════════════════════════════════════════════
+- Toda la lógica de cálculo existente
+- Conexiones Volvo rFMS y Sigetra
+- Colores y tipografías del diseño actual
+- Funcionalidad de todas las pestañas
+- Base de datos existente (solo agregar tablas nuevas)
+- Botones Análisis y Consultar del header
+- Todo lo que ya está funcionando

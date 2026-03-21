@@ -1,0 +1,227 @@
+Rediseño completo de SOTRASER.
+Foco exclusivo: Volvo Connect GPS.
+El sistema lee y aprende conductas de camiones.
+Tienes permiso para modificar o eliminar lo que 
+sea necesario para lograr esto bien.
+
+FILOSOFÍA DEL NUEVO SISTEMA:
+- Todo viene de Volvo Connect (GPS + ECU)
+- Separado por contrato
+- El sistema aprende rutas y rendimientos
+- Simple, limpio, operacional
+- Mantener GeoValidator y Aprendizaje intactos
+
+═══════════════════════════════════════
+PASO 1 — LIMPIAR PRIMERO
+═══════════════════════════════════════
+
+Eliminar o desactivar completamente:
+- Todo lo relacionado a Sigetra en el frontend
+- El módulo CRUCE CAMIONES
+- Referencias a litros_surtidor en vistas
+- Cualquier número que dependa de Sigetra
+- Pestañas vacías o con datos incorrectos
+
+Mantener intacto:
+- GeoValidator completo (pestaña MAPA)
+- Página Aprendizaje completa
+- Chat SOTRA IA
+- server/sigetra-api.ts (backend, no tocar)
+- server/volvo-api.ts (backend, no tocar)
+- Toda la base de datos
+
+═══════════════════════════════════════
+PASO 2 — NUEVA NAVEGACIÓN
+═══════════════════════════════════════
+
+5 pestañas en App.tsx:
+
+  CEREBRO     → dashboard principal
+  CONTRATOS   → por contrato Volvo
+  MAPA        → GeoValidator existente
+  APRENDIZAJE → página aprendizaje existente
+  ASISTENTE   → chat SOTRA IA
+
+═══════════════════════════════════════
+PASO 3 — CEREBRO (dashboard principal)
+Crear client/src/pages/cerebro.tsx
+═══════════════════════════════════════
+
+Toda la data viene de Volvo Connect.
+
+BLOQUE 1 — SEMÁFORO
+  VERDE:    todos los camiones dentro de parámetros
+  AMARILLO: 1-3 camiones con anomalías
+  ROJO:     más de 3 anomalías
+
+  Métricas junto al semáforo:
+  [Camiones activos] [km hoy] [rendimiento] [alertas]
+
+BLOQUE 2 — TARJETAS POR CONTRATO
+  Una tarjeta por contrato:
+  
+  CENCOSUD · RETAIL
+  12/23 camiones activos
+  3.3 km/L promedio ECU
+  142,330 km recorridos hoy
+  1 alerta activa
+  [VER →]
+
+  Contratos: CENCOSUD, ANGLO-COCU, 
+             ANGLO-CAL, ANGLO-CARGAS VARIAS
+
+BLOQUE 3 — ALERTAS VOLVO
+  Máximo 5 camiones que requieren atención:
+  
+  Criterios (solo datos Volvo):
+  · Rendimiento < 70% de meta km/L del contrato
+  · Sin GPS hace más de 2 horas
+  · Velocidad > 120 km/h registrada hoy
+  · Ralentí > 30% del tiempo activo
+
+  Por cada alerta mostrar:
+  · Patente, contrato, tipo de alerta
+  · Dato concreto que la dispara
+  · Última posición conocida
+  · Botón INVESTIGAR
+
+BLOQUE 4 — DIAGNÓSTICO IA
+  Llamar /api/ia/resumen-dashboard
+  Mostrar 2 oraciones del estado
+  Botón ANÁLISIS COMPLETO
+
+═══════════════════════════════════════
+PASO 4 — CONTRATOS
+Crear client/src/pages/contratos.tsx
+═══════════════════════════════════════
+
+Tabs: TODOS | CENCOSUD | ANGLO-COCU | 
+      ANGLO-CAL | ANGLO-CARGAS VARIAS
+
+Por contrato seleccionado:
+
+KPIs VOLVO (fila de 5):
+  Camiones activos | Km hoy | Rendimiento 
+  Horas activo | Alertas
+
+TABLA DE CAMIONES:
+  Patente | Estado | Km hoy | Rend km/L 
+  Vel actual | Última posición | Hace cuánto
+
+  Estado desde Volvo:
+  🟢 EN RUTA    → GPS activo, vel > 5 km/h
+  🟡 DETENIDO   → vel 0, menos de 2h
+  🔴 SIN SEÑAL  → sin GPS hace más de 2h
+  ⚫ INACTIVO   → sin datos hoy
+
+  Click en camión → panel con:
+  · Rendimiento últimas 2 semanas (gráfico)
+  · Variables Volvo: odómetro, horas motor, ralentí
+  · Viajes del día
+
+RUTAS FRECUENTES (si hay datos):
+  Ruta | Viajes | Rend prom
+  Desde viajes_aprendizaje
+
+═══════════════════════════════════════
+PASO 5 — MAPA Y APRENDIZAJE
+═══════════════════════════════════════
+
+MAPA → importar GeoValidator sin cambiar nada
+APRENDIZAJE → importar página aprendizaje sin cambiar nada
+
+Solo cambiar dónde aparecen en la navegación.
+
+═══════════════════════════════════════
+PASO 6 — ASISTENTE IA
+═══════════════════════════════════════
+
+Mantener chat existente.
+
+Actualizar preguntas sugeridas:
+  "¿Qué contrato tiene mejor rendimiento hoy?"
+  "¿Hay camiones sin GPS ahora?"
+  "¿Cuál es el camión más eficiente esta semana?"
+  "¿Algún camión supera 120 km/h regularmente?"
+  "Resumen operacional del día"
+  "¿Qué ruta consume más combustible ECU?"
+
+Actualizar system prompt en ia-routes.ts
+getFusionContext() para incluir por contrato:
+  - camiones activos vs total
+  - rendimiento promedio ECU
+  - km del período
+  - camiones bajo meta
+  - alertas activas
+
+═══════════════════════════════════════
+PASO 7 — BACKEND NUEVO
+server/cerebro-routes.ts
+═══════════════════════════════════════
+
+GET /api/cerebro/estado-general
+  Desde volvo_fuel_snapshots + geo_puntos + camiones:
+  - camiones_activos (GPS en últimas 2h)
+  - km_hoy (suma desde 00:00)
+  - rendimiento_promedio (km/L ECU)
+  - alertas_criticas (bajo 70% meta)
+  - sin_gps (sin señal +2h)
+  - semaforo: NORMAL | ATENCION | ALERTA
+  - por_contrato: métricas por faena
+
+GET /api/cerebro/camiones-alerta
+  Hasta 10 camiones con:
+  - rendimiento < 70% meta
+  - sin GPS +2h
+  - velocidad max > 120 km/h hoy
+  Ordenados por severidad
+
+GET /api/cerebro/contrato/:nombre
+  Métricas completas del contrato:
+  - camiones con estado individual
+  - kpis: km, rendimiento, horas, alertas
+  - tendencia vs ayer
+  - rutas frecuentes desde viajes_aprendizaje
+
+Registrar en routes.ts al final:
+  import { registerCerebroRoutes } from "./cerebro-routes"
+  registerCerebroRoutes(app)
+
+═══════════════════════════════════════
+DISEÑO VISUAL — MANTENER IGUAL
+═══════════════════════════════════════
+
+Fondo: #020508
+Bordes: #0d2035
+Texto: #c8e8ff
+Cyan: #00d4ff
+Verde: #00ff88
+Amarillo: #ffcc00
+Rojo: #ff2244
+Fuentes: font-space + font-rajdhani
+Rectangular sin border-radius
+
+Colores por contrato:
+CENCOSUD:            #00d4ff
+ANGLO-COCU:          #00ff88
+ANGLO-CAL:           #ffcc00
+ANGLO-CARGAS VARIAS: #ff6b35
+
+═══════════════════════════════════════
+ORDEN DE EJECUCIÓN
+═══════════════════════════════════════
+
+1. Limpiar App.tsx y eliminar lo obsoleto
+2. Crear server/cerebro-routes.ts
+3. Crear client/src/pages/cerebro.tsx
+4. Crear client/src/pages/contratos.tsx
+5. Actualizar App.tsx con nueva navegación
+6. Actualizar preguntas y contexto IA
+
+Ejecuta cada paso completo.
+No pidas confirmación entre pasos — 
+ejecuta todo en orden y muéstrame 
+el resultado final funcionando.
+
+Al terminar dime qué archivos 
+creaste, modificaste y eliminaste.

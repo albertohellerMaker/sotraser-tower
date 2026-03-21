@@ -1,0 +1,364 @@
+Hacer los scores más exigentes y adaptativos.
+Mismo principio que parámetros_adaptativos
+pero para los 4 scores de conducción.
+
+═══════════════════════════════════════════════
+TABLA NUEVA — parametros_score_conduccion
+shared/schema.ts — AGREGAR
+═══════════════════════════════════════════════
+
+CREATE TABLE parametros_score_conduccion (
+  id serial PK,
+  
+  scope_tipo text NOT NULL,
+  -- 'FLOTA' | 'CONTRATO' | 'CORREDOR'
+  scope_id text NOT NULL,
+  -- 'global' | 'CENCOSUD' | corredor_id
+  
+  parametro text NOT NULL,
+  -- 'ANT' | 'VEL' | 'MOT' | 'CMB'
+  
+  -- Percentiles reales de la flota
+  p25 real,   -- zona roja si score < p25
+  p50 real,   -- zona amarilla p25-p50
+  p75 real,   -- zona verde p50-p75
+  p90 real,   -- zona excelente > p90
+  
+  -- Umbrales de penalización
+  umbral_critico real,
+  umbral_malo real,
+  umbral_aceptable real,
+  umbral_bueno real,
+  
+  -- Estadísticas de la flota
+  promedio_flota real,
+  desviacion_flota real,
+  
+  -- Confianza
+  total_muestras integer DEFAULT 0,
+  confianza text DEFAULT 'BAJA',
+  
+  ultima_actualizacion timestamp DEFAULT now(),
+  
+  UNIQUE(scope_tipo, scope_id, parametro)
+)
+
+═══════════════════════════════════════════════
+UMBRALES ESTÁTICOS EXIGENTES (fallback)
+Reemplazar los actuales
+═══════════════════════════════════════════════
+
+En el código donde se calculan los scores,
+reemplazar los umbrales actuales por estos:
+
+const UMBRALES_EXIGENTES = {
+  
+  ANT: {
+    // Eventos de desaceleración brusca por 100km
+    // Cuanto MENOS eventos, MEJOR el score
+    excelente:  { max_eventos_100km: 1,  score: 95 },
+    bueno:      { max_eventos_100km: 3,  score: 80 },
+    aceptable:  { max_eventos_100km: 6,  score: 65 },
+    malo:       { max_eventos_100km: 10, score: 45 },
+    critico:    { max_eventos_100km: 999, score: 20 },
+    // Sin datos de eventos → usar harshBraking de Volvo
+    // o calcular desde aceleración negativa del GPS
+  },
+  
+  VEL: {
+    // % del tiempo de viaje sobre límite
+    // (no excesos puntuales sino exposición total)
+    excelente:  { max_pct_exceso: 0,   score: 100 },
+    bueno:      { max_pct_exceso: 1,   score: 82 },
+    aceptable:  { max_pct_exceso: 3,   score: 65 },
+    malo:       { max_pct_exceso: 8,   score: 40 },
+    critico:    { max_pct_exceso: 999, score: 15 },
+    // Velocidad absoluta máxima permitida: 110 km/h
+    // (no 120 — más exigente)
+    vel_maxima_absoluta: 110,
+    penalizacion_sobre_maxima: 25, // pts por evento
+  },
+  
+  MOT: {
+    // % tiempo en ralentí sobre tiempo total activo
+    excelente:  { max_ralenti_pct: 12, score: 95 },
+    bueno:      { max_ralenti_pct: 20, score: 78 },
+    aceptable:  { max_ralenti_pct: 28, score: 60 },
+    malo:       { max_ralenti_pct: 38, score: 40 },
+    critico:    { max_ralenti_pct: 999, score: 20 },
+  },
+  
+  CMB: {
+    // % sobre/bajo la meta del corredor
+    // Más exigente: requiere estar SOBRE meta para verde
+    excelente:  { min_pct_sobre_meta:  10, score: 100 },
+    bueno:      { min_pct_sobre_meta:   0, score: 82 },
+    aceptable:  { min_pct_sobre_meta: -10, score: 62 },
+    malo:       { min_pct_sobre_meta: -20, score: 40 },
+    critico:    { min_pct_sobre_meta: -999, score: 15 },
+    // Penalización adicional por tendencia negativa
+    penalizacion_tendencia_bajando: 8, // pts
+  }
+}
+
+═══════════════════════════════════════════════
+FUNCIÓN — calcularScoreAdaptativo(patente, param)
+server/aprendizaje-engine.ts — AGREGAR
+═══════════════════════════════════════════════
+
+async function calcularScoreAdaptativo(
+  patente: string,
+  contrato: string,
+  param: 'ANT' | 'VEL' | 'MOT' | 'CMB',
+  valorRaw: number
+): Promise<{
+  score: number
+  fuente: 'ADAPTATIVO' | 'ESTATICO'
+  confianza: string
+  contexto: string
+}> {
+  
+  // 1. Buscar parámetros adaptativos del contrato
+  const params = await db.select()
+    .from(parametrosScoreConduccion)
+    .where(
+      and(
+        eq(parametrosScoreConduccion.scopeTipo, 'CONTRATO'),
+        eq(parametrosScoreConduccion.scopeId, contrato),
+        eq(parametrosScoreConduccion.parametro, param)
+      )
+    )
+    .limit(1)
+  
+  if (params.length > 0 && params[0].totalMuestras >= 20) {
+    const p = params[0]
+    
+    // Score basado en percentil real de la flota
+    // Posición relativa vs la flota del mismo contrato
+    let score: number
+    
+    if (param === 'ANT' || param === 'VEL' || param === 'MOT') {
+      // Para estos: menor valor = mejor score
+      if (valorRaw <= p.p25!)     score = 90 + ((p.p25! - valorRaw) / p.p25!) * 10
+      else if (valorRaw <= p.p50!) score = 70 + ((p.p50! - valorRaw) / (p.p50! - p.p25!)) * 20
+      else if (valorRaw <= p.p75!) score = 50 + ((p.p75! - valorRaw) / (p.p75! - p.p50!)) * 20
+      else                          score = Math.max(15, 50 - ((valorRaw - p.p75!) / p.p75!) * 35)
+    } else {
+      // CMB: mayor valor = mejor score
+      if (valorRaw >= p.p75!)     score = 85 + ((valorRaw - p.p75!) / p.p75!) * 15
+      else if (valorRaw >= p.p50!) score = 65 + ((valorRaw - p.p50!) / (p.p75! - p.p50!)) * 20
+      else if (valorRaw >= p.p25!) score = 40 + ((valorRaw - p.p25!) / (p.p50! - p.p25!)) * 25
+      else                          score = Math.max(10, 40 - ((p.p25! - valorRaw) / p.p25!) * 30)
+    }
+    
+    score = Math.round(Math.min(100, Math.max(0, score)))
+    
+    return {
+      score,
+      fuente: 'ADAPTATIVO',
+      confianza: p.confianza,
+      contexto: `Basado en ${p.totalMuestras} registros del contrato ${contrato}`
+    }
+  }
+  
+  // 2. Fallback a umbrales estáticos exigentes
+  const score = calcularScoreEstatico(param, valorRaw)
+  
+  return {
+    score,
+    fuente: 'ESTATICO',
+    confianza: 'BAJA',
+    contexto: 'Calibrando — usando parámetros conservadores'
+  }
+}
+
+function calcularScoreEstatico(
+  param: 'ANT' | 'VEL' | 'MOT' | 'CMB',
+  valor: number
+): number {
+  const u = UMBRALES_EXIGENTES[param]
+  
+  if (param === 'ANT') {
+    if (valor <= u.excelente.max_eventos_100km)  return u.excelente.score
+    if (valor <= u.bueno.max_eventos_100km)      return u.bueno.score
+    if (valor <= u.aceptable.max_eventos_100km)  return u.aceptable.score
+    if (valor <= u.malo.max_eventos_100km)       return u.malo.score
+    return u.critico.score
+  }
+  
+  if (param === 'VEL') {
+    if (valor <= u.excelente.max_pct_exceso)  return u.excelente.score
+    if (valor <= u.bueno.max_pct_exceso)      return u.bueno.score
+    if (valor <= u.aceptable.max_pct_exceso)  return u.aceptable.score
+    if (valor <= u.malo.max_pct_exceso)       return u.malo.score
+    return u.critico.score
+  }
+  
+  if (param === 'MOT') {
+    if (valor <= u.excelente.max_ralenti_pct)  return u.excelente.score
+    if (valor <= u.bueno.max_ralenti_pct)      return u.bueno.score
+    if (valor <= u.aceptable.max_ralenti_pct)  return u.aceptable.score
+    if (valor <= u.malo.max_ralenti_pct)       return u.malo.score
+    return u.critico.score
+  }
+  
+  if (param === 'CMB') {
+    // valor = % sobre/bajo meta (puede ser negativo)
+    if (valor >= u.excelente.min_pct_sobre_meta)  return u.excelente.score
+    if (valor >= u.bueno.min_pct_sobre_meta)      return u.bueno.score
+    if (valor >= u.aceptable.min_pct_sobre_meta)  return u.aceptable.score
+    if (valor >= u.malo.min_pct_sobre_meta)       return u.malo.score
+    return u.critico.score
+  }
+  
+  return 50
+}
+
+═══════════════════════════════════════════════
+FUNCIÓN — aprenderUmbralesScore()
+Corre en el ciclo profundo cada 30 min
+═══════════════════════════════════════════════
+
+export async function aprenderUmbralesScore() {
+  console.log('[SCORE] Calibrando umbrales adaptativos...')
+  
+  const contratos = await db.select().from(faenas)
+  
+  for (const contrato of contratos) {
+    // Obtener todos los valores históricos
+    // de cada parámetro para este contrato
+    
+    const camionesContrato = await db.select()
+      .from(camiones)
+      .where(eq(camiones.faenaId, contrato.id))
+    
+    if (camionesContrato.length < 3) continue
+    
+    // Para cada parámetro calcular distribución real
+    for (const param of ['ANT', 'VEL', 'MOT', 'CMB'] as const) {
+      
+      // Obtener valores históricos desde snapshots
+      // y viajes_aprendizaje según el parámetro
+      const valores = await getValoresHistoricosParam(
+        camionesContrato.map(c => c.patente),
+        param
+      )
+      
+      if (valores.length < 20) continue
+      
+      const sorted = [...valores].sort((a, b) => a - b)
+      const p25 = sorted[Math.floor(sorted.length * 0.25)]
+      const p50 = sorted[Math.floor(sorted.length * 0.50)]
+      const p75 = sorted[Math.floor(sorted.length * 0.75)]
+      const p90 = sorted[Math.floor(sorted.length * 0.90)]
+      
+      const promedio = valores.reduce((s,v) => s+v, 0) / valores.length
+      const desv = Math.sqrt(
+        valores.reduce((s,v) => s + (v-promedio)**2, 0) / valores.length
+      )
+      
+      const confianza =
+        valores.length >= 200 ? 'EXPERTA' :
+        valores.length >= 50  ? 'ALTA' :
+        valores.length >= 20  ? 'MEDIA' : 'BAJA'
+      
+      await db.execute(sql`
+        INSERT INTO parametros_score_conduccion
+          (scope_tipo, scope_id, parametro,
+           p25, p50, p75, p90,
+           promedio_flota, desviacion_flota,
+           total_muestras, confianza,
+           ultima_actualizacion)
+        VALUES
+          ('CONTRATO', ${contrato.nombre}, ${param},
+           ${p25}, ${p50}, ${p75}, ${p90},
+           ${promedio}, ${desv},
+           ${valores.length}, ${confianza}, now())
+        ON CONFLICT (scope_tipo, scope_id, parametro)
+        DO UPDATE SET
+          p25 = EXCLUDED.p25,
+          p50 = EXCLUDED.p50,
+          p75 = EXCLUDED.p75,
+          p90 = EXCLUDED.p90,
+          promedio_flota = EXCLUDED.promedio_flota,
+          desviacion_flota = EXCLUDED.desviacion_flota,
+          total_muestras = EXCLUDED.total_muestras,
+          confianza = EXCLUDED.confianza,
+          ultima_actualizacion = now()
+      `)
+    }
+  }
+  
+  console.log('[SCORE] Calibración completada')
+}
+
+═══════════════════════════════════════════════
+MOSTRAR CALIBRACIÓN EN EL FRONTEND
+Badge por parámetro que indica la fuente
+═══════════════════════════════════════════════
+
+En la vista expandida de cada camión,
+debajo de cada barra de score agregar:
+
+{scoreInfo.fuente === 'ESTATICO' ? (
+  <span className="font-exo text-[7px]"
+    style={{ color: '#3a6080' }}>
+    ⚙️ Calibrando — parámetros conservadores
+  </span>
+) : (
+  <span className="font-exo text-[7px]"
+    style={{ color: '#00d4ff' }}>
+    📊 {scoreInfo.contexto}
+  </span>
+)}
+
+═══════════════════════════════════════════════
+AGREGAR A JOBS.TS
+═══════════════════════════════════════════════
+
+En CICLO PROFUNDO agregar:
+  await aprenderUmbralesScore()
+
+Con offset de 5 minutos después de
+calcularParametros() para no sobrecargar.
+
+═══════════════════════════════════════════════
+UMBRALES GLOBALES REVISADOS
+Más exigentes que los anteriores
+═══════════════════════════════════════════════
+
+Reemplazar donde dice scoreTotal >= 70 → verde
+por esta escala más exigente:
+
+ÓPTIMO:  >= 85  (antes 70+)
+NORMAL:  >= 72  (antes 60+)
+REVISAR: >= 58  (antes 50+)
+ALERTA:  >= 42  (antes 40+)
+CRÍTICO: <  42  (antes <40)
+
+El badge OBSERVANDO actual desaparece.
+Todos los camiones tienen un estado real.
+
+═══════════════════════════════════════════════
+REGLAS
+═══════════════════════════════════════════════
+
+- Con datos insuficientes usar UMBRALES_EXIGENTES
+  estáticos — nunca mostrar score sin contexto
+- El score adaptativo se activa cuando hay
+  20+ registros del contrato para ese parámetro
+- Siempre mostrar la fuente del score
+  (ADAPTATIVO vs ESTÁTICO)
+- Los percentiles se recalculan cada 30 min
+- Migración: npx drizzle-kit push
+
+ORDEN:
+1. Tabla parametros_score_conduccion en schema
+2. Migración
+3. UMBRALES_EXIGENTES como constantes
+4. calcularScoreAdaptativo() y helpers
+5. aprenderUmbralesScore() en engine
+6. Agregar a jobs.ts
+7. Actualizar frontend con badge de calibración
+
+Muéstrame schema primero.

@@ -1,0 +1,592 @@
+Rediseño visual completo de SOTRASER.
+El motor ya existe — esto es la cara del sistema.
+Filosofía: datos que hablan, jerarquía de urgencia,
+máximo 2 clicks para cualquier dato importante.
+
+TIENES PERMISO TOTAL para modificar o reemplazar
+cualquier archivo de frontend.
+No tocar archivos de servidor excepto donde se indique.
+Ejecutar todo en orden sin pausas.
+
+═══════════════════════════════════════════════════
+SISTEMA DE DISEÑO — APLICAR EN TODOS LOS ARCHIVOS
+═══════════════════════════════════════════════════
+
+Colores (CSS variables en index.css):
+  --bg:          #020508  (fondo principal)
+  --bg-card:     #060d14  (tarjetas)
+  --bg-hover:    #0a1520  (hover states)
+  --border:      #0d2035  (bordes normales)
+  --border-glow: #1a3a55  (bordes con vida)
+  --text-main:   #c8e8ff  (texto principal)
+  --text-sub:    #3a6080  (texto secundario)
+  --text-dim:    #1a3a55  (texto muy secundario)
+  --cyan:        #00d4ff  (acento principal)
+  --green:       #00ff88  (operación normal)
+  --yellow:      #ffcc00  (atención)
+  --red:         #ff2244  (alerta crítica)
+  --orange:      #ff6b35  (Anglo CV)
+
+Colores por contrato:
+  --cencosud:    #00d4ff
+  --anglo-cocu:  #00ff88
+  --anglo-cal:   #ffcc00
+  --anglo-cv:    #ff6b35
+
+Tipografía (ya existe en el proyecto):
+  Títulos:  font-space  tracking-widest
+  Texto:    font-rajdhani
+  Números:  font-space  font-bold
+  Labels:   font-exo    tracking-wider uppercase
+
+Reglas de espaciado:
+  Padding cards: p-4 (16px)
+  Gap entre cards: gap-3 (12px)
+  Border radius: 0 (rectangular siempre)
+  
+Animaciones permitidas:
+  Punto EN VIVO: blink 2s infinite
+  Alertas críticas: blinkFast 0.6s infinite
+  Glow de elementos activos: glowPulse 3s ease infinite
+  Hover cards: transition-all duration-150
+
+═══════════════════════════════════════════════════
+ARCHIVO 1 — client/src/App.tsx
+REESCRIBIR COMPLETO
+═══════════════════════════════════════════════════
+
+Layout principal:
+  display: flex
+  min-height: 100vh
+  
+  Sidebar izquierdo (56px fijo) +
+  Contenido principal (flex-1)
+
+SIDEBAR:
+  Fondo: #010306
+  Border-right: 1px solid #0d2035
+  Display: flex flex-col
+  Justify: space-between
+  
+  Arriba:
+    Logo octagonal ⛽ con glowPulse
+    Click en logo → vuelve a tab "cerebro"
+    y abre SplashAprendizaje si hace +8h
+  
+  Centro (tabs):
+    5 botones de 56x56px cada uno
+    Solo ícono — sin texto
+    Tooltip al hacer hover (derecha)
+    
+    Tab activo:
+      border-left: 2px solid var(--cyan)
+      background: rgba(0,212,255,0.08)
+      ícono color: var(--cyan)
+    
+    Tab inactivo:
+      ícono color: var(--text-sub)
+      hover: ícono color var(--text-main)
+    
+    Tabs en orden:
+    1. LayoutDashboard → "cerebro"     tooltip: "Torre de Control"
+    2. Truck           → "contratos"   tooltip: "Contratos"
+    3. Map             → "mapa"        tooltip: "Mapa en Vivo"
+    4. BookOpen        → "aprendizaje" tooltip: "Aprendizaje"
+    5. MessageSquare   → "asistente"   tooltip: "SOTRA IA"
+  
+  Abajo:
+    Settings → "ajustes" tooltip: "Ajustes"
+    Separado por border-top: 1px solid #0d2035
+
+TOP BAR (36px altura):
+  Fondo: rgba(2,5,8,0.95) blur(12px)
+  Border-bottom: 1px solid #0d2035
+  Position: sticky top-0 z-40
+  
+  Izquierda:
+    ● EN VIVO (punto verde parpadeante)
+    [X activos] · [X km/L] · [X alertas]
+    Datos de /api/ceo/kpis refetch 2min
+  
+  Centro: vacío
+  
+  Derecha:
+    Reloj (LiveClock existente)
+    
+    Botón lupa 🔍:
+      onClick → setShowConsultaRapida(true)
+      tooltip: "Consulta rápida"
+    
+    Botón ⚡ ANALIZAR:
+      onClick → setShowAnalisis(true)
+      Style: border cyan, fondo cyan tenue
+    
+    Badge alerta roja (si hay críticos):
+      número parpadeante
+      onClick → navega a cerebro y hace scroll a alertas
+
+PANEL CONSULTA RÁPIDA:
+  Slide down desde el top bar
+  Width: 400px centrado en el top bar
+  
+  Input de texto
+  4 botones sugerencia:
+    "¿Qué aprendió el sistema hoy?"
+    "¿Hay alertas urgentes?"
+    "¿Cómo va el rendimiento?"
+    "¿Qué conductor revisar?"
+  
+  Respuesta aparece debajo del input
+  Llama a POST /api/sistema/consulta
+  
+  Click fuera → cierra
+
+CHAT FLOTANTE:
+  Botón circular 52px esquina inferior derecha
+  Ícono: MessageSquare
+  Fondo: rgba(0,212,255,0.12)
+  Border: 1px solid rgba(0,212,255,0.4)
+  Box-shadow: 0 0 24px rgba(0,212,255,0.15)
+  
+  Badge rojo si hay respuesta nueva mientras cerrado
+  
+  Al abrir: panel 380px ancho, 520px alto
+  Multi-turno con historial (código existente)
+  Minimizable sin perder historial
+
+SPLASH DE APRENDIZAJE:
+  Mostrar si han pasado +8h desde última apertura
+  localStorage key: 'sotraser_ultima_apertura'
+  Mostrar 3s después del splash de carga inicial
+  
+  Componente: SplashAprendizaje (ver Archivo 5)
+
+type Tab = "cerebro" | "contratos" | "mapa" | "aprendizaje" | "asistente" | "ajustes"
+
+Render de tabs:
+  cerebro     → <Cerebro />
+  contratos   → <Contratos />
+  mapa        → <GeoValidator />     // sin cambios
+  aprendizaje → <PanelAprendizaje /> // sin cambios
+  asistente   → <IATab />            // sin cambios
+  ajustes     → <Configuration />    // sin cambios
+
+═══════════════════════════════════════════════════
+ARCHIVO 2 — client/src/pages/cerebro.tsx
+CREAR O REEMPLAZAR COMPLETO
+═══════════════════════════════════════════════════
+
+Props: ninguno
+Data: 
+  /api/ceo/kpis — refetch 2min
+  /api/ceo/alertas — refetch 2min
+  /api/sistema/estado — refetch 5min
+  /api/sistema/resumen-ia — refetch 30min
+
+BLOQUE A — SEMÁFORO PRINCIPAL
+  Ancho completo, altura 80px
+  
+  Fondo según estado:
+    NORMAL:   rgba(0,255,136,0.04)  border #00ff88
+    ATENCION: rgba(255,204,0,0.04)  border #ffcc00
+    ALERTA:   rgba(255,34,68,0.04)  border #ff2244
+  
+  Contenido centrado horizontal:
+    ● [color según estado, parpadeante si no normal]
+    "OPERACIÓN NORMAL" / "ATENCIÓN REQUERIDA" / "ALERTA ACTIVA"
+    
+    A la derecha separado por ·:
+    [X activos] · [X km/L] · [X alertas críticas]
+
+BLOQUE B — TARJETAS POR CONTRATO
+  Grid 4 columnas (responsive: 2 en mobile)
+  Una tarjeta por contrato con datos Volvo
+  
+  Por cada contrato desde /api/ceo/kpis:
+  
+  ┌─────────────────────────────┐
+  │ ● CENCOSUD        RETAIL   │ ← punto color del contrato
+  │                            │
+  │ font-space text-3xl bold   │
+  │ 12 / 23                    │ ← activos / total
+  │ camiones activos           │
+  │                            │
+  │ 3.3 km/L  ↓1.1% vs ayer   │ ← rendimiento + tendencia
+  │ ████████████░░░░ meta 2.85 │ ← barra vs meta
+  │                            │
+  │ 142,330 km hoy             │
+  │ 1 alerta activa  ⚠️        │
+  │                            │
+  │ [VER DETALLE →]            │
+  └─────────────────────────────┘
+  
+  Border color = color del contrato al 30%
+  Background = color del contrato al 3%
+  
+  onClick → navega a tab "contratos" con 
+  ese contrato pre-seleccionado
+  
+  Si no hay datos → skeleton animado
+
+BLOQUE C — DOS COLUMNAS
+
+  COLUMNA IZQUIERDA (60%):
+    Título: "REQUIERE ATENCIÓN"
+    
+    Si no hay alertas:
+      ✅ texto: "Operación normal — sin anomalías activas"
+    
+    Si hay alertas, lista de hasta 8:
+    
+    ┌──────────────────────────────────────────────┐
+    │ 🔴 Cam 1782 · CENCOSUD                      │
+    │    Rendimiento 1.8 km/L — 37% bajo meta     │
+    │    Ruta 5 Sur km 234 · hace 12 min          │
+    │                              [INVESTIGAR →] │
+    └──────────────────────────────────────────────┘
+    
+    Tipos de alerta con ícono:
+    🔴 Sin GPS +2h
+    🔴 Rendimiento < 70% meta
+    🟡 Velocidad > 120 km/h hoy
+    🟡 Rendimiento < 85% meta
+    
+    onClick INVESTIGAR → navega a "contratos"
+    y abre panel lateral del camión
+
+  COLUMNA DERECHA (40%):
+    
+    WIDGET SISTEMA ADAPTATIVO:
+    ┌──────────────────────────────────────┐
+    │ 🧠 SISTEMA ADAPTATIVO               │
+    │                                      │
+    │ 1 día · 66 viajes · CONFIANZA BAJA  │
+    │ ████░░░░░░░░░░░  12% calibrado      │
+    │                                      │
+    │ [texto de /api/sistema/resumen-ia]  │
+    │ Skeleton mientras carga             │
+    │                                      │
+    │              [VER DETALLE →]        │
+    └──────────────────────────────────────┘
+    Border color según confianza:
+    BAJA: #3a6080 / MEDIA: #ffcc00
+    ALTA: #00d4ff / EXPERTA: #00ff88
+    
+    onClick VER DETALLE → abre SplashAprendizaje
+    como modal (sin botón ENTRAR)
+
+BLOQUE D — RENDIMIENTO POR CONTRATO
+  Título: "RENDIMIENTO ECU ESTA SEMANA"
+  
+  Barras horizontales por contrato:
+  
+  CENCOSUD     ████████████████  3.3 km/L  meta 2.85 ✅
+  ANGLO-COCU   █████████████     2.9 km/L  meta 2.85 ✅
+  ANGLO-CAL    █████████████████ 3.6 km/L  meta 2.85 ✅
+  ANGLO-CV     ███████           2.4 km/L  meta 2.85 ⚠️
+  
+  Barra = % del rendimiento vs meta
+  Color barra = verde si sobre meta, rojo si bajo
+  
+  Desde /api/geo/rendimiento-contratos
+
+═══════════════════════════════════════════════════
+ARCHIVO 3 — client/src/pages/contratos.tsx
+CREAR O REEMPLAZAR COMPLETO
+═══════════════════════════════════════════════════
+
+Props: { initialContrato?: string }
+Data:
+  /api/cerebro/estado-general
+  /api/cerebro/contrato/:nombre
+
+STATE:
+  contrato: "TODOS" | "CENCOSUD" | "ANGLO-COCU" | "ANGLO-CAL" | "ANGLO-CV"
+  camionSeleccionado: string | null (patente)
+  panelAbierto: boolean
+
+HEADER:
+  Tabs de selección de contrato:
+  [TODOS] [CENCOSUD] [ANGLO-COCU] [ANGLO-CAL] [ANGLO-CV]
+  
+  Tab activo: border-bottom 2px color del contrato
+  
+  KPIs del contrato seleccionado (fila de 5):
+  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │ ACTIVOS  │ │ KM HOY   │ │RENDIMIENT│ │ HS ACTIVO│ │ ALERTAS  │
+  │ 12 / 23  │ │ 142,330  │ │ 3.3 km/L │ │   186h   │ │    1     │
+  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘
+
+GRILLA DE CAMIONES:
+  Grid responsive:
+    Desktop: 4 columnas
+    Tablet:  3 columnas
+    Mobile:  2 columnas
+  
+  Orden de las tarjetas:
+    1. ALERTA (rojo) — primero siempre
+    2. SIN_SEÑAL (rojo oscuro)
+    3. DETENIDO (amarillo)
+    4. EN_RUTA (verde)
+    5. INACTIVO (gris) — al fondo
+  
+  TARJETA DE CAMIÓN:
+  ┌──────────────────────────┐
+  │ [score] 🟢  SLHT29      │ ← score esquina, estado color
+  │ Gómez Pablo             │
+  │ ─────────────────────── │
+  │ 3.2 km/L  · 1,151 km    │
+  │ En ruta · 87 km/h       │
+  │ Ruta 5 Sur · 14:30      │
+  │                         │
+  │ [MAPA]    [DETALLE →]   │
+  └──────────────────────────┘
+  
+  Score en esquina superior izquierda:
+    0-59:  rojo, fondo rojo tenue
+    60-79: amarillo, fondo amarillo tenue
+    80-100: verde, fondo verde tenue
+  
+  Estado con punto de color:
+    🟢 EN RUTA    vel > 5 km/h, GPS < 30min
+    🟡 DETENIDO   vel 0, GPS < 2h
+    🔴 SIN SEÑAL  GPS > 2h
+    ⚫ INACTIVO   sin datos hoy
+  
+  Hover: border glow del color del estado
+  onClick → abre panel lateral del camión
+
+PANEL LATERAL DEL CAMIÓN:
+  Slide desde derecha, 380px ancho
+  Overlay oscuro detrás (click → cierra)
+  
+  HEADER DEL PANEL:
+    Patente grande + modelo
+    Conductor actual (desde Sigetra)
+    Contrato badge con su color
+    Botón ✕ cerrar
+  
+  SECCIÓN: AHORA
+    Estado + velocidad actual
+    Última posición geocodeada
+    Hace cuántos minutos fue el último GPS
+    Nivel estanque si disponible (barra)
+  
+  SECCIÓN: HOY
+    Km recorridos · Litros ECU · Rendimiento
+    Hora de salida · Origen detectado
+    Destino estimado (desde corredor frecuente)
+  
+  SECCIÓN: ÚLTIMAS 2 SEMANAS
+    Mini gráfico de línea — rendimiento diario
+    7 puntos mínimo, 14 máximo
+    Línea roja = meta del contrato
+    Tendencia: MEJORANDO ↗ / ESTABLE → / EMPEORANDO ↘
+  
+  SECCIÓN: PERFIL APRENDIDO
+    Si existe en camiones_perfil:
+      Total jornadas registradas
+      Score de rendimiento con barra
+      Rutas frecuentes (top 2)
+      Conductores frecuentes (top 2)
+      Nivel de confianza del perfil
+    Si no existe:
+      "Acumulando datos — necesita 5+ jornadas"
+  
+  BOTONES AL FONDO:
+    [VER EN MAPA] → navega a "mapa" centrado en ese camión
+    [HISTORIAL]   → modal con todos los viajes del camión
+
+SECCIÓN AL FONDO — RUTAS FRECUENTES:
+  Solo si hay datos en viajes_aprendizaje
+  
+  Título: "RUTAS MÁS FRECUENTES — [CONTRATO]"
+  
+  Tabla:
+  Ruta                    │Veces│Rend prom│Confianza
+  Quilicura → CD Chillán  │ 47  │2.9 km/L │ALTA ✅
+  Quilicura → CD Vespucio │ 23  │3.4 km/L │MEDIA 📊
+
+═══════════════════════════════════════════════════
+ARCHIVO 4 — client/src/components/splash-aprendizaje.tsx
+CREAR
+═══════════════════════════════════════════════════
+
+Props: { onClose: () => void, modoModal?: boolean }
+
+State:
+  estado: SistemaEstado | null
+  resumenIA: string | null
+  loadingIA: boolean
+  pregunta: string
+  respuesta: string | null
+  loadingConsulta: boolean
+
+useEffect al montar:
+  1. fetch /api/sistema/estado → setEstado
+  2. fetch /api/sistema/resumen-ia → setResumenIA
+     (puede tardar — mostrar skeleton)
+
+UI COMPLETA:
+
+Si modoModal = false (pantalla completa):
+  Fondo overlay oscuro
+  Card centrada max-w-2xl
+
+Si modoModal = true (desde VER DETALLE):
+  Igual pero sin botón ENTRAR AL SISTEMA
+
+CONTENIDO:
+  
+  HEADER:
+    ⛽ SOTRASER
+    "Sistema Adaptativo de Flota"
+    Si hora entre 06-12: "Buenos días"
+    Si hora entre 12-18: "Buenas tardes"  
+    Si hora entre 18-24 o 0-6: "Buenas noches"
+  
+  BLOQUE IA:
+  ┌───────────────────────────────────────────┐
+  │ 🧠 LO QUE APRENDIÓ EL SISTEMA           │
+  │                                           │
+  │ Si loadingIA: skeleton 3 líneas           │
+  │ Si resumenIA: texto de Claude             │
+  │ Si error: "Sistema iniciando..."          │
+  └───────────────────────────────────────────┘
+  
+  KPIs (grid 3x2):
+  ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │   DÍAS   │ │  VIAJES  │ │  RUTAS   │
+  │    1     │ │    66    │ │    8     │
+  │ aprendiz.│ │procesados│ │conocidas │
+  └──────────┘ └──────────┘ └──────────┘
+  ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │ CONDUCT. │ │SNAPSHOTS │ │CONFIANZA │
+  │   23     │ │  3,361   │ │  BAJA    │ ← color según nivel
+  │analizados│ │  Volvo   │ │ global   │
+  └──────────┘ └──────────┘ └──────────┘
+  
+  BARRA DE MADUREZ:
+  "MADUREZ DEL SISTEMA"
+  ████░░░░░░░░░░░░░░░░  12%
+  "En 7 días más tendrás confianza MEDIA"
+  
+  Calcular días hasta siguiente nivel:
+  BAJA→MEDIA:   necesita 50 viajes o 7 días
+  MEDIA→ALTA:   necesita 200 viajes o 30 días
+  ALTA→EXPERTA: necesita 1000 viajes o 90 días
+  
+  CONSULTA RÁPIDA:
+  ┌────────────────────────────────────────┐
+  │ 🔍 ¿Qué quieres saber?               │
+  │                                        │
+  │ [___________________________________]  │
+  │                                        │
+  │ [¿Qué aprendió hoy?]                  │
+  │ [¿Cuál ruta consume más ECU?]         │
+  │ [¿Hay patrones sospechosos?]          │
+  │ [¿Cómo va el aprendizaje?]            │
+  │                                        │
+  │ {respuesta con skeleton mientras carga}│
+  └────────────────────────────────────────┘
+  
+  Input onKeyDown Enter → enviar
+  Botones sugerencia → enviar directo
+  Llama POST /api/sistema/consulta
+  
+  BOTÓN ENTRAR (solo si !modoModal):
+  [ENTRAR AL SISTEMA →]
+  onClick → onClose()
+  
+  Botón skip esquina superior derecha: ✕
+  onClick → onClose()
+
+═══════════════════════════════════════════════════
+ARCHIVO 5 — Actualizar hoy.tsx → REEMPLAZAR
+por cerebro.tsx como página principal
+═══════════════════════════════════════════════════
+
+El tab "cerebro" usa el nuevo cerebro.tsx.
+El tab que antes era "hoy" desaparece.
+Toda la lógica del HOY existente que sea útil
+migrarla a cerebro.tsx.
+
+Mantener estos componentes del hoy.tsx actual:
+  - SemaforoBar (moverlo a cerebro.tsx)
+  - La lógica de alertas (adaptarla)
+  - El modal de análisis IA (ya en App.tsx)
+
+═══════════════════════════════════════════════════
+ARCHIVO 6 — index.css
+AGREGAR variables y animaciones
+═══════════════════════════════════════════════════
+
+Agregar al :root las CSS variables del sistema
+de diseño definidas arriba.
+
+Verificar que existen estas animaciones:
+  @keyframes blink { ... }
+  @keyframes blinkFast { ... }
+  @keyframes glowPulse { ... }
+
+Agregar si no existen:
+  @keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+  
+  @keyframes slideDown {
+    from { transform: translateY(-10px); opacity: 0; }
+    to   { transform: translateY(0);     opacity: 1; }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  
+  .panel-lateral {
+    animation: slideInRight 0.2s ease-out;
+  }
+  
+  .consulta-rapida {
+    animation: slideDown 0.15s ease-out;
+  }
+
+═══════════════════════════════════════════════════
+VERIFICACIÓN FINAL
+═══════════════════════════════════════════════════
+
+Al terminar verificar que:
+
+□ Sidebar izquierdo de 56px funciona en todas las páginas
+□ Top bar con EN VIVO, métricas, lupa y ANALIZAR
+□ Chat flotante siempre visible
+□ Splash aparece al abrir si +8h
+□ Torre de Control (cerebro.tsx) muestra:
+  □ Semáforo principal
+  □ 4 tarjetas de contrato con datos reales
+  □ Lista de alertas con botón INVESTIGAR
+  □ Widget sistema adaptativo con texto IA
+  □ Barras de rendimiento por contrato
+□ Contratos muestra tarjetas ordenadas por urgencia
+□ Panel lateral del camión funciona sin salir de la vista
+□ Mapa, Aprendizaje, Asistente, Ajustes sin cambios
+□ Responsive funciona en mobile
+
+═══════════════════════════════════════════════════
+ORDEN DE EJECUCIÓN
+═══════════════════════════════════════════════════
+
+1. index.css (variables y animaciones)
+2. App.tsx (layout sidebar + top bar + chat flotante)
+3. cerebro.tsx (torre de control)
+4. contratos.tsx (grilla + panel lateral)
+5. splash-aprendizaje.tsx
+6. Verificar que mapa/aprendizaje/asistente/ajustes
+   siguen funcionando sin cambios
+
+Ejecutar en orden completo sin pausas.
+Si algo falla en un archivo continuar con el siguiente.
+Al terminar mostrar lista de archivos tocados
+y pantallazo del resultado si es posible.

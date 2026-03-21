@@ -1,0 +1,129 @@
+En la pestaña ESTACIONES sub-tab POR ESTACION
+agregar un panel explicativo al inicio.
+
+Buscar en geovalidator.tsx el componente
+EstacionesTab y agregar esto ANTES del
+primer div de contenido:
+
+{/* PANEL EXPLICATIVO */}
+<div className="mb-5 p-4 border"
+  style={{
+    borderColor: '#00d4ff20',
+    background: 'rgba(0,212,255,0.02)',
+    borderLeft: '3px solid #00d4ff'
+  }}>
+
+  {/* Título */}
+  <div className="flex items-center gap-2 mb-4">
+    <span className="font-space text-[11px] font-bold
+                     tracking-[0.15em]"
+      style={{ color: '#00d4ff' }}>
+      CÓMO FUNCIONA ESTE ANÁLISIS
+    </span>
+    <span className="font-exo text-[8px] px-2 py-0.5"
+      style={{
+        color: '#00d4ff',
+        border: '1px solid #00d4ff30'
+      }}>
+      T-2 · 48 HORAS
+    </span>
+  </div>
+
+  {/* 3 columnas */}
+  <div className="grid grid-cols-3 gap-4 mb-4">
+
+    <div>
+      <div className="font-exo text-[8px] font-bold
+                      tracking-wider uppercase mb-2"
+        style={{ color: '#00d4ff' }}>
+        📅 POR QUÉ 48 HORAS ATRÁS
+      </div>
+      <div className="font-rajdhani text-[12px]
+                      leading-relaxed"
+        style={{ color: '#c8e8ff' }}>
+        Analizamos T-2 — antes de ayer completo.
+        Un camión puede cargar combustible hoy
+        y consumirlo en los próximos 2 días.
+        Con 48 horas de distancia los períodos
+        entre cargas están cerrados y el ECU
+        tiene el consumo real registrado.
+      </div>
+    </div>
+
+    <div>
+      <div className="font-exo text-[8px] font-bold
+                      tracking-wider uppercase mb-2"
+        style={{ color: '#00ff88' }}>
+        ⚡ QUÉ CRUZAMOS
+      </div>
+      <div className="font-rajdhani text-[12px]
+                      leading-relaxed"
+        style={{ color: '#c8e8ff' }}>
+        Sigetra registra los litros que el
+        surtidor entregó al camión.
+        Volvo Connect registra los litros
+        que el motor realmente quemó.
+        Cruzamos ambas fuentes en el período
+        real entre dos cargas consecutivas —
+        sin importar si son 8 o 36 horas.
+      </div>
+    </div>
+
+    <div>
+      <div className="font-exo text-[8px] font-bold
+                      tracking-wider uppercase mb-2"
+        style={{ color: '#ffcc00' }}>
+        🎯 CUÁNDO ES ANOMALÍA REAL
+      </div>
+      <div className="font-rajdhani text-[12px]
+                      leading-relaxed"
+        style={{ color: '#c8e8ff' }}>
+        Solo marcamos anomalía cuando el camión
+        recorrió 100km+ y tiene 15+ snapshots
+        Volvo en ese período. Si el camión
+        simplemente no salió a ruta o el período
+        está incompleto — no se evalúa.
+        Sin evidencia suficiente no hay alerta.
+      </div>
+    </div>
+
+  </div>
+
+  {/* Línea de estado del sistema */}
+  <div className="flex items-center gap-6 pt-3 border-t"
+    style={{ borderColor: '#0d2035' }}>
+
+    <div className="flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full"
+        style={{
+          background: '#00ff88',
+          boxShadow: '0 0 4px #00ff88'
+        }} />
+      <span className="font-exo text-[9px]"
+        style={{ color: '#3a6080' }}>
+        Solo camiones con Volvo Connect activo
+      </span>
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full"
+        style={{ background: '#00d4ff' }} />
+      <span className="font-exo text-[9px]"
+        style={{ color: '#3a6080' }}>
+        Snapshots acumulando desde 19-Mar —
+        cobertura mejora cada día
+      </span>
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full"
+        style={{ background: '#ffcc00' }} />
+      <span className="font-exo text-[9px]"
+        style={{ color: '#3a6080' }}>
+        Click en cualquier alerta para ver
+        el historial del mes del camión
+      </span>
+    </div>
+
+  </div>
+</div>

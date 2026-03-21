@@ -1,0 +1,138 @@
+Vamos a hacer una limpieza estratégica de la app.
+El foco ahora es SOLO GPS + Volvo Connect.
+Sigetra y el cruce de combustible quedan 
+ocultos temporalmente — no eliminados.
+
+NO BORRES NADA. Solo ocultar y reorganizar.
+
+CAMBIO 1 — NAVEGACIÓN PRINCIPAL
+En client/src/App.tsx, dejar solo estas pestañas:
+
+  HOY     → igual que está
+  FLOTA   → igual que está  
+  RUTAS   → nueva (ver abajo)
+  IA      → solo el chat SOTRA IA
+  CONFIG  → igual que está
+
+Ocultar temporalmente (comentar, no borrar):
+  - GEO con todos sus sub-tabs
+  - Cualquier referencia a CRUCE o SIGETRA 
+    en la navegación principal
+
+CAMBIO 2 — HOY simplificado
+En client/src/pages/hoy.tsx mantener:
+  - Semáforo de operación
+  - KPIs: camiones activos, km recorridos hoy, 
+    rendimiento promedio, alertas
+  - Mapa pequeño con posiciones en vivo
+  - Lista de alertas (solo las de GPS/rendimiento)
+
+Ocultar temporalmente:
+  - Todo lo relacionado a litros Sigetra
+  - Delta de combustible
+  - Cuadratura
+
+CAMBIO 3 — RUTAS (pestaña nueva y simple)
+Crear client/src/pages/rutas-gps.tsx
+
+Esta página tiene DOS secciones:
+
+SECCIÓN A — VIAJES DE HOY
+  Consumir endpoint GET /api/rutas/viajes-dia?fecha=hoy&contrato=
+  
+  Mostrar lista de tarjetas — una por camión:
+    - Patente + conductor
+    - Origen → Destino (lugares conocidos)
+    - Hora inicio → fin
+    - Km recorridos (ECU)
+    - Rendimiento km/L (ECU)
+    - Botón VER EN MAPA
+  
+  Al presionar VER EN MAPA:
+    - Modal con mapa
+    - Traza línea con puntos GPS del día
+    - Punto verde = origen
+    - Punto rojo = destino
+    - Punto azul = lugar donde estuvo más tiempo
+
+SECCIÓN B — RUTAS MÁS FRECUENTES
+  Consumir endpoint GET /api/rutas/frecuentes?contrato=
+  
+  Mostrar tabla simple:
+    Ruta                          | Veces | Km prom | Rend prom
+    Base Santiago → CD Chillán   |  47   |  280km  |  2.9 km/L
+    Base Santiago → CD Vespucio  |  23   |   85km  |  3.4 km/L
+  
+  Solo las rutas con más de 3 repeticiones.
+  Click en una ruta → filtra los viajes de hoy 
+  que corresponden a esa ruta.
+
+CAMBIO 4 — FLOTA simplificada
+En client/src/pages/flota.tsx mantener:
+  - Lista de camiones activos con GPS
+  - Estado: EN RUTA / DETENIDO / EN FAENA
+  - Velocidad actual, última posición
+  - Km recorridos hoy
+  - Rendimiento del día
+
+Ocultar temporalmente:
+  - Sub-tab COMBUSTIBLE
+  - Todo lo relacionado a Sigetra en esta vista
+
+CAMBIO 5 — IA enfocada en GPS
+En client/src/pages/ia-tab.tsx, cambiar las 
+preguntas sugeridas a:
+
+  "¿Qué camión recorrió más km hoy?"
+  "¿Hay camiones detenidos más de 2 horas?"
+  "¿Cuál es el rendimiento promedio esta semana?"
+  "¿Qué ruta se repite más en Anglo?"
+  "¿Algún camión se desvió de su ruta habitual?"
+  "Resumen de operación del día"
+
+Y actualizar el system prompt de SOTRA IA en 
+server/ia-routes.ts para que sepa que el foco 
+ahora es GPS y rendimiento, no combustible.
+
+CAMBIO 6 — BACKEND nuevos endpoints
+Crear server/rutas-gps-routes.ts con:
+
+GET /api/rutas/viajes-dia?fecha=&contrato=
+  - Tomar puntos GPS de geo_puntos del día
+  - Agrupar por patente
+  - Para cada patente:
+    · primer punto = origen
+    · último punto = destino
+    · geocodear contra geo_lugares (radio 2km)
+    · nombre_viaje = "lugar_origen → lugar_destino"
+    · km_total = max(km_odometro) - min(km_odometro)
+    · litros_ecu = delta volvo_fuel_snapshots del día
+    · rendimiento = km_total / litros_ecu
+    · puntos_gps = array [{lat,lng,timestamp,velocidad}]
+  - Retornar lista ordenada por km_total DESC
+
+GET /api/rutas/frecuentes?contrato=
+  - Leer tabla viajes_aprendizaje
+  - Agrupar por nombre_viaje (origen→destino)
+  - Contar repeticiones
+  - Calcular km promedio y rendimiento promedio
+  - Retornar solo rutas con COUNT >= 3
+  - Ordenar por frecuencia DESC
+
+Registrar en server/routes.ts agregando AL FINAL:
+  import { registerRutasGpsRoutes } from "./rutas-gps-routes"
+  registerRutasGpsRoutes(app)
+
+REGLAS:
+- No borrar nada — solo comentar lo que se oculta
+- Mantener todo el código existente intacto
+- El estilo visual igual al resto de la app
+  (fondo #020508, bordes #0d2035, acento #00d4ff)
+- TypeScript estricto, async/await, try/catch
+- Logs con prefijo [RUTAS-GPS]
+- Muéstrame los cambios por sección antes de aplicar
+- Espera confirmación entre cada cambio mayor
+
+Empieza por CAMBIO 6 (backend) primero.
+Luego CAMBIO 3 (página Rutas).
+Luego los demás en orden.

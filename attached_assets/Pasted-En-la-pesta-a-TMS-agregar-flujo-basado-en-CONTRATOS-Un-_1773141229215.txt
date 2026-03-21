@@ -1,0 +1,370 @@
+En la pestaña TMS agregar flujo basado en CONTRATOS.
+Un contrato = una faena existente en la BD.
+El TMS analiza todos los camiones de ese contrato
+usando historial Volvo desde 2026-03-01.
+NO tocar ninguna otra pestaña.
+
+═══════════════════════════════════════════════════
+BASE DE DATOS — agregar tabla contratos TMS
+═══════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS tms_contratos (
+  id SERIAL PRIMARY KEY,
+  faena_id INTEGER REFERENCES faenas(id),
+  nombre VARCHAR(200) NOT NULL,
+  cliente VARCHAR(200),
+  descripcion TEXT,
+  fecha_inicio DATE DEFAULT '2026-03-01',
+  activo BOOLEAN DEFAULT true,
+  total_viajes INTEGER DEFAULT 0,
+  km_total NUMERIC(12,1) DEFAULT 0,
+  litros_total NUMERIC(12,2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tms_viajes (
+  id SERIAL PRIMARY KEY,
+  contrato_id INTEGER REFERENCES tms_contratos(id),
+  camion_id INTEGER REFERENCES camiones(id),
+  codigo VARCHAR(30) UNIQUE NOT NULL,
+  conductor VARCHAR(100),
+  origen_nombre VARCHAR(200),
+  origen_lat NUMERIC(10,7),
+  origen_lng NUMERIC(10,7),
+  destino_nombre VARCHAR(200),
+  destino_lat NUMERIC(10,7),
+  destino_lng NUMERIC(10,7),
+  fecha_salida TIMESTAMP,
+  fecha_llegada TIMESTAMP,
+  fecha_cierre TIMESTAMP,
+  estado VARCHAR(20) DEFAULT 'DETECTADO',
+  -- DETECTADO · CONFIRMADO · EN_RUTA · 
+  -- COMPLETADO · CANCELADO
+  km_inicio NUMERIC(10,1),
+  km_cierre NUMERIC(10,1),
+  km_recorridos NUMERIC(10,1),
+  litros_sigetra NUMERIC(8,2),
+  litros_ecu NUMERIC(8,2),
+  diferencia_litros NUMERIC(8,2),
+  rendimiento_real NUMERIC(6,2),
+  detectado_por_ia BOOLEAN DEFAULT false,
+  confirmado BOOLEAN DEFAULT false,
+  notas TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tms_paradas (
+  id SERIAL PRIMARY KEY,
+  viaje_id INTEGER REFERENCES tms_viajes(id),
+  orden INTEGER NOT NULL,
+  nombre VARCHAR(200),
+  direccion VARCHAR(300),
+  lat NUMERIC(10,7),
+  lng NUMERIC(10,7),
+  tipo VARCHAR(20) DEFAULT 'ENTREGA',
+  -- ENTREGA · CARGA · DESCANSO · COMBUSTIBLE
+  estado VARCHAR(20) DEFAULT 'PENDIENTE',
+  -- PENDIENTE · EN_CAMINO · COMPLETADO
+  hora_estimada TIMESTAMP,
+  hora_real TIMESTAMP,
+  notas TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tms_puntos (
+  id SERIAL PRIMARY KEY,
+  contrato_id INTEGER REFERENCES tms_contratos(id),
+  camion_id INTEGER REFERENCES camiones(id),
+  lat NUMERIC(10,7),
+  lng NUMERIC(10,7),
+  nombre_inferido VARCHAR(200),
+  tipo VARCHAR(20),
+  veces_visitado INTEGER DEFAULT 1,
+  duracion_promedio_min INTEGER,
+  primera_visita TIMESTAMP,
+  ultima_visita TIMESTAMP,
+  confirmado BOOLEAN DEFAULT false
+);
+
+═══════════════════════════════════════════════════
+ENDPOINTS TMS
+═══════════════════════════════════════════════════
+
+GET /api/tms/contratos
+  Lista todos los contratos activos con stats
+
+POST /api/tms/contratos
+  Crear contrato desde faena existente:
+  Body: { faena_id, descripcion }
+  Auto-puebla nombre y cliente desde faenas
+
+GET /api/tms/contratos/:id
+  Contrato completo con:
+  - Datos del contrato
+  - Lista de camiones asignados a la faena
+  - Stats: viajes, km, litros, rendimiento
+  - Viajes activos y recientes
+
+POST /api/tms/contratos/:id/analizar
+  ENDPOINT PRINCIPAL — análisis completo:
+  1. Obtener todos los camiones de la faena
+  2. Para cada camión obtener GPS desde 2026-03-01
+  3. Detectar paradas de +30 min por proximidad 500m
+  4. Identificar viajes (movimientos entre paradas)
+  5. Cruzar con cargas Sigetra del mismo período
+  6. Llamar a Claude para inferir nombres y clasificar
+  7. Guardar en tms_viajes, tms_paradas, tms_puntos
+  8. Devolver resumen del análisis
+
+GET /api/tms/contratos/:id/viajes
+  Todos los viajes del contrato
+  Query: estado, camion_id, desde, hasta
+
+GET /api/tms/contratos/:id/mapa
+  Todos los puntos y rutas del contrato
+  para dibujar en el mapa
+
+GET /api/tms/contratos/:id/stats
+  KPIs del contrato:
+  total viajes, km promedio por viaje,
+  rendimiento promedio, litros total,
+  mejor y peor camión, ruta más frecuente
+
+POST /api/tms/viajes/:id/confirmar
+  Confirmar viaje detectado por IA
+
+POST /api/tms/viajes/:id/cerrar
+  Cierre con cuadratura Sigetra + ECU
+
+═══════════════════════════════════════════════════
+PESTAÑA TMS — estructura visual completa
+═══════════════════════════════════════════════════
+
+La pestaña TMS tiene DOS niveles:
+
+NIVEL 1 — Selector de contrato (pantalla inicial):
+Si no hay contrato seleccionado mostrar:
+
+┌─────────────────────────────────────────────────┐
+│ TMS · GESTIÓN DE TRANSPORTE                     │
+│ Selecciona un contrato para comenzar            │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  [+ NUEVO CONTRATO DESDE FAENA]                 │
+│                                                 │
+│  ┌─────────────────────────────────────────┐    │
+│  │ 📋 CENCOSUD                             │    │
+│  │ 14 camiones · activo desde 01-03-2026   │    │
+│  │ 47 viajes detectados · 12.450 km        │    │
+│  │                    [ABRIR CONTRATO →]   │    │
+│  └─────────────────────────────────────────┘    │
+│                                                 │
+│  ┌─────────────────────────────────────────┐    │
+│  │ 📋 ANGLO-COCU                           │    │
+│  │ 42 camiones · activo desde 01-03-2026   │    │
+│  │ Sin análisis aún          [ANALIZAR →]  │    │
+│  └─────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────┘
+
+Botón NUEVO CONTRATO:
+Dropdown con todas las faenas existentes en BD
+que no tienen contrato TMS aún.
+Al seleccionar: crea el contrato y abre NIVEL 2.
+
+NIVEL 2 — Vista del contrato seleccionado:
+Header con nombre del contrato + botón "← Contratos"
+
+4 sub-tabs:
+[RESUMEN] [VIAJES] [MAPA] [ANÁLISIS IA]
+
+━━━━━━━━━━━━━━━━━━━━
+SUB-TAB: RESUMEN
+━━━━━━━━━━━━━━━━━━━━
+
+KPIs del contrato en cards:
+CAMIONES ACTIVOS · VIAJES DETECTADOS ·
+KM TOTAL · RENDIMIENTO PROM · LITROS TOTAL
+
+Lista de camiones del contrato:
+Por cada camión: patente, conductor, 
+viajes detectados, km acumulados, 
+último movimiento, badge de estado
+
+Botón grande centrado si no hay análisis:
+"🔍 ANALIZAR HISTORIAL DESDE 01-03-2026"
+Al presionar: spinner + textos animados:
+"Obteniendo GPS de 14 camiones..."
+"Detectando paradas y movimientos..."
+"Identificando rutas frecuentes..."
+"Consultando Sigetra..."
+"Generando análisis con IA..."
+"Listo — X viajes detectados"
+
+Si ya hay análisis mostrar:
+"Último análisis: hace X horas [Actualizar]"
+
+━━━━━━━━━━━━━━━━━━━━
+SUB-TAB: VIAJES
+━━━━━━━━━━━━━━━━━━━━
+
+Filtros: [TODOS] [DETECTADOS] [CONFIRMADOS] 
+         [EN RUTA] [COMPLETADOS]
++ filtro por camión + rango de fechas
+
+Por cada viaje tarjeta:
+┌──────────────────────────────────────────┐
+│ VJ-CENC-001  🤖 DETECTADO POR IA  [✓]  │
+│ Cam 1969 · Oscar Rifo (si tiene datos)   │
+│ 📍 Punto A → 📦 Punto B                 │
+│ 04/03/2026 · 412 km · 2.3 km/L          │
+│ Sigetra: 180L · ECU: 165L · Dif: +15L ✅│
+│ [Ver en mapa] [Confirmar] [Editar]       │
+└──────────────────────────────────────────┘
+
+Badge DETECTADO = azul (generado por IA)
+Badge CONFIRMADO = verde (validado por usuario)
+Badge EN RUTA = verde parpadeante
+Badge COMPLETADO = gris
+
+Botón "+ CREAR VIAJE MANUAL" para agregar
+un viaje que la IA no detectó.
+
+MODAL CREAR VIAJE MANUAL:
+(dentro del contexto del contrato)
+- Camión: dropdown de camiones del contrato
+- Conductor: opcional
+- Origen: input + búsqueda + clic en mapa
+  O seleccionar de puntos detectados del contrato
+- Paradas: agregar múltiples igual que antes
+- Fechas: opcionales
+- Notas
+
+━━━━━━━━━━━━━━━━━━━━
+SUB-TAB: MAPA
+━━━━━━━━━━━━━━━━━━━━
+
+Mapa Leaflet fullscreen del contrato.
+
+Panel izquierdo pequeño con controles:
+Camión: [Todos ▼] o filtrar uno específico
+Período: [14D] [30D] [60D]
+Mostrar: 
+☑ Puntos frecuentes
+☑ Rutas detectadas
+☑ Viajes activos
+☐ Rastro GPS completo
+
+PUNTOS EN EL MAPA:
+Círculos con tamaño según frecuencia:
+🟢 grande con número = muy frecuente
+🔵 mediano = frecuente
+⚪ pequeño = ocasional
+
+Al hacer clic en un punto:
+Popup con:
+- Nombre inferido por IA
+- Tipo: CARGA / ENTREGA / DESCANSO
+- Veces visitado por camiones del contrato
+- Lista de camiones que pasaron por ahí
+- Botones:
+  [✓ Confirmar nombre]
+  [✏ Editar nombre]
+  [+ Agregar a viaje]
+
+RUTAS EN EL MAPA:
+Líneas de colores por camión
+Cada línea tiene tooltip con:
+patente, fecha, km, rendimiento
+
+VIAJES ACTIVOS:
+Ícono camión animado con posición real
+desde último GPS de Volvo Connect
+
+━━━━━━━━━━━━━━━━━━━━
+SUB-TAB: ANÁLISIS IA
+━━━━━━━━━━━━━━━━━━━━
+
+Llama a POST /api/tms/contratos/:id/analizar
+que internamente llama a Claude con:
+
+"Analiza el historial de transporte del 
+contrato [NOMBRE] desde 2026-03-01.
+Camiones: [lista con datos GPS y Sigetra]
+Puntos detectados: [lista con coordenadas 
+y frecuencias]
+
+Responde en español con:
+1. RESUMEN EJECUTIVO del contrato (3-4 líneas)
+2. RUTAS PRINCIPALES detectadas con:
+   - Origen y destino inferidos
+   - Frecuencia de uso
+   - Rendimiento promedio
+   - Si hay anomalías en esa ruta
+3. PATRONES DETECTADOS:
+   - Días y horarios más frecuentes
+   - Camiones más activos en el contrato
+   - Si algún camión tiene comportamiento inusual
+4. ALERTAS específicas de este contrato
+5. RECOMENDACIÓN para optimizar este contrato
+
+Sé específico con los datos reales.
+Menciona patentes y fechas cuando sea relevante."
+
+Mostrar resultado con secciones visuales:
+- Resumen ejecutivo en card azul
+- Rutas principales con mapa mini
+- Patrones con íconos visuales
+- Alertas en rojo/amarillo
+- Recomendación en verde
+
+Botón "📄 Exportar PDF del contrato"
+Botón "🔄 Actualizar análisis"
+
+═══════════════════════════════════════════════════
+LÓGICA DE DETECCIÓN DE VIAJES
+═══════════════════════════════════════════════════
+
+En POST /api/tms/contratos/:id/analizar:
+
+Para cada camión del contrato:
+
+1. Obtener registros GPS ordenados por fecha:
+   SELECT lat, lng, periodo_inicio, km_odometro,
+          velocidad_promedio
+   FROM volvo_ecu
+   WHERE camion_id = X
+   AND periodo_inicio >= '2026-03-01'
+   ORDER BY periodo_inicio ASC
+
+2. Detectar PARADAS (velocidad < 5 km/h 
+   por más de 30 minutos):
+   Si tiempo entre registros > 30 min 
+   Y distancia < 500m = PARADA
+
+3. Detectar MOVIMIENTOS entre paradas:
+   Cada movimiento entre 2 paradas = viaje potencial
+   Solo considerar si km recorridos > 20 km
+
+4. Para cada viaje potencial:
+   - Buscar cargas Sigetra del camión 
+     en ese período
+   - Calcular litros ECU del período
+   - Guardar en tms_viajes con 
+     estado = 'DETECTADO', detectado_por_ia = true
+
+5. Agrupar paradas cercanas (radio 500m):
+   Si varios registros caen en radio 500m
+   = mismo punto físico
+   Contar frecuencia y duración promedio
+
+6. Llamar a Claude para inferir nombres
+   de los clusters de paradas
+
+═══════════════════════════════════════════════════
+NO TOCAR
+═══════════════════════════════════════════════════
+- Todas las demás pestañas sin excepción
+- Toda la lógica existente
+- Conexiones Volvo rFMS y Sigetra
+- Base de datos existente
+- Diseño visual y colores
+- Todo lo que ya funciona

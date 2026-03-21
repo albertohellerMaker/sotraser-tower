@@ -1,0 +1,304 @@
+Cambiar el rol de Sigetra en la app.
+Sigetra pasa a segundo plano — solo se usa
+para enriquecer el nombre del conductor.
+Todo lo demás visible es 100% Volvo Connect.
+
+═══════════════════════════════════════════════
+PARTE 1 — ENRIQUECER CONDUCTOR DESDE SIGETRA
+═══════════════════════════════════════════════
+
+En server/ceo-routes.ts y server/cerebro-routes.ts,
+cuando se construya la lista de camiones,
+agregar el conductor desde la última carga Sigetra:
+
+Para cada camión en la lista:
+  SELECT conductor, fecha 
+  FROM cargas 
+  WHERE camion_id = [id del camion]
+    AND conductor IS NOT NULL
+    AND conductor != ''
+  ORDER BY fecha DESC 
+  LIMIT 1
+
+Si encuentra resultado → usar ese conductor
+Si no encuentra → mostrar "Sin asignar"
+
+Esto aplica a todos los endpoints que retornan
+listas de camiones:
+  /api/ceo/kpis
+  /api/ceo/alertas
+  /api/cerebro/estado-general (si existe)
+  /api/cerebro/camiones-alerta (si existe)
+  /api/geo/camiones-live
+
+═══════════════════════════════════════════════
+PARTE 2 — OCULTAR SIGETRA DEL FRONTEND
+═══════════════════════════════════════════════
+
+NO borrar nada — solo comentar imports y rutas.
+
+En client/src/App.tsx:
+  Comentar import de SigetraFusion
+  Comentar cualquier tab o ruta que cargue 
+  sigetra-fusion.tsx
+
+En client/src/pages/geovalidator.tsx:
+  Comentar el sub-tab "validacion"
+  Comentar el import de ValidacionSigetra
+  Cambiar el array de tabs de:
+    ["mapa","viajes","conductores","validacion","ia","recopilacion"]
+  A:
+    ["mapa","viajes","conductores","rendimiento","ia","recopilacion"]
+  donde "rendimiento" es el nuevo tab (ver Parte 4)
+
+En client/src/pages/flota.tsx:
+  Ocultar sub-tab COMBUSTIBLE si muestra 
+  datos de Sigetra
+  Mantener sub-tabs EN VIVO y CONDUCTORES
+
+En cualquier tabla o vista que tenga estas columnas:
+  LT SIGETRA, DIFF LT, DIFF %, CARGAS SIG,
+  litros_surtidor, cuadratura, delta
+  → Comentar esas columnas
+  → No borrar — solo ocultar con comentario
+
+═══════════════════════════════════════════════
+PARTE 3 — LIMPIAR HOY / CEREBRO
+═══════════════════════════════════════════════
+
+En client/src/pages/hoy.tsx (o cerebro.tsx si existe):
+  Ocultar cualquier KPI que muestre:
+  - Total litros Sigetra
+  - Delta combustible
+  - Cuadratura %
+  - Cargas del mes
+
+  Mantener solo KPIs de Volvo:
+  - Camiones activos (GPS)
+  - Km recorridos hoy (ECU)
+  - Rendimiento promedio (ECU)
+  - Alertas de rendimiento
+  - Semáforo operacional
+
+En la lista de alertas del HOY:
+  Mostrar solo alertas basadas en Volvo:
+  - Rendimiento < 70% de meta
+  - Sin GPS hace más de 2h
+  - Velocidad > 120 km/h
+  NO mostrar alertas de diferencia Sigetra vs ECU
+  hasta que el cruce de 24h esté funcionando
+
+═══════════════════════════════════════════════
+PARTE 4 — NUEVO TAB RENDIMIENTO EN GEOVALIDATOR
+═══════════════════════════════════════════════
+
+Reemplazar sub-tab VALIDACIÓN por RENDIMIENTO.
+
+Crear componente RendimientoECU dentro de 
+geovalidator.tsx:
+
+Consumir nuevo endpoint:
+GET /api/geo/rendimiento-contratos
+
+Que retorna desde volvo_fuel_snapshots + 
+geo_puntos + camiones + faenas:
+
+Por cada contrato:
+  nombre, color,
+  camiones_activos,
+  rendimiento_promedio,  // km/L ECU
+  km_total_periodo,
+  meta_kmL,              // promedio de metaKmL de sus camiones
+  bajo_meta: [           // camiones que no llegan a meta
+    { patente, rendimiento_real, meta, diferencia_pct }
+  ]
+
+UI del tab RENDIMIENTO:
+  Título: "RENDIMIENTO ECU POR CONTRATO"
+  Subtítulo: "Basado en datos Volvo Connect"
+  
+  Barras comparativas:
+  CENCOSUD          ████████████ 3.3 km/L  meta 2.85 ✅
+  ANGLO-COCU        ██████████   3.1 km/L  meta 2.85 ✅
+  ANGLO-CAL         █████████████ 3.6 km/L meta 2.85 ✅  
+  ANGLO-CARGAS VAR  ██████       2.4 km/L  meta 2.85 ⚠️
+  
+  Debajo: tabla de camiones bajo meta
+  Patente | Contrato | Rend real | Meta | Diferencia
+  VPTK33  | ANGLO-CV | 0.27 km/L | 2.85 | -90% 🔴
+  
+  Nota al pie:
+  "Solo camiones con telemetría Volvo activa.
+   Datos desde [fecha primer snapshot] hasta hoy."
+
+Agregar endpoint en server/geo-routes.ts:
+
+GET /api/geo/rendimiento-contratos
+  
+  Lógica:
+  - Para cada faena (contrato) con camiones con VIN:
+    · Calcular rendimiento ECU de los últimos 7 días
+    · rendimiento = km_periodo / litros_periodo
+    · km_periodo = delta total_distance de snapshots
+    · litros_periodo = delta total_fuel_used / 1000
+    · meta_kmL = promedio de camiones.meta_km_l
+    · identificar camiones donde su rendimiento
+      individual < meta_km_l * 0.7
+  - Retornar array por contrato con esos datos
+
+═══════════════════════════════════════════════
+PARTE 5 — ACTUALIZAR IA CONTEXT
+═══════════════════════════════════════════════
+
+En server/ia-routes.ts función getFusionContext():
+
+Cambiar el resumen que se manda a Claude.
+Ya no mencionar litros Sigetra ni cuadratura.
+El nuevo contexto debe incluir:
+
+DATOS DE FLOTA SOTRASER (últimos 7 días):
+- Total camiones con telemetría Volvo: X
+- Camiones activos hoy (GPS en últimas 2h): X
+- Km totales recorridos: X
+- Rendimiento promedio ECU: X km/L
+
+POR CONTRATO:
+- [Nombre]: X camiones activos, X km/L promedio,
+  X bajo meta, última alerta: [descripción]
+
+ALERTAS ACTIVAS:
+- [Patente]: [tipo de alerta] desde [hace cuánto]
+
+CAMIONES SIN GPS HOY:
+- [Lista de patentes sin señal hace más de 2h]
+
+Actualizar preguntas sugeridas en ia-tab.tsx:
+  "¿Qué contrato tiene mejor rendimiento hoy?"
+  "¿Hay camiones sin GPS ahora mismo?"
+  "¿Cuál es el camión más eficiente esta semana?"
+  "¿Algún camión superó 120 km/h hoy?"
+  "¿Qué camiones están bajo su meta de rendimiento?"
+  "Resumen operacional del día"
+
+═══════════════════════════════════════════════
+PARTE 6 — BACKEND ENDPOINT RENDIMIENTO
+═══════════════════════════════════════════════
+
+Agregar en server/geo-routes.ts:
+
+app.get("/api/geo/rendimiento-contratos", 
+async (req, res) => {
+  try {
+    const camiones = await storage.getCamiones()
+    const faenas = await storage.getFaenas()
+    
+    const resultado = []
+    
+    for (const faena of faenas) {
+      const camionesContrato = camiones.filter(
+        c => c.faenaId === faena.id && c.vin != null
+      )
+      if (camionesContrato.length === 0) continue
+      
+      const vins = camionesContrato
+        .map(c => c.vin)
+        .filter(Boolean)
+      
+      // Snapshots últimos 7 días
+      const desde = new Date(Date.now() - 7*24*60*60*1000)
+      const hasta = new Date()
+      
+      const snapshots = await storage
+        .getVolvoFuelSnapshotsInRange(vins, desde, hasta)
+      
+      // Calcular por camión
+      const porCamion = []
+      for (const cam of camionesContrato) {
+        if (!cam.vin) continue
+        const snaps = snapshots
+          .filter(s => s.vin === cam.vin)
+          .sort((a,b) => 
+            new Date(a.capturedAt).getTime() - 
+            new Date(b.capturedAt).getTime()
+          )
+        if (snaps.length < 2) continue
+        
+        const deltaFuel = 
+          snaps[snaps.length-1].totalFuelUsed - 
+          snaps[0].totalFuelUsed
+        const deltaKm = 
+          (snaps[snaps.length-1].totalDistance || 0) - 
+          (snaps[0].totalDistance || 0)
+        
+        const litros = deltaFuel / 1000
+        const km = deltaKm / 1000
+        const rend = litros > 0 ? km / litros : null
+        
+        porCamion.push({
+          patente: cam.patente,
+          meta: cam.metaKmL,
+          rendimiento_real: rend 
+            ? Math.round(rend * 100) / 100 
+            : null,
+          bajo_meta: rend != null && rend < cam.metaKmL * 0.7,
+          diferencia_pct: rend 
+            ? Math.round(((rend - cam.metaKmL) / cam.metaKmL) * 100) 
+            : null
+        })
+      }
+      
+      if (porCamion.length === 0) continue
+      
+      const conRend = porCamion
+        .filter(c => c.rendimiento_real != null)
+      const rendProm = conRend.length > 0
+        ? conRend.reduce((s,c) => s + c.rendimiento_real!, 0) 
+          / conRend.length
+        : null
+      const metaProm = camionesContrato
+        .reduce((s,c) => s + c.metaKmL, 0) 
+        / camionesContrato.length
+      
+      resultado.push({
+        nombre: faena.nombre,
+        color: faena.color,
+        camiones_total: camionesContrato.length,
+        camiones_con_datos: conRend.length,
+        rendimiento_promedio: rendProm 
+          ? Math.round(rendProm * 100) / 100 
+          : null,
+        meta_kmL: Math.round(metaProm * 100) / 100,
+        bajo_meta: porCamion.filter(c => c.bajo_meta)
+      })
+    }
+    
+    res.json(resultado)
+  } catch (error: any) {
+    console.error("[GEO-V2] rendimiento-contratos:", error)
+    res.status(500).json({ message: error.message })
+  }
+})
+
+═══════════════════════════════════════════════
+REGLAS
+═══════════════════════════════════════════════
+
+- NO borrar nada — solo comentar lo que se oculta
+- NO tocar server/sigetra-api.ts
+- NO tocar tabla cargas en la base de datos
+- Sigetra solo se usa para enriquecer conductor
+- Todo lo visible es 100% Volvo Connect
+- Mantener estilo visual exacto
+- TypeScript estricto, async/await, try/catch
+- Logs con prefijo [GEO-V2]
+
+ORDEN DE EJECUCIÓN:
+1. Agregar endpoint en geo-routes.ts (Parte 6)
+2. Enriquecer conductor en ceo-routes.ts (Parte 1)
+3. Ocultar Sigetra en frontend (Parte 2)
+4. Limpiar HOY (Parte 3)
+5. Nuevo tab RENDIMIENTO en GeoValidator (Parte 4)
+6. Actualizar contexto IA (Parte 5)
+
+Ejecuta cada parte completa.
+Muéstrame qué archivos tocaste al terminar.

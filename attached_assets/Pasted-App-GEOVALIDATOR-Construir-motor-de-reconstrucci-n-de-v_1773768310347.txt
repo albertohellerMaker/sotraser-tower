@@ -1,0 +1,422 @@
+App: GEOVALIDATOR
+Construir motor de reconstrucción de viajes
+usando SOLO datos reales que ya existen en la BD.
+Cero datos mock. Cero inferencias inventadas.
+Si no hay dato real → no mostrar nada.
+
+═══════════════════════════════════════════════════
+FUENTES DE DATOS REALES — leer y entender primero
+═══════════════════════════════════════════════════
+
+ANTES DE ESCRIBIR CÓDIGO hacer estas queries
+para entender exactamente qué hay en la BD:
+
+-- ¿Qué tablas GPS existen y cuántos registros?
+SELECT 'gps_registros' as tabla,
+  COUNT(*) as total,
+  MIN(timestamp_gps) as desde,
+  MAX(timestamp_gps) as hasta
+FROM gps_registros
+WHERE timestamp_gps >= '2026-03-01'
+UNION ALL
+SELECT 'volvo_ecu',
+  COUNT(*),
+  MIN(periodo_inicio),
+  MAX(periodo_inicio)
+FROM volvo_ecu
+WHERE periodo_inicio >= '2026-03-01';
+
+-- ¿Qué campos tienen coordenadas GPS?
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name IN ('gps_registros','volvo_ecu')
+AND column_name ILIKE '%lat%'
+   OR column_name ILIKE '%lng%'
+   OR column_name ILIKE '%lon%'
+   OR column_name ILIKE '%coord%';
+
+-- ¿Cuántos camiones CENCOSUD tienen GPS?
+SELECT c.patente, c.id,
+  COUNT(g.id) as puntos_gps
+FROM camiones c
+LEFT JOIN gps_registros g ON g.camion_id = c.id
+  AND g.timestamp_gps >= '2026-03-01'
+WHERE c.faena ILIKE '%CENCOSUD%'
+   OR c.cliente ILIKE '%CENCOSUD%'
+GROUP BY c.patente, c.id
+ORDER BY puntos_gps DESC;
+
+-- ¿Qué campos de velocidad y km hay?
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'gps_registros';
+
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'volvo_ecu';
+
+Usar los resultados reales para construir
+las queries correctas con los nombres
+de columnas que REALMENTE existen.
+
+═══════════════════════════════════════════════════
+MOTOR DE RECONSTRUCCIÓN DE VIAJES
+═══════════════════════════════════════════════════
+
+Función reconstruirViajesCamion(camion_id, desde, hasta):
+
+PASO 1 — Obtener puntos GPS reales ordenados:
+
+-- Intentar primero gps_registros
+SELECT 
+  camion_id,
+  latitud as lat,        -- usar nombre real de columna
+  longitud as lng,       -- usar nombre real de columna
+  timestamp_gps as ts,
+  velocidad_kmh,         -- usar nombre real si existe
+  km_odometro            -- usar nombre real si existe
+FROM gps_registros
+WHERE camion_id = $camion_id
+AND timestamp_gps BETWEEN $desde AND $hasta
+AND latitud IS NOT NULL
+AND longitud IS NOT NULL
+ORDER BY timestamp_gps ASC;
+
+-- Si gps_registros no tiene coordenadas,
+-- intentar volvo_ecu:
+SELECT
+  camion_id,
+  latitud as lat,
+  longitud as lng,
+  periodo_inicio as ts,
+  velocidad_promedio as velocidad_kmh,
+  km_odometro
+FROM volvo_ecu
+WHERE camion_id = $camion_id
+AND periodo_inicio BETWEEN $desde AND $hasta
+AND latitud IS NOT NULL
+ORDER BY periodo_inicio ASC;
+
+Si ninguna tabla tiene lat/lng →
+marcar camión como SIN_GPS y no procesar.
+Mostrar en UI: "Sin datos GPS disponibles
+para este camión en el período."
+
+PASO 2 — Detectar viajes desde los puntos:
+
+Un VIAJE es una secuencia de puntos donde:
+
+INICIO: velocidad > 5 km/h después de estar
+detenido > 20 minutos O es el primer punto del día
+
+PARADA INTERMEDIA: velocidad < 5 km/h
+durante > 30 minutos continuos
+en un punto diferente al origen
+
+FIN: velocidad < 5 km/h durante > 20 minutos
+Y el punto está a > 10 km del origen
+O no hay más puntos en las próximas 4 horas
+
+Para cada grupo de puntos entre inicio y fin:
+
+km_gps = suma haversine de todos los segmentos
+  donde velocidad > 5 km/h
+  y gap entre puntos < 15 minutos
+
+duracion_min = ts_fin - ts_inicio en minutos
+
+velocidad_max = MAX(velocidad_kmh) del viaje
+
+velocidad_prom = km_gps / (duracion_min / 60)
+
+tiempo_detenido = suma de minutos donde
+  velocidad < 5 km/h dentro del viaje
+
+PASO 3 — Solo guardar viajes con sentido real:
+
+Filtrar y guardar SOLO si:
+- km_gps > 30 (viaje real, no movimiento local)
+- duracion_min > 60 (mínimo 1 hora)
+- duracion_min < 7200 (máximo 5 días)
+- tiene al menos 5 puntos GPS
+
+Si no cumple → descartar silenciosamente.
+
+PASO 4 — Geocodificar origen y destino:
+
+Para origen (primer punto del viaje):
+Para destino (último punto del viaje):
+
+1. Buscar primero en geo_lugares si hay
+   un lugar conocido a menos de 1km
+   → usar ese nombre directamente
+
+2. Si no → consultar Nominatim reverse geocoding:
+   GET https://nominatim.openstreetmap.org/reverse
+   ?lat={lat}&lon={lng}&format=json&accept-language=es
+
+   Extraer: display_name simplificado
+   (ciudad + región, no dirección completa)
+
+3. Rate limit: 1 request por segundo a Nominatim
+   Cachear en geo_geocache:
+   CREATE TABLE IF NOT EXISTS geo_geocache (
+     lat_round NUMERIC(5,3),
+     lng_round NUMERIC(5,3),
+     nombre VARCHAR(200),
+     detalle_json JSONB,
+     creado_at TIMESTAMP DEFAULT NOW(),
+     PRIMARY KEY (lat_round, lng_round)
+   );
+   Redondear lat/lng a 3 decimales para el caché
+   (precisión ~100m, suficiente para nombre ciudad)
+
+PASO 5 — Detectar paradas > 60 min:
+
+Para cada parada > 60 min dentro del viaje:
+Llamar detectarLugar(lat, lng)
+(función del prompt anterior)
+
+Si es local Cencosud/Jumbo/Santa Isabel:
+Marcar como destino válido en el viaje.
+
+PASO 6 — Guardar en geo_viajes:
+
+INSERT INTO geo_viajes con todos los campos.
+Si ya existe un viaje para ese camión
+en esa fecha con km similares (±20%) →
+UPDATE en vez de INSERT (evitar duplicados).
+
+═══════════════════════════════════════════════════
+ENDPOINT PRINCIPAL — HISTORIAL POR CAMIÓN
+═══════════════════════════════════════════════════
+
+GET /api/geo/camion/:patente/historial
+  ?desde=2026-03-01&hasta=hoy
+
+1. Buscar camion_id por patente
+2. Verificar si ya hay viajes procesados
+   en geo_viajes para ese camión y período
+3. Si hay → devolver directamente
+4. Si no hay → correr reconstruirViajesCamion()
+   y devolver resultado
+
+Devolver:
+{
+  camion: {
+    patente, contrato, conductor,
+    tiene_gps: true/false,
+    total_puntos_gps: X,
+    primer_punto: timestamp,
+    ultimo_punto: timestamp
+  },
+  viajes: [{
+    id,
+    fecha: '2026-03-04',
+    origen_nombre: 'Santiago, RM',
+    destino_nombre: 'La Serena, Coquimbo',
+    km_gps: 487.3,
+    km_odometro: 491.0,  -- si está disponible
+    duracion_horas: 8.3,
+    velocidad_maxima: 89,
+    velocidad_promedio: 76,
+    tiempo_detenido_min: 45,
+    paradas: [{nombre, minutos, tipo}],
+    validacion_estado: 'VALIDADO',
+    sigetra_match: {
+      encontrado: true,
+      litros: 198,
+      km_delta_pct: 0.8
+    }
+  }],
+  resumen: {
+    total_viajes: X,
+    total_km_gps: X,
+    km_promedio_por_viaje: X,
+    destino_mas_frecuente: 'La Serena',
+    viajes_validados: X,
+    viajes_anomalia: X
+  }
+}
+
+Si tiene_gps = false:
+{
+  camion: { patente, ... tiene_gps: false },
+  viajes: [],
+  mensaje: "Este camión no tiene registros GPS
+            desde 01-03-2026"
+}
+
+═══════════════════════════════════════════════════
+ENDPOINT — PROCESAR TODA LA FLOTA
+═══════════════════════════════════════════════════
+
+POST /api/geo/procesar-historico
+Body: { desde: '2026-03-01', patentes: [] }
+Si patentes vacío → procesar toda la flota CENCOSUD.
+
+Procesar en cola (uno a la vez para no
+sobrecargar la BD):
+
+Para cada camión:
+1. reconstruirViajesCamion(camion_id, desde, hasta)
+2. Emitir progreso via SSE
+
+Response streaming (Server-Sent Events):
+data: {"patente":"DKPW78","estado":"procesando",
+       "puntos":487,"viajes_detectados":0}
+data: {"patente":"DKPW78","estado":"listo",
+       "puntos":487,"viajes_detectados":12}
+data: {"patente":"FJKP21","estado":"sin_gps",
+       "puntos":0,"viajes_detectados":0}
+...
+data: {"estado":"completo","total_camiones":14,
+       "con_gps":9,"sin_gps":5,"total_viajes":87}
+
+═══════════════════════════════════════════════════
+FRONTEND — BUSCADOR DE CAMIÓN
+═══════════════════════════════════════════════════
+
+En la pantalla VIAJES agregar arriba:
+
+┌─────────────────────────────────────────────────┐
+│  🔍 Buscar camión                               │
+│  [  patente o número...  ]  [Buscar historial] │
+└─────────────────────────────────────────────────┘
+
+Al buscar → llamar GET /api/geo/camion/:patente/historial
+?desde=2026-03-01&hasta=hoy
+
+Mientras procesa → mostrar:
+┌─────────────────────────────────────────────────┐
+│  ⏳ Reconstruyendo viajes de DKPW78...          │
+│  Analizando 487 puntos GPS desde 01-03-2026    │
+│  ████████████░░░░░░░░  62%                     │
+└─────────────────────────────────────────────────┘
+
+Al terminar → mostrar perfil completo:
+
+┌─────────────────────────────────────────────────┐
+│  🚛 DKPW78 · CENCOSUD                          │
+│  487 puntos GPS · desde 01-03-2026             │
+├─────────────────────────────────────────────────┤
+│  RESUMEN DEL PERÍODO                            │
+│  12 viajes · 4.823 km · La Serena (8 veces)   │
+├─────────────────────────────────────────────────┤
+│  VIAJES DETECTADOS                              │
+│                                                 │
+│  04 Mar · Santiago → La Serena                 │
+│  487 km · 8h 20min · ✅ VALIDADO              │
+│  [Ver en mapa] [Ver detalle]                   │
+│  ─────────────────────────────                 │
+│  07 Mar · Santiago → Coquimbo                 │
+│  492 km · 8h 45min · ⚠️ REVISAR              │
+│  [Ver en mapa] [Ver detalle]                   │
+│  ─────────────────────────────                 │
+│  ...                                            │
+└─────────────────────────────────────────────────┘
+
+Al hacer clic en [Ver detalle]:
+
+Modal con 3 columnas:
+
+IZQUIERDA — Mapa del viaje:
+Trayectoria dibujada con Leaflet.
+Marcador origen (verde) y destino (rojo).
+Paradas intermedias (amarillo).
+
+CENTRO — Timeline del viaje:
+08:14 🚀 Salida Santiago, RM
+09:32 ⛽ Parada 18min — Copec Rancagua
+12:45 🍽️ Parada 45min — Chillán
+16:30 📍 Llegada La Serena
+       Jumbo La Serena (2h 15min descarga)
+18:47 🚀 Salida regreso
+       ...
+
+DERECHA — Métricas y validación:
+KM GPS: 487.3
+KM SIGETRA: 491.0
+Diferencia: 0.8% ✅
+Litros cargados: 198L
+Rendimiento: 2.46 km/L
+Vel. máxima: 89 km/h
+Vel. promedio: 76 km/h
+Tiempo detenido: 3h 45min
+
+VALIDACIÓN:
+✅ Km coinciden (0.8%)
+✅ Surtidor en ruta
+✅ Fecha coherente
+→ VIAJE VALIDADO
+
+Si no tiene GPS suficiente para mostrar mapa:
+"Sin suficientes puntos GPS para
+ trazar la ruta de este viaje.
+ Solo se muestran origen y destino aproximados."
+
+═══════════════════════════════════════════════════
+PANTALLA RESUMEN FLOTA — NUEVO TAB [📊 FLOTA]
+═══════════════════════════════════════════════════
+
+Agregar tab [📊 FLOTA] en GEOVALIDATOR.
+
+Muestra resumen de TODOS los camiones
+CENCOSUD procesados desde 01-03-2026.
+
+KPIs generales:
+┌─────────┬─────────┬─────────┬─────────┐
+│CAMIONES │ CON GPS │ VIAJES  │  KM     │
+│CENCOSUD │         │DETECTAD.│TOTALES  │
+│   14    │    9    │   87    │ 42.350  │
+└─────────┴─────────┴─────────┴─────────┘
+
+Tabla por camión:
+PATENTE · GPS · VIAJES · KM TOTAL ·
+DESTINO TOP · VALIDADOS · ANOMALÍAS · ACCIÓN
+
+Columna GPS:
+✅ Con GPS (X puntos)
+❌ Sin GPS
+
+Botón [Ver historial] → va a buscador
+con esa patente ya cargada.
+
+Botón grande arriba:
+[🔄 Procesar toda la flota desde 01-03-2026]
+→ Llama POST /api/geo/procesar-historico
+→ Muestra barra de progreso por camión
+
+═══════════════════════════════════════════════════
+MANEJO DE CAMIONES SIN GPS
+═══════════════════════════════════════════════════
+
+Si un camión no tiene puntos GPS pero
+sí tiene cargas en Sigetra:
+
+Mostrar en su perfil:
+┌─────────────────────────────────────────────────┐
+│  🚛 BKRT34 · CENCOSUD                          │
+│  ❌ Sin datos GPS desde 01-03-2026             │
+│                                                 │
+│  DATOS SIGETRA DISPONIBLES:                    │
+│  8 cargas · 1.240L · Surtidores: Pudahuel,    │
+│  Rancagua, La Serena                           │
+│                                                 │
+│  Sin GPS no es posible reconstruir             │
+│  los viajes automáticamente.                   │
+│                                                 │
+│  [+ Agregar viaje manual]                      │
+└─────────────────────────────────────────────────┘
+
+El botón [+ Agregar viaje manual] →
+abre el formulario de TARIFAS para ese camión.
+
+═══════════════════════════════════════════════════
+NO TOCAR
+═══════════════════════════════════════════════════
+- App SOTRASER — nada
+- Tablas existentes — solo leer
+- gps_registros — solo SELECT
+- volvo_ecu — solo SELECT
+- cargas_tarjeta — solo SELECT
+- camiones — solo SELECT
+- Todo lo que ya funciona en GEOVALIDATOR

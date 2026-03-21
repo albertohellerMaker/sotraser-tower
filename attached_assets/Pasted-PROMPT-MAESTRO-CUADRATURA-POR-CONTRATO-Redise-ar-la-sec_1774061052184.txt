@@ -1,0 +1,1260 @@
+PROMPT MAESTRO — CUADRATURA POR CONTRATO
+Rediseñar la sección de contratos con foco
+en operaciones cerradas y verificadas.
+
+FILOSOFÍA:
+  Solo mostrar lo que el sistema tiene CERRADO.
+  Nada de estimaciones. Nada de parciales.
+  Si no está verificado no aparece en la cuadratura.
+
+═══════════════════════════════════════════════
+PASO 1 — ENDPOINT MAESTRO
+GET /api/contratos/cuadratura-mensual
+server/ceo-routes.ts — AGREGAR
+═══════════════════════════════════════════════
+
+app.get("/api/contratos/cuadratura-mensual",
+async (req, res) => {
+  const { contrato } = req.query
+  
+  // Período: desde día 1 del mes hasta T-1
+  const hoy = new Date()
+  const ayer = new Date(hoy)
+  ayer.setDate(ayer.getDate() - 1)
+  ayer.setHours(23, 59, 59, 999)
+  
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+  inicioMes.setHours(0, 0, 0, 0)
+  
+  // Solo operaciones CERRADAS y VERIFICADAS
+  // PERFECTA + BUENA + ACEPTABLE
+  // NO incluir PENDIENTE ni CON_ALERTA en cuadratura
+  
+  let whereClause = and(
+    gte(operacionesExitosas.fechaSalida, inicioMes),
+    lte(operacionesExitosas.fechaSalida, ayer),
+    inArray(operacionesExitosas.calidadCierre, [
+      'PERFECTA', 'BUENA', 'ACEPTABLE'
+    ])
+  )
+  
+  if (contrato && contrato !== 'TODOS') {
+    whereClause = and(
+      whereClause,
+      eq(operacionesExitosas.contrato, contrato as string)
+    )
+  }
+  
+  const operaciones = await db.select()
+    .from(operacionesExitosas)
+    .where(whereClause)
+    .orderBy(desc(operacionesExitosas.fechaSalida))
+  
+  // Agrupar por camión
+  const porCamion: Record<string, {
+    patente: string
+    conductor: string
+    contrato: string
+    operaciones: typeof operaciones
+    km_total: number
+    litros_ecu_total: number
+    litros_sigetra_total: number
+    rendimiento_promedio: number | null
+    operaciones_perfectas: number
+    operaciones_buenas: number
+    operaciones_aceptables: number
+    operaciones_con_alerta: number
+    balance_total: number
+    mejor_rendimiento: number | null
+    peor_rendimiento: number | null
+    tendencia: 'MEJORANDO' | 'ESTABLE' | 'EMPEORANDO'
+  }> = {}
+  
+  for (const op of operaciones) {
+    const key = op.patente
+    if (!porCamion[key]) {
+      porCamion[key] = {
+        patente: op.patente,
+        conductor: op.conductor || 'Sin asignar',
+        contrato: op.contrato || '',
+        operaciones: [],
+        km_total: 0,
+        litros_ecu_total: 0,
+        litros_sigetra_total: 0,
+        rendimiento_promedio: null,
+        operaciones_perfectas: 0,
+        operaciones_buenas: 0,
+        operaciones_aceptables: 0,
+        operaciones_con_alerta: 0,
+        balance_total: 0,
+        mejor_rendimiento: null,
+        peor_rendimiento: null,
+        tendencia: 'ESTABLE'
+      }
+    }
+    
+    const c = porCamion[key]
+    c.operaciones.push(op)
+    c.km_total += op.kmEcu || 0
+    c.litros_ecu_total += op.litrosEcu || 0
+    c.litros_sigetra_total += op.litrosSigetra || 0
+    
+    if (op.calidadCierre === 'PERFECTA') c.operaciones_perfectas++
+    else if (op.calidadCierre === 'BUENA') c.operaciones_buenas++
+    else if (op.calidadCierre === 'ACEPTABLE') c.operaciones_aceptables++
+    
+    if (op.rendimientoReal) {
+      if (!c.mejor_rendimiento || op.rendimientoReal > c.mejor_rendimiento)
+        c.mejor_rendimiento = op.rendimientoReal
+      if (!c.peor_rendimiento || op.rendimientoReal < c.peor_rendimiento)
+        c.peor_rendimiento = op.rendimientoReal
+    }
+  }
+  
+  // Calcular promedios y tendencia
+  for (const cam of Object.values(porCamion)) {
+    if (cam.litros_ecu_total > 0 && cam.km_total > 0) {
+      cam.rendimiento_promedio = Math.round(
+        (cam.km_total / cam.litros_ecu_total) * 100
+      ) / 100
+    }
+    
+    cam.balance_total = Math.round(
+      cam.litros_sigetra_total - cam.litros_ecu_total
+    )
+    
+    // Tendencia: comparar primera mitad vs segunda mitad del mes
+    const mitad = Math.floor(cam.operaciones.length / 2)
+    if (mitad >= 2) {
+      const primera = cam.operaciones.slice(0, mitad)
+      const segunda = cam.operaciones.slice(mitad)
+      
+      const rendPrimera = primera
+        .filter(o => o.rendimientoReal)
+        .reduce((s,o) => s + o.rendimientoReal!, 0) / primera.length
+      const rendSegunda = segunda
+        .filter(o => o.rendimientoReal)
+        .reduce((s,o) => s + o.rendimientoReal!, 0) / segunda.length
+      
+      const diff = ((rendSegunda - rendPrimera) / rendPrimera) * 100
+      
+      cam.tendencia = diff > 5 ? 'MEJORANDO'
+                    : diff < -5 ? 'EMPEORANDO'
+                    : 'ESTABLE'
+    }
+  }
+  
+  // Resumen global del contrato
+  const camionesArr = Object.values(porCamion)
+  
+  const resumen = {
+    periodo: {
+      desde: inicioMes.toISOString().slice(0, 10),
+      hasta: ayer.toISOString().slice(0, 10),
+      dias: Math.floor(
+        (ayer.getTime() - inicioMes.getTime()) 
+        / (1000 * 60 * 60 * 24)
+      )
+    },
+    total_operaciones: operaciones.length,
+    camiones_activos: camionesArr.length,
+    km_total: Math.round(
+      camionesArr.reduce((s,c) => s + c.km_total, 0)
+    ),
+    litros_ecu_total: Math.round(
+      camionesArr.reduce((s,c) => s + c.litros_ecu_total, 0)
+    ),
+    litros_sigetra_total: Math.round(
+      camionesArr.reduce((s,c) => s + c.litros_sigetra_total, 0)
+    ),
+    balance_total: Math.round(
+      camionesArr.reduce((s,c) => s + c.balance_total, 0)
+    ),
+    rendimiento_promedio: (() => {
+      const totalKm = camionesArr.reduce((s,c) => s + c.km_total, 0)
+      const totalL = camionesArr.reduce((s,c) => s + c.litros_ecu_total, 0)
+      return totalL > 0 ? Math.round(totalKm / totalL * 100) / 100 : null
+    })(),
+    calidad_distribucion: {
+      perfectas: operaciones.filter(o => o.calidadCierre === 'PERFECTA').length,
+      buenas: operaciones.filter(o => o.calidadCierre === 'BUENA').length,
+      aceptables: operaciones.filter(o => o.calidadCierre === 'ACEPTABLE').length,
+    },
+    cobertura_pct: Math.round(
+      (operaciones.length / Math.max(1, camionesArr.length * 20)) * 100
+    )
+  }
+  
+  // Ordenar camiones: mayor balance primero (más sospechosos)
+  const camionesOrdenados = camionesArr.sort((a, b) => 
+    b.balance_total - a.balance_total
+  )
+  
+  res.json({ resumen, camiones: camionesOrdenados })
+})
+
+═══════════════════════════════════════════════
+PASO 2 — ENDPOINT DETALLE CAMIÓN
+GET /api/contratos/cuadratura-camion
+═══════════════════════════════════════════════
+
+app.get("/api/contratos/cuadratura-camion",
+async (req, res) => {
+  const { patente } = req.query
+  if (!patente) return res.status(400).json({ error: 'patente requerida' })
+  
+  const hoy = new Date()
+  const ayer = new Date(hoy)
+  ayer.setDate(ayer.getDate() - 1)
+  ayer.setHours(23, 59, 59, 999)
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+  
+  // Todas las operaciones del mes de ese camión
+  const operaciones = await db.select()
+    .from(operacionesExitosas)
+    .where(
+      and(
+        eq(operacionesExitosas.patente, patente as string),
+        gte(operacionesExitosas.fechaSalida, inicioMes),
+        lte(operacionesExitosas.fechaSalida, ayer)
+      )
+    )
+    .orderBy(desc(operacionesExitosas.fechaSalida))
+  
+  // Datos del camión
+  const camionData = await db.select()
+    .from(camiones)
+    .where(eq(camiones.patente, patente as string))
+    .limit(1)
+  
+  // Perfil aprendido
+  const perfil = await db.select()
+    .from(camionesPerfil)
+    .where(eq(camionesPerfil.patente, patente as string))
+    .limit(1)
+  
+  // Calcular métricas del mes
+  const cerradas = operaciones.filter(o => 
+    ['PERFECTA','BUENA','ACEPTABLE'].includes(o.calidadCierre)
+  )
+  const conAlerta = operaciones.filter(o => 
+    o.calidadCierre === 'CON_ALERTA'
+  )
+  
+  const kmTotal = cerradas.reduce((s,o) => s + (o.kmEcu || 0), 0)
+  const litrosEcuTotal = cerradas.reduce((s,o) => s + (o.litrosEcu || 0), 0)
+  const litrosSigetraTotal = cerradas.reduce((s,o) => s + (o.litrosSigetra || 0), 0)
+  
+  // Rendimiento por semana para el gráfico
+  const porSemana: Record<string, { km: number, litros: number, ops: number }> = {}
+  for (const op of cerradas) {
+    const semana = getSemanaLabel(new Date(op.fechaSalida))
+    if (!porSemana[semana]) porSemana[semana] = { km: 0, litros: 0, ops: 0 }
+    porSemana[semana].km += op.kmEcu || 0
+    porSemana[semana].litros += op.litrosEcu || 0
+    porSemana[semana].ops++
+  }
+  
+  const tendenciaSemanal = Object.entries(porSemana).map(([semana, d]) => ({
+    semana,
+    rendimiento: d.litros > 0 ? Math.round(d.km / d.litros * 100) / 100 : null,
+    km: Math.round(d.km),
+    litros: Math.round(d.litros),
+    operaciones: d.ops
+  }))
+  
+  res.json({
+    patente,
+    conductor: operaciones[0]?.conductor || 'Sin asignar',
+    contrato: operaciones[0]?.contrato || '',
+    modelo: camionData[0]?.modelo || '',
+    meta_kmL: camionData[0]?.metaKmL || 2.85,
+    
+    resumen_mes: {
+      total_operaciones: operaciones.length,
+      operaciones_verificadas: cerradas.length,
+      operaciones_con_alerta: conAlerta.length,
+      km_total: Math.round(kmTotal),
+      litros_ecu_total: Math.round(litrosEcuTotal),
+      litros_sigetra_total: Math.round(litrosSigetraTotal),
+      balance_litros: Math.round(litrosSigetraTotal - litrosEcuTotal),
+      balance_pct: litrosEcuTotal > 0 
+        ? Math.round((litrosSigetraTotal - litrosEcuTotal) / litrosEcuTotal * 100)
+        : null,
+      rendimiento_promedio: litrosEcuTotal > 0
+        ? Math.round(kmTotal / litrosEcuTotal * 100) / 100
+        : null,
+      vs_meta: camionData[0]?.metaKmL && litrosEcuTotal > 0
+        ? Math.round(
+            ((kmTotal/litrosEcuTotal) - camionData[0].metaKmL) 
+            / camionData[0].metaKmL * 100
+          )
+        : null
+    },
+    
+    tendencia_semanal: tendenciaSemanal,
+    
+    perfil_aprendido: perfil[0] ? {
+      total_jornadas: perfil[0].totalJornadas,
+      score: perfil[0].scoreRendimiento,
+      tendencia: perfil[0].tendencia,
+      confianza: perfil[0].confianza || 'BAJA'
+    } : null,
+    
+    operaciones: operaciones.map(op => ({
+      id: op.id,
+      fecha: op.fechaSalida,
+      origen: op.origenNombre,
+      destino: op.destinoNombre,
+      km_ecu: op.kmEcu,
+      litros_ecu: op.litrosEcu,
+      litros_sigetra: op.litrosSigetra,
+      rendimiento: op.rendimientoReal,
+      duracion_horas: op.duracionHoras,
+      calidad: op.calidadCierre,
+      balance: op.litrosSigetra && op.litrosEcu
+        ? Math.round(op.litrosSigetra - op.litrosEcu)
+        : null
+    }))
+  })
+})
+
+function getSemanaLabel(fecha: Date): string {
+  const inicioSemana = new Date(fecha)
+  inicioSemana.setDate(fecha.getDate() - fecha.getDay())
+  return `S${Math.ceil(fecha.getDate() / 7)}`
+}
+
+═══════════════════════════════════════════════
+PASO 3 — REDISEÑAR ContratoDetalleModal
+en hoy.tsx — REEMPLAZAR COMPLETAMENTE
+═══════════════════════════════════════════════
+
+La nueva vista tiene DOS secciones principales:
+1. Cuadratura del contrato (vista general)
+2. Click en camión → mini cuadro operacional
+
+function ContratoDetalleModal({ 
+  nombre, 
+  color,
+  onClose 
+}: { 
+  nombre: string
+  color: string
+  onClose: () => void 
+}) {
+  
+  const [camionSeleccionado, setCamionSeleccionado] = 
+    useState<string | null>(null)
+  
+  const { data, isLoading } = useQuery({
+    queryKey: ['/api/contratos/cuadratura-mensual', nombre],
+    queryFn: () => fetch(
+      `/api/contratos/cuadratura-mensual?contrato=` +
+      encodeURIComponent(nombre)
+    ).then(r => r.json())
+  })
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center 
+                    justify-center"
+      onClick={onClose}>
+      <div className="absolute inset-0"
+        style={{ 
+          background: 'rgba(2,5,8,0.9)',
+          backdropFilter: 'blur(8px)'
+        }} />
+      
+      <div className="relative w-full max-w-[860px] 
+                      max-h-[90vh] overflow-y-auto m-4"
+        style={{ 
+          background: '#020508',
+          border: `1px solid ${color}30`,
+          borderTop: `3px solid ${color}`
+        }}
+        onClick={e => e.stopPropagation()}>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin"
+              style={{ color }} />
+          </div>
+        ) : data && (
+          <>
+            {/* ── HEADER ──────────────────── */}
+            <div className="sticky top-0 z-10 px-6 py-4 
+                            flex items-center justify-between"
+              style={{ 
+                background: '#020508',
+                borderBottom: '1px solid #0d2035'
+              }}>
+              <div>
+                <div className="font-space text-[20px] 
+                                font-bold tracking-[0.2em]"
+                  style={{ color }}>
+                  {nombre}
+                </div>
+                <div className="font-exo text-[10px] 
+                                tracking-wider"
+                  style={{ color: '#3a6080' }}>
+                  CUADRATURA · {data.resumen.periodo.desde} 
+                  → {data.resumen.periodo.hasta} · 
+                  {data.resumen.periodo.dias} días
+                </div>
+              </div>
+              <button onClick={onClose}
+                className="p-2 cursor-pointer hover:opacity-70">
+                <X className="w-5 h-5"
+                  style={{ color: '#3a6080' }} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              
+              {/* ── KPIs GLOBALES ─────────── */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  {
+                    label: 'OPERACIONES\nVERIFICADAS',
+                    value: data.resumen.total_operaciones,
+                    sub: `${data.resumen.camiones_activos} camiones`,
+                    color: '#00d4ff'
+                  },
+                  {
+                    label: 'KM TOTALES\nECU',
+                    value: data.resumen.km_total
+                      .toLocaleString('es-CL'),
+                    sub: 'kilómetros reales',
+                    color: '#c8e8ff'
+                  },
+                  {
+                    label: 'RENDIMIENTO\nPROMEDIO',
+                    value: data.resumen.rendimiento_promedio
+                      ? `${data.resumen.rendimiento_promedio} km/L`
+                      : 'N/D',
+                    sub: 'operaciones verificadas',
+                    color: '#00ff88'
+                  },
+                  {
+                    label: 'BALANCE\nMESUAL',
+                    value: `${data.resumen.balance_total > 0 ? '+' : ''}${
+                      data.resumen.balance_total
+                        .toLocaleString('es-CL')}L`,
+                    sub: 'Sigetra vs ECU',
+                    color: Math.abs(data.resumen.balance_total) < 500
+                      ? '#00ff88'
+                      : Math.abs(data.resumen.balance_total) < 2000
+                      ? '#ffcc00' : '#ff2244'
+                  },
+                ].map(kpi => (
+                  <div key={kpi.label}
+                    className="p-4"
+                    style={{ 
+                      background: '#060d14',
+                      border: '1px solid #0d2035',
+                      borderTop: `2px solid ${kpi.color}`
+                    }}>
+                    <div className="font-exo text-[7px] 
+                                    tracking-[0.2em] uppercase 
+                                    whitespace-pre mb-2"
+                      style={{ color: '#3a6080' }}>
+                      {kpi.label}
+                    </div>
+                    <div className="font-space text-[22px] 
+                                    font-bold"
+                      style={{ color: kpi.color }}>
+                      {kpi.value}
+                    </div>
+                    <div className="font-exo text-[9px] mt-1"
+                      style={{ color: '#3a6080' }}>
+                      {kpi.sub}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── CALIDAD DE OPERACIONES ── */}
+              <div>
+                <div className="font-exo text-[8px] 
+                                tracking-[0.2em] uppercase mb-2"
+                  style={{ color: '#3a6080' }}>
+                  CALIDAD DE CIERRE
+                </div>
+                <div className="flex gap-3">
+                  {[
+                    { 
+                      k: 'perfectas', 
+                      l: 'PERFECTA', 
+                      c: '#00ff88',
+                      desc: 'Dif < 5%'
+                    },
+                    { 
+                      k: 'buenas', 
+                      l: 'BUENA', 
+                      c: '#00d4ff',
+                      desc: 'Dif < 15%'
+                    },
+                    { 
+                      k: 'aceptables', 
+                      l: 'ACEPTABLE', 
+                      c: '#ffcc00',
+                      desc: 'Dif < 25%'
+                    },
+                  ].map(q => (
+                    <div key={q.k}
+                      className="flex-1 p-3 text-center"
+                      style={{ 
+                        background: '#0a1520',
+                        border: `1px solid ${q.c}20`
+                      }}>
+                      <div className="font-space text-[22px] 
+                                      font-bold"
+                        style={{ color: q.c }}>
+                        {data.resumen.calidad_distribucion[q.k]}
+                      </div>
+                      <div className="font-exo text-[8px] 
+                                      font-bold"
+                        style={{ color: q.c }}>
+                        {q.l}
+                      </div>
+                      <div className="font-exo text-[7px]"
+                        style={{ color: '#3a6080' }}>
+                        {q.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── TABLA DE CAMIONES ─────── */}
+              <div>
+                <div className="font-exo text-[8px] 
+                                tracking-[0.2em] uppercase mb-3"
+                  style={{ color: '#3a6080' }}>
+                  CAMIONES · CLICK PARA VER CUADRATURA INDIVIDUAL
+                </div>
+                
+                {/* Header tabla */}
+                <div className="grid grid-cols-7 px-3 py-2 mb-1"
+                  style={{ background: '#0a1520' }}>
+                  {[
+                    'CAMIÓN', 'CONDUCTOR', 'OPS', 
+                    'KM ECU', 'L ECU', 'REND', 'BALANCE'
+                  ].map(h => (
+                    <div key={h}
+                      className="font-exo text-[8px] 
+                                 tracking-wider uppercase"
+                      style={{ color: '#3a6080' }}>
+                      {h}
+                    </div>
+                  ))}
+                </div>
+                
+                {data.camiones.length === 0 && (
+                  <div className="py-8 text-center 
+                                  font-exo text-[11px]"
+                    style={{ color: '#3a6080' }}>
+                    Sin operaciones verificadas este mes.
+                    Las operaciones aparecen cuando el sistema
+                    cierra períodos entre cargas con ECU.
+                  </div>
+                )}
+                
+                {data.camiones.map(cam => (
+                  <button
+                    key={cam.patente}
+                    onClick={() => setCamionSeleccionado(
+                      cam.patente
+                    )}
+                    className="w-full grid grid-cols-7 
+                               px-3 py-3 border-b 
+                               cursor-pointer transition-all
+                               hover:bg-[rgba(0,212,255,0.04)]
+                               text-left"
+                    style={{ borderColor: '#0d2035' }}>
+                    
+                    {/* Camión */}
+                    <div className="font-space text-[11px] 
+                                    font-bold"
+                      style={{ color: '#00d4ff' }}>
+                      {cam.patente}
+                    </div>
+                    
+                    {/* Conductor */}
+                    <div className="font-exo text-[10px] 
+                                    truncate"
+                      style={{ color: '#c8e8ff' }}>
+                      {cam.conductor}
+                    </div>
+                    
+                    {/* Operaciones */}
+                    <div className="font-space text-[11px]"
+                      style={{ color: '#c8e8ff' }}>
+                      {cam.operaciones.length}
+                      <span className="font-exo text-[8px] ml-1"
+                        style={{ color: '#3a6080' }}>
+                        ops
+                      </span>
+                    </div>
+                    
+                    {/* Km ECU */}
+                    <div className="font-space text-[11px]"
+                      style={{ color: '#c8e8ff' }}>
+                      {Math.round(cam.km_total)
+                        .toLocaleString('es-CL')}
+                    </div>
+                    
+                    {/* Litros ECU */}
+                    <div className="font-space text-[11px]"
+                      style={{ color: '#ffcc00' }}>
+                      {Math.round(cam.litros_ecu_total)
+                        .toLocaleString('es-CL')}L
+                    </div>
+                    
+                    {/* Rendimiento */}
+                    <div className="font-space text-[11px] 
+                                    font-bold"
+                      style={{ 
+                        color: !cam.rendimiento_promedio 
+                          ? '#3a6080'
+                          : cam.rendimiento_promedio >= 2.5 
+                          ? '#00ff88' : '#ffcc00'
+                      }}>
+                      {cam.rendimiento_promedio 
+                        ? `${cam.rendimiento_promedio} km/L`
+                        : '—'}
+                    </div>
+                    
+                    {/* Balance */}
+                    <div className="flex items-center gap-2">
+                      <span className="font-space text-[11px] 
+                                       font-bold"
+                        style={{ 
+                          color: Math.abs(cam.balance_total) < 100
+                            ? '#00ff88'
+                            : Math.abs(cam.balance_total) < 500
+                            ? '#ffcc00' : '#ff2244'
+                        }}>
+                        {cam.balance_total > 0 ? '+' : ''}
+                        {cam.balance_total}L
+                      </span>
+                      {/* Tendencia */}
+                      <span style={{ 
+                        color: cam.tendencia === 'MEJORANDO'
+                          ? '#00ff88'
+                          : cam.tendencia === 'EMPEORANDO'
+                          ? '#ff2244' : '#3a6080'
+                      }}>
+                        {cam.tendencia === 'MEJORANDO' ? '↗'
+                         : cam.tendencia === 'EMPEORANDO' ? '↘'
+                         : '→'}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              
+            </div>
+          </>
+        )}
+      </div>
+      
+      {/* ── MINI CUADRO OPERACIONAL ─── */}
+      {camionSeleccionado && (
+        <MiniCuadroOperacional
+          patente={camionSeleccionado}
+          onClose={() => setCamionSeleccionado(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+═══════════════════════════════════════════════
+COMPONENTE MiniCuadroOperacional
+El corazón de la vista individual
+═══════════════════════════════════════════════
+
+function MiniCuadroOperacional({
+  patente,
+  onClose
+}: {
+  patente: string
+  onClose: () => void
+}) {
+  
+  const { data, isLoading } = useQuery({
+    queryKey: ['/api/contratos/cuadratura-camion', patente],
+    queryFn: () => fetch(
+      `/api/contratos/cuadratura-camion?patente=` +
+      encodeURIComponent(patente)
+    ).then(r => r.json())
+  })
+  
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center 
+                    justify-center"
+      onClick={onClose}>
+      <div className="absolute inset-0"
+        style={{ background: 'rgba(2,5,8,0.7)' }} />
+      
+      <div className="relative w-full max-w-[640px] 
+                      max-h-[85vh] overflow-y-auto m-4"
+        style={{ 
+          background: '#020508',
+          border: '1px solid #0d2035',
+          borderTop: '3px solid #00d4ff'
+        }}
+        onClick={e => e.stopPropagation()}>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-5 h-5 animate-spin"
+              style={{ color: '#00d4ff' }} />
+          </div>
+        ) : data && (
+          <>
+            {/* Header */}
+            <div className="px-5 py-4 border-b flex items-center 
+                            justify-between"
+              style={{ borderColor: '#0d2035' }}>
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="font-space text-[18px] 
+                                   font-bold"
+                    style={{ color: '#00d4ff' }}>
+                    {patente}
+                  </span>
+                  <span className="font-exo text-[11px]"
+                    style={{ color: '#c8e8ff' }}>
+                    {data.conductor}
+                  </span>
+                  <span className="font-exo text-[9px] 
+                                   px-2 py-0.5"
+                    style={{ 
+                      color: '#00d4ff',
+                      border: '1px solid #00d4ff30'
+                    }}>
+                    {data.contrato}
+                  </span>
+                </div>
+                <div className="font-exo text-[9px] mt-1"
+                  style={{ color: '#3a6080' }}>
+                  CUADRO OPERACIONAL · MES ACTUAL HASTA T-1
+                </div>
+              </div>
+              <button onClick={onClose}
+                className="p-1.5 cursor-pointer hover:opacity-70">
+                <X className="w-4 h-4"
+                  style={{ color: '#3a6080' }} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              
+              {/* Métricas principales */}
+              <div className="grid grid-cols-3 gap-3">
+                
+                <div className="p-4 col-span-1"
+                  style={{ 
+                    background: '#060d14',
+                    border: '1px solid #0d2035',
+                    borderTop: '2px solid #00d4ff'
+                  }}>
+                  <div className="font-exo text-[7px] 
+                                  tracking-wider uppercase mb-2"
+                    style={{ color: '#3a6080' }}>
+                    OPERACIONES
+                  </div>
+                  <div className="font-space text-[28px] 
+                                  font-bold"
+                    style={{ color: '#00d4ff' }}>
+                    {data.resumen_mes.operaciones_verificadas}
+                  </div>
+                  <div className="font-exo text-[9px]"
+                    style={{ color: '#3a6080' }}>
+                    verificadas este mes
+                  </div>
+                  {data.resumen_mes.operaciones_con_alerta > 0 && (
+                    <div className="font-exo text-[9px] mt-1"
+                      style={{ color: '#ff2244' }}>
+                      +{data.resumen_mes.operaciones_con_alerta} con alerta
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-4"
+                  style={{ 
+                    background: '#060d14',
+                    border: '1px solid #0d2035',
+                    borderTop: '2px solid #c8e8ff'
+                  }}>
+                  <div className="font-exo text-[7px] 
+                                  tracking-wider uppercase mb-2"
+                    style={{ color: '#3a6080' }}>
+                    KM RECORRIDOS ECU
+                  </div>
+                  <div className="font-space text-[28px] 
+                                  font-bold"
+                    style={{ color: '#c8e8ff' }}>
+                    {data.resumen_mes.km_total
+                      .toLocaleString('es-CL')}
+                  </div>
+                  <div className="font-exo text-[9px]"
+                    style={{ color: '#3a6080' }}>
+                    kilómetros verificados
+                  </div>
+                </div>
+                
+                <div className="p-4"
+                  style={{ 
+                    background: '#060d14',
+                    border: '1px solid #0d2035',
+                    borderTop: '2px solid #ffcc00'
+                  }}>
+                  <div className="font-exo text-[7px] 
+                                  tracking-wider uppercase mb-2"
+                    style={{ color: '#3a6080' }}>
+                    LITROS ECU
+                  </div>
+                  <div className="font-space text-[28px] 
+                                  font-bold"
+                    style={{ color: '#ffcc00' }}>
+                    {data.resumen_mes.litros_ecu_total
+                      .toLocaleString('es-CL')}L
+                  </div>
+                  <div className="font-exo text-[9px]"
+                    style={{ color: '#3a6080' }}>
+                    consumo real verificado
+                  </div>
+                </div>
+              </div>
+              
+              {/* Rendimiento vs Meta */}
+              <div className="p-4"
+                style={{ 
+                  background: '#060d14',
+                  border: '1px solid #0d2035'
+                }}>
+                <div className="flex items-center 
+                                justify-between mb-3">
+                  <div className="font-exo text-[8px] 
+                                  tracking-wider uppercase"
+                    style={{ color: '#3a6080' }}>
+                    RENDIMIENTO vs META
+                  </div>
+                  {data.resumen_mes.vs_meta !== null && (
+                    <span className="font-space text-[11px] 
+                                     font-bold"
+                      style={{ 
+                        color: data.resumen_mes.vs_meta >= 0
+                          ? '#00ff88' : '#ff2244'
+                      }}>
+                      {data.resumen_mes.vs_meta >= 0 ? '+' : ''}
+                      {data.resumen_mes.vs_meta}% vs meta
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-end gap-4">
+                  <div>
+                    <div className="font-space text-[36px] 
+                                    font-bold"
+                      style={{ 
+                        color: !data.resumen_mes.rendimiento_promedio
+                          ? '#3a6080'
+                          : data.resumen_mes.rendimiento_promedio >= data.meta_kmL
+                          ? '#00ff88' : '#ffcc00'
+                      }}>
+                      {data.resumen_mes.rendimiento_promedio 
+                        ? `${data.resumen_mes.rendimiento_promedio}`
+                        : '—'}
+                    </div>
+                    <div className="font-exo text-[10px]"
+                      style={{ color: '#3a6080' }}>
+                      km/L promedio del mes
+                    </div>
+                  </div>
+                  <div className="mb-1">
+                    <div className="font-exo text-[10px]"
+                      style={{ color: '#3a6080' }}>
+                      meta: {data.meta_kmL} km/L
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Barra de rendimiento */}
+                <div className="mt-3">
+                  <div className="h-2 w-full"
+                    style={{ background: '#0d2035' }}>
+                    <div className="h-full transition-all"
+                      style={{ 
+                        width: `${Math.min(100, 
+                          data.resumen_mes.rendimiento_promedio 
+                            ? (data.resumen_mes.rendimiento_promedio / 
+                               (data.meta_kmL * 1.3)) * 100
+                            : 0
+                        )}%`,
+                        background: data.resumen_mes.rendimiento_promedio >= data.meta_kmL
+                          ? '#00ff88' : '#ffcc00'
+                      }} />
+                  </div>
+                  {/* Marcador de meta */}
+                  <div className="relative h-1">
+                    <div className="absolute top-0 w-0.5 h-2"
+                      style={{ 
+                        left: `${(data.meta_kmL / (data.meta_kmL * 1.3)) * 100}%`,
+                        background: '#ff2244'
+                      }} />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Balance Sigetra vs ECU */}
+              <div className="p-4"
+                style={{ 
+                  background: '#060d14',
+                  border: `1px solid ${
+                    Math.abs(data.resumen_mes.balance_litros) < 200
+                      ? '#0d2035'
+                      : Math.abs(data.resumen_mes.balance_litros) < 1000
+                      ? '#ffcc0040' : '#ff224440'
+                  }`
+                }}>
+                <div className="font-exo text-[8px] 
+                                tracking-wider uppercase mb-3"
+                  style={{ color: '#3a6080' }}>
+                  CUADRATURA — SIGETRA vs ECU
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="font-space text-[20px] 
+                                    font-bold"
+                      style={{ color: '#ffcc00' }}>
+                      {data.resumen_mes.litros_sigetra_total
+                        .toLocaleString('es-CL')}L
+                    </div>
+                    <div className="font-exo text-[8px]"
+                      style={{ color: '#3a6080' }}>
+                      Sigetra (cargado)
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="font-space text-[20px] 
+                                    font-bold"
+                      style={{ color: '#00d4ff' }}>
+                      {data.resumen_mes.litros_ecu_total
+                        .toLocaleString('es-CL')}L
+                    </div>
+                    <div className="font-exo text-[8px]"
+                      style={{ color: '#3a6080' }}>
+                      ECU (consumido real)
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <div className="font-space text-[20px] 
+                                    font-bold"
+                      style={{ 
+                        color: Math.abs(data.resumen_mes.balance_litros) < 200
+                          ? '#00ff88'
+                          : Math.abs(data.resumen_mes.balance_litros) < 1000
+                          ? '#ffcc00' : '#ff2244'
+                      }}>
+                      {data.resumen_mes.balance_litros > 0 ? '+' : ''}
+                      {data.resumen_mes.balance_litros}L
+                    </div>
+                    <div className="font-exo text-[8px]"
+                      style={{ color: '#3a6080' }}>
+                      balance · {data.resumen_mes.balance_pct}%
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Interpretación */}
+                <div className="mt-3 font-rajdhani text-[11px]"
+                  style={{ color: '#c8e8ff' }}>
+                  {Math.abs(data.resumen_mes.balance_pct || 0) < 10
+                    ? '✅ Cuadratura dentro del rango normal'
+                    : data.resumen_mes.balance_litros > 0
+                    ? `⚠️ Sigetra registra ${data.resumen_mes.balance_litros}L más de lo consumido por ECU`
+                    : `ℹ️ ECU registra más consumo que cargas Sigetra — posible gap de datos`
+                  }
+                </div>
+              </div>
+              
+              {/* Tendencia semanal */}
+              {data.tendencia_semanal.length > 0 && (
+                <div className="p-4"
+                  style={{ 
+                    background: '#060d14',
+                    border: '1px solid #0d2035'
+                  }}>
+                  <div className="font-exo text-[8px] 
+                                  tracking-wider uppercase mb-3"
+                    style={{ color: '#3a6080' }}>
+                    RENDIMIENTO SEMANAL
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {data.tendencia_semanal.map(s => {
+                      const pct = s.rendimiento 
+                        ? Math.min(100, (s.rendimiento / (data.meta_kmL * 1.3)) * 100)
+                        : 0
+                      const color = s.rendimiento >= data.meta_kmL
+                        ? '#00ff88' : '#ffcc00'
+                      
+                      return (
+                        <div key={s.semana} 
+                          className="flex items-center gap-3">
+                          <div className="font-exo text-[9px] w-6"
+                            style={{ color: '#3a6080' }}>
+                            {s.semana}
+                          </div>
+                          <div className="flex-1 h-1.5"
+                            style={{ background: '#0d2035' }}>
+                            <div className="h-full transition-all"
+                              style={{ 
+                                width: `${pct}%`,
+                                background: color
+                              }} />
+                          </div>
+                          <div className="font-space text-[10px] 
+                                          font-bold w-16 text-right"
+                            style={{ color }}>
+                            {s.rendimiento 
+                              ? `${s.rendimiento} km/L`
+                              : '—'}
+                          </div>
+                          <div className="font-exo text-[8px] w-8"
+                            style={{ color: '#3a6080' }}>
+                            {s.operaciones} op
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Perfil aprendido */}
+              {data.perfil_aprendido && (
+                <div className="p-3 flex items-center 
+                                justify-between"
+                  style={{ 
+                    background: '#0a1520',
+                    border: '1px solid #0d2035'
+                  }}>
+                  <div className="font-exo text-[9px]"
+                    style={{ color: '#3a6080' }}>
+                    🧠 Perfil aprendido · {' '}
+                    {data.perfil_aprendido.total_jornadas} jornadas · {' '}
+                    Confianza: {data.perfil_aprendido.confianza}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-space text-[14px] 
+                                     font-bold"
+                      style={{ 
+                        color: data.perfil_aprendido.score >= 70
+                          ? '#00ff88' : '#ffcc00'
+                      }}>
+                      {data.perfil_aprendido.score}
+                    </span>
+                    <span className="font-exo text-[8px]"
+                      style={{ color: '#3a6080' }}>
+                      score
+                    </span>
+                    <span style={{ 
+                      color: data.perfil_aprendido.tendencia === 'MEJORANDO'
+                        ? '#00ff88'
+                        : data.perfil_aprendido.tendencia === 'EMPEORANDO'
+                        ? '#ff2244' : '#3a6080'
+                    }}>
+                      {data.perfil_aprendido.tendencia === 'MEJORANDO' ? '↗'
+                       : data.perfil_aprendido.tendencia === 'EMPEORANDO' ? '↘'
+                       : '→'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Lista de operaciones */}
+              {data.operaciones.length > 0 && (
+                <div>
+                  <div className="font-exo text-[8px] 
+                                  tracking-wider uppercase mb-2"
+                    style={{ color: '#3a6080' }}>
+                    OPERACIONES DEL MES ({data.operaciones.length})
+                  </div>
+                  
+                  <div className="space-y-1 max-h-[200px] 
+                                  overflow-y-auto">
+                    {data.operaciones.map((op, i) => {
+                      const color = op.calidad === 'PERFECTA'
+                        ? '#00ff88'
+                        : op.calidad === 'BUENA' ? '#00d4ff'
+                        : op.calidad === 'ACEPTABLE' ? '#ffcc00'
+                        : '#ff2244'
+                      
+                      return (
+                        <div key={i}
+                          className="flex items-center 
+                                     justify-between px-2 py-1.5"
+                          style={{ 
+                            background: '#0a1520',
+                            borderLeft: `2px solid ${color}`
+                          }}>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-exo text-[9px]"
+                              style={{ color: '#3a6080' }}>
+                              {new Date(op.fecha)
+                                .toLocaleDateString('es-CL', {
+                                  day: '2-digit',
+                                  month: '2-digit'
+                                })}
+                            </span>
+                            {op.origen && op.destino && (
+                              <span className="font-exo text-[9px]"
+                                style={{ color: '#c8e8ff' }}>
+                                {op.origen.slice(0,20)} → {' '}
+                                {op.destino.slice(0,20)}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <span className="font-space text-[10px]"
+                              style={{ color: '#c8e8ff' }}>
+                              {op.km_ecu?.toFixed(0)}km
+                            </span>
+                            <span className="font-space text-[10px]"
+                              style={{ color: '#ffcc00' }}>
+                              {op.litros_ecu?.toFixed(0)}L
+                            </span>
+                            <span className="font-space text-[10px] 
+                                             font-bold"
+                              style={{ color: op.rendimiento >= 2.5
+                                ? '#00ff88' : '#ffcc00' }}>
+                              {op.rendimiento?.toFixed(2)} km/L
+                            </span>
+                            {op.balance !== null && (
+                              <span className="font-space text-[9px]"
+                                style={{ 
+                                  color: Math.abs(op.balance) < 50
+                                    ? '#00ff88'
+                                    : Math.abs(op.balance) < 200
+                                    ? '#ffcc00' : '#ff2244'
+                                }}>
+                                {op.balance > 0 ? '+' : ''}
+                                {op.balance}L
+                              </span>
+                            )}
+                            <span className="font-exo text-[7px] 
+                                             px-1"
+                              style={{ 
+                                color,
+                                border: `1px solid ${color}40`
+                              }}>
+                              {op.calidad}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {data.operaciones.length === 0 && (
+                <div className="py-8 text-center"
+                  style={{ 
+                    background: '#060d14',
+                    border: '1px solid #0d2035'
+                  }}>
+                  <div className="font-exo text-[11px] mb-1"
+                    style={{ color: '#3a6080' }}>
+                    Sin operaciones verificadas este mes
+                  </div>
+                  <div className="font-exo text-[9px]"
+                    style={{ color: '#1a3a55' }}>
+                    Las operaciones aparecen cuando el sistema
+                    cierra períodos entre cargas con datos ECU completos
+                  </div>
+                </div>
+              )}
+              
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+═══════════════════════════════════════════════
+INTEGRACIÓN — Activar desde las tarjetas
+═══════════════════════════════════════════════
+
+En hoy.tsx donde se renderizan las tarjetas
+de contrato (los 4 bloques de CENCOSUD,
+ANGLO-COCU, etc.):
+
+Agregar onClick que abre el nuevo modal:
+
+const [contratoDetalle, setContratoDetalle] = 
+  useState<{nombre: string, color: string} | null>(null)
+
+// En cada tarjeta de contrato:
+onClick={() => setContratoDetalle({
+  nombre: contrato.nombre,
+  color: contrato.color
+})}
+
+// Agregar cursor-pointer y hover al estilo
+
+// Renderizar el modal:
+{contratoDetalle && (
+  <ContratoDetalleModal
+    nombre={contratoDetalle.nombre}
+    color={contratoDetalle.color}
+    onClose={() => setContratoDetalle(null)}
+  />
+)}
+
+═══════════════════════════════════════════════
+REGLAS FINALES
+═══════════════════════════════════════════════
+
+- La cuadratura SOLO muestra operaciones cerradas
+  PERFECTA + BUENA + ACEPTABLE
+  NUNCA PENDIENTE ni CON_ALERTA en la cuadratura
+
+- Si no hay operaciones verificadas:
+  Mostrar mensaje claro explicando que
+  las operaciones aparecen cuando el sistema
+  cierra períodos entre cargas
+
+- El balance se muestra en litros absolutos
+  y en porcentaje vs ECU
+
+- La tabla de camiones se ordena por
+  balance_total DESC (mayor exceso primero)
+  para que los más sospechosos estén arriba
+
+- El mini cuadro abre encima del modal
+  de contrato (z-index mayor)
+
+- Al cerrar el mini cuadro vuelve
+  al modal del contrato
+
+ORDEN:
+1. Endpoints en ceo-routes.ts
+2. Reemplazar ContratoDetalleModal en hoy.tsx
+3. Crear MiniCuadroOperacional
+4. Activar desde tarjetas de contrato
+
+Muéstrame los endpoints primero.
+Espera confirmación antes del frontend.

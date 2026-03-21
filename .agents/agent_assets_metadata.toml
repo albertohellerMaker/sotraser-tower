@@ -1,0 +1,38 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "G-yYO20KCEhxyrfkH75jT"
+uri = "file://sotraser-codigo-completo.txt"
+type = "text"
+title = "SOTRASER - Codigo Fuente Completo (59 archivos, 26,175 lineas)"
+
+[[outputs]]
+id = "FeIMof0nD6xG0kKoYn3Ij"
+uri = "file://sotraser-backend.txt"
+type = "text"
+title = "SOTRASER Backend + Schema (17 archivos, 314 KB)"
+
+[[outputs]]
+id = "L8TFr05JaOERAI8-7sPW6"
+uri = "file://sotraser-frontend.txt"
+type = "text"
+title = "SOTRASER Frontend React (40 archivos, 795 KB)"
+
+[[outputs]]
+id = "DEQJpojwhMrfODuM3DTc3"
+uri = "file://sotraser-codigo-completo.pdf"
+type = "pdf"
+title = "SOTRASER - Codigo Fuente Completo (PDF, 0.8 MB)"
+
+[[outputs]]
+id = "AnM7bRyPVuQgAxL8qpYzX"
+uri = "file://SOTRASER_Reporte_Sistema.pdf"
+type = "pdf"
+title = "Reporte Completo SOTRASER - Control Combustible"
+
+[[outputs]]
+id = "I8baLGgv5MKRDe45AH3LA"
+uri = "file://docs/METODOLOGIA_VIAJES_CERRADOS.md"
+type = "text"
+title = "Metodologia Viajes Cerrados - SOTRASER"

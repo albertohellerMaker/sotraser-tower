@@ -1,0 +1,229 @@
+Agregar una tercera ventana en la pantalla
+de inicio junto a TOWER CONTROL y OPERATIVE BRAIN.
+
+NOMBRE: SISTEMA INTELIGENTE
+Subtítulo: DETECCIÓN Y CORRECCIÓN
+
+═══════════════════════════════════════════════
+QUÉ MUESTRA
+═══════════════════════════════════════════════
+
+La tercera ventana tiene foco en:
+  - Inconsistencias detectadas por el sistema
+  - Posibles errores que requieren revisión
+  - Estado del aprendizaje y calibración
+  - Acciones rápidas para corregir
+
+═══════════════════════════════════════════════
+ESTRUCTURA VISUAL
+Misma estructura que las otras dos ventanas
+═══════════════════════════════════════════════
+
+En el mismo componente donde están
+TOWER CONTROL y OPERATIVE BRAIN
+agregar una tercera tarjeta:
+
+{/* TERCERA VENTANA */}
+<div
+  className="border cursor-pointer transition-all
+             hover:border-opacity-80"
+  style={{
+    background: '#060d14',
+    border: '1px solid #ff6b3540',
+    borderTop: '3px solid #ff6b35'
+  }}
+  onClick={() => setTab('consola')}
+>
+  {/* Header */}
+  <div className="flex items-center gap-3 px-5 py-4
+                  border-b"
+    style={{ borderColor: '#ff6b3520' }}>
+    <div className="w-8 h-8 flex items-center
+                    justify-center"
+      style={{
+        border: '1px solid #ff6b3540',
+        background: 'rgba(255,107,53,0.08)'
+      }}>
+      <span className="text-sm">⟁</span>
+    </div>
+    <div>
+      <div className="font-space text-[13px] font-bold
+                      tracking-[0.15em]"
+        style={{ color: '#ff6b35' }}>
+        SISTEMA INTELIGENTE
+      </div>
+      <div className="font-exo text-[9px] tracking-wider"
+        style={{ color: '#3a6080' }}>
+        DETECCIÓN Y CORRECCIÓN
+      </div>
+    </div>
+  </div>
+
+  {/* Items del sistema */}
+  <div className="px-5 py-3 space-y-2">
+    {[
+      {
+        icon: '🔬',
+        texto: 'Análisis entre cargas ECU vs Sigetra',
+        color: '#ff6b35'
+      },
+      {
+        icon: '⚡',
+        texto: 'Corrección automática de parámetros',
+        color: '#ff6b35'
+      },
+      {
+        icon: '🧠',
+        texto: 'Patrones de carga aprendidos',
+        color: '#ff6b35'
+      },
+      {
+        icon: '⚙️',
+        texto: 'Consola de administración',
+        color: '#ff6b35'
+      },
+    ].map((item, i) => (
+      <div key={i}
+        className="flex items-center gap-2">
+        <span className="text-[10px]">{item.icon}</span>
+        <span className="font-exo text-[10px]"
+          style={{ color: '#3a6080' }}>
+          {item.texto}
+        </span>
+      </div>
+    ))}
+  </div>
+
+  {/* Footer con métricas en vivo */}
+  <div className="px-5 py-3 border-t flex items-center
+                  justify-between"
+    style={{ borderColor: '#ff6b3520' }}>
+
+    {/* Anomalías detectadas */}
+    <div className="flex items-center gap-2">
+      <span className="font-space text-[13px] font-bold"
+        style={{
+          color: anomaliasActivas > 0
+            ? '#ff2244' : '#00ff88'
+        }}>
+        {anomaliasActivas}
+      </span>
+      <span className="font-exo text-[9px]"
+        style={{ color: '#3a6080' }}>
+        anomalías activas
+      </span>
+    </div>
+
+    {/* Separador */}
+    <div style={{
+      width: '1px', height: '16px',
+      background: '#0d2035'
+    }} />
+
+    {/* Calibración */}
+    <div className="flex items-center gap-2">
+      <span className="font-space text-[13px] font-bold"
+        style={{ color: '#ff6b35' }}>
+        {calibracionPct}%
+      </span>
+      <span className="font-exo text-[9px]"
+        style={{ color: '#3a6080' }}>
+        calibrado
+      </span>
+    </div>
+
+    {/* Separador */}
+    <div style={{
+      width: '1px', height: '16px',
+      background: '#0d2035'
+    }} />
+
+    {/* Patrones */}
+    <div className="flex items-center gap-2">
+      <span className="font-space text-[13px] font-bold"
+        style={{ color: '#ff6b35' }}>
+        {totalPatrones}
+      </span>
+      <span className="font-exo text-[9px]"
+        style={{ color: '#3a6080' }}>
+        patrones activos
+      </span>
+    </div>
+
+  </div>
+</div>
+
+═══════════════════════════════════════════════
+DATOS QUE NECESITA
+Agregar al query del componente de inicio
+═══════════════════════════════════════════════
+
+Consumir dos endpoints existentes:
+
+const { data: sistemaEstado } = useQuery({
+  queryKey: ['/api/sistema/estado'],
+  refetchInterval: 5 * 60 * 1000
+})
+
+const { data: aprendizaje } = useQuery({
+  queryKey: ['/api/estaciones/aprendizaje'],
+  refetchInterval: 10 * 60 * 1000
+})
+
+Usar:
+  anomaliasActivas = sistemaEstado?.alertas_patron_activas || 0
+  calibracionPct   = aprendizaje?.resumen?.madurez_pct || 0
+  totalPatrones    = aprendizaje?.resumen?.total_patrones || 0
+
+═══════════════════════════════════════════════
+AL HACER CLICK
+═══════════════════════════════════════════════
+
+onClick → navegar a tab 'consola'
+
+La consola es el lugar donde se ven
+y corrigen las inconsistencias del sistema.
+
+═══════════════════════════════════════════════
+AJUSTE AL GRID DE LAS 3 VENTANAS
+═══════════════════════════════════════════════
+
+El grid actual tiene 2 columnas.
+Cambiar a 3 columnas:
+
+ANTES:
+  className="grid grid-cols-2 gap-4"
+
+DESPUÉS:
+  className="grid grid-cols-3 gap-4"
+
+En mobile (< 768px) volver a 1 columna:
+  className="grid grid-cols-1 md:grid-cols-3 gap-4"
+
+═══════════════════════════════════════════════
+COLOR DE LA TERCERA VENTANA
+═══════════════════════════════════════════════
+
+TOWER CONTROL:   cyan    #00d4ff
+OPERATIVE BRAIN: violeta #9b59b6 (o el que tenga)
+SISTEMA INTELIG: naranja #ff6b35
+
+El naranja no está siendo usado en ninguna
+ventana principal — lo diferencia visualmente
+y representa "atención/acción" sin ser alerta roja.
+
+═══════════════════════════════════════════════
+REGLAS
+═══════════════════════════════════════════════
+
+- Misma altura que las otras dos ventanas
+- Mismo estilo de hover y cursor pointer
+- Si anomaliasActivas > 0 → el número
+  parpadea en rojo suavemente
+- Si calibracionPct < 30 → mostrar
+  "Calibrando..." en vez del número
+- No crear nuevos endpoints — usar
+  los que ya existen
+
+Mostrar solo el componente de la
+tercera ventana antes de aplicar.

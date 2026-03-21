@@ -1,0 +1,8 @@
+DATABASE_URL=postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb
+ANTHROPIC_API_KEY=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
+SIGETRA_URL=http://sigetraweb.sotraser.cl
+SIGETRA_USER=cristian.rojas
+SIGETRA_PASSWORD=Cris5141.
+VOLVO_CONNECT_USER=1615691745
+VOLVO_CONNECT_PASSWORD=30hfLH1ZC0
+SESSION_SECRET=H0m73AftF8Bvki/DuITDWGCdSSrX88T8bktUW53ES2Ljg//S7h8IRrRBKznZ/eRJJVqQkqcYYdUnvlGvhFgDbA==

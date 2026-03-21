@@ -1,0 +1,280 @@
+App: SOTRASER
+Mejorar pestaña DATOS con 4 cambios específicos.
+NO tocar ninguna otra pestaña.
+
+═══════════════════════════════════════════════════
+CAMBIO 1 — MICRO-CARGAS: solo sospechosos reales
+═══════════════════════════════════════════════════
+
+LÓGICA DE DETECCIÓN — 3 señales de robo confirmadas:
+
+SEÑAL A — Múltiples cargas pequeñas mismo día:
+SELECT patente, DATE(fecha_hora) as dia,
+  COUNT(*) as cargas_dia,
+  SUM(litros) as litros_total,
+  COUNT(DISTINCT surtidor) as surtidores_distintos
+FROM cargas_tarjeta
+WHERE litros < 100
+GROUP BY patente, DATE(fecha_hora)
+HAVING COUNT(*) >= 2
+AND COUNT(DISTINCT surtidor) >= 2
+
+→ Esto es sospechoso porque un camión no necesita
+  cargar dos veces pequeñas en distintos lugares
+  el mismo día.
+
+SEÑAL B — Carga sin movimiento GPS:
+Buscar cargas donde el camión NO tiene registros GPS
+en ventana de 4 horas antes Y 4 horas después.
+Si el camión no se movió = ¿para qué necesita combustible?
+
+SELECT ct.patente, ct.fecha_hora, ct.litros
+FROM cargas_tarjeta ct
+LEFT JOIN gps_registros gr ON 
+  gr.camion_id = (SELECT id FROM camiones WHERE patente = ct.patente)
+  AND gr.timestamp_gps BETWEEN 
+    ct.fecha_hora - INTERVAL '4 hours'
+    AND ct.fecha_hora + INTERVAL '4 hours'
+  AND gr.velocidad_kmh > 5
+WHERE gr.id IS NULL
+AND ct.litros < 150
+AND ct.fecha_hora >= '2026-03-01'
+
+→ Si no hay movimiento registrado = carga fantasma.
+
+SEÑAL C — Carga con tanque casi lleno según ECU:
+Buscar en volvo_ecu el nivel de combustible
+más cercano al momento de la carga Sigetra.
+Si ECU indica >80% de tanque Y Sigetra dice que cargó
+= alguien cargó combustible que no entró al tanque.
+
+SELECT ct.patente, ct.fecha_hora, ct.litros,
+  ve.nivel_combustible_pct
+FROM cargas_tarjeta ct
+JOIN camiones c ON c.patente = ct.patente
+JOIN volvo_ecu ve ON ve.camion_id = c.id
+  AND ABS(EXTRACT(EPOCH FROM (ve.periodo_inicio - ct.fecha_hora))) 
+      = (
+        SELECT MIN(ABS(EXTRACT(EPOCH FROM (ve2.periodo_inicio - ct.fecha_hora))))
+        FROM volvo_ecu ve2 WHERE ve2.camion_id = c.id
+      )
+WHERE ve.nivel_combustible_pct > 80
+AND ct.litros < 150
+AND ct.fecha_hora >= '2026-03-01'
+
+Nota: si la columna no se llama nivel_combustible_pct
+usar el campo de combustible disponible en volvo_ecu.
+
+─────────────────────────────────────────────────
+TABLA PRINCIPAL MICRO-CARGAS:
+
+Solo mostrar registros con AL MENOS 1 señal activa.
+Ordenar por número de señales DESC (más sospechoso primero).
+
+Columnas:
+RIESGO · PATENTE · CONDUCTOR · FECHA ·
+LITROS · SEÑALES · ACCIÓN
+
+Columna RIESGO:
+🔴 CRÍTICO = 2 o más señales simultáneas
+🟡 SOSPECHOSO = 1 señal
+
+Columna SEÑALES — badges compactos:
+[📍 MÚLTIPLE DÍA]  si tiene señal A
+[🚫 SIN MOVIMIENTO] si tiene señal B
+[🛢 TANQUE LLENO]  si tiene señal C
+
+Al hacer clic en una fila expandir detalle:
+- Timeline del día del camión
+  (cargas + registros GPS superpuestos)
+- Mapa con posición del camión ese día
+- Historial de cargas del mismo conductor
+- Comparativa con su promedio histórico
+
+HEADER de la pestaña:
+🔴 X CRÍTICOS   🟡 X SOSPECHOSOS   ✅ X NORMALES (ocultos)
+"Analizando desde 01-03-2026 · X cargas totales"
+
+Botón "Exportar sospechosos PDF"
+Botón "Marcar como revisado" por fila
+
+NO mostrar las cargas normales en esta pestaña.
+Si no hay sospechosos: "✅ Sin cargas sospechosas detectadas"
+
+═══════════════════════════════════════════════════
+CAMBIO 2 — NUEVA TAB: EXCESOS DE VELOCIDAD
+═══════════════════════════════════════════════════
+
+Agregar tab [EXCESOS DE VELOCIDAD] en pestaña DATOS.
+
+FUENTE DE DATOS:
+SELECT camion_id, periodo_inicio,
+  velocidad_maxima, velocidad_promedio,
+  COUNT(*) as registros_sobre_limite
+FROM volvo_ecu
+WHERE velocidad_maxima > 90
+AND periodo_inicio >= '2026-03-01'
+GROUP BY camion_id, periodo_inicio, 
+         velocidad_maxima, velocidad_promedio
+
+Límite de velocidad: 90 km/h (configurable en parametros)
+
+─────────────────────────────────────────────────
+VISTA PRINCIPAL:
+
+KPIs arriba:
+CAMIONES CON EXCESOS · EVENTOS TOTALES ·
+MÁS GRAVE (patente + vel máx) · HOY
+
+Dos vistas toggle:
+[POR CAMIÓN] [POR EVENTO]
+
+VISTA POR CAMIÓN:
+Tabla ordenada por total de excesos DESC:
+
+PATENTE · CONDUCTOR · FAENA ·
+VEL. MÁX · TOTAL EXCESOS · ÚLTIMO EXCESO · RIESGO
+
+Badge de riesgo:
+🔴 ALTO = velocidad máxima > 120 km/h
+         O más de 10 eventos en el período
+🟡 MEDIO = velocidad 100-120 km/h
+          O 3-9 eventos
+🟢 BAJO = velocidad 90-100 km/h, 1-2 eventos
+
+Al hacer clic en un camión:
+Mini gráfico de velocidad en el tiempo
+Lista de todos sus eventos con fecha y velocidad
+
+VISTA POR EVENTO:
+Tabla cronológica de todos los excesos:
+FECHA · PATENTE · CONDUCTOR · VELOCIDAD ·
+DURACIÓN · UBICACIÓN GPS (si disponible)
+
+Ordenar: más reciente primero
+Filtros: por fecha, por camión, por nivel de riesgo
+
+─────────────────────────────────────────────────
+ANÁLISIS MENSUAL:
+
+Sección inferior con resumen del período:
+"Desde 01-03-2026:"
+- X camiones nunca excedieron 90 km/h ✅
+- X camiones con excesos ocasionales 🟡
+- X camiones con excesos frecuentes 🔴
+
+Gráfico de barras (recharts) por semana:
+Cantidad de eventos de exceso por semana
+desde 01-03-2026
+
+═══════════════════════════════════════════════════
+CAMBIO 3 — NUEVA TAB: PESO Y TARA
+═══════════════════════════════════════════════════
+
+Agregar tab [PESO Y TARA] en pestaña DATOS.
+
+BASE DE DATOS — nuevas columnas en tabla camiones:
+ALTER TABLE camiones 
+  ADD COLUMN IF NOT EXISTS tara_kg NUMERIC(8,1),
+  ADD COLUMN IF NOT EXISTS peso_maximo_kg NUMERIC(8,1),
+  ADD COLUMN IF NOT EXISTS capacidad_carga_kg NUMERIC(8,1),
+  ADD COLUMN IF NOT EXISTS tipo_vehiculo VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS año_fabricacion INTEGER,
+  ADD COLUMN IF NOT EXISTS configuracion_ejes VARCHAR(20);
+
+IMPORTANTE: Solo mostrar en esta pestaña
+los camiones que tienen tara_kg registrado.
+Si tara_kg IS NULL → no aparece en esta vista.
+
+─────────────────────────────────────────────────
+CRUCE DE PESO CON SIGETRA:
+
+Un camión "cumple con el cruce" si:
+1. Tiene tara registrada en el sistema
+2. Tiene cargas en Sigetra en el período
+3. Se puede calcular: 
+   peso_total = tara + carga_transportada
+   Y peso_total <= peso_maximo_kg
+
+Endpoint GET /api/datos/peso-tara:
+Para cada camión con tara registrada:
+- Obtener cargas Sigetra del período
+- Calcular si el peso estimado cumple límite
+- Cruzar con datos de Volvo si disponible
+
+─────────────────────────────────────────────────
+VISTA PRINCIPAL:
+
+HEADER:
+"Solo mostrando X camiones con datos de tara registrados"
+Badge informativo: "Para agregar camiones ir a Configuración"
+
+Botón "+ Registrar tara de camión"
+→ Modal: buscar patente + ingresar tara_kg + peso_max_kg
+
+KPIs:
+CAMIONES CON TARA · CUMPLEN LÍMITE ·
+EXCEDEN LÍMITE · PENDIENTE DE VERIFICAR
+
+Tabla principal:
+PATENTE · TIPO · TARA (kg) ·
+PESO MÁX (kg) · CARGA ESTIMADA · PESO TOTAL ·
+CUMPLE · ÚLTIMA VERIFICACIÓN
+
+Columna CUMPLE:
+✅ CUMPLE = peso_total < peso_maximo_kg
+⚠️ AL LÍMITE = peso_total entre 95-100% del máximo
+🔴 EXCEDE = peso_total > peso_maximo_kg
+⚪ SIN DATOS = no hay cargas Sigetra recientes
+
+Al hacer clic en un camión:
+Historial de pesos calculados en el tiempo
+Gráfico de evolución
+
+─────────────────────────────────────────────────
+SECCIÓN DE INGRESO DE DATOS:
+
+Card inferior con formulario simple:
+"¿Quieres agregar datos de tara a más camiones?"
+Dropdown: seleccionar patente
+Campos:
+- Tara (kg): input numérico
+- Peso máximo permitido (kg)
+- Tipo de vehículo: dropdown
+  [CAMIÓN RÍGIDO / ARTICULADO / TRACTO-CAMIÓN / OTRO]
+- Año de fabricación
+- Configuración de ejes
+Botón "Guardar"
+
+═══════════════════════════════════════════════════
+CAMBIO 4 — REORGANIZAR TABS EN PESTAÑA DATOS
+═══════════════════════════════════════════════════
+
+Nuevo orden de tabs en DATOS:
+[SIGETRA-VOLVO] [MICRO-CARGAS] [EXCESOS VELOCIDAD] 
+[PESO Y TARA] [CALIDAD DE DATOS]
+
+Badge de alerta en tabs cuando hay datos críticos:
+MICRO-CARGAS → badge rojo con número si hay críticos
+EXCESOS VELOCIDAD → badge amarillo con número
+PESO Y TARA → badge rojo si hay camiones que exceden
+
+═══════════════════════════════════════════════════
+PARÁMETROS CONFIGURABLES — agregar en tabla parametros
+═══════════════════════════════════════════════════
+
+INSERT INTO parametros(clave, valor) VALUES
+('velocidad_limite_kmh', '90'),
+('litros_micro_carga', '100'),
+('horas_ventana_gps', '4'),
+('nivel_tanque_sospechoso_pct', '80')
+ON CONFLICT(clave) DO NOTHING;
+
+═══════════════════════════════════════════════════
+NO TOCAR
+═══════════════════════════════════════════════════
+- Todas las demás pestañas
+- Lógica de alertas existente
+- Conexiones Volvo y Sigetra
+- Diseño visual y colores
+- Todo lo que ya funciona

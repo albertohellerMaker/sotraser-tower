@@ -1,0 +1,387 @@
+Preparar la app para el sistema adaptativo.
+Este prompt va ANTES del rediseño completo.
+Solo agregar infraestructura — no cambiar vistas.
+
+═══════════════════════════════════════════════
+PARTE 1 — CONTEXTO GLOBAL DE APRENDIZAJE
+═══════════════════════════════════════════════
+
+Crear server/sistema-estado.ts
+
+Este archivo exporta una función que retorna
+el estado actual del sistema de aprendizaje.
+Se llama desde múltiples endpoints.
+
+export async function getSistemaEstado() {
+  
+  // Tiempo que lleva el sistema aprendiendo
+  const primerSnapshot = await db.select()
+    .from(volvoFuelSnapshots)
+    .orderBy(asc(volvoFuelSnapshots.capturedAt))
+    .limit(1)
+  
+  const primerViaje = await db.select()
+    .from(viajesAprendizaje)
+    .orderBy(asc(viajesAprendizaje.fechaInicio))
+    .limit(1)
+  
+  const diasAprendiendo = primerSnapshot.length > 0
+    ? Math.floor((Date.now() - new Date(primerSnapshot[0].capturedAt).getTime()) 
+      / (1000 * 60 * 60 * 24))
+    : 0
+  
+  // Conteos de aprendizaje
+  const totalViajes = await db.select({ count: count() })
+    .from(viajesAprendizaje)
+  
+  const totalCorredores = await db.select({ count: count() })
+    .from(corredores)
+    .where(gte(corredores.totalViajesBase, 3))
+  
+  const totalConductores = await db.select({ count: count() })
+    .from(conductoresPerfil)
+  
+  const totalCamionesPerfilados = await db.select({ count: count() })
+    .from(camionesPerfil)
+  
+  const totalSnapshots = await db.select({ count: count() })
+    .from(volvoFuelSnapshots)
+  
+  // Nivel de confianza global
+  const confianzaGlobal = 
+    totalViajes[0].count >= 1000 ? 'EXPERTA' :
+    totalViajes[0].count >= 200  ? 'ALTA' :
+    totalViajes[0].count >= 50   ? 'MEDIA' : 'BAJA'
+  
+  // Puntaje de madurez 0-100
+  const madurez = Math.min(100, Math.floor(
+    (diasAprendiendo * 2) +           // máx 60pts por tiempo
+    (totalViajes[0].count / 20) +      // máx 50pts por viajes
+    (totalCorredores[0].count * 2)     // puntos por rutas conocidas
+  ))
+  
+  // Últimas alertas de patrón
+  const alertasRecientes = await db.select()
+    .from(alertasAprendizaje)
+    .where(eq(alertasAprendizaje.gestionado, false))
+    .orderBy(desc(alertasAprendizaje.fecha))
+    .limit(5)
+  
+  return {
+    dias_aprendiendo: diasAprendiendo,
+    total_viajes_procesados: totalViajes[0].count,
+    total_corredores_conocidos: totalCorredores[0].count,
+    total_conductores_analizados: totalConductores[0].count,
+    total_camiones_perfilados: totalCamionesPerfilados[0].count,
+    total_snapshots_volvo: totalSnapshots[0].count,
+    confianza_global: confianzaGlobal,
+    madurez_pct: madurez,
+    alertas_patron_activas: alertasRecientes.length,
+    alertas_recientes: alertasRecientes,
+    primer_dato: primerSnapshot[0]?.capturedAt || null,
+    estado_mensaje: generarMensajeEstado(diasAprendiendo, totalViajes[0].count, confianzaGlobal)
+  }
+}
+
+function generarMensajeEstado(dias: number, viajes: number, confianza: string): string {
+  if (dias === 0) return "Sistema iniciando — recopilando primeros datos"
+  if (confianza === 'BAJA') return `${dias} días aprendiendo — acumulando datos para calibrar`
+  if (confianza === 'MEDIA') return `${dias} días activo — parámetros tomando forma con ${viajes} viajes`
+  if (confianza === 'ALTA') return `Sistema calibrado — ${viajes} viajes analizados en ${dias} días`
+  return `Sistema experto — modelo altamente preciso con ${viajes} viajes en ${dias} días`
+}
+
+═══════════════════════════════════════════════
+PARTE 2 — ENDPOINT DE ESTADO DEL SISTEMA
+═══════════════════════════════════════════════
+
+En server/cerebro-routes.ts agregar:
+
+GET /api/sistema/estado
+  Llama getSistemaEstado() y retorna todo.
+  Cache de 60 segundos — no recalcular en cada request.
+
+GET /api/sistema/resumen-ia
+  Llama getSistemaEstado() para tener contexto.
+  Luego llama a Claude con este prompt:
+
+  const estado = await getSistemaEstado()
+  
+  const prompt = `
+  Eres SOTRA IA, el cerebro de SOTRASER.
+  Resume en 3 oraciones cortas y directas
+  qué ha aprendido el sistema hasta ahora.
+  
+  Datos del sistema:
+  - Días aprendiendo: ${estado.dias_aprendiendo}
+  - Viajes procesados: ${estado.total_viajes_procesados}
+  - Rutas conocidas: ${estado.total_corredores_conocidos}
+  - Conductores analizados: ${estado.total_conductores_analizados}
+  - Confianza global: ${estado.confianza_global}
+  - Alertas de patrón activas: ${estado.alertas_patron_activas}
+  
+  Sé directo, usa números concretos.
+  No uses emojis. Máximo 3 oraciones.
+  `
+  
+  Retornar: { resumen: string, estado: SistemaEstado }
+
+GET /api/sistema/consulta
+  Body: { pregunta: string }
+  
+  Contexto completo para Claude:
+  const estado = await getSistemaEstado()
+  const kpisFlota = await getCoreData() // existente
+  
+  System prompt:
+  `Eres SOTRA IA. Tienes acceso completo al
+   sistema de aprendizaje de SOTRASER.
+   
+   ESTADO DEL SISTEMA:
+   ${JSON.stringify(estado, null, 2)}
+   
+   DATOS DE FLOTA:
+   ${await getFusionContext(7)}
+   
+   Responde en español, directo, con datos concretos.
+   Si el sistema aún tiene poca data dilo claramente.
+   Máximo 4 párrafos.`
+  
+  Retornar: { respuesta: string }
+
+═══════════════════════════════════════════════
+PARTE 3 — SPLASH DE APERTURA
+client/src/components/splash-aprendizaje.tsx
+CREAR
+═══════════════════════════════════════════════
+
+Este componente se muestra UNA VEZ al abrir la app
+(o al hacer click en el logo).
+
+Consume /api/sistema/estado y 
+/api/sistema/resumen-ia
+
+UI:
+
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│        ⛽  SOTRASER                             │
+│        SISTEMA ADAPTATIVO                       │
+│                                                 │
+│  ┌─────────────────────────────────────────┐   │
+│  │ 🧠 QUÉ HA APRENDIDO EL SISTEMA         │   │
+│  │                                         │   │
+│  │ [Texto de Claude — 3 oraciones]         │   │
+│  │ "El sistema lleva 1 día activo con      │   │
+│  │  66 viajes procesados en 4 contratos.   │   │
+│  │  Ha identificado 8 corredores de ruta   │   │
+│  │  y perfilado 23 conductores activos."   │   │
+│  └─────────────────────────────────────────┘   │
+│                                                 │
+│  KPIs DE APRENDIZAJE                           │
+│                                                 │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │    1     │ │    66    │ │    8     │       │
+│  │ DÍA      │ │ VIAJES   │ │ RUTAS    │       │
+│  │ activo   │ │ procesad.│ │ conocidas│       │
+│  └──────────┘ └──────────┘ └──────────┘       │
+│                                                 │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │   23     │ │  3,361   │ │  BAJA    │       │
+│  │ CONDUCT. │ │SNAPSHOTS │ │CONFIANZA │       │
+│  │ perfilad.│ │  VOLVO   │ │ global   │       │
+│  └──────────┘ └──────────┘ └──────────┘       │
+│                                                 │
+│  MADUREZ DEL SISTEMA                           │
+│  ████░░░░░░░░░░░░░░░░  12%                     │
+│  "Acumulando datos — 88% hasta calibración"    │
+│                                                 │
+│  ┌─────────────────────────────────────────┐   │
+│  │ 🔍 ¿Qué quieres saber?                  │   │
+│  │ [___________________________________]   │   │
+│  │ Ej: "¿Qué ruta consume más?" [ENVIAR]  │   │
+│  └─────────────────────────────────────────┘   │
+│                                                 │
+│           [ENTRAR AL SISTEMA →]                 │
+│                                                 │
+└─────────────────────────────────────────────────┘
+
+Lógica del componente:
+- Al montar: llamar /api/sistema/estado (rápido)
+  y /api/sistema/resumen-ia (puede tardar 2-3s)
+- Mostrar KPIs inmediatamente con skeleton
+  mientras carga el resumen IA
+- Input de consulta llama /api/sistema/consulta
+  Mostrar respuesta debajo del input
+- Botón ENTRAR → cierra el splash
+- Guardar en localStorage la hora de última 
+  apertura del splash
+- Mostrar automáticamente solo si hace más
+  de 8 horas desde la última vez
+- Siempre accesible desde click en logo SOTRASER
+
+═══════════════════════════════════════════════
+PARTE 4 — LUPA EN LA BARRA SUPERIOR
+═══════════════════════════════════════════════
+
+En client/src/App.tsx en el TopBar/Header:
+
+Agregar botón de lupa 🔍 a la derecha
+del reloj (antes del botón ANALIZAR):
+
+Al hacer click → abrir panel de consulta rápida:
+
+┌────────────────────────────────────────────┐
+│ 🔍 CONSULTAR AL SISTEMA                   │
+│                                            │
+│ ¿Qué quieres saber?                       │
+│ [________________________________________] │
+│                                            │
+│ Sugerencias rápidas:                       │
+│ [¿Qué aprendió hoy?]                      │
+│ [¿Cuál es la ruta más eficiente?]         │
+│ [¿Hay patrones sospechosos?]              │
+│ [¿Cómo va el sistema?]                    │
+│                                            │
+│ {respuesta aparece aquí}                  │
+└────────────────────────────────────────────┘
+
+Este panel llama a /api/sistema/consulta
+Es diferente al chat SOTRA IA completo —
+es para consultas rápidas de 1 pregunta.
+El chat flotante sigue siendo para 
+conversaciones multi-turno.
+
+═══════════════════════════════════════════════
+PARTE 5 — WIDGET DE ESTADO EN CEREBRO
+═══════════════════════════════════════════════
+
+En client/src/pages/cerebro.tsx agregar
+al inicio de la página (antes de las tarjetas
+de contratos) un widget horizontal:
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🧠 SISTEMA ADAPTATIVO                                           │
+│                                                                 │
+│ 1 día · 66 viajes · 8 rutas · CONFIANZA BAJA                  │
+│ ████░░░░░░░░░░░░░░░░ 12% calibrado                             │
+│                                                                 │
+│ "El sistema lleva 1 día activo con 66 viajes procesados..."    │
+│                                          [VER DETALLE →]       │
+└─────────────────────────────────────────────────────────────────┘
+
+Click en VER DETALLE → abre el splash de apertura
+como modal (sin el botón ENTRAR AL SISTEMA)
+
+El widget se actualiza cada 5 minutos.
+Consume /api/sistema/estado (cacheado).
+
+El color del borde del widget según confianza:
+  BAJA:    #3a6080 (gris azulado)
+  MEDIA:   #ffcc00 (amarillo)
+  ALTA:    #00d4ff (cyan)
+  EXPERTA: #00ff88 (verde)
+
+═══════════════════════════════════════════════
+PARTE 6 — VINCULAR CON CLAUDE
+═══════════════════════════════════════════════
+
+El sistema de consulta usa Claude con contexto
+específico del aprendizaje.
+
+En server/cerebro-routes.ts el endpoint
+/api/sistema/consulta debe:
+
+1. Obtener estado del sistema
+2. Obtener últimos 5 viajes con anomalía
+3. Obtener top 3 corredores por viajes
+4. Obtener alertas de patrón activas
+5. Construir contexto rico para Claude:
+
+const systemPrompt = `
+Eres SOTRA IA, el cerebro adaptativo de SOTRASER.
+Tu especialidad es explicar qué ha aprendido 
+el sistema y qué patrones ha detectado.
+
+ESTADO ACTUAL DEL SISTEMA:
+- Días aprendiendo: ${estado.dias_aprendiendo}
+- Viajes analizados: ${estado.total_viajes_procesados}
+- Rutas conocidas: ${estado.total_corredores_conocidos}
+- Conductores perfilados: ${estado.total_conductores_analizados}
+- Confianza global: ${estado.confianza_global}
+- Madurez: ${estado.madurez_pct}%
+
+RUTAS MÁS CONOCIDAS:
+${corredoresTop.map(c => 
+  `- ${c.nombre}: ${c.totalViajesBase} viajes, ` +
+  `${c.rendimientoPromedio} km/L promedio`
+).join('\n')}
+
+ALERTAS DE PATRÓN ACTIVAS:
+${alertasActivas.map(a => 
+  `- ${a.entidadNombre}: ${a.descripcion}`
+).join('\n') || 'Sin alertas activas'}
+
+ÚLTIMAS ANOMALÍAS:
+${anomaliasRecientes.map(v =>
+  `- ${v.patente} en ${v.corredorNombre}: ` +
+  `${v.rendimientoReal} km/L`
+).join('\n') || 'Sin anomalías recientes'}
+
+Responde en español, directo, con datos concretos.
+Si el sistema tiene poca data dilo claramente.
+Máximo 3 párrafos.
+`
+
+═══════════════════════════════════════════════
+INTEGRACIÓN EN App.tsx
+═══════════════════════════════════════════════
+
+En client/src/App.tsx:
+
+1. Importar SplashAprendizaje
+2. Al iniciar la app (después del SplashScreen 
+   de carga existente), mostrar SplashAprendizaje
+   si han pasado más de 8 horas desde la última vez:
+   
+   const ultimaApertura = localStorage.getItem('sotraser_ultima_apertura')
+   const horasDesdeUltima = ultimaApertura 
+     ? (Date.now() - parseInt(ultimaApertura)) / 3600000 
+     : 999
+   
+   if (horasDesdeUltima > 8) {
+     setShowSplashAprendizaje(true)
+     localStorage.setItem('sotraser_ultima_apertura', Date.now().toString())
+   }
+
+3. Agregar botón lupa en el header:
+   Entre el reloj y el botón ANALIZAR:
+   
+   <button onClick={() => setShowConsulta(true)}
+     title="Consultar al sistema">
+     <Search className="w-4 h-4" />
+   </button>
+   
+   Que abre el panel de consulta rápida.
+
+═══════════════════════════════════════════════
+REGLAS
+═══════════════════════════════════════════════
+
+- No tocar ninguna vista existente que funcione
+- Solo agregar componentes nuevos
+- El splash no bloquea — tiene botón para saltar
+- Si Claude tarda → mostrar skeleton animado
+- Si Claude falla → mostrar datos sin texto IA
+- TypeScript estricto
+- Logs con prefijo [SISTEMA-ESTADO]
+
+ORDEN:
+1. server/sistema-estado.ts
+2. Endpoints en cerebro-routes.ts
+3. client/src/components/splash-aprendizaje.tsx
+4. Modificar App.tsx (splash + lupa)
+5. Widget en cerebro.tsx
+
+Muéstrame sistema-estado.ts primero.
+Luego cada parte antes de aplicar.

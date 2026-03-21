@@ -1,0 +1,184 @@
+App: SOTRASER
+Objetivo: asignar cada camión a su faena correcta
+usando el historial de Sigetra como fuente de verdad.
+NO tocar ninguna otra funcionalidad.
+
+═══════════════════════════════════════════════════
+LÓGICA CENTRAL
+═══════════════════════════════════════════════════
+
+Sigetra tiene el nombre del cliente/faena 
+en cada registro de carga.
+Cada camión trabaja para UN solo cliente.
+Por lo tanto: el cliente más frecuente en Sigetra
+para ese camión = su faena correcta.
+
+═══════════════════════════════════════════════════
+PASO 1 — LEER CLIENTES DESDE SIGETRA
+═══════════════════════════════════════════════════
+
+Ejecutar esta consulta para ver qué campo
+tiene el nombre del cliente en cargas_tarjeta
+(o como se llame la tabla de Sigetra en BD):
+
+SELECT column_name 
+FROM information_schema.columns 
+WHERE table_name = 'cargas_tarjeta';
+
+Identificar el campo que contiene el cliente/faena.
+Puede llamarse: cliente, faena, contrato, 
+razon_social, empresa, o similar.
+
+═══════════════════════════════════════════════════
+PASO 2 — ASIGNAR FAENA POR HISTORIAL
+═══════════════════════════════════════════════════
+
+Para cada camión en tabla camiones:
+
+1. Buscar en cargas_tarjeta el cliente más frecuente:
+   SELECT cliente_field, COUNT(*) as frecuencia
+   FROM cargas_tarjeta
+   WHERE patente = camion.patente
+   GROUP BY cliente_field
+   ORDER BY frecuencia DESC
+   LIMIT 1
+
+2. Si encuentra cliente con 2+ registros:
+   → Ese es su cliente/faena principal
+
+3. Buscar o crear esa faena en tabla faenas:
+   SELECT id FROM faenas 
+   WHERE LOWER(nombre) LIKE LOWER('%cliente%')
+   Si no existe: INSERT INTO faenas(nombre) VALUES(cliente)
+
+4. Asignar: UPDATE camiones 
+   SET faena_id = faena.id
+   WHERE id = camion.id
+
+5. Guardar también:
+   UPDATE camiones
+   SET cliente_principal = cliente_field,
+       faena_asignada_por = 'SIGETRA_HISTORICO',
+       faena_asignada_fecha = NOW()
+   WHERE id = camion.id
+
+Agregar columnas si no existen:
+ALTER TABLE camiones 
+  ADD COLUMN IF NOT EXISTS cliente_principal VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS faena_asignada_por VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS faena_asignada_fecha TIMESTAMP;
+
+═══════════════════════════════════════════════════
+PASO 3 — ENDPOINT DE ASIGNACIÓN
+═══════════════════════════════════════════════════
+
+POST /api/camiones/asignar-faenas-sigetra
+Ejecuta la lógica del PASO 2 para todos los camiones.
+Devuelve:
+{
+  procesados: X,
+  asignados: X,
+  sin_datos_sigetra: X,
+  faenas_creadas: X,
+  detalle: [{
+    patente,
+    cliente_detectado,
+    frecuencia_cargas,
+    faena_asignada,
+    accion: 'ASIGNADO' | 'SIN_DATOS'
+  }]
+}
+
+GET /api/camiones/preview-asignacion
+Muestra qué faena se asignaría a cada camión
+SIN ejecutar los cambios todavía.
+Para que el usuario pueda revisar antes de confirmar.
+
+═══════════════════════════════════════════════════
+PASO 4 — INTERFAZ EN CONFIGURACIÓN
+═══════════════════════════════════════════════════
+
+En pestaña CONFIGURACIÓN agregar sección:
+"ASIGNACIÓN DE FAENAS POR SIGETRA"
+
+Mostrar tabla de preview:
+PATENTE · CLIENTE EN SIGETRA · CARGAS · 
+FAENA ACTUAL · FAENA PROPUESTA · ACCIÓN
+
+Colores:
+- Verde: asignación clara (5+ cargas al mismo cliente)
+- Amarillo: asignación probable (2-4 cargas)
+- Gris: sin datos Sigetra
+
+Botón "👁 PREVISUALIZAR ASIGNACIÓN"
+→ Llama a /api/camiones/preview-asignacion
+→ Muestra la tabla
+
+Botón "✅ CONFIRMAR Y ASIGNAR TODAS"
+→ Llama a /api/camiones/asignar-faenas-sigetra
+→ Muestra resumen de cambios
+
+Botón "✏ ASIGNAR MANUALMENTE"
+→ Por cada camión dropdown para cambiar faena
+
+═══════════════════════════════════════════════════
+PASO 5 — VOLVO: ordenar por faena
+═══════════════════════════════════════════════════
+
+En pestaña VOLVO → tab TELEMETRÍA:
+
+Cambiar la vista actual para agrupar camiones
+por faena asignada.
+
+En lugar de lista plana mostrar:
+
+SECCIÓN POR FAENA:
+
+▼ CENCOSUD (14 camiones)
+  ├── Cam 1969 · LIVE · 325.478 km
+  ├── Cam 2188 · LIVE · 298.123 km
+  └── Cam 1882 · OFFLINE
+  
+▼ ANGLO-COCU (42 camiones)
+  ├── Cam 2063 · LIVE
+  └── ...
+
+▼ SIN ASIGNAR (X camiones)
+  └── Camiones sin faena detectada en Sigetra
+
+Cada sección colapsable con click.
+Header de sección muestra:
+nombre faena · total camiones · 
+cuántos LIVE · rendimiento promedio
+
+Camiones dentro de cada sección ordenados:
+Primero LIVE → luego RECIENTE → luego OFFLINE
+
+Mantener la búsqueda por patente/VIN
+que filtra dentro de todas las secciones.
+
+═══════════════════════════════════════════════════
+PASO 6 — DASHBOARD: faenas desde asignación real
+═══════════════════════════════════════════════════
+
+En DASHBOARD los filtros de faena ahora
+vienen de la asignación real de Sigetra.
+
+Eliminar cualquier faena hardcodeada.
+Mostrar solo faenas que tienen camiones
+asignados con datos reales.
+
+Cada botón de faena muestra:
+[CENCOSUD (14)] [ANGLO-COCU (42)] [GASCO (8)]
+
+Al seleccionar faena: tabla filtra solo
+los camiones de esa faena.
+
+═══════════════════════════════════════════════════
+NO TOCAR
+═══════════════════════════════════════════════════
+- Lógica de rendimiento y alertas existente
+- Conexiones Volvo rFMS y Sigetra
+- Diseño visual y colores
+- Todas las demás pestañas
+- Todo lo que ya funciona

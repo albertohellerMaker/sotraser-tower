@@ -1,0 +1,81 @@
+Agrega las siguientes funcionalidades de IA a la app Sotraser. 
+La API key de Anthropic ya está en Secrets como ANTHROPIC_API_KEY.
+El modelo a usar siempre es claude-sonnet-4-20250514.
+Instalar si no está: @anthropic-ai/sdk
+
+═══════════════════════════════════════════
+ENDPOINTS NUEVOS EN EL SERVIDOR
+═══════════════════════════════════════════
+
+1. POST /api/ia/analizar
+Consulta la base de datos (tablas: cuadratura, camiones, faenas, volvo_ecu),
+obtiene alertas activas y rendimiento por camión, llama a Claude y devuelve:
+{ resumen, riesgo_economico, alertas_criticas:[{patente,problema,accion,urgencia}], recomendacion_principal }
+
+2. POST /api/ia/consulta
+Body: { pregunta: string }
+Consulta todas las tablas para obtener contexto completo de la flota,
+llama a Claude con la pregunta del usuario + los datos,
+devuelve respuesta en lenguaje natural en español.
+
+3. POST /api/ia/patrones
+Analiza el historial completo de cuadratura buscando patrones sospechosos:
+mismo conductor + misma sucursal + mismos desvíos repetidos.
+Claude devuelve lista de patrones detectados con nivel de sospecha
+ALTO/MEDIO/BAJO y evidencia concreta (fechas, montos, frecuencia).
+
+4. POST /api/ia/resumen-semanal
+Genera resumen ejecutivo de los últimos 7 días:
+total litros, costo, litros desviados, top 3 camiones problema,
+top 3 conductores problema, comparativa vs semana anterior,
+y 3 acciones prioritarias para la semana que viene.
+
+5. GET /api/ia/proyeccion-mes
+Toma consumo de los últimos 14 días, proyecta el mes completo
+y devuelve: litros estimados, costo estimado CLP, 
+camiones que empeorarán si siguen la tendencia actual.
+
+═══════════════════════════════════════════
+CAMBIOS EN EL FRONTEND
+═══════════════════════════════════════════
+
+En el HEADER agregar 2 botones junto al título:
+
+BOTÓN 1 — "🤖 Análisis"
+Llama a POST /api/ia/analizar
+Abre modal oscuro con:
+- Resumen en texto grande
+- Riesgo económico destacado en rojo con $ CLP
+- Lista de alertas críticas con badge de urgencia (INMEDIATA=rojo, 24H=amarillo, SEMANA=azul)
+- Recomendación principal destacada en verde
+
+BOTÓN 2 — "🔍 Consultar"  
+Abre modal con:
+- Input de texto grande con placeholder "¿Qué quieres saber de tu flota?"
+- 6 chips de preguntas sugeridas clickeables:
+  "¿Qué camión tiene peor rendimiento?"
+  "¿Cuánto se perdió en desvíos este mes?"
+  "¿Qué conductor tiene más alertas?"
+  "¿Qué faena consume más combustible?"
+  "¿Hay patrones de robo detectados?"
+  "¿Qué camiones necesitan mantención?"
+- Botón "Enviar →"
+- Respuesta aparece debajo con texto en blanco sobre fondo oscuro
+- Estado de carga con spinner mientras Claude responde
+
+En el DASHBOARD agregar sección nueva debajo de los KPIs:
+"INTELIGENCIA DE FLOTA" con 3 tarjetas clickeables:
+- 🕵 "Detectar patrones sospechosos" → llama a /api/ia/patrones
+- 📊 "Resumen semanal" → llama a /api/ia/resumen-semanal  
+- 📈 "Proyección del mes" → llama a /api/ia/proyeccion-mes
+Cada tarjeta al hacer clic muestra el resultado en un modal.
+
+═══════════════════════════════════════════
+DISEÑO
+═══════════════════════════════════════════
+- Todos los modales con fondo #07090F, bordes #18243A
+- Texto principal #D4E4F4, subtítulos #5A7A9A
+- Fuente monospace para datos, sans-serif para texto IA
+- Spinner de carga mientras espera respuesta de Claude
+- Botón cerrar (✕) en todos los modales
+- Consistente con el diseño oscuro actual de la app

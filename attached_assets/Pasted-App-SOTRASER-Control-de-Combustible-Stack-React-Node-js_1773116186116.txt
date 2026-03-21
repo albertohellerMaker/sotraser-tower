@@ -1,0 +1,215 @@
+App: SOTRASER Control de Combustible
+Stack: React + Node.js + PostgreSQL
+NO agregar pestañas nuevas.
+NO cambiar estructura existente.
+SOLO mejorar lo visual y corregir lo que se ve mal.
+Objetivo: demo profesional para mañana.
+
+═══════════════════════════════════════════════════
+1. HEADER — pequeño ajuste visual
+═══════════════════════════════════════════════════
+
+Botón CONSULTAR:
+- Cambiar ícono actual por lupa 🔍 más grande y visible
+- Al abrir el modal de consulta, el input debe tener
+  una lupa animada dentro del campo de texto
+- Placeholder: "Escribe tu pregunta sobre la flota..."
+- Los chips de sugerencias con borde redondeado y 
+  hover con glow azul suave
+
+Agregar junto a ACTIVO en el header:
+- Punto verde parpadeante + "EN VIVO" en verde pequeño
+- Fecha y hora actual actualizándose en tiempo real
+
+═══════════════════════════════════════════════════
+2. DASHBOARD — ordenar para el demo
+═══════════════════════════════════════════════════
+
+KPI cards — dejar exactamente 4:
+1. CAMIONES ACTIVOS (azul)
+2. CRÍTICOS (rojo)
+3. ALERTAS (amarillo)  
+4. REND. FLOTA km/L (color según meta)
+
+Eliminar KPI de costos y litros del área principal.
+
+Faenas: cargar solo las que tienen camiones reales
+asignados. Eliminar "Minera Test Faena" si tiene 0 
+camiones con datos reales.
+
+Bajo los KPIs agregar una línea de estado del sistema:
+"● Sigetra conectado · ● Volvo rFMS conectado · 
+ Última sync: hace X minutos · 
+ Datos desde 01-03-2026"
+
+Tabla principal: si un camión tiene estado OK y 
+rendimiento normal, mostrarlo en gris suave.
+Solo destacar con color los que tienen alerta o crítico.
+Esto hace que los problemas salten a la vista.
+
+═══════════════════════════════════════════════════
+3. VOLVO — mejorar para el demo
+═══════════════════════════════════════════════════
+
+En los KPI cards de arriba:
+Cambiar "OFFLINE 78" por "PENDIENTE ASIGNACIÓN"
+con ícono de configuración ⚙ en gris.
+El número 78 en rojo genera alarma innecesaria en demo.
+
+Agregar debajo de los KPIs una barra de progreso:
+"Cobertura telemetría: XX% de la flota"
+Barra verde/amarilla según porcentaje.
+
+En cada camión de la lista mostrar:
+- Si tiene GPS: mostrar coordenadas como link 
+  que abre Google Maps en nueva pestaña
+- Badge LIVE verde parpadeante si sync < 1 hora
+- Badge RECIENTE azul si sync < 6 horas
+- Badge OFFLINE gris si sync > 6 horas
+
+═══════════════════════════════════════════════════
+4. SIGETRA-VOLVO — mensaje claro para el demo
+═══════════════════════════════════════════════════
+
+El 5% de match actual puede confundir en el demo.
+Cambiar la presentación:
+
+En lugar de mostrar "5% match" mostrar:
+"120 camiones cruzados · 30 con ECU activa"
+
+Agregar nota explicativa visible:
+"El cruce ECU requiere historial acumulado.
+ A mayor tiempo de operación, mayor precisión.
+ Sistema activo desde 01-03-2026."
+
+Esto transforma un número bajo en una explicación
+de proceso, no en un error.
+
+═══════════════════════════════════════════════════
+5. SOTRA IA — pulir para el demo
+═══════════════════════════════════════════════════
+
+En sub-pestaña RENDIMIENTO:
+- Eliminar COSTO MENSUAL de los KPIs
+- El rendimiento global 2.67 km/L destacarlo más grande
+- Agregar comparativa simple: 
+  "↑ vs semana anterior" o "↓ vs semana anterior"
+
+En sub-pestaña RUTAS POR CONTRATO:
+- Esta vista está muy bien, no tocar
+- Solo agregar período 60D
+
+═══════════════════════════════════════════════════
+6. RANKING CONDUCTORES — pulir para el demo
+═══════════════════════════════════════════════════
+
+Esta pestaña ya está muy bien visualmente.
+Solo estos ajustes:
+- Eliminar COSTO MENSUAL y COSTO/MES de cada tarjeta
+- El podio (1ro, 2do, 3ro) hacerlo más grande
+  y con más contraste visual
+- Agregar subtítulo: 
+  "Basado en rendimiento real Volvo ECU + Sigetra"
+  Esto en el demo muestra que los datos son reales
+
+═══════════════════════════════════════════════════
+7. ERRORES DE DATOS — renombrar para el demo
+═══════════════════════════════════════════════════
+
+Renombrar pestaña de "ERRORES DE DATOS" a 
+"CALIDAD DE DATOS"
+
+El ícono del bug 🐛 cambiarlo por ⚡ o 🔬
+
+El título interno cambiar de "ERRORES DE DATOS" a
+"MONITOR DE CALIDAD"
+
+Subtítulo cambiar de "Registros con datos imposibles"
+a "Registros detectados para revisión y limpieza"
+
+Esto en el demo muestra sofisticación en lugar
+de mostrar que hay errores.
+
+Agregar KPI nuevo arriba:
+"CALIDAD GENERAL: XX%"
+Calculado como: 
+(total registros - registros con error) / total * 100
+Mostrar en verde si > 85%, amarillo si 70-85%, 
+rojo si < 70%
+
+═══════════════════════════════════════════════════
+8. BOTÓN ANÁLISIS IA — mejorar visual
+═══════════════════════════════════════════════════
+
+Botón ANÁLISIS en el header:
+- Agregar animación de pulso suave cuando hay
+  datos nuevos sin analizar
+- Al abrir el modal, mostrar primero un loader
+  con texto animado:
+  "Leyendo datos de flota..."
+  "Analizando 177 camiones..."
+  "Detectando patrones..."
+  "Generando diagnóstico..."
+  (cada línea aparece con fade in de 0.8 segundos)
+
+Botón CONSULTAR en el header:
+- El ícono de lupa debe ser más grande
+- Lupa con efecto hover que rota 15 grados
+- Al abrir modal: campo de texto con lupa 
+  animada dentro, borde que brilla en azul
+  al hacer foco
+- Chips de sugerencias:
+  · "¿Qué camión tiene peor rendimiento?"
+  · "¿Hay patrones sospechosos esta semana?"
+  · "¿Qué faena consume más combustible?"
+  · "¿Qué conductor tiene más alertas?"
+  · "¿Cuántos camiones están bajo meta?"
+  · "Resumen ejecutivo de la flota"
+  Chips con borde azul, hover con fondo azul suave
+  y glow, clic llena el input automáticamente
+
+═══════════════════════════════════════════════════
+9. LOADING STATES — profesionalismo
+═══════════════════════════════════════════════════
+
+En todas las pestañas agregar skeleton loading:
+Mientras cargan los datos mostrar rectángulos 
+grises animados en lugar de pantalla en blanco.
+Esto hace la app sentirse rápida y profesional.
+
+En todas las llamadas a API:
+Si tarda más de 3 segundos mostrar:
+"Cargando datos en tiempo real..."
+con spinner pequeño en el color del acento de 
+cada pestaña.
+
+═══════════════════════════════════════════════════
+10. PANTALLA DE BIENVENIDA — impacto en el demo
+═══════════════════════════════════════════════════
+
+Al cargar la app por primera vez (o al refrescar)
+mostrar por 2 segundos una pantalla de inicio:
+
+Fondo negro completo con:
+- Logo/ícono ⛽ grande en azul con glow
+- "SOTRASER" en tipografía grande bold
+- "CONTROL OPERACIONAL DE FLOTA" subtítulo
+- Barra de progreso cargando de 0 a 100%
+- Textos rotando mientras carga:
+  "Conectando Volvo rFMS..."
+  "Sincronizando Sigetra..."
+  "Procesando 177 camiones..."
+  "Sistema listo."
+
+Luego fade in al dashboard normal.
+Esto genera impacto inmediato en el demo.
+
+═══════════════════════════════════════════════════
+NO TOCAR — mantener exactamente:
+═══════════════════════════════════════════════════
+- Nombres y orden de pestañas
+- Conexiones Volvo rFMS y Sigetra
+- Toda la lógica de cálculo existente
+- Colores base del diseño actual
+- Funcionalidad de todas las pestañas
+- Base de datos sin cambios

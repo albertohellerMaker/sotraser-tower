@@ -1,0 +1,1826 @@
+{
+  "9BVX1F1A3KE860577": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1A3KE860577",
+    "patente": "1647",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.348Z"
+  },
+  "9BVX1F1A7KE860417": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1A7KE860417",
+    "patente": "1641",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.391Z"
+  },
+  "9BVX1F1C6KE862088": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1C6KE862088",
+    "patente": "1635",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.435Z"
+  },
+  "YV2RG30C3MB341570": {
+    "nombre": "Sin asignar",
+    "vin": "YV2RG30C3MB341570",
+    "patente": "1791",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 39,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 36
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.479Z"
+  },
+  "YV2RG30CXMB341730": {
+    "nombre": "Sin asignar",
+    "vin": "YV2RG30CXMB341730",
+    "patente": "1790",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 50,
+        "anticipacion": 43,
+        "velocidad": 37,
+        "motor": 80,
+        "combustible": 39
+      }
+    ],
+    "baseline": 50,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.522Z"
+  },
+  "YV2XG10C0NA893188": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C0NA893188",
+    "patente": "1885",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 46,
+        "anticipacion": 43,
+        "velocidad": 34,
+        "motor": 80,
+        "combustible": 27
+      }
+    ],
+    "baseline": 46,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.565Z"
+  },
+  "YV2XG10C6NA893194": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C6NA893194",
+    "patente": "1900",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 51,
+        "anticipacion": 47,
+        "velocidad": 65,
+        "motor": 60,
+        "combustible": 32
+      }
+    ],
+    "baseline": 51,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.609Z"
+  },
+  "YV2XG10CXNA893098": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10CXNA893098",
+    "patente": "1882",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 46,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 30
+      }
+    ],
+    "baseline": 46,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.659Z"
+  },
+  "YV2XG10CXNA893120": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10CXNA893120",
+    "patente": "1893",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 41,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 29
+      }
+    ],
+    "baseline": 41,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.702Z"
+  },
+  "9BVRG40C1PE924826": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG40C1PE924826",
+    "patente": "1950",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 40,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 28
+      }
+    ],
+    "baseline": 40,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.745Z"
+  },
+  "9BVRG40C9PE924825": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG40C9PE924825",
+    "patente": "1952",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.788Z"
+  },
+  "9BVXG10C2PE928074": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG10C2PE928074",
+    "patente": "1941",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 37
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.832Z"
+  },
+  "YV2XB40C0RA339932": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XB40C0RA339932",
+    "patente": "2041",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.875Z"
+  },
+  "YV2XZ80C6SA378792": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XZ80C6SA378792",
+    "patente": "2221",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.918Z"
+  },
+  "YV2XZ80CXSA378780": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XZ80CXSA378780",
+    "patente": "2224",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:01.961Z"
+  },
+  "9BVXG20D1SE615437": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D1SE615437",
+    "patente": "2062",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 48,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 35
+      }
+    ],
+    "baseline": 48,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.004Z"
+  },
+  "9BVXG20D4TE622213": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D4TE622213",
+    "patente": "2087",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 65,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 75
+      }
+    ],
+    "baseline": 65,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.047Z"
+  },
+  "9BVXG20D8SE613564": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D8SE613564",
+    "patente": "2057",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 52,
+        "anticipacion": 47,
+        "velocidad": 65,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 52,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.091Z"
+  },
+  "9BVXG20D9SE603456": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D9SE603456",
+    "patente": "2046",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 36
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.134Z"
+  },
+  "YV2RB40C5RA337280": {
+    "nombre": "Sin asignar",
+    "vin": "YV2RB40C5RA337280",
+    "patente": "2039",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.178Z"
+  },
+  "9BVRG30C3TE631944": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30C3TE631944",
+    "patente": "2191",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 45,
+        "anticipacion": 43,
+        "velocidad": 34,
+        "motor": 80,
+        "combustible": 24
+      }
+    ],
+    "baseline": 45,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.221Z"
+  },
+  "9BVXG20C0TE631619": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C0TE631619",
+    "patente": "2183",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 39,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 24
+      }
+    ],
+    "baseline": 39,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.264Z"
+  },
+  "9BVXG20C3TE628385": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C3TE628385",
+    "patente": "2150",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 61,
+        "anticipacion": 43,
+        "velocidad": 34,
+        "motor": 80,
+        "combustible": 85
+      }
+    ],
+    "baseline": 61,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.307Z"
+  },
+  "9BVXG20C5TE631617": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C5TE631617",
+    "patente": "2180",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 39,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 24
+      }
+    ],
+    "baseline": 39,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.350Z"
+  },
+  "9BVXG20C5TE632291": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C5TE632291",
+    "patente": "2214",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 33
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.393Z"
+  },
+  "9BVXG20C7TE631698": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C7TE631698",
+    "patente": "2185",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.437Z"
+  },
+  "9BVXG20D1TE632217": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D1TE632217",
+    "patente": "2199",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 57,
+        "anticipacion": 63,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 76
+      }
+    ],
+    "baseline": 57,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.480Z"
+  },
+  "9BVXG20D6TE631988": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D6TE631988",
+    "patente": "2209",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 63,
+        "anticipacion": 70,
+        "velocidad": 35,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 63,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.525Z"
+  },
+  "9BVXG20D7TE631981": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D7TE631981",
+    "patente": "2174",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 51,
+        "anticipacion": 59,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 51,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.568Z"
+  },
+  "9BVX1F1DXKE858425": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1DXKE858425",
+    "patente": "1618",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 60,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 60,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.612Z"
+  },
+  "9BVRG20D0KE863375": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG20D0KE863375",
+    "patente": "1617",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 50,
+        "anticipacion": 70,
+        "velocidad": 40,
+        "motor": 60,
+        "combustible": 31
+      }
+    ],
+    "baseline": 50,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.699Z"
+  },
+  "9BVRG20D3KE863381": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG20D3KE863381",
+    "patente": "1614",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 51,
+        "anticipacion": 70,
+        "velocidad": 40,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 51,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.743Z"
+  },
+  "9BVRG30C2TE632246": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30C2TE632246",
+    "patente": "2213",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 71,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 100
+      }
+    ],
+    "baseline": 71,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.864Z"
+  },
+  "9BVRG30C4ME898628": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30C4ME898628",
+    "patente": "1798",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.908Z"
+  },
+  "9BVRG30C6TE631945": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30C6TE631945",
+    "patente": "2192",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 41,
+        "anticipacion": 39,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 28
+      }
+    ],
+    "baseline": 41,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.951Z"
+  },
+  "9BVRG30D0SE615274": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D0SE615274",
+    "patente": "2051",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 57,
+        "anticipacion": 70,
+        "velocidad": 35,
+        "motor": 60,
+        "combustible": 64
+      }
+    ],
+    "baseline": 57,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:02.994Z"
+  },
+  "9BVRG40C8PE927810": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG40C8PE927810",
+    "patente": "1951",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 37
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.037Z"
+  },
+  "9BVRG40CXPE926969": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG40CXPE926969",
+    "patente": "1955",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 41,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 29
+      }
+    ],
+    "baseline": 41,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.080Z"
+  },
+  "9BVX1F1D0LE874446": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1D0LE874446",
+    "patente": "1691",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 47,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 32
+      }
+    ],
+    "baseline": 47,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.124Z"
+  },
+  "9BVXG20C6SE600517": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C6SE600517",
+    "patente": "1969",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 39,
+        "anticipacion": 37,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 39,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.166Z"
+  },
+  "9BVXG20D6SE609496": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D6SE609496",
+    "patente": "2064",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 66,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 79
+      }
+    ],
+    "baseline": 66,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.210Z"
+  },
+  "9BVXG20D6TE632364": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D6TE632364",
+    "patente": "2202",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 57,
+        "anticipacion": 63,
+        "velocidad": 31,
+        "motor": 60,
+        "combustible": 74
+      }
+    ],
+    "baseline": 57,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.253Z"
+  },
+  "9BVXG20D9SE613471": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D9SE613471",
+    "patente": "2054",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 59,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.296Z"
+  },
+  "YV2RG30C9MB341413": {
+    "nombre": "Sin asignar",
+    "vin": "YV2RG30C9MB341413",
+    "patente": "1782",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 31
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.339Z"
+  },
+  "YV2XG10C0NA893112": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C0NA893112",
+    "patente": "1897",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 47,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 32
+      }
+    ],
+    "baseline": 47,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.382Z"
+  },
+  "YV2XG10C9NA893349": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C9NA893349",
+    "patente": "1917",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 48,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 35
+      }
+    ],
+    "baseline": 48,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.426Z"
+  },
+  "YV2XG10C9NB372156": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C9NB372156",
+    "patente": "1880",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 48,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 36
+      }
+    ],
+    "baseline": 48,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.476Z"
+  },
+  "YV2XZ80C8SA378745": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XZ80C8SA378745",
+    "patente": "2219",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.520Z"
+  },
+  "9BVRG30D3ME898492": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D3ME898492",
+    "patente": "1800",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.563Z"
+  },
+  "9BVRG30D4ME898582": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D4ME898582",
+    "patente": "1801",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 69,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 92
+      }
+    ],
+    "baseline": 69,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.606Z"
+  },
+  "9BVRG30D5LE873957": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D5LE873957",
+    "patente": "1668",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.649Z"
+  },
+  "9BVRG30D6LE870501": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D6LE870501",
+    "patente": "1654",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.692Z"
+  },
+  "9BVRG30D6LE873799": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D6LE873799",
+    "patente": "1665",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.734Z"
+  },
+  "9BVRG30D9PE917357": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D9PE917357",
+    "patente": "1938",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 60,
+        "anticipacion": 67,
+        "velocidad": 28,
+        "motor": 80,
+        "combustible": 63
+      }
+    ],
+    "baseline": 60,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.777Z"
+  },
+  "9BVRG40C7PE927919": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG40C7PE927919",
+    "patente": "1954",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 69,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 92
+      }
+    ],
+    "baseline": 69,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.821Z"
+  },
+  "9BVRG40C9PE928211": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG40C9PE928211",
+    "patente": "1956",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.864Z"
+  },
+  "9BVX1F1A7KE857284": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1A7KE857284",
+    "patente": "1639",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.907Z"
+  },
+  "9BVX1F1A8KE860575": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1A8KE860575",
+    "patente": "1642",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.951Z"
+  },
+  "9BVX1F1C2KE861623": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1C2KE861623",
+    "patente": "1633",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 65,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 77
+      }
+    ],
+    "baseline": 65,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:03.994Z"
+  },
+  "9BVX1F1D0KE856336": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1D0KE856336",
+    "patente": "1548",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 65,
+        "anticipacion": 70,
+        "velocidad": 75,
+        "motor": 60,
+        "combustible": 56
+      }
+    ],
+    "baseline": 65,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.038Z"
+  },
+  "9BVX1F1D1KE856405": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1D1KE856405",
+    "patente": "1549",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 64,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 74
+      }
+    ],
+    "baseline": 64,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.081Z"
+  },
+  "9BVX1F1D3LE874447": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1D3LE874447",
+    "patente": "1689",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 51,
+        "anticipacion": 70,
+        "velocidad": 40,
+        "motor": 60,
+        "combustible": 33
+      }
+    ],
+    "baseline": 51,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.124Z"
+  },
+  "9BVXG10C9PE926755": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG10C9PE926755",
+    "patente": "1940",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 47,
+        "anticipacion": 63,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 47,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.167Z"
+  },
+  "9BVXG20C0TE628384": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C0TE628384",
+    "patente": "2157",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 44,
+        "anticipacion": 40,
+        "velocidad": 34,
+        "motor": 80,
+        "combustible": 22
+      }
+    ],
+    "baseline": 44,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.210Z"
+  },
+  "9BVXG20C4TE628449": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C4TE628449",
+    "patente": "2156",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 35
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.296Z"
+  },
+  "9BVXG20C9TE628447": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C9TE628447",
+    "patente": "2154",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.344Z"
+  },
+  "9BVXG20D0TE632297": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D0TE632297",
+    "patente": "2206",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 63,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.387Z"
+  },
+  "9BVXG20D0TE632362": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D0TE632362",
+    "patente": "2210",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 69,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 92
+      }
+    ],
+    "baseline": 69,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.430Z"
+  },
+  "9BVXG20D2TE622135": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D2TE622135",
+    "patente": "2091",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 64,
+        "anticipacion": 47,
+        "velocidad": 65,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 64,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.473Z"
+  },
+  "9BVXG20D2TE631983": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D2TE631983",
+    "patente": "2201",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 68,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 88
+      }
+    ],
+    "baseline": 68,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.516Z"
+  },
+  "9BVXG20D3TE632298": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D3TE632298",
+    "patente": "2208",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 56,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 44
+      }
+    ],
+    "baseline": 56,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.559Z"
+  },
+  "9BVXG20D6SE603455": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D6SE603455",
+    "patente": "2045",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 63,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 69
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.602Z"
+  },
+  "9BVXG20D7TE622133": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D7TE622133",
+    "patente": "2090",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 65,
+        "anticipacion": 65,
+        "velocidad": 60,
+        "motor": 80,
+        "combustible": 55
+      }
+    ],
+    "baseline": 65,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.645Z"
+  },
+  "9BVXG20D9SE615436": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D9SE615436",
+    "patente": "2063",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 59,
+        "velocidad": 32,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.731Z"
+  },
+  "9BVXG20D9TE631989": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D9TE631989",
+    "patente": "2207",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 54,
+        "anticipacion": 63,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 65
+      }
+    ],
+    "baseline": 54,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.774Z"
+  },
+  "9BVXG40D4TE624994": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG40D4TE624994",
+    "patente": "2114",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.817Z"
+  },
+  "9BVXG40D7TE624995": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG40D7TE624995",
+    "patente": "2115",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 66,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 81
+      }
+    ],
+    "baseline": 66,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.861Z"
+  },
+  "YV2RG30C1MB341311": {
+    "nombre": "Sin asignar",
+    "vin": "YV2RG30C1MB341311",
+    "patente": "1777",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 33
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.904Z"
+  },
+  "YV2RG30C6MB341367": {
+    "nombre": "Sin asignar",
+    "vin": "YV2RG30C6MB341367",
+    "patente": "1789",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 39,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.947Z"
+  },
+  "YV2X1F1A0MB341906": {
+    "nombre": "Sin asignar",
+    "vin": "YV2X1F1A0MB341906",
+    "patente": "1771",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 63,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 70
+      }
+    ],
+    "baseline": 63,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.990Z"
+  },
+  "YV2XB40C0RA339865": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XB40C0RA339865",
+    "patente": "2043",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
+      }
+    ],
+    "baseline": 59,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.032Z"
+  },
+  "YV2XG10C2NA893175": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C2NA893175",
+    "patente": "1892",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 65,
+        "anticipacion": 63,
+        "velocidad": 50,
+        "motor": 60,
+        "combustible": 88
+      }
+    ],
+    "baseline": 65,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.075Z"
+  },
+  "YV2XG10C4NB372131": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C4NB372131",
+    "patente": "1901",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 43,
+        "anticipacion": 39,
+        "velocidad": 37,
+        "motor": 60,
+        "combustible": 37
+      }
+    ],
+    "baseline": 43,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.118Z"
+  },
+  "YV2XG10C4NB372422": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XG10C4NB372422",
+    "patente": "1922",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 40,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 28
+      }
+    ],
+    "baseline": 40,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.161Z"
+  },
+  "YV2XZ80C5SA378833": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XZ80C5SA378833",
+    "patente": "2225",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.204Z"
+  },
+  "9BVRG30C3PE927813": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30C3PE927813",
+    "patente": "1945",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.248Z"
+  },
+  "9BVRG30D2LE873794": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D2LE873794",
+    "patente": "1671",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 61,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 59
+      }
+    ],
+    "baseline": 61,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.291Z"
+  },
+  "9BVRG30D4LE870342": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D4LE870342",
+    "patente": "1651",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 50,
+        "anticipacion": 70,
+        "velocidad": 40,
+        "motor": 60,
+        "combustible": 29
+      }
+    ],
+    "baseline": 50,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.334Z"
+  },
+  "9BVRG30D9ME898656": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D9ME898656",
+    "patente": "1794",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 67,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 83
+      }
+    ],
+    "baseline": 67,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.377Z"
+  },
+  "9BVRG30D9SE615277": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D9SE615277",
+    "patente": "2053",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 53,
+        "anticipacion": 63,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 61
+      }
+    ],
+    "baseline": 53,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.420Z"
+  },
+  "9BVRG30D9SE615282": {
+    "nombre": "Sin asignar",
+    "vin": "9BVRG30D9SE615282",
+    "patente": "2050",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 57,
+        "anticipacion": 65,
+        "velocidad": 28,
+        "motor": 80,
+        "combustible": 55
+      }
+    ],
+    "baseline": 57,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.463Z"
+  },
+  "9BVX1F1D6LE874448": {
+    "nombre": "Sin asignar",
+    "vin": "9BVX1F1D6LE874448",
+    "patente": "1690",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.507Z"
+  },
+  "YV2XZ80C1SA378733": {
+    "nombre": "Sin asignar",
+    "vin": "YV2XZ80C1SA378733",
+    "patente": "2217",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 85
+      }
+    ],
+    "baseline": 55,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.594Z"
+  },
+  "9BVXG20D8TE631985": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20D8TE631985",
+    "patente": "2177",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 77,
+        "anticipacion": 73,
+        "velocidad": 75,
+        "motor": 60,
+        "combustible": 100
+      }
+    ],
+    "baseline": 77,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.689Z"
+  },
+  "9BVXG20C1TE628448": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C1TE628448",
+    "patente": "2155",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 38,
+        "anticipacion": 37,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 22
+      }
+    ],
+    "baseline": 38,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:04.253Z"
+  },
+  "9BVXG30D4SE615808": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG30D4SE615808",
+    "patente": "2047",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 53,
+        "anticipacion": 63,
+        "velocidad": 28,
+        "motor": 60,
+        "combustible": 62
+      }
+    ],
+    "baseline": 53,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T03:06:05.550Z"
+  }
+}

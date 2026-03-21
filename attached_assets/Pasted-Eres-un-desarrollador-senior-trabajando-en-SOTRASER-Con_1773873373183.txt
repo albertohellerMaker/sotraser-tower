@@ -1,0 +1,75 @@
+Eres un desarrollador senior trabajando en SOTRASER - Control Combustible, 
+una app de control operacional de flotas de camiones en Chile.
+
+STACK ACTUAL:
+- React + TypeScript (frontend)
+- Express + TypeScript (backend)  
+- PostgreSQL con Drizzle ORM
+- API Volvo Connect (telemetría ECU + GPS cada 5 min)
+- API Sigetra (scraping tarjetas de combustible)
+- Claude AI integrado (ia-routes.ts)
+
+BASE DE DATOS ACTUAL (tablas existentes):
+- faenas, camiones, cargas, desviacionChecks
+- volvoFuelSnapshots, parametros, geoposiciones
+- volvoViajes, lugaresGeo, visitasGeo
+
+CONTEXTO DEL NEGOCIO:
+- 2 contratos: CENCOSUD (12 camiones activos con telemetría) 
+  y ANGLO AMERICAN (25 camiones, 3 sub-ops: Cargas Varias, CAL, COCU)
+- Rutas FIJAS y predecibles por contrato
+- Fuente de verdad: Volvo ECU (no Sigetra para km)
+- Sigetra tiene problemas: cargas correctas PERO km declarados por 
+  conductor son poco confiables — usar siempre odómetro ECU
+
+OBJETIVO DE ESTA SESIÓN:
+Construir el sistema de aprendizaje de viajes y detección inteligente 
+de anomalías. Son 6 fases:
+
+FASE 1 — Schema de viajes + descarga histórica 3 meses Volvo
+Crear tabla "viajes" con estos campos:
+  - id, camionId, vin, corredor_id (nullable al inicio)
+  - fecha_inicio, fecha_fin
+  - origen_lat, origen_lng, destino_lat, destino_lng
+  - km_ecu (odómetro Volvo — fuente verdad, NO Sigetra)
+  - litros_consumidos_ecu
+  - litros_cargados_sigetra (suma cargas Sigetra en ese período)
+  - rendimiento_real (km_ecu / litros_consumidos_ecu)
+  - conductor (nombre desde Sigetra de la carga del período)
+  - paradas (jsonb: array de {lat, lng, duracion_min, lugar})
+  - score_anomalia (0-100, calculado después)
+  - estado: 'NORMAL' | 'REVISAR' | 'ANOMALIA'
+  - fuente_km_declarado (sigetra) vs fuente_km_real (ecu) — ambos guardados
+
+Crear tabla "corredores" con:
+  - id, nombre, contrato ('CENCOSUD' | 'ANGLO')
+  - origen_nombre, destino_nombre
+  - origen_lat, origen_lng, destino_lat, destino_lng
+  - radio_tolerancia_km (default 15)
+  - rendimiento_promedio, rendimiento_desviacion
+  - total_viajes_base
+  - activo boolean
+
+Crear script de descarga histórica:
+  - Llamar API Volvo para traer todos los viajes completados 
+    de los últimos 90 días para cada VIN activo
+  - Para cada viaje Volvo, cruzar con cargas Sigetra del mismo 
+    período (±12 horas) por patente
+  - Calcular rendimiento_real = km_ecu / litros_ecu
+  - Guardar en tabla viajes
+  - Log de progreso por VIN
+
+REGLAS IMPORTANTES:
+1. Nunca usar km declarados de Sigetra para calcular rendimiento
+2. Si un viaje no tiene par en Sigetra, guardarlo igual (litros_cargados_sigetra = 0)
+3. Filtrar viajes con rendimiento > 100 km/L (dato inválido)
+4. Filtrar viajes con km_ecu < 20 (no son viajes reales)
+5. Un viaje Volvo puede tener múltiples cargas Sigetra asociadas
+
+Empieza por:
+1. Agregar las nuevas tablas al archivo shared/schema.ts
+2. Crear server/viajes-historico.ts con la función de descarga
+3. Agregar endpoint POST /api/viajes/sync-historico en routes.ts
+4. Hacer la migración de la base de datos
+
+Muéstrame el schema primero antes de continuar con el resto.

@@ -1,0 +1,103 @@
+Agregar botones de feedback en las alertas
+existentes. Sin crear nuevas pantallas.
+
+En cerebro.tsx donde se renderizan las alertas
+en el BLOQUE C columna izquierda:
+
+Agregar debajo de cada alerta:
+
+function BotonesAlerta({ alerta }) {
+  const [enviado, setEnviado] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  
+  if (enviado) {
+    return (
+      <div className="font-exo text-[9px] mt-1"
+        style={{ color: '#3a6080' }}>
+        ✓ Feedback registrado — sistema recalibrando
+      </div>
+    )
+  }
+  
+  const enviar = async (decision: string, nota?: string) => {
+    setEnviando(true)
+    try {
+      await fetch('/api/feedback/alerta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alertaTipo: alerta.tipo,
+          entidadTipo: alerta.entidadTipo || 'CAMION',
+          entidadId: alerta.patente || alerta.entidadNombre,
+          contrato: alerta.contrato,
+          decision,
+          nota,
+          valorDetectado: alerta.valorReciente,
+          umbralUsado: alerta.valorHistorico,
+          parametroAfectado: alerta.parametro || 'rendimiento_kmL'
+        })
+      })
+      setEnviado(true)
+    } catch (e) {
+      console.error('[FEEDBACK]', e)
+    }
+    setEnviando(false)
+  }
+  
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <button
+        onClick={() => enviar('CONFIRMADO')}
+        disabled={enviando}
+        className="font-exo text-[9px] font-bold 
+                   px-2 py-1 border cursor-pointer 
+                   transition-all hover:opacity-80"
+        style={{ 
+          borderColor: '#00ff8830',
+          color: '#00ff88',
+          background: 'rgba(0,255,136,0.06)'
+        }}>
+        ✅ Confirmar
+      </button>
+      
+      <button
+        onClick={() => {
+          const nota = window.prompt(
+            'Motivo (opcional): tráfico, lluvia, ' +
+            'sobrecarga, ruta diferente...'
+          )
+          enviar('FALSA_ALARMA', nota || undefined)
+        }}
+        disabled={enviando}
+        className="font-exo text-[9px] px-2 py-1 
+                   border cursor-pointer transition-all
+                   hover:opacity-80"
+        style={{ borderColor: '#0d2035', color: '#3a6080' }}>
+        ❌ Falsa alarma
+      </button>
+    </div>
+  )
+}
+
+Agregar BotonesAlerta en:
+1. Alertas en cerebro.tsx (BLOQUE C)
+2. Alertas en contratos.tsx (panel lateral)
+3. Alertas en panel-aprendizaje.tsx
+
+También crear el endpoint:
+POST /api/feedback/alerta
+en server/cerebro-routes.ts
+
+Por ahora solo guardar en feedback_alertas.
+La lógica de recalibración viene después
+cuando haya suficientes feedbacks.
+
+ORDEN:
+1. Tabla feedback_alertas en schema.ts
+2. Migración
+3. Endpoint POST /api/feedback/alerta
+4. Componente BotonesAlerta
+5. Agregar en los 3 lugares
+
+Nada más. Sin nueva pestaña todavía.
+Muéstrame schema primero.

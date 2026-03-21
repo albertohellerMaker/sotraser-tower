@@ -1,0 +1,149 @@
+El sistema de cruce ECU-Sigetra está funcionando.
+Los datos mejoran automáticamente con el tiempo.
+
+Hacer estos ajustes para manejar correctamente
+la cobertura parcial actual:
+
+═══════════════════════════════════════════════
+AJUSTE 1 — Indicador de cobertura en ESTACIONES
+═══════════════════════════════════════════════
+
+En la pestaña ESTACIONES y ENTRE CARGAS
+agregar un banner informativo:
+
+const coberturaEcu = Math.round(
+  (crucesConDatos / totalCruces) * 100
+)
+
+Si cobertura < 50%:
+┌─────────────────────────────────────────────┐
+│ 📡 SISTEMA EN CALIBRACIÓN                  │
+│ Cruce ECU disponible en X% de las cargas.  │
+│ Los snapshots Volvo cubren desde el 19-Mar. │
+│ La cobertura aumenta automáticamente        │
+│ a medida que se acumulan más datos.         │
+└─────────────────────────────────────────────┘
+Color: amarillo tenue
+
+Si cobertura 50-80%:
+  Banner azul: "Cobertura parcial — X% con ECU"
+
+Si cobertura > 80%:
+  Sin banner — sistema operando normalmente
+
+═══════════════════════════════════════════════
+AJUSTE 2 — En cada registro sin cruce ECU
+═══════════════════════════════════════════════
+
+En la lista de períodos entre cargas,
+cuando no hay datos ECU disponibles:
+
+ANTES (confuso):
+  km ECU: —
+  Rendimiento: —
+  Balance: —
+  Estado: NORMAL
+
+DESPUÉS (claro):
+  ┌─────────────────────────────────┐
+  │ SLHT32 · Sin ECU disponible    │
+  │ Sigetra: 320L cargados         │
+  │ 📡 Snapshots no disponibles    │
+  │    para este período           │
+  └─────────────────────────────────┘
+  
+  NO mostrar como NORMAL
+  Mostrar como SIN_DATOS con ícono 📡
+
+═══════════════════════════════════════════════
+AJUSTE 3 — KPIs honestos en ENTRE CARGAS
+═══════════════════════════════════════════════
+
+Reemplazar los 4 KPIs actuales por estos
+que reflejan la realidad:
+
+KPI 1: PERÍODOS TOTALES
+  Todos los pares de cargas del día
+  Color: cyan
+
+KPI 2: CON CRUCE ECU ✅
+  Los que tienen snapshots Volvo válidos
+  Color: verde si > 50%, amarillo si < 50%
+  Sub: "X% de cobertura"
+
+KPI 3: SIN CRUCE ECU 📡
+  Los que no tienen snapshots
+  Color: gris
+  Sub: "Mejora con el tiempo"
+
+KPI 4: ANOMALÍAS DETECTADAS 🔴
+  Solo de los que SÍ tienen cruce ECU
+  Color: rojo si hay, verde si no
+  Sub: "De los períodos verificados"
+
+═══════════════════════════════════════════════
+AJUSTE 4 — Proyección de cobertura
+Mostrar cuándo el sistema será completo
+═══════════════════════════════════════════════
+
+En el widget de aprendizaje de estaciones:
+
+// Calcular días hasta cobertura completa
+const primerSnapshot = '2026-03-19'
+const diasConDatos = Math.floor(
+  (Date.now() - new Date(primerSnapshot).getTime()) 
+  / (1000 * 60 * 60 * 24)
+)
+
+// A medida que pasen los días más cargas
+// tendrán snapshots cercanos
+const coberturaPct = Math.min(95, diasConDatos * 3)
+// ~3% por día hasta máximo 95%
+// (nunca 100% por cargas en horas sin snapshot)
+
+const diasParaCompleto = Math.ceil((80 - coberturaPct) / 3)
+
+Mostrar:
+  "Cobertura ECU actual: X%"
+  "Sistema completo estimado: en X días"
+  Barra de progreso con el porcentaje
+
+═══════════════════════════════════════════════
+AJUSTE 5 — Log en jobs.ts
+Para monitorear el crecimiento de cobertura
+═══════════════════════════════════════════════
+
+En el job CUADRATURA_NOCTURNA agregar
+al final del proceso:
+
+const stats = await db.execute(sql`
+  SELECT 
+    COUNT(*) as total_entre_cargas,
+    COUNT(CASE WHEN litros_consumidos_ecu > 0 
+      THEN 1 END) as con_ecu,
+    ROUND(
+      COUNT(CASE WHEN litros_consumidos_ecu > 0 
+        THEN 1 END) * 100.0 / COUNT(*), 1
+    ) as cobertura_pct
+  FROM entre_cargas
+  WHERE carga_inicio_fecha >= NOW() - INTERVAL '7 days'
+`)
+
+console.log(
+  `[CUADRATURA] Cobertura ECU últimos 7 días: ` +
+  `${stats[0].cobertura_pct}% ` +
+  `(${stats[0].con_ecu}/${stats[0].total_entre_cargas})`
+)
+
+═══════════════════════════════════════════════
+REGLAS
+═══════════════════════════════════════════════
+
+- Nunca mostrar datos sin ECU como anomalía
+- Nunca ocultar que el cruce no está disponible
+- El sistema es honesto sobre su cobertura
+- Los datos mejoran solos — no requieren acción
+- TypeScript estricto
+
+Mostrar solo los cambios de frontend.
+No tocar nada del backend que ya funciona.
