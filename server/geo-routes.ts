@@ -185,7 +185,7 @@ export function registerGeoRoutes(app: Express) {
       const [base] = await db.insert(geoBases).values({
         nombre, lat: String(lat), lng: String(lng),
         radioMetros: radioMetros || 3000,
-        contrato: contrato || null,
+        contrato: contrato || "GENERAL",
       }).returning();
       res.json(base);
     } catch (error: any) {
