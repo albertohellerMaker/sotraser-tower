@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft } from "lucide-react";
+import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw } from "lucide-react";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "RESUMEN" | "ERR" | "RUTAS" | "FLOTA" | "TARIFAS";
+type Tab = "RESUMEN" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "TARIFAS";
 
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
@@ -17,6 +17,9 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
   const { data: tarifasData } = useQuery<any>({ queryKey: ["/api/cencosud/tarifas"], queryFn: () => fetch("/api/cencosud/tarifas").then(r => r.json()), staleTime: 600000, enabled: tab === "TARIFAS" });
   const { data: sinMapear } = useQuery<any>({ queryKey: ["/api/cencosud/sin-mapear"], queryFn: () => fetch("/api/cencosud/sin-mapear").then(r => r.json()), staleTime: 300000 });
+  const { data: aliasData } = useQuery<any>({ queryKey: ["/api/cencosud/alias"], queryFn: () => fetch("/api/cencosud/alias").then(r => r.json()), staleTime: 300000, enabled: tab === "BOT" });
+  const { data: botStatus } = useQuery<any>({ queryKey: ["/api/agentes/estado"], queryFn: () => fetch("/api/agentes/estado").then(r => r.json()), staleTime: 60000, enabled: tab === "BOT" });
+  const { data: botMsgs } = useQuery<any>({ queryKey: ["/api/agentes/mensajes?limite=20"], queryFn: () => fetch("/api/agentes/mensajes?limite=20").then(r => r.json()), staleTime: 30000, enabled: tab === "BOT" });
 
   const f = mes?.flota || {};
   const fi = mes?.financiero || {};
@@ -49,7 +52,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
         <div className="flex gap-0">
-          {(["RESUMEN", "ERR", "RUTAS", "FLOTA", "TARIFAS"] as Tab[]).map(t => (
+          {(["RESUMEN", "ERR", "RUTAS", "FLOTA", "BOT", "TARIFAS"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
               style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
           ))}
@@ -371,6 +374,124 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
             </div>
           </>
         )}
+
+        {/* ═══ BOT: Admin Contrato ═══ */}
+        {tab === "BOT" && (() => {
+          const bot = (botStatus?.agentes || []).find((a: any) => a.id === "agente-admin-contrato");
+          const msgs = (botMsgs?.mensajes || []).filter((m: any) => m.de_agente === "agente-admin-contrato" || m.contenido?.includes("Cencosud") || m.contenido?.includes("cencosud"));
+          const alias = aliasData?.alias || [];
+          const porFuente = alias.reduce((acc: any, a: any) => { acc[a.creado_por] = (acc[a.creado_por] || 0) + 1; return acc; }, {});
+          const confirmados = alias.filter((a: any) => a.confirmado).length;
+          const sinMap = sinMapear?.sin_mapear || [];
+
+          return (
+            <>
+              {/* Bot header */}
+              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #fbbf2430", borderTop: "3px solid #fbbf24" }}>
+                <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                  <div className="flex items-center gap-3">
+                    <Bot className="w-5 h-5" style={{ color: "#fbbf24" }} />
+                    <div>
+                      <div className="font-space text-[12px] font-bold tracking-wider" style={{ color: "#fbbf24" }}>ADMIN CONTRATO CENCOSUD</div>
+                      <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Autonomía: georeferencias · cruce tarifas · validación · reportería</div>
+                    </div>
+                    {bot && (
+                      <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#00ff8815", color: "#00ff88", border: "1px solid #00ff8830" }}>
+                        {bot.ciclos_completados} ciclos · {bot.ultimo_ciclo ? Math.round((Date.now() - new Date(bot.ultimo_ciclo).getTime()) / 60000) + "m" : "--"}
+                      </span>
+                    )}
+                  </div>
+                  <button onClick={() => fetch("/api/agentes/forzar/cencosud", { method: "POST" })} className="flex items-center gap-1.5 px-3 py-1.5 font-exo text-[8px] cursor-pointer rounded"
+                    style={{ color: "#fbbf24", border: "1px solid #fbbf2430" }}>
+                    <RefreshCw className="w-3 h-3" /> Ejecutar ahora
+                  </button>
+                </div>
+
+                {/* KPIs del bot */}
+                <div className="grid grid-cols-5 gap-2 p-3">
+                  {[
+                    { l: "ALIAS TOTAL", v: alias.length, c: "#fbbf24" },
+                    { l: "CONFIRMADOS", v: confirmados, c: "#00ff88" },
+                    { l: "AUTO (GEO)", v: porFuente["ADMIN_CONTRATO"] || porFuente["AGENTE_GEO"] || 0, c: "#00d4ff" },
+                    { l: "MANUALES", v: porFuente["MANUAL"] || 0, c: "#a855f7" },
+                    { l: "SIN MAPEAR", v: sinMap.length, c: sinMap.length > 20 ? "#ff2244" : "#3a6080" },
+                  ].map(k => (
+                    <div key={k.l} className="text-center p-2 rounded" style={{ background: "#0a1520", borderTop: `2px solid ${k.c}` }}>
+                      <div className="font-space text-[18px] font-bold" style={{ color: k.c }}>{k.v}</div>
+                      <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mensajes del bot */}
+              {msgs.length > 0 && (
+                <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                    <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#fbbf24" }}>REPORTES DEL BOT</span>
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto">
+                    {msgs.slice(0, 8).map((m: any) => (
+                      <div key={m.id} className="px-4 py-2" style={{ borderBottom: "1px solid #0a1520" }}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-exo text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{m.titulo}</span>
+                          <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{new Date(m.created_at).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                        <div className="font-exo text-[8px] mt-0.5 whitespace-pre-wrap" style={{ color: "#3a6080" }}>{m.contenido?.substring(0, 200)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Alias recientes */}
+              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                  <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#00d4ff" }}>ALIAS GEOCERCAS ({alias.length})</span>
+                </div>
+                <div className="max-h-[250px] overflow-y-auto">
+                  <table className="w-full">
+                    <thead><tr style={{ background: "#0a1520" }}>
+                      {["GEOCERCA", "→ CONTRATO", "FUENTE", "ESTADO"].map(h => (
+                        <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#3a6080" }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {alias.slice(0, 50).map((a: any) => (
+                        <tr key={a.id} style={{ borderBottom: "1px solid #0d203520" }}>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{a.geocerca_nombre.substring(0, 35)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00d4ff" }}>{a.nombre_contrato}</td>
+                          <td className="font-exo text-[7px] px-3 py-1" style={{ color: a.creado_por.includes("ADMIN") || a.creado_por.includes("AGENTE") ? "#fbbf24" : "#3a6080" }}>{a.creado_por}</td>
+                          <td className="px-3 py-1"><span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: a.confirmado ? "#00ff88" : "#ffcc00", border: `1px solid ${a.confirmado ? "#00ff8830" : "#ffcc0030"}` }}>{a.confirmado ? "OK" : "PENDIENTE"}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Sin mapear */}
+              {sinMap.length > 0 && (
+                <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ff224420" }}>
+                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                    <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#ff2244" }}>SIN MAPEAR ({sinMap.length})</span>
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
+                    {sinMap.slice(0, 20).map((s: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-1 rounded" style={{ background: "#0a1520" }}>
+                        <span className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{s.nombre?.substring(0, 40)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{s.tipo}</span>
+                          <span className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>{s.viajes}v</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* ═══ TARIFAS ═══ */}
         {tab === "TARIFAS" && tarifasData && (
