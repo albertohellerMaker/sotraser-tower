@@ -21,6 +21,15 @@ export const agenteCencosud = {
       // 4. Guardar ficha diaria en contrato_inteligencia
       await this.guardarFicha(hoy, cruce, prod);
 
+      // 5. Reportar al Gerente de Operaciones
+      await enviarMensaje({
+        de: this.id, para: "agente-gerente-ops", tipo: "REPORTE_CENCOSUD",
+        prioridad: cruce.pct < 30 ? "ALTA" : "NORMAL",
+        titulo: `Cencosud ${hoy}: ${cruce.matcheados}/${cruce.total} cruzados (${cruce.pct}%) · $${Math.round(cruce.ingreso).toLocaleString()}`,
+        contenido: `Flota: ${prod.camiones}/83 camiones. KM prom: ${prod.km_promedio}/cam. Sobre meta: ${prod.sobre_meta}, bajo: ${prod.bajo_meta}, crítico: ${prod.critico}. Ingreso estimado: $${Math.round(cruce.ingreso).toLocaleString()}.`,
+        datos: { cruce, productividad: prod, fecha: hoy }
+      });
+
       await pool.query("UPDATE agentes SET ultimo_ciclo = NOW(), ciclos_completados = ciclos_completados + 1, errores_consecutivos = 0 WHERE id = $1", [this.id]);
       console.log(`[CENCOSUD] Ciclo OK: ${cruce.matcheados}/${cruce.total} viajes cruzados, ingreso $${Math.round(cruce.ingreso).toLocaleString()}`);
     } catch (e: any) {

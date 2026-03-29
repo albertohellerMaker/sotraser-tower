@@ -5,7 +5,7 @@ import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, T
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "RESUMEN" | "RUTAS" | "FLOTA" | "TARIFAS";
+type Tab = "RESUMEN" | "ERR" | "RUTAS" | "FLOTA" | "TARIFAS";
 
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
@@ -13,6 +13,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
 
   const { data: mes } = useQuery<any>({ queryKey: ["/api/cencosud/resumen-mes"], queryFn: () => fetch("/api/cencosud/resumen-mes").then(r => r.json()), staleTime: 120000 });
   const { data: dash } = useQuery<any>({ queryKey: ["/api/cencosud/dashboard", fecha], queryFn: () => fetch(`/api/cencosud/dashboard?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
+  const { data: errData } = useQuery<any>({ queryKey: ["/api/cencosud/err", fecha], queryFn: () => fetch(`/api/cencosud/err?fecha=${fecha}`).then(r => r.json()), staleTime: 60000, enabled: tab === "ERR" });
   const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
   const { data: tarifasData } = useQuery<any>({ queryKey: ["/api/cencosud/tarifas"], queryFn: () => fetch("/api/cencosud/tarifas").then(r => r.json()), staleTime: 600000, enabled: tab === "TARIFAS" });
   const { data: sinMapear } = useQuery<any>({ queryKey: ["/api/cencosud/sin-mapear"], queryFn: () => fetch("/api/cencosud/sin-mapear").then(r => r.json()), staleTime: 300000 });
@@ -46,11 +47,18 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
       </div>
 
       {/* TABS */}
-      <div className="flex gap-0 px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
-        {(["RESUMEN", "RUTAS", "FLOTA", "TARIFAS"] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
-            style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
-        ))}
+      <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
+        <div className="flex gap-0">
+          {(["RESUMEN", "ERR", "RUTAS", "FLOTA", "TARIFAS"] as Tab[]).map(t => (
+            <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
+              style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
+          ))}
+        </div>
+        {(tab === "ERR" || tab === "RUTAS") && (
+          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+            className="font-exo text-[10px] px-3 py-1 rounded outline-none cursor-pointer"
+            style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+        )}
       </div>
 
       <div className="p-4 space-y-4 overflow-auto" style={{ height: "calc(100vh - 120px)" }}>
@@ -148,6 +156,129 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
             </div>
           </>
         )}
+
+        {/* ═══ ERR: Estado de Resultados ═══ */}
+        {tab === "ERR" && errData && (() => {
+          const e = errData.err || {};
+          const fechaLabel = new Date(fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
+          return (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="font-space text-[12px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>
+                  ERR CENCOSUD · {fechaLabel.toUpperCase()}
+                </div>
+                <div className="font-space text-[18px] font-bold" style={{ color: "#00ff88" }}>{fP(e.ingreso_estimado || 0)}</div>
+              </div>
+
+              {/* KPIs ERR */}
+              <div className="grid grid-cols-7 gap-2">
+                {[
+                  { l: "CAMIONES", v: e.camiones || 0, c: "#00d4ff" },
+                  { l: "VIAJES", v: e.viajes || 0, c: "#a855f7" },
+                  { l: "CRUZADOS", v: `${e.viajes_cruzados || 0} (${e.pct_cruzados || 0}%)`, c: (e.pct_cruzados || 0) > 50 ? "#00ff88" : "#ffcc00" },
+                  { l: "KM TOTAL", v: fN(e.km_total || 0), c: "#00ff88" },
+                  { l: "KM/L", v: e.rend_promedio || "--", c: RC(e.rend_promedio || 0) },
+                  { l: "INGRESO", v: fP(e.ingreso_estimado || 0), c: "#00ff88" },
+                  { l: "$/KM", v: e.km_total > 0 ? fP(Math.round(e.ingreso_estimado / e.km_total)) : "--", c: "#fbbf24" },
+                ].map(k => (
+                  <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
+                    <div className="font-space text-[14px] font-bold" style={{ color: k.c }}>{k.v}</div>
+                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Por ruta contrato */}
+              {(errData.por_ruta || []).length > 0 && (
+                <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                    <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#00ff88" }}>FACTURACION POR RUTA</span>
+                  </div>
+                  <table className="w-full">
+                    <thead><tr style={{ background: "#0a1520" }}>
+                      {["LOTE", "ORIGEN", "DESTINO", "CLASE", "VIAJES", "KM", "KM/L", "TARIFA", "INGRESO"].map(h => (
+                        <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#3a6080" }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {(errData.por_ruta || []).map((r: any, i: number) => (
+                        <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "#0a152030" }}>
+                          <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#00d4ff" }}>L{r.lote}</td>
+                          <td className="font-exo text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{r.origen}</td>
+                          <td className="font-exo text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{r.destino}</td>
+                          <td className="font-space text-[8px] px-3 py-1.5" style={{ color: "#3a6080" }}>{r.clase}</td>
+                          <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#c8e8ff" }}>{r.viajes}</td>
+                          <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{fN(parseFloat(r.km) || 0)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1.5" style={{ color: RC(parseFloat(r.rend) || 0) }}>{r.rend || "--"}</td>
+                          <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#00ff88" }}>{fP(r.tarifa)}</td>
+                          <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#00ff88" }}>{fP(r.tarifa * r.viajes)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Circuitos */}
+              {(errData.circuitos || []).length > 0 && (
+                <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #a855f730" }}>
+                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                    <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#a855f7" }}>CIRCUITOS DEL DIA · {(errData.circuitos || []).length} camiones con 2+ viajes</span>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {(errData.circuitos || []).map((c: any) => (
+                      <div key={c.patente} className="px-3 py-2 rounded" style={{ background: "#0a1520", borderLeft: `3px solid ${c.ingreso_circuito > 0 ? "#00ff88" : "#3a6080"}` }}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                            <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{c.conductor?.substring(0, 18)}</span>
+                            <span className="font-space text-[9px]" style={{ color: "#00d4ff" }}>{c.viajes}v · {fN(parseFloat(c.km_circuito) || 0)}km</span>
+                          </div>
+                          <span className="font-space text-[11px] font-bold" style={{ color: "#00ff88" }}>{c.ingreso_circuito > 0 ? fP(parseInt(c.ingreso_circuito)) : "--"}</span>
+                        </div>
+                        <div className="font-exo text-[8px] mt-1 flex items-center gap-1 flex-wrap" style={{ color: "#3a6080" }}>
+                          {(c.secuencia || []).map((s: string, i: number) => (
+                            <span key={i}>
+                              {i > 0 && <span style={{ color: "#0d2035" }}> | </span>}
+                              <span style={{ color: "#c8e8ff" }}>{s}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Por camión */}
+              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                  <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#3a6080" }}>DETALLE POR CAMION</span>
+                </div>
+                <table className="w-full">
+                  <thead><tr style={{ background: "#0a1520" }}>
+                    {["PATENTE", "CONDUCTOR", "VIAJES", "KM", "KM/L", "HORAS", "INGRESO"].map(h => (
+                      <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#3a6080" }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {(errData.por_camion || []).map((c: any, i: number) => (
+                      <tr key={c.patente} style={{ background: i % 2 === 0 ? "transparent" : "#0a152030" }}>
+                        <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#c8e8ff" }}>{c.patente}</td>
+                        <td className="font-exo text-[8px] px-3 py-1.5" style={{ color: "#3a6080" }}>{(c.conductor || "").substring(0, 18)}</td>
+                        <td className="font-space text-[10px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{c.viajes}</td>
+                        <td className="font-space text-[10px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{fN(parseFloat(c.km) || 0)}</td>
+                        <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: RC(parseFloat(c.rend) || 0) }}>{c.rend || "--"}</td>
+                        <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#3a6080" }}>{c.horas}h</td>
+                        <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: parseInt(c.ingreso) > 0 ? "#00ff88" : "#3a6080" }}>{parseInt(c.ingreso) > 0 ? fP(parseInt(c.ingreso)) : "--"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
 
         {/* ═══ RUTAS ═══ */}
         {tab === "RUTAS" && dash && (
