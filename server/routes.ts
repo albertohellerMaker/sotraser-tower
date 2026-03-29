@@ -26,6 +26,7 @@ import biRoutes from "./bi-routes";
 import agentesRoutes from "./agentes-routes";
 import gerenteRoutes from "./gerente-routes";
 import welcomeRoutes from "./welcome-routes";
+import cencosudRoutes from "./cencosud-routes";
 import { syncViajesHistorico, getSyncProgress, getViajesStats, buscarLugarCercano, clusterizarCorredores, recalcularScoresConCorredor, getCorredoresStats } from "./viajes-historico";
 import { detectarParadas } from "./paradas-detector";
 import { getAllContracts, getContractConfig, getContractPatentes, getContractCamiones, invalidateCache as invalidateFaenaCache } from "./faena-filter";
@@ -1291,6 +1292,7 @@ export async function registerRoutes(
   app.use("/api/agentes", agentesRoutes);
   app.use("/api/gerente", gerenteRoutes);
   app.use("/api/welcome", welcomeRoutes);
+  app.use("/api/cencosud", cencosudRoutes);
 
   app.get("/api/sigetra/fusion", async (req, res) => {
     try {
