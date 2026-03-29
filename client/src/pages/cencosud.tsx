@@ -5,7 +5,7 @@ import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, T
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "RESUMEN" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "TARIFAS";
+type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "TARIFAS";
 
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
@@ -14,6 +14,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   const { data: mes } = useQuery<any>({ queryKey: ["/api/cencosud/resumen-mes"], queryFn: () => fetch("/api/cencosud/resumen-mes").then(r => r.json()), staleTime: 120000 });
   const { data: dash } = useQuery<any>({ queryKey: ["/api/cencosud/dashboard", fecha], queryFn: () => fetch(`/api/cencosud/dashboard?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
   const { data: errData } = useQuery<any>({ queryKey: ["/api/cencosud/err", fecha], queryFn: () => fetch(`/api/cencosud/err?fecha=${fecha}`).then(r => r.json()), staleTime: 60000, enabled: tab === "ERR" });
+  const { data: viajesMes } = useQuery<any>({ queryKey: ["/api/cencosud/viajes-mes"], queryFn: () => fetch("/api/cencosud/viajes-mes").then(r => r.json()), staleTime: 120000, enabled: tab === "VIAJES" });
   const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
   const { data: tarifasData } = useQuery<any>({ queryKey: ["/api/cencosud/tarifas"], queryFn: () => fetch("/api/cencosud/tarifas").then(r => r.json()), staleTime: 600000, enabled: tab === "TARIFAS" });
   const { data: sinMapear } = useQuery<any>({ queryKey: ["/api/cencosud/sin-mapear"], queryFn: () => fetch("/api/cencosud/sin-mapear").then(r => r.json()), staleTime: 300000 });
@@ -52,7 +53,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
         <div className="flex gap-0">
-          {(["RESUMEN", "ERR", "RUTAS", "FLOTA", "BOT", "TARIFAS"] as Tab[]).map(t => (
+          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "BOT", "TARIFAS"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
               style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
           ))}
@@ -72,21 +73,21 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
             {/* KPIs */}
             <div className="grid grid-cols-8 gap-2">
               {[
-                { l: "CAMIONES", v: `${f.camiones || 0}/83`, c: "#00d4ff", icon: Truck },
-                { l: "VIAJES MES", v: f.viajes || 0, c: "#a855f7", icon: Activity },
+                { l: "CAMIONES", v: `${f.camiones || 0}/83`, c: "#00d4ff", icon: Truck, go: "FLOTA" as Tab },
+                { l: "VIAJES MES", v: f.viajes || 0, c: "#a855f7", icon: Activity, go: "VIAJES" as Tab },
                 { l: "KM TOTAL", v: fN(parseFloat(f.km) || 0), c: "#00ff88", icon: TrendingUp },
                 { l: "KM/L", v: f.rend || "--", c: RC(parseFloat(f.rend) || 0), icon: Fuel },
-                { l: "INGRESO MES", v: fP(fi.ingreso_acumulado || 0), c: "#00ff88", icon: DollarSign },
-                { l: "% CRUZADOS", v: `${fi.pct_cruzados || 0}%`, c: (fi.pct_cruzados || 0) > 50 ? "#00ff88" : "#ffcc00", icon: Target },
+                { l: "INGRESO MES", v: fP(fi.ingreso_acumulado || 0), c: "#00ff88", icon: DollarSign, go: "ERR" as Tab },
+                { l: "% CRUZADOS", v: `${fi.pct_cruzados || 0}%`, c: (fi.pct_cruzados || 0) > 50 ? "#00ff88" : "#ffcc00", icon: Target, go: "VIAJES" as Tab },
                 { l: "KM/CAM PROY", v: fN(p.km_proyectado_camion || 0), c: (p.km_proyectado_camion || 0) >= 11000 ? "#00ff88" : "#ff6b35", icon: MapPin },
-                { l: "SIN MAPEAR", v: (sinMapear?.sin_mapear || []).length, c: (sinMapear?.sin_mapear || []).length > 20 ? "#ffcc00" : "#3a6080", icon: AlertTriangle },
+                { l: "SIN MAPEAR", v: (sinMapear?.sin_mapear || []).length, c: (sinMapear?.sin_mapear || []).length > 20 ? "#ffcc00" : "#3a6080", icon: AlertTriangle, go: "BOT" as Tab },
               ].map(k => {
                 const Icon = k.icon;
                 return (
-                  <div key={k.l} className="rounded-lg p-3" style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
+                  <div key={k.l} onClick={() => k.go && setTab(k.go)} className={`rounded-lg p-3 ${k.go ? "cursor-pointer hover:opacity-90 transition-all" : ""}`} style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
                     <Icon className="w-3.5 h-3.5 mb-1.5" style={{ color: `${k.c}50` }} />
                     <div className="font-space text-[16px] font-bold leading-none" style={{ color: k.c }}>{k.v}</div>
-                    <div className="font-exo text-[6px] tracking-wider uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}</div>
+                    <div className="font-exo text-[6px] tracking-wider uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}{k.go ? " >" : ""}</div>
                   </div>
                 );
               })}
@@ -159,6 +160,97 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
             </div>
           </>
         )}
+
+        {/* ═══ VIAJES MES ═══ */}
+        {tab === "VIAJES" && viajesMes && (() => {
+          const conT = viajesMes.viajes_con_tarifa || [];
+          const sinT = viajesMes.viajes_sin_tarifa || [];
+          return (
+            <>
+              {/* KPIs viajes */}
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { l: "TOTAL VIAJES", v: viajesMes.total, c: "#a855f7" },
+                  { l: "CON TARIFA", v: viajesMes.con_tarifa, c: "#00ff88" },
+                  { l: "SIN TARIFA", v: viajesMes.sin_tarifa, c: "#ffcc00" },
+                  { l: "% CRUZADOS", v: `${viajesMes.pct_cruzados}%`, c: viajesMes.pct_cruzados > 50 ? "#00ff88" : "#ffcc00" },
+                  { l: "INGRESO MES", v: fP(viajesMes.ingreso_total), c: "#00ff88" },
+                ].map(k => (
+                  <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
+                    <div className="font-space text-[18px] font-bold" style={{ color: k.c }}>{k.v}</div>
+                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Viajes CON tarifa */}
+              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #00ff8830" }}>
+                <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                  <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#00ff88" }}>
+                    VIAJES CON TARIFA ({conT.length}) · {fP(viajesMes.ingreso_total)}
+                  </span>
+                </div>
+                <div className="overflow-auto" style={{ maxHeight: 300 }}>
+                  <table className="w-full">
+                    <thead><tr style={{ background: "#0a1520" }}>
+                      {["FECHA", "PATENTE", "CONDUCTOR", "RUTA CONTRATO", "LOTE", "KM", "KM/L", "TARIFA"].map(h => (
+                        <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#00ff88" }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {conT.map((v: any, i: number) => (
+                        <tr key={v.id} style={{ background: i % 2 === 0 ? "transparent" : "#0a152030" }}>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{v.fecha?.slice(5)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#c8e8ff" }}>{v.patente}</td>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{(v.conductor || "").substring(0, 15)}</td>
+                          <td className="font-exo text-[9px] px-3 py-1" style={{ color: "#00d4ff" }}>{v.origen_contrato} → {v.destino_contrato}</td>
+                          <td className="font-space text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>L{v.lote}</td>
+                          <td className="font-space text-[9px] px-3 py-1" style={{ color: "#c8e8ff" }}>{Math.round(v.km || 0)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: RC(v.rend || 0) }}>{v.rend?.toFixed(2) || "--"}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00ff88" }}>{fP(v.tarifa)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Viajes SIN tarifa */}
+              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ffcc0030" }}>
+                <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                  <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#ffcc00" }}>
+                    VIAJES SIN TARIFA ({sinT.length}) · Pendientes de cruce
+                  </span>
+                </div>
+                <div className="overflow-auto" style={{ maxHeight: 250 }}>
+                  <table className="w-full">
+                    <thead><tr style={{ background: "#0a1520" }}>
+                      {["FECHA", "PATENTE", "CONDUCTOR", "ORIGEN GPS", "DESTINO GPS", "ALIAS", "KM", "KM/L"].map(h => (
+                        <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#ffcc00" }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {sinT.slice(0, 100).map((v: any, i: number) => (
+                        <tr key={v.id} style={{ background: i % 2 === 0 ? "transparent" : "#0a152030" }}>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{v.fecha?.slice(5)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#c8e8ff" }}>{v.patente}</td>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{(v.conductor || "").substring(0, 15)}</td>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{(v.origen_nombre || "?").substring(0, 22)}</td>
+                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{(v.destino_nombre || "?").substring(0, 22)}</td>
+                          <td className="font-exo text-[7px] px-3 py-1" style={{ color: v.origen_contrato || v.destino_contrato ? "#00d4ff" : "#3a6080" }}>
+                            {v.origen_contrato || "?"} → {v.destino_contrato || "?"}
+                          </td>
+                          <td className="font-space text-[9px] px-3 py-1" style={{ color: "#c8e8ff" }}>{Math.round(v.km || 0)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: RC(v.rend || 0) }}>{v.rend?.toFixed(2) || "--"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          );
+        })()}
 
         {/* ═══ ERR: Estado de Resultados ═══ */}
         {tab === "ERR" && errData && (() => {

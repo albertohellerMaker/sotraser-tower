@@ -225,6 +225,41 @@ router.get("/sin-mapear", async (_req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ VIAJES MES: todos los viajes del mes con cruce tarifa ═══
+router.get("/viajes-mes", async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT va.id, c.patente, va.conductor, va.contrato,
+        DATE(va.fecha_inicio)::text as fecha, va.origen_nombre, va.destino_nombre,
+        va.km_ecu::float as km, va.rendimiento_real::float as rend,
+        va.duracion_minutos::int as min, va.velocidad_maxima::float as vel_max,
+        ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato,
+        crt.tarifa, crt.lote, crt.clase
+      FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+      LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+      LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+      LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+      WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+      ORDER BY va.fecha_inicio DESC
+    `);
+
+    const viajes = r.rows;
+    const conTarifa = viajes.filter((v: any) => v.tarifa);
+    const sinTarifa = viajes.filter((v: any) => !v.tarifa);
+    const ingresoTotal = conTarifa.reduce((s: number, v: any) => s + v.tarifa, 0);
+
+    res.json({
+      total: viajes.length,
+      con_tarifa: conTarifa.length,
+      sin_tarifa: sinTarifa.length,
+      pct_cruzados: viajes.length > 0 ? Math.round(conTarifa.length / viajes.length * 100) : 0,
+      ingreso_total: ingresoTotal,
+      viajes_con_tarifa: conTarifa,
+      viajes_sin_tarifa: sinTarifa,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ ERR: Estado de Resultados por fecha ═══
 router.get("/err", async (req, res) => {
   try {
