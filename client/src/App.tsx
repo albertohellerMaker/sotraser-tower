@@ -9,6 +9,7 @@ import ViajesTMS from "@/pages/viajes-tms";
 import EstacionesTab from "@/pages/geo-tabs/estaciones-tab";
 import CombustibleTMS from "@/pages/combustible-tms";
 import GeoValidator from "@/pages/geovalidator";
+import CencosudView from "@/pages/cencosud";
 import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X } from "lucide-react";
 import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 
@@ -105,6 +106,9 @@ function ContratosUnificado() {
   const contratos = data?.contratos || [];
   const conGps = contratos.filter((c: any) => parseInt(c.viajes || 0) > 0);
   const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
+
+  // Vista dedicada Cencosud
+  if (sel?.toUpperCase() === "CENCOSUD") return <CencosudView onBack={() => setSel(null)} />;
   const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("ANGLO") && u.includes("COCU")) return "#00ff88"; if (u.includes("ANGLO")) return "#22c55e"; if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; if (u.includes("WALMART")) return "#00d4ff"; const h = c.split("").reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
   const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
   const circuitos = circuitosData?.circuitos || [];

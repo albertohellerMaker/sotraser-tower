@@ -1,0 +1,277 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft } from "lucide-react";
+
+const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
+const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
+const fP = (n: number) => `$${fN(n)}`;
+type Tab = "RESUMEN" | "RUTAS" | "FLOTA" | "TARIFAS";
+
+export default function CencosudView({ onBack }: { onBack: () => void }) {
+  const [tab, setTab] = useState<Tab>("RESUMEN");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+
+  const { data: mes } = useQuery<any>({ queryKey: ["/api/cencosud/resumen-mes"], queryFn: () => fetch("/api/cencosud/resumen-mes").then(r => r.json()), staleTime: 120000 });
+  const { data: dash } = useQuery<any>({ queryKey: ["/api/cencosud/dashboard", fecha], queryFn: () => fetch(`/api/cencosud/dashboard?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
+  const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
+  const { data: tarifasData } = useQuery<any>({ queryKey: ["/api/cencosud/tarifas"], queryFn: () => fetch("/api/cencosud/tarifas").then(r => r.json()), staleTime: 600000, enabled: tab === "TARIFAS" });
+  const { data: sinMapear } = useQuery<any>({ queryKey: ["/api/cencosud/sin-mapear"], queryFn: () => fetch("/api/cencosud/sin-mapear").then(r => r.json()), staleTime: 300000 });
+
+  const f = mes?.flota || {};
+  const fi = mes?.financiero || {};
+  const p = mes?.productividad || {};
+
+  return (
+    <div className="min-h-screen" style={{ background: "#020508" }}>
+      {/* HEADER */}
+      <div className="flex items-center justify-between px-5 py-3" style={{ background: "#060d14", borderBottom: "2px solid #00d4ff" }}>
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="cursor-pointer p-1" style={{ color: "#3a6080" }}><ChevronLeft className="w-5 h-5" /></button>
+          <div className="w-8 h-8 rounded flex items-center justify-center font-space text-[11px] font-bold" style={{ background: "#00d4ff15", border: "1px solid #00d4ff30", color: "#00d4ff" }}>C</div>
+          <div>
+            <div className="font-space text-[14px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>CENCOSUD RETAIL</div>
+            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Contrato Ago 2025 - Jul 2029 · 83 camiones · 7 lotes</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>INGRESO MES</div>
+            <div className="font-space text-[16px] font-bold" style={{ color: "#00ff88" }}>{fP(fi.ingreso_acumulado || 0)}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>PROYECTADO</div>
+            <div className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>{fP(fi.ingreso_proyectado || 0)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* TABS */}
+      <div className="flex gap-0 px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
+        {(["RESUMEN", "RUTAS", "FLOTA", "TARIFAS"] as Tab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
+            style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
+        ))}
+      </div>
+
+      <div className="p-4 space-y-4 overflow-auto" style={{ height: "calc(100vh - 120px)" }}>
+
+        {/* ═══ RESUMEN ═══ */}
+        {tab === "RESUMEN" && (
+          <>
+            {/* KPIs */}
+            <div className="grid grid-cols-8 gap-2">
+              {[
+                { l: "CAMIONES", v: `${f.camiones || 0}/83`, c: "#00d4ff", icon: Truck },
+                { l: "VIAJES MES", v: f.viajes || 0, c: "#a855f7", icon: Activity },
+                { l: "KM TOTAL", v: fN(parseFloat(f.km) || 0), c: "#00ff88", icon: TrendingUp },
+                { l: "KM/L", v: f.rend || "--", c: RC(parseFloat(f.rend) || 0), icon: Fuel },
+                { l: "INGRESO MES", v: fP(fi.ingreso_acumulado || 0), c: "#00ff88", icon: DollarSign },
+                { l: "% CRUZADOS", v: `${fi.pct_cruzados || 0}%`, c: (fi.pct_cruzados || 0) > 50 ? "#00ff88" : "#ffcc00", icon: Target },
+                { l: "KM/CAM PROY", v: fN(p.km_proyectado_camion || 0), c: (p.km_proyectado_camion || 0) >= 11000 ? "#00ff88" : "#ff6b35", icon: MapPin },
+                { l: "SIN MAPEAR", v: (sinMapear?.sin_mapear || []).length, c: (sinMapear?.sin_mapear || []).length > 20 ? "#ffcc00" : "#3a6080", icon: AlertTriangle },
+              ].map(k => {
+                const Icon = k.icon;
+                return (
+                  <div key={k.l} className="rounded-lg p-3" style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
+                    <Icon className="w-3.5 h-3.5 mb-1.5" style={{ color: `${k.c}50` }} />
+                    <div className="font-space text-[16px] font-bold leading-none" style={{ color: k.c }}>{k.v}</div>
+                    <div className="font-exo text-[6px] tracking-wider uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tendencia + Hoy */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Tendencia mensual */}
+              <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                <div className="font-exo text-[8px] tracking-wider uppercase mb-3" style={{ color: "#00d4ff" }}>TENDENCIA DIARIA · MARZO</div>
+                {(mes?.tendencia || []).length > 0 && (
+                  <div className="flex items-end gap-0.5" style={{ height: 90 }}>
+                    {(mes?.tendencia || []).map((d: any) => {
+                      const maxKm = Math.max(...(mes?.tendencia || []).map((t: any) => parseFloat(t.km) || 0));
+                      const h = maxKm > 0 ? (parseFloat(d.km) / maxKm) * 80 : 5;
+                      return (
+                        <div key={d.dia} className="flex-1 flex flex-col items-center gap-0.5">
+                          <span className="font-space text-[6px]" style={{ color: RC(parseFloat(d.rend) || 0) }}>{d.rend}</span>
+                          <div className="w-full rounded-t" style={{ height: Math.max(3, h), background: `${RC(parseFloat(d.rend) || 0)}80` }} />
+                          <span className="font-exo text-[6px]" style={{ color: "#3a6080" }}>{d.dia.slice(8)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Hoy */}
+              <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                <div className="font-exo text-[8px] tracking-wider uppercase mb-3" style={{ color: "#00d4ff" }}>HOY · {new Date(fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}</div>
+                {dash?.resumen && (
+                  <div className="space-y-2">
+                    {[
+                      { l: "Camiones", v: dash.resumen.camiones },
+                      { l: "Viajes", v: dash.resumen.viajes },
+                      { l: "KM", v: fN(parseFloat(dash.resumen.km_total) || 0) },
+                      { l: "KM/L", v: dash.resumen.rend, c: RC(parseFloat(dash.resumen.rend) || 0) },
+                      { l: "Horas ruta", v: dash.resumen.horas_total },
+                      { l: "Cruzados", v: `${dash.viajes_cruzados}/${dash.resumen.viajes} (${dash.pct_cruzados}%)` },
+                      { l: "Ingreso estimado", v: fP(dash.ingreso_estimado || 0), c: "#00ff88" },
+                    ].map(k => (
+                      <div key={k.l} className="flex justify-between">
+                        <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{k.l}</span>
+                        <span className="font-space text-[10px] font-bold" style={{ color: k.c || "#c8e8ff" }}>{k.v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Productividad barra */}
+            <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#3a6080" }}>PRODUCTIVIDAD vs META CONTRATO</span>
+                <span className="font-space text-[10px] font-bold" style={{ color: (p.km_proyectado_camion || 0) >= 11000 ? "#00ff88" : "#ff6b35" }}>
+                  {fN(p.km_proyectado_camion || 0)} / {fN(p.meta_km_camion || 11000)} km/cam
+                </span>
+              </div>
+              <div className="h-3 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${Math.min(100, Math.round((p.km_proyectado_camion || 0) / (p.meta_km_camion || 11000) * 100))}%`,
+                  background: (p.km_proyectado_camion || 0) >= 11000 ? "#00ff88" : (p.km_proyectado_camion || 0) >= 6600 ? "#ffcc00" : "#ff2244"
+                }} />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>Día {mes?.dia_actual}/{mes?.dias_mes}</span>
+                <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{Math.round((p.km_proyectado_camion || 0) / (p.meta_km_camion || 11000) * 100)}% de meta</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══ RUTAS ═══ */}
+        {tab === "RUTAS" && dash && (
+          <>
+            <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#00d4ff" }}>
+              VIAJES DEL DIA CRUZADOS CON TARIFAS · {dash.viajes_cruzados}/{dash.resumen?.viajes} ({dash.pct_cruzados}%)
+            </div>
+            <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
+              <table className="w-full">
+                <thead>
+                  <tr style={{ background: "#0d2035" }}>
+                    {["ORIGEN", "DESTINO", "VIAJES", "KM", "KM/L", "LOTE", "TARIFA", "INGRESO", "ESTADO"].map(h => (
+                      <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(dash.rutas || []).map((r: any, i: number) => (
+                    <tr key={i} style={{ background: i % 2 === 0 ? "#060d14" : "#0a1520", borderBottom: "1px solid #0d203530" }}>
+                      <td className="font-exo text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{(r.origen_nombre || "").substring(0, 22)}</td>
+                      <td className="font-exo text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{(r.destino_nombre || "").substring(0, 22)}</td>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#c8e8ff" }}>{r.viajes}</td>
+                      <td className="font-space text-[10px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{fN(parseFloat(r.km) || 0)}</td>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: RC(parseFloat(r.rend) || 0) }}>{r.rend || "--"}</td>
+                      <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#3a6080" }}>{r.lote || "-"}</td>
+                      <td className="font-space text-[9px] px-3 py-1.5" style={{ color: r.tarifa ? "#00ff88" : "#3a6080" }}>{r.tarifa ? fP(r.tarifa) : "-"}</td>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#00ff88" }}>{r.ingreso_estimado ? fP(r.ingreso_estimado) : "-"}</td>
+                      <td className="px-3 py-1.5">
+                        <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{
+                          color: r.estado_match === "CRUZADO" ? "#00ff88" : r.estado_match === "PARCIAL" ? "#ffcc00" : "#ff2244",
+                          border: `1px solid ${r.estado_match === "CRUZADO" ? "#00ff8830" : r.estado_match === "PARCIAL" ? "#ffcc0030" : "#ff224430"}`,
+                        }}>{r.estado_match}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="font-exo text-[9px] mt-2" style={{ color: "#3a6080" }}>
+              Total ingreso estimado dia: <span className="font-space font-bold" style={{ color: "#00ff88" }}>{fP(dash.ingreso_estimado || 0)}</span>
+            </div>
+          </>
+        )}
+
+        {/* ═══ FLOTA ═══ */}
+        {tab === "FLOTA" && flotaData && (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#00d4ff" }}>
+                FLOTA CENCOSUD · {flotaData.total}/{flotaData.contratados} CAMIONES ACTIVOS
+              </span>
+              <div className="font-space text-[11px] font-bold" style={{ color: flotaData.total >= 58 ? "#00ff88" : "#ff6b35" }}>
+                {Math.round(flotaData.total / flotaData.contratados * 100)}%
+              </div>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden mb-4" style={{ background: "#0d2035" }}>
+              <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(flotaData.total / flotaData.contratados * 100))}%`, background: flotaData.total >= 58 ? "#00ff88" : "#ff6b35" }} />
+            </div>
+            <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
+              <table className="w-full">
+                <thead>
+                  <tr style={{ background: "#0d2035" }}>
+                    {["PATENTE", "CONDUCTOR", "VIAJES", "KM MES", "KM PROY", "% META", "KM/L", "DIAS", "ESTADO"].map(h => (
+                      <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(flotaData.camiones || []).map((c: any, i: number) => (
+                    <tr key={c.patente} style={{ background: i % 2 === 0 ? "#060d14" : "#0a1520" }}>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#c8e8ff" }}>{c.patente}</td>
+                      <td className="font-exo text-[8px] px-3 py-1.5" style={{ color: "#3a6080" }}>{(c.conductor || "").substring(0, 18)}</td>
+                      <td className="font-space text-[10px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{c.viajes}</td>
+                      <td className="font-space text-[10px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{fN(parseFloat(c.km_mes) || 0)}</td>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: c.estado === "OK" ? "#00ff88" : c.estado === "BAJO" ? "#ffcc00" : "#ff2244" }}>{fN(c.km_proyectado)}</td>
+                      <td className="font-space text-[10px] px-3 py-1.5" style={{ color: c.pct_meta >= 100 ? "#00ff88" : c.pct_meta >= 60 ? "#ffcc00" : "#ff2244" }}>{c.pct_meta}%</td>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: RC(parseFloat(c.rend) || 0) }}>{c.rend || "--"}</td>
+                      <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#3a6080" }}>{c.dias_activo}</td>
+                      <td className="px-3 py-1.5">
+                        <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{
+                          color: c.estado === "OK" ? "#00ff88" : c.estado === "BAJO" ? "#ffcc00" : "#ff2244",
+                          background: c.estado === "OK" ? "#00ff8810" : c.estado === "BAJO" ? "#ffcc0010" : "#ff224410",
+                          border: `1px solid ${c.estado === "OK" ? "#00ff8830" : c.estado === "BAJO" ? "#ffcc0030" : "#ff224430"}`,
+                        }}>{c.estado}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* ═══ TARIFAS ═══ */}
+        {tab === "TARIFAS" && tarifasData && (
+          <>
+            <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#00d4ff" }}>
+              TARIFAS CONTRATO · {(tarifasData.tarifas || []).length} RUTAS · 7 LOTES
+            </div>
+            <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
+              <table className="w-full">
+                <thead>
+                  <tr style={{ background: "#0d2035" }}>
+                    {["LOTE", "CLASE", "ORIGEN", "DESTINO", "TARIFA"].map(h => (
+                      <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(tarifasData.tarifas || []).map((t: any, i: number) => (
+                    <tr key={i} style={{ background: i % 2 === 0 ? "#060d14" : "#0a1520" }}>
+                      <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#00d4ff" }}>L{t.lote}</td>
+                      <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#3a6080" }}>{t.clase}</td>
+                      <td className="font-exo text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{t.origen}</td>
+                      <td className="font-exo text-[9px] px-3 py-1.5" style={{ color: "#c8e8ff" }}>{t.destino}</td>
+                      <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#00ff88" }}>{fP(t.tarifa)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

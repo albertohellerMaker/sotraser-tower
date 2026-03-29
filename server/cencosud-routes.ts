@@ -3,13 +3,12 @@ import { pool } from "./db";
 
 const router = Router();
 
-// Dashboard Cencosud: viajes del día cruzados con rutas contratadas
+// ═══ DASHBOARD: viajes cruzados con tarifas via alias ═══
 router.get("/dashboard", async (req, res) => {
   try {
     const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
 
-    const [resumen, porRuta, camiones, sinCruce, tarifas] = await Promise.all([
-      // Resumen general del día
+    const [resumen, porRuta, camiones, sinCruce] = await Promise.all([
       pool.query(`
         SELECT COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
           ROUND(SUM(va.km_ecu)::numeric) as km_total,
@@ -20,34 +19,32 @@ router.get("/dashboard", async (req, res) => {
         FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
         WHERE va.contrato = 'CENCOSUD' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
       `, [fecha]),
-
-      // Viajes agrupados por ruta (origen → destino)
+      // Rutas con cruce via alias
       pool.query(`
-        SELECT va.origen_nombre, va.destino_nombre, COUNT(*)::int as viajes,
-          COUNT(DISTINCT c.patente)::int as camiones,
+        SELECT va.origen_nombre, va.destino_nombre,
+          ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato,
+          crt.tarifa, crt.lote, crt.clase,
+          COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
           ROUND(SUM(va.km_ecu)::numeric) as km,
-          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
-          ROUND(AVG(va.duracion_minutos)::numeric) as duracion_prom
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
         FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
         WHERE va.contrato = 'CENCOSUD' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
           AND va.origen_nombre IS NOT NULL AND va.destino_nombre IS NOT NULL
           AND va.origen_nombre != 'Punto desconocido' AND va.destino_nombre != 'Punto desconocido'
-        GROUP BY va.origen_nombre, va.destino_nombre
+        GROUP BY va.origen_nombre, va.destino_nombre, ao.nombre_contrato, ad.nombre_contrato, crt.tarifa, crt.lote, crt.clase
         ORDER BY viajes DESC
       `, [fecha]),
-
-      // Detalle por camión
       pool.query(`
         SELECT c.patente, COUNT(*)::int as viajes, ROUND(SUM(va.km_ecu)::numeric) as km,
           ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
-          va.conductor,
-          ARRAY_AGG(DISTINCT va.origen_nombre || ' → ' || va.destino_nombre) FILTER (WHERE va.origen_nombre IS NOT NULL AND va.destino_nombre IS NOT NULL) as rutas
+          va.conductor
         FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
         WHERE va.contrato = 'CENCOSUD' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
         GROUP BY c.patente, va.conductor ORDER BY km DESC
       `, [fecha]),
-
-      // Viajes sin geocerca resuelta
       pool.query(`
         SELECT COUNT(*)::int as total,
           COUNT(*) FILTER (WHERE va.origen_nombre = 'Punto desconocido' OR va.origen_nombre IS NULL)::int as origen_desc,
@@ -55,32 +52,16 @@ router.get("/dashboard", async (req, res) => {
         FROM viajes_aprendizaje va
         WHERE va.contrato = 'CENCOSUD' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
       `, [fecha]),
-
-      // Tarifas contratadas para referencia
-      pool.query(`
-        SELECT lote, clase, origen, destino, tarifa FROM contrato_rutas_tarifas
-        WHERE contrato = 'CENCOSUD' AND activo = true ORDER BY lote, origen, destino
-      `),
     ]);
 
-    // Intentar cruzar rutas detectadas con tarifas contratadas
-    const rutasCruzadas = (porRuta.rows || []).map((r: any) => {
-      // Buscar coincidencia en tarifas (fuzzy match por nombre)
-      const match = (tarifas.rows || []).find((t: any) => {
-        const orMatch = r.origen_nombre?.toUpperCase().includes(t.origen.toUpperCase()) || t.origen.toUpperCase().includes(r.origen_nombre?.toUpperCase() || "");
-        const destMatch = r.destino_nombre?.toUpperCase().includes(t.destino.toUpperCase()) || t.destino.toUpperCase().includes(r.destino_nombre?.toUpperCase() || "");
-        return orMatch && destMatch;
-      });
-      return {
-        ...r,
-        tarifa_contrato: match?.tarifa || null,
-        lote: match?.lote || null,
-        clase: match?.clase || null,
-        ingreso_estimado: match ? match.tarifa * r.viajes : null,
-      };
-    });
+    const rutasCruzadas = (porRuta.rows || []).map((r: any) => ({
+      ...r,
+      ingreso_estimado: r.tarifa ? r.tarifa * r.viajes : null,
+      estado_match: r.tarifa ? "CRUZADO" : r.origen_contrato || r.destino_contrato ? "PARCIAL" : "SIN_ALIAS",
+    }));
 
     const ingresoEstimado = rutasCruzadas.reduce((s: number, r: any) => s + (r.ingreso_estimado || 0), 0);
+    const totalCruzados = rutasCruzadas.filter((r: any) => r.tarifa).reduce((s: number, r: any) => s + r.viajes, 0);
 
     res.json({
       fecha,
@@ -89,65 +70,74 @@ router.get("/dashboard", async (req, res) => {
       camiones: camiones.rows,
       cobertura: sinCruce.rows[0],
       ingreso_estimado: ingresoEstimado,
-      total_rutas_contrato: tarifas.rows.length,
+      viajes_cruzados: totalCruzados,
+      pct_cruzados: resumen.rows[0].viajes > 0 ? Math.round(totalCruzados / resumen.rows[0].viajes * 100) : 0,
     });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// Tarifas del contrato
-router.get("/tarifas", async (_req, res) => {
+// ═══ RESUMEN MENSUAL con financiero ═══
+router.get("/resumen-mes", async (_req, res) => {
   try {
-    const r = await pool.query(`
-      SELECT lote, clase, origen, destino, tarifa FROM contrato_rutas_tarifas
-      WHERE contrato = 'CENCOSUD' AND activo = true ORDER BY lote::int, tarifa DESC
-    `);
-    res.json({ tarifas: r.rows });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
+    const [flota, diario, cruce] = await Promise.all([
+      pool.query(`
+        SELECT COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
+          ROUND(SUM(va.km_ecu)::numeric) as km, ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+      `),
+      pool.query(`
+        SELECT DATE(va.fecha_inicio)::text as dia, COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
+          ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+        GROUP BY DATE(va.fecha_inicio) ORDER BY dia
+      `),
+      // Cruce financiero mes completo
+      pool.query(`
+        SELECT COUNT(*)::int as total_viajes,
+          COUNT(*) FILTER (WHERE crt.tarifa IS NOT NULL)::int as cruzados,
+          COALESCE(SUM(crt.tarifa) FILTER (WHERE crt.tarifa IS NOT NULL), 0)::bigint as ingreso_cruzado
+        FROM viajes_aprendizaje va
+        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+      `),
+    ]);
 
-// Productividad vs meta contrato
-router.get("/productividad", async (_req, res) => {
-  try {
-    // Metas del contrato: Norte 11,005 km/mes/camión, Sur Media 9,526, Sur 11,139
-    const r = await pool.query(`
-      SELECT c.patente, COUNT(*)::int as viajes_mes,
-        ROUND(SUM(va.km_ecu)::numeric) as km_mes,
-        ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
-      FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-      WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
-      GROUP BY c.patente ORDER BY km_mes DESC
-    `);
-
-    const meta_km_mes = 11000; // promedio ponderado
-    const dias_mes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const dia_actual = new Date().getDate();
-
-    const camiones = r.rows.map((c: any) => {
-      const km_proyectado = dia_actual > 0 ? Math.round(parseFloat(c.km_mes) / dia_actual * dias_mes) : 0;
-      return {
-        ...c,
-        km_proyectado,
-        pct_meta: Math.round(km_proyectado / meta_km_mes * 100),
-        sobre_meta: km_proyectado >= meta_km_mes,
-      };
-    });
+    const dias_mes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const f = flota.rows[0];
+    const c = cruce.rows[0];
+    const ingreso_proyectado = dia_actual > 0 ? Math.round(parseInt(c.ingreso_cruzado) / dia_actual * dias_mes) : 0;
 
     res.json({
-      meta_km_mes,
-      dia_actual,
-      dias_mes,
-      camiones,
-      promedio_flota: camiones.length > 0 ? Math.round(camiones.reduce((s: number, c: any) => s + parseFloat(c.km_mes), 0) / camiones.length) : 0,
+      flota: f,
+      financiero: {
+        ingreso_acumulado: parseInt(c.ingreso_cruzado),
+        ingreso_proyectado,
+        viajes_cruzados: c.cruzados,
+        pct_cruzados: c.total_viajes > 0 ? Math.round(c.cruzados / c.total_viajes * 100) : 0,
+      },
+      productividad: {
+        km_promedio_camion: f.camiones > 0 ? Math.round(parseFloat(f.km) / f.camiones) : 0,
+        km_proyectado_camion: f.camiones > 0 && dia_actual > 0 ? Math.round(parseFloat(f.km) / f.camiones / dia_actual * dias_mes) : 0,
+        meta_km_camion: 11000,
+        camiones_contrato: 83,
+      },
+      tendencia: diario.rows,
+      dia_actual, dias_mes,
     });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// Resumen semanal acumulado
+// ═══ SEMANAL ═══
 router.get("/semanal", async (_req, res) => {
   try {
     const r = await pool.query(`
-      SELECT DATE(va.fecha_inicio)::text as dia,
-        COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
+      SELECT DATE(va.fecha_inicio)::text as dia, COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
         ROUND(SUM(va.km_ecu)::numeric) as km,
         ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
       FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
@@ -155,6 +145,83 @@ router.get("/semanal", async (_req, res) => {
       GROUP BY DATE(va.fecha_inicio) ORDER BY dia
     `);
     res.json({ dias: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ FLOTA: detalle por camión ═══
+router.get("/flota", async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT c.patente, va.conductor, COUNT(*)::int as viajes,
+        ROUND(SUM(va.km_ecu)::numeric) as km_mes,
+        ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
+        COUNT(DISTINCT DATE(va.fecha_inicio))::int as dias_activo,
+        MAX(va.fecha_inicio)::text as ultimo_viaje
+      FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+      WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+      GROUP BY c.patente, va.conductor ORDER BY km_mes DESC
+    `);
+    const dia = new Date().getDate();
+    const diasMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const camiones = r.rows.map((c: any) => {
+      const proy = dia > 0 ? Math.round(parseFloat(c.km_mes) / dia * diasMes) : 0;
+      return { ...c, km_proyectado: proy, pct_meta: Math.round(proy / 11000 * 100), estado: proy >= 11000 ? "OK" : proy >= 6600 ? "BAJO" : "CRITICO" };
+    });
+    res.json({ camiones, total: camiones.length, contratados: 83 });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ TARIFAS del contrato ═══
+router.get("/tarifas", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT lote, clase, origen, destino, tarifa FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true ORDER BY lote::int, tarifa DESC");
+    res.json({ tarifas: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ ALIAS: ver y gestionar ═══
+router.get("/alias", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD' ORDER BY confirmado DESC, geocerca_nombre");
+    res.json({ alias: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/alias", async (req, res) => {
+  const { geocerca_nombre, nombre_contrato } = req.body;
+  if (!geocerca_nombre || !nombre_contrato) return res.status(400).json({ error: "geocerca_nombre y nombre_contrato requeridos" });
+  try {
+    await pool.query("INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por) VALUES ($1,$2,'CENCOSUD',true,'MANUAL') ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO UPDATE SET confirmado = true", [geocerca_nombre, nombre_contrato]);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/alias/:id/confirmar", async (req, res) => {
+  await pool.query("UPDATE geocerca_alias_contrato SET confirmado = true WHERE id = $1", [req.params.id]);
+  res.json({ ok: true });
+});
+
+// ═══ SIN MAPEAR: viajes sin alias ═══
+router.get("/sin-mapear", async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT nombre, tipo, SUM(viajes)::int as viajes FROM (
+        SELECT va.origen_nombre as nombre, 'ORIGEN' as tipo, COUNT(*)::int as viajes
+        FROM viajes_aprendizaje va
+        LEFT JOIN geocerca_alias_contrato gac ON gac.geocerca_nombre = va.origen_nombre AND gac.contrato = 'CENCOSUD'
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '30 days'
+          AND va.origen_nombre IS NOT NULL AND va.origen_nombre != 'Punto desconocido' AND gac.id IS NULL AND va.km_ecu > 0
+        GROUP BY va.origen_nombre
+        UNION ALL
+        SELECT va.destino_nombre, 'DESTINO', COUNT(*)::int
+        FROM viajes_aprendizaje va
+        LEFT JOIN geocerca_alias_contrato gac ON gac.geocerca_nombre = va.destino_nombre AND gac.contrato = 'CENCOSUD'
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '30 days'
+          AND va.destino_nombre IS NOT NULL AND va.destino_nombre != 'Punto desconocido' AND gac.id IS NULL AND va.km_ecu > 0
+        GROUP BY va.destino_nombre
+      ) sub GROUP BY nombre, tipo ORDER BY viajes DESC
+    `);
+    res.json({ sin_mapear: r.rows });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
