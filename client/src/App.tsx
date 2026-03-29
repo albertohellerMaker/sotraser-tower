@@ -1217,7 +1217,56 @@ function CamionesUnificado() {
 }
 
 // ── Main App Shell ──
+// Welcome screen
+function WelcomeScreen({ onTower, onMando }: { onTower: () => void; onMando: () => void }) {
+  const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
+  useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
+  const { data: stats } = useQuery<any>({ queryKey: ["/api/welcome/stats"], queryFn: () => fetch("/api/welcome/stats").then(r => r.json()), refetchInterval: 60000 });
+  const fecha = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: "#020508", backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.03) 0%, transparent 60%), radial-gradient(ellipse at 80% 50%, rgba(168,85,247,0.03) 0%, transparent 60%)" }}>
+      <div className="text-center mb-12">
+        <div className="font-exo text-[11px] tracking-[0.4em] uppercase mb-3" style={{ color: "#3a6080" }}>SOTRASER S.A.</div>
+        <div className="font-space text-[48px] font-bold tracking-wider leading-none mb-2" style={{ color: "#c8e8ff" }}>{hora}</div>
+        <div className="font-exo text-[12px] capitalize" style={{ color: "#3a6080" }}>{fecha}</div>
+        {stats && (
+          <div className="flex items-center gap-6 justify-center mt-6">
+            {[{ l: "ACTIVOS", v: stats.activos, c: "#00ff88" }, { l: "KM/L HOY", v: stats.rend_hoy || "--", c: stats.rend_hoy >= 2.85 ? "#00ff88" : "#ffcc00" }, { l: "ALERTAS", v: stats.alertas, c: stats.alertas > 0 ? "#ff2244" : "#3a6080" }, { l: "AGENTES", v: `${stats.agentes_ok}/8`, c: "#a855f7" }].map(s => (
+              <div key={s.l} className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: s.c }}>{s.v}</div><div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{s.l}</div></div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-6 w-full max-w-3xl px-8">
+        <button onClick={onTower} className="group p-8 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+          style={{ background: "#060d14", border: "1px solid #00d4ff20", borderTop: "3px solid #00d4ff", borderRadius: 12 }}>
+          <div className="text-[36px] mb-4">🗼</div>
+          <div className="font-space text-[20px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>TOWER</div>
+          <div className="font-exo text-[10px] uppercase tracking-wider mb-4" style={{ color: "#3a6080" }}>Control Operacional</div>
+          {["GPS en tiempo real · 581 vehículos", "Viajes, contratos y rendimiento", "Alertas y control de flota", "Combustible y conductores"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[9px] mb-1" style={{ color: "#5a8090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#00d4ff" }} />{item}</div>
+          ))}
+          <div className="mt-6 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+        </button>
+        <button onClick={onMando} className="group p-8 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+          style={{ background: "#060d14", border: "1px solid #a855f720", borderTop: "3px solid #a855f7", borderRadius: 12 }}>
+          <div className="text-[36px] mb-4">🤖</div>
+          <div className="font-space text-[20px] font-bold tracking-wider mb-2" style={{ color: "#a855f7" }}>CENTRO DE MANDO</div>
+          <div className="font-exo text-[10px] uppercase tracking-wider mb-4" style={{ color: "#3a6080" }}>Inteligencia Operacional</div>
+          {["8 agentes trabajando 24/7", "Gerente de Operaciones Bot", "Arquitecto · Jefe técnico IA", "Parámetros auto-adaptativos"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[9px] mb-1" style={{ color: "#7a5090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#a855f7" }} />{item}</div>
+          ))}
+          <div className="mt-6 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#a855f7" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+        </button>
+      </div>
+      <div className="mt-12 font-exo text-[8px] tracking-wider" style={{ color: "#1a3040" }}>SOTRASER TOWER · Sistema de Gestión de Flota · v2.0</div>
+    </div>
+  );
+}
+
 function AppShell() {
+  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO">("WELCOME");
   const [tab, setTab] = useState<MainTab>("flota");
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -1238,6 +1287,20 @@ function AppShell() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
+  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} />;
+
+  if (modo === "MANDO") return (
+    <div className="min-h-screen" style={{ background: "#020508" }}>
+      <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: "#0d2035", background: "#040a10" }}>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setModo("WELCOME")} className="font-exo text-[9px] cursor-pointer" style={{ color: "#3a6080" }}>← Inicio</button>
+          <div className="flex items-center gap-2"><span className="text-[14px]">🤖</span><span className="font-space text-[13px] font-bold tracking-wider" style={{ color: "#a855f7" }}>CENTRO DE MANDO</span></div>
+        </div>
+      </div>
+      <div className="overflow-auto p-4" style={{ height: "calc(100vh - 52px)" }}><OperativeBrain /></div>
+    </div>
+  );
+
   return (
     <NavigationContext.Provider value={navCtx}>
       <div className="min-h-screen" style={{ background: "#020508", color: "#c8e8ff" }}>
@@ -1246,7 +1309,7 @@ function AppShell() {
           {/* Row 1: Brand + KPIs */}
           <div className="flex items-center justify-between px-4 h-[36px]">
             <div className="flex items-center gap-3">
-              <span className="font-space text-[14px] font-bold tracking-[0.2em]" style={{ color: "#00d4ff" }}>SOTRASER</span>
+              <button onClick={() => setModo("WELCOME")} className="font-space text-[14px] font-bold tracking-[0.2em] cursor-pointer hover:opacity-80" style={{ color: "#00d4ff", background: "none", border: "none" }}>SOTRASER</button>
               <span className="font-exo text-[9px] tracking-wider" style={{ color: "#3a6080" }}>TOWER</span>
               <div className="w-px h-4 mx-1" style={{ background: "#0d2035" }} />
               <div className="flex items-center gap-1">
