@@ -46,6 +46,7 @@ router.post("/forzar/:agente", async (req, res) => {
       predictor: async () => { const { agentePredictor } = await import("./agentes/predictor"); await agentePredictor.ejecutar(); },
       reportero: async () => { const { agenteReportero } = await import("./agentes/reportero"); await agenteReportero.ejecutar(); },
       gestor: async () => { const { agenteGestor } = await import("./agentes/gestor"); await agenteGestor.ejecutar(); },
+      contrato: async () => { const { agenteContrato } = await import("./agentes/contrato"); await agenteContrato.ejecutar(); },
     };
     if (mods[agente]) { await mods[agente](); res.json({ ok: true }); }
     else res.status(404).json({ error: "Agente no encontrado" });
@@ -97,6 +98,80 @@ router.post("/arquitecto/chat", async (req, res) => {
 router.get("/arquitecto/historial", async (_req, res) => {
   const r = await pool.query("SELECT rol, mensaje, created_at::text FROM arquitecto_chat ORDER BY created_at DESC LIMIT 20");
   res.json({ historial: r.rows.reverse() });
+});
+
+// ═══ INTELIGENCIA POR CONTRATO ═══
+router.get("/contratos-intel", async (req, res) => {
+  try {
+    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
+    const r = await pool.query(`
+      SELECT * FROM contrato_inteligencia
+      WHERE fecha = $1 ORDER BY km_dia DESC
+    `, [fecha]);
+    res.json({ fecha, contratos: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/contrato-historial/:contrato", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT fecha::text, viajes_dia, km_dia::float, rend_dia::float, salud, camiones_activos, viajes_criticos
+      FROM contrato_inteligencia WHERE contrato = $1 AND fecha >= CURRENT_DATE - 30
+      ORDER BY fecha DESC
+    `, [req.params.contrato]);
+    res.json({ contrato: req.params.contrato, historial: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ REPORTE COMPLETO (para PDF) ═══
+router.get("/reporte", async (req, res) => {
+  try {
+    const fechaParam = req.query.fecha as string;
+    const fecha = fechaParam || new Date(Date.now() - 86400000).toISOString().slice(0, 10); // ayer por defecto
+
+    const [flota, contratos, topCamiones, bottomCamiones, alertas, agentesStatus, salud, geocercas] = await Promise.all([
+      pool.query(`SELECT COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
+        ROUND(SUM(va.km_ecu)::numeric) as km_total,
+        ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend_promedio,
+        ROUND(SUM(va.litros_consumidos_ecu) FILTER (WHERE va.litros_consumidos_ecu > 0)::numeric) as litros_total,
+        COUNT(*) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 2.0)::int as viajes_criticos
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0`, [fecha]),
+      pool.query(`SELECT va.contrato, COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
+        ROUND(SUM(va.km_ecu)::numeric) as km, ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
+        ROUND(SUM(va.litros_consumidos_ecu) FILTER (WHERE va.litros_consumidos_ecu > 0)::numeric) as litros
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0 GROUP BY va.contrato ORDER BY km DESC`, [fecha]),
+      pool.query(`SELECT c.patente, va.contrato, COUNT(*)::int as viajes, ROUND(SUM(va.km_ecu)::numeric) as km,
+        ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0 AND va.rendimiento_real > 0
+        GROUP BY c.patente, va.contrato HAVING AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10) IS NOT NULL
+        ORDER BY rend DESC LIMIT 10`, [fecha]),
+      pool.query(`SELECT c.patente, va.contrato, COUNT(*)::int as viajes, ROUND(SUM(va.km_ecu)::numeric) as km,
+        ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0 AND va.rendimiento_real > 0 AND va.rendimiento_real < 10
+        GROUP BY c.patente, va.contrato HAVING AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10) < 2.5
+        ORDER BY rend ASC LIMIT 10`, [fecha]),
+      pool.query(`SELECT tipo, COUNT(*)::int as total FROM alertas_aprendizaje WHERE DATE(fecha) = $1 GROUP BY tipo ORDER BY total DESC`, [fecha]),
+      pool.query("SELECT id, nombre, estado, ultimo_ciclo::text, ciclos_completados, errores_consecutivos FROM agentes ORDER BY nombre"),
+      pool.query("SELECT COUNT(DISTINCT patente) FILTER (WHERE minutos_desde_ultimo < 120)::int as gps_activos, COUNT(DISTINCT patente)::int as gps_total FROM ultima_posicion_camion"),
+      pool.query("SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE nivel >= 4)::int as nivel_alto FROM geocercas_operacionales WHERE activa = true"),
+    ]);
+
+    res.json({
+      fecha,
+      flota: flota.rows[0],
+      contratos: contratos.rows,
+      top_camiones: topCamiones.rows,
+      bottom_camiones: bottomCamiones.rows,
+      alertas: alertas.rows,
+      agentes: agentesStatus.rows,
+      gps: salud.rows[0],
+      geocercas: geocercas.rows[0],
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 export default router;

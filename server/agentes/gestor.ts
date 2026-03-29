@@ -7,9 +7,9 @@ export const agenteGestor = {
     try {
       // Alertas sin gestionar >2h
       const alertas = await pool.query(`
-        SELECT id, tipo, contrato, EXTRACT(EPOCH FROM (NOW() - creado_at))/3600 as horas
-        FROM alertas_aprendizaje WHERE gestionado = false AND created_at >= NOW() - INTERVAL '24 hours'
-        ORDER BY created_at ASC LIMIT 20
+        SELECT id, tipo, contrato, EXTRACT(EPOCH FROM (NOW() - fecha))/3600 as horas
+        FROM alertas_aprendizaje WHERE gestionado = false AND fecha >= NOW() - INTERVAL '24 hours'
+        ORDER BY fecha ASC LIMIT 20
       `);
 
       let escaladas = 0, autogestionadas = 0;

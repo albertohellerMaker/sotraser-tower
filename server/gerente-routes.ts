@@ -45,4 +45,40 @@ router.post("/parametros/:clave", async (req, res) => {
   res.json({ ok: true });
 });
 
+// ═══ NUEVOS ENDPOINTS v2 ═══
+
+// Salud del sistema (auto-diagnóstico)
+router.get("/salud", async (_req, res) => {
+  try {
+    const { agenteGerenteOps } = await import("./agentes/gerente-ops");
+    const salud = await agenteGerenteOps.obtenerSalud();
+    res.json(salud);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Memoria del gerente
+router.get("/memoria", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM gerente_memoria WHERE activo = true ORDER BY categoria, confianza DESC");
+    res.json({ memoria: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Decisiones tomadas
+router.get("/decisiones", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM gerente_decisiones ORDER BY created_at DESC LIMIT 50");
+    res.json({ decisiones: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Forzar diagnóstico
+router.post("/diagnostico", async (_req, res) => {
+  try {
+    const { agenteGerenteOps } = await import("./agentes/gerente-ops");
+    const diag = await agenteGerenteOps.autoDiagnostico();
+    res.json(diag);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
