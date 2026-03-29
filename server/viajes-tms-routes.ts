@@ -737,4 +737,110 @@ router.post("/geocercas/crear", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ RESUMEN EJECUTIVO: DIARIO / 3 DÍAS / SEMANAL ═══
+router.get("/resumen-ejecutivo", async (req, res) => {
+  try {
+    const periodo = (req.query.periodo as string) || "DIA"; // DIA | 3DIAS | SEMANA
+    const contrato = (req.query.contrato as string) || "TODOS";
+
+    let diasAtras = 1;
+    let diasCompara = 1;
+    if (periodo === "3DIAS") { diasAtras = 3; diasCompara = 3; }
+    else if (periodo === "SEMANA") { diasAtras = 7; diasCompara = 7; }
+
+    const fc = contrato === "TODOS" ? "" : "AND va.contrato = $2";
+    const p1 = contrato === "TODOS" ? [diasAtras] : [diasAtras, contrato];
+    const fc3 = contrato === "TODOS" ? "" : "AND va.contrato = $3";
+    const p2 = contrato === "TODOS" ? [diasAtras, diasCompara] : [diasAtras, diasCompara, contrato];
+
+    // Periodo actual vs periodo anterior
+    const [actual, anterior, porContrato, topCam, bottomCam, alertasResumen, tendenciaDiaria] = await Promise.all([
+      pool.query(`
+        SELECT COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
+          ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(SUM(va.litros_consumidos_ecu) FILTER (WHERE va.litros_consumidos_ecu > 0)::numeric) as litros,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
+          COUNT(*) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 2.0)::int as criticos,
+          ROUND(AVG(va.velocidad_maxima) FILTER (WHERE va.velocidad_maxima > 0)::numeric) as vel_max_prom,
+          COUNT(*) FILTER (WHERE va.velocidad_maxima > 100)::int as excesos_vel
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.fecha_inicio >= CURRENT_DATE - $1::int AND va.km_ecu > 0 ${fc}
+      `, p1),
+      pool.query(`
+        SELECT COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
+          ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
+          COUNT(*) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 2.0)::int as criticos
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.fecha_inicio >= CURRENT_DATE - ($1::int + $2::int) AND va.fecha_inicio < CURRENT_DATE - $1::int AND va.km_ecu > 0 ${fc3}
+      `, p2),
+      pool.query(`
+        SELECT va.contrato, COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
+          ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
+          COUNT(*) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 2.0)::int as criticos
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.fecha_inicio >= CURRENT_DATE - $1::int AND va.km_ecu > 0 ${fc}
+        GROUP BY va.contrato ORDER BY km DESC
+      `, p1),
+      pool.query(`
+        SELECT c.patente, va.contrato, COUNT(*)::int as viajes, ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.fecha_inicio >= CURRENT_DATE - $1::int AND va.km_ecu > 0 AND va.rendimiento_real > 0 ${fc}
+        GROUP BY c.patente, va.contrato
+        HAVING AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10) IS NOT NULL
+        ORDER BY rend DESC LIMIT 5
+      `, p1),
+      pool.query(`
+        SELECT c.patente, va.contrato, COUNT(*)::int as viajes, ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.fecha_inicio >= CURRENT_DATE - $1::int AND va.km_ecu > 0 AND va.rendimiento_real > 0 AND va.rendimiento_real < 10 ${fc}
+        GROUP BY c.patente, va.contrato
+        HAVING AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10) < 2.5
+        ORDER BY rend ASC LIMIT 5
+      `, p1),
+      pool.query(`
+        SELECT tipo, COUNT(*)::int as total
+        FROM alertas_aprendizaje WHERE fecha >= CURRENT_DATE - $1::int ${contrato !== "TODOS" ? "AND contrato = $2" : ""}
+        GROUP BY tipo ORDER BY total DESC
+      `, contrato !== "TODOS" ? [diasAtras, contrato] : [diasAtras]),
+      pool.query(`
+        SELECT DATE(va.fecha_inicio)::text as dia, COUNT(*)::int as viajes,
+          ROUND(SUM(va.km_ecu)::numeric) as km,
+          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
+          COUNT(DISTINCT c.patente)::int as camiones
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        WHERE va.fecha_inicio >= CURRENT_DATE - $1::int AND va.km_ecu > 0 ${fc}
+        GROUP BY DATE(va.fecha_inicio) ORDER BY dia
+      `, p1),
+    ]);
+
+    const act = actual.rows[0] || {};
+    const ant = anterior.rows[0] || {};
+
+    // Calcular deltas
+    const delta = (a: number, b: number) => b > 0 ? Math.round((a - b) / b * 100) : 0;
+
+    res.json({
+      periodo,
+      dias: diasAtras,
+      actual: act,
+      comparacion: {
+        delta_viajes: delta(act.viajes || 0, ant.viajes || 0),
+        delta_km: delta(parseFloat(act.km) || 0, parseFloat(ant.km) || 0),
+        delta_rend: ant.rend ? Math.round((parseFloat(act.rend || 0) - parseFloat(ant.rend)) * 100) / 100 : 0,
+        delta_criticos: (act.criticos || 0) - (ant.criticos || 0),
+        anterior: ant,
+      },
+      por_contrato: porContrato.rows,
+      top_camiones: topCam.rows,
+      bottom_camiones: bottomCam.rows,
+      alertas: alertasResumen.rows,
+      tendencia: tendenciaDiaria.rows,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

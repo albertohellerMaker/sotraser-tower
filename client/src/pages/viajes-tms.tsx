@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, TrendingDown, Minus, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertTriangle, MapPin, X, Truck, Clock, Fuel, Route, Shield, Activity, Calendar } from "lucide-react";
 
-type Vista = "DIA" | "MES" | "CONTRATO" | "RANKING" | "ALERTAS";
+type Vista = "RESUMEN" | "DIA" | "MES" | "CONTRATO" | "RANKING" | "ALERTAS";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("ANGLO") && u.includes("COCU")) return "#00ff88"; if (u.includes("ANGLO")) return "#22c55e"; if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; const h = c.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
@@ -15,14 +15,16 @@ function Badge({ doble, wt }: { doble?: boolean; wt?: boolean }) {
 }
 
 export default function ViajesTMS() {
-  const [vista, setVista] = useState<Vista>("DIA");
+  const [vista, setVista] = useState<Vista>("RESUMEN");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [contrato, setContrato] = useState("TODOS");
   const [periodoRanking, setPeriodoRanking] = useState("MES");
+  const [periodoResumen, setPeriodoResumen] = useState<"DIA"|"3DIAS"|"SEMANA">("DIA");
   const [selCamion, setSelCamion] = useState<string | null>(null);
   const [ordenCol, setOrdenCol] = useState("km_total");
   const [ordenDir, setOrdenDir] = useState<"asc"|"desc">("desc");
 
+  const { data: dataResumen } = useQuery<any>({ queryKey: ["/api/viajes-tms/resumen-ejecutivo", periodoResumen, contrato], queryFn: () => fetch(`/api/viajes-tms/resumen-ejecutivo?periodo=${periodoResumen}&contrato=${contrato}`).then(r => r.json()), enabled: vista === "RESUMEN", refetchInterval: 120000 });
   const { data: dataDia } = useQuery<any>({ queryKey: ["/api/viajes-tms/resumen-dia", fecha, contrato], queryFn: () => fetch(`/api/viajes-tms/resumen-dia?fecha=${fecha}&contrato=${contrato}`).then(r => r.json()), enabled: vista === "DIA", refetchInterval: 120000 });
   const { data: dataMes } = useQuery<any>({ queryKey: ["/api/viajes-tms/acumulado-mes", contrato], queryFn: () => fetch(`/api/viajes-tms/acumulado-mes?contrato=${contrato}`).then(r => r.json()), enabled: vista === "MES", staleTime: 300000 });
   const { data: dataContrato } = useQuery<any>({ queryKey: ["/api/viajes-tms/por-contrato", contrato], queryFn: () => fetch(`/api/viajes-tms/por-contrato?contrato=${contrato}`).then(r => r.json()), enabled: vista === "CONTRATO" && contrato === "TODOS" });
@@ -78,14 +80,24 @@ export default function ViajesTMS() {
       <div className="flex items-center justify-between px-4 py-1.5 border-b" style={{ borderColor: "#0d2035", background: "#0a1218" }}>
         {/* Vistas */}
         <div className="flex gap-0">
-          {(["DIA", "MES", "CONTRATO", "RANKING", "ALERTAS"] as Vista[]).map(v => (
+          {(["RESUMEN", "DIA", "MES", "CONTRATO", "RANKING", "ALERTAS"] as Vista[]).map(v => (
             <button key={v} onClick={() => { setVista(v); setSelCamion(null); }}
               className="px-4 py-2 font-space text-[9px] font-bold tracking-[0.15em] cursor-pointer transition-all"
-              style={{ color: vista === v ? "#00d4ff" : "#3a6080", borderBottom: vista === v ? "2px solid #00d4ff" : "2px solid transparent", background: vista === v ? "#00d4ff08" : "transparent" }}>
-              {v}
+              style={{ color: vista === v ? (v === "RESUMEN" ? "#a855f7" : "#00d4ff") : "#3a6080", borderBottom: vista === v ? `2px solid ${v === "RESUMEN" ? "#a855f7" : "#00d4ff"}` : "2px solid transparent", background: vista === v ? (v === "RESUMEN" ? "#a855f708" : "#00d4ff08") : "transparent" }}>
+              {v === "RESUMEN" ? "RESUMEN" : v}
             </button>
           ))}
         </div>
+
+        {/* Periodo resumen */}
+        {vista === "RESUMEN" && (
+          <div className="flex gap-1">
+            {([["DIA", "DIARIO"], ["3DIAS", "3 DIAS"], ["SEMANA", "SEMANAL"]] as const).map(([p, label]) => (
+              <button key={p} onClick={() => setPeriodoResumen(p as any)} className="px-3 py-1.5 font-space text-[8px] font-bold cursor-pointer"
+                style={{ color: periodoResumen === p ? "#a855f7" : "#3a6080", background: periodoResumen === p ? "#a855f710" : "transparent", border: `1px solid ${periodoResumen === p ? "#a855f730" : "#0d2035"}`, borderRadius: 4 }}>{label}</button>
+            ))}
+          </div>
+        )}
 
         {/* Fecha (DIA/ALERTAS) */}
         {(vista === "DIA" || vista === "ALERTAS") && (
@@ -124,6 +136,164 @@ export default function ViajesTMS() {
 
         {/* ── LEFT: TRIP LIST ── */}
         <div className={`overflow-auto ${selCamion && vista === "DIA" ? "w-[60%]" : "w-full"} border-r`} style={{ borderColor: "#0d2035" }}>
+
+          {/* ═══ VISTA RESUMEN EJECUTIVO ═══ */}
+          {vista === "RESUMEN" && dataResumen && (() => {
+            const act = dataResumen.actual || {};
+            const cmp = dataResumen.comparacion || {};
+            const periodoLabel = periodoResumen === "DIA" ? "Hoy" : periodoResumen === "3DIAS" ? "Últimos 3 días" : "Esta semana";
+            const DeltaBadge = ({ val, suffix = "%", invert = false }: { val: number; suffix?: string; invert?: boolean }) => {
+              const color = val === 0 ? "#3a6080" : (invert ? val < 0 : val > 0) ? "#00ff88" : "#ff2244";
+              return <span className="font-space text-[10px] font-bold" style={{ color }}>{val > 0 ? "+" : ""}{val}{suffix}</span>;
+            };
+            return (
+              <div className="p-5 space-y-5 overflow-auto" style={{ height: "calc(100vh - 190px)" }}>
+                {/* KPIs con comparación */}
+                <div className="grid grid-cols-6 gap-3">
+                  {[
+                    { l: "CAMIONES", v: act.camiones || 0, d: null, c: "#00d4ff", icon: Truck },
+                    { l: "VIAJES", v: act.viajes || 0, d: cmp.delta_viajes, c: "#a855f7", icon: Route },
+                    { l: "KM TOTAL", v: fN(parseFloat(act.km) || 0), d: cmp.delta_km, c: "#00ff88", icon: Activity },
+                    { l: "KM/L PROM", v: act.rend || "--", d: null, extra: cmp.delta_rend, c: RC(parseFloat(act.rend) || 0), icon: Fuel },
+                    { l: "CRITICOS", v: act.criticos || 0, d: null, extra: cmp.delta_criticos, c: (act.criticos || 0) > 0 ? "#ff2244" : "#00ff88", icon: AlertTriangle },
+                    { l: "EXCESOS VEL", v: act.excesos_vel || 0, d: null, c: (act.excesos_vel || 0) > 0 ? "#ff6b35" : "#3a6080", icon: Shield },
+                  ].map(k => {
+                    const Icon = k.icon;
+                    return (
+                      <div key={k.l} className="rounded-lg p-4" style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <Icon className="w-4 h-4" style={{ color: `${k.c}50` }} />
+                          {k.d !== null && k.d !== undefined && <DeltaBadge val={k.d} />}
+                          {k.extra !== null && k.extra !== undefined && (
+                            <DeltaBadge val={k.extra} suffix={k.l === "KM/L PROM" ? " km/L" : ""} invert={k.l === "CRITICOS"} />
+                          )}
+                        </div>
+                        <div className="font-space text-[24px] font-bold leading-none" style={{ color: k.c }}>{k.v}</div>
+                        <div className="font-exo text-[7px] tracking-[0.12em] uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  {/* Tabla contratos */}
+                  <div className="col-span-2 rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                    <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid #0d2035" }}>
+                      <span className="font-exo text-[8px] tracking-[0.15em] uppercase font-bold" style={{ color: "#a855f7" }}>POR CONTRATO · {periodoLabel.toUpperCase()}</span>
+                      <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{(dataResumen.por_contrato || []).length} contratos</span>
+                    </div>
+                    <table className="w-full">
+                      <thead>
+                        <tr style={{ background: "#0a1520" }}>
+                          {["CONTRATO", "CAM", "VIAJES", "KM", "KM/L", "CRIT"].map(h => (
+                            <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(dataResumen.por_contrato || []).map((c: any, i: number) => (
+                          <tr key={c.contrato} className="cursor-pointer hover:bg-[rgba(255,255,255,0.02)]" onClick={() => { setContrato(c.contrato); setVista("CONTRATO"); }}
+                            style={{ background: i % 2 === 0 ? "transparent" : "#0a152030", borderBottom: "1px solid #0d203530" }}>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-4 rounded-full" style={{ background: CC(c.contrato) }} />
+                                <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.contrato}</span>
+                              </div>
+                            </td>
+                            <td className="font-space text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>{c.camiones}</td>
+                            <td className="font-space text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>{c.viajes}</td>
+                            <td className="font-space text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>{fN(parseFloat(c.km) || 0)}</td>
+                            <td className="font-space text-[10px] font-bold px-3 py-2" style={{ color: RC(parseFloat(c.rend) || 0) }}>{c.rend || "--"}</td>
+                            <td className="font-space text-[10px] px-3 py-2" style={{ color: (c.criticos || 0) > 0 ? "#ff2244" : "#3a6080" }}>{c.criticos || 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Panel derecho: Top/Bottom + Alertas */}
+                  <div className="space-y-3">
+                    {/* Top 5 */}
+                    <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                      <div className="px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                        <span className="font-exo text-[8px] tracking-[0.12em] uppercase font-bold" style={{ color: "#00ff88" }}>TOP 5 RENDIMIENTO</span>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {(dataResumen.top_camiones || []).map((c: any, i: number) => (
+                          <div key={c.patente} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "#0a1520" }}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-space text-[8px] w-3" style={{ color: "#3a6080" }}>{i + 1}</span>
+                              <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                            </div>
+                            <span className="font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>{c.rend}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Bottom 5 */}
+                    <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ff224420" }}>
+                      <div className="px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                        <span className="font-exo text-[8px] tracking-[0.12em] uppercase font-bold" style={{ color: "#ff2244" }}>REQUIEREN ATENCION</span>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {(dataResumen.bottom_camiones || []).map((c: any) => (
+                          <div key={c.patente} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "#0a1520", borderLeft: "2px solid #ff2244" }}>
+                            <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                            <span className="font-space text-[10px] font-bold" style={{ color: "#ff2244" }}>{c.rend}</span>
+                          </div>
+                        ))}
+                        {(dataResumen.bottom_camiones || []).length === 0 && (
+                          <div className="text-center py-2 font-exo text-[9px]" style={{ color: "#00ff88" }}>Sin camiones criticos</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Alertas resumen */}
+                    {(dataResumen.alertas || []).length > 0 && (
+                      <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                        <div className="px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                          <span className="font-exo text-[8px] tracking-[0.12em] uppercase font-bold" style={{ color: "#ffcc00" }}>ALERTAS</span>
+                        </div>
+                        <div className="p-2 space-y-1">
+                          {(dataResumen.alertas || []).map((a: any) => (
+                            <div key={a.tipo} className="flex items-center justify-between px-2 py-1">
+                              <span className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{a.tipo.replace(/_/g, " ")}</span>
+                              <span className="font-space text-[10px] font-bold" style={{ color: "#ffcc00" }}>{a.total}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tendencia diaria */}
+                {(dataResumen.tendencia || []).length > 1 && (
+                  <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                    <div className="font-exo text-[8px] tracking-[0.15em] uppercase mb-3" style={{ color: "#3a6080" }}>TENDENCIA DIARIA</div>
+                    <div className="flex items-end gap-1" style={{ height: 80 }}>
+                      {(dataResumen.tendencia || []).map((d: any) => {
+                        const maxKm = Math.max(...(dataResumen.tendencia || []).map((t: any) => parseFloat(t.km) || 0));
+                        const h = maxKm > 0 ? (parseFloat(d.km) / maxKm) * 70 : 5;
+                        return (
+                          <div key={d.dia} className="flex-1 flex flex-col items-center gap-1">
+                            <span className="font-space text-[7px] font-bold" style={{ color: RC(parseFloat(d.rend) || 0) }}>{d.rend}</span>
+                            <div className="w-full rounded-t" style={{ height: Math.max(4, h), background: `linear-gradient(to top, ${RC(parseFloat(d.rend) || 0)}40, ${RC(parseFloat(d.rend) || 0)})` }} />
+                            <div className="text-center">
+                              <div className="font-space text-[8px] font-bold" style={{ color: "#c8e8ff" }}>{fN(parseFloat(d.km) || 0)}</div>
+                              <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{d.dia.slice(5)}</div>
+                              <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{d.viajes}v · {d.camiones}c</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* VISTA DIA / MES — Tabla compacta TMS */}
           {(vista === "DIA" || vista === "MES") && (
