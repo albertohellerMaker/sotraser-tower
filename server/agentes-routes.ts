@@ -47,6 +47,7 @@ router.post("/forzar/:agente", async (req, res) => {
       reportero: async () => { const { agenteReportero } = await import("./agentes/reportero"); await agenteReportero.ejecutar(); },
       gestor: async () => { const { agenteGestor } = await import("./agentes/gestor"); await agenteGestor.ejecutar(); },
       contrato: async () => { const { agenteContrato } = await import("./agentes/contrato"); await agenteContrato.ejecutar(); },
+      cencosud: async () => { const { agenteCencosud } = await import("./agentes/cencosud"); await agenteCencosud.ejecutar(); },
     };
     if (mods[agente]) { await mods[agente](); res.json({ ok: true }); }
     else res.status(404).json({ error: "Agente no encontrado" });

@@ -60,58 +60,108 @@ export const agenteCencosud = {
     return { total: viajes.rows.length, matcheados, ingreso, pct: viajes.rows.length > 0 ? Math.round(matcheados / viajes.rows.length * 100) : 0 };
   },
 
+  // Coordenadas de ciudades del contrato Cencosud (centro aproximado)
+  ciudadesContrato: [
+    { nombre: "CD Lo Aguirre", lat: -33.475, lng: -70.790, radio: 10 },
+    { nombre: "CD Noviciado", lat: -33.420, lng: -70.730, radio: 10 },
+    { nombre: "CD Vespucio", lat: -33.500, lng: -70.650, radio: 12 },
+    { nombre: "CD Chillán", lat: -36.620, lng: -72.100, radio: 8 },
+    { nombre: "CD Puerto Madero", lat: -33.510, lng: -70.700, radio: 8 },
+    { nombre: "CD Boxmart", lat: -33.460, lng: -70.680, radio: 8 },
+    { nombre: "CT Coquimbo", lat: -29.953, lng: -71.343, radio: 10 },
+    { nombre: "CT Concepción", lat: -36.827, lng: -73.050, radio: 12 },
+    { nombre: "Chillán", lat: -36.620, lng: -72.100, radio: 15 },
+    { nombre: "Copiapó", lat: -27.366, lng: -70.332, radio: 15 },
+    { nombre: "Coquimbo", lat: -29.953, lng: -71.343, radio: 12 },
+    { nombre: "La Serena", lat: -29.907, lng: -71.254, radio: 12 },
+    { nombre: "Ovalle", lat: -30.601, lng: -71.199, radio: 12 },
+    { nombre: "Vallenar", lat: -28.576, lng: -70.758, radio: 12 },
+    { nombre: "Huasco", lat: -28.468, lng: -71.219, radio: 12 },
+    { nombre: "Curicó", lat: -34.983, lng: -71.237, radio: 15 },
+    { nombre: "Molina", lat: -35.117, lng: -71.283, radio: 12 },
+    { nombre: "Talca", lat: -35.426, lng: -71.655, radio: 12 },
+    { nombre: "Linares", lat: -35.847, lng: -71.593, radio: 15 },
+    { nombre: "Concepción", lat: -36.827, lng: -73.050, radio: 15 },
+    { nombre: "Los Ángeles", lat: -37.469, lng: -72.354, radio: 20 },
+    { nombre: "Mulchén", lat: -37.718, lng: -72.242, radio: 15 },
+    { nombre: "Victoria", lat: -38.233, lng: -72.333, radio: 15 },
+    { nombre: "Temuco", lat: -38.735, lng: -72.590, radio: 15 },
+    { nombre: "Valdivia", lat: -39.814, lng: -73.246, radio: 15 },
+    { nombre: "La Unión", lat: -40.295, lng: -73.083, radio: 12 },
+    { nombre: "Osorno", lat: -40.573, lng: -73.136, radio: 12 },
+    { nombre: "Puerto Montt", lat: -41.471, lng: -72.937, radio: 12 },
+    { nombre: "Puerto Varas", lat: -41.316, lng: -72.986, radio: 12 },
+  ] as { nombre: string; lat: number; lng: number; radio: number }[],
+
+  distanciaKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  },
+
   async sugerirAlias() {
-    // Buscar nombres de geocerca en viajes Cencosud que no tienen alias
+    // Buscar viajes Cencosud sin alias, CON coordenadas
     const sinAlias = await pool.query(`
-      SELECT DISTINCT va.origen_nombre as nombre, 'ORIGEN' as tipo, COUNT(*)::int as viajes
-      FROM viajes_aprendizaje va
-      LEFT JOIN geocerca_alias_contrato gac ON gac.geocerca_nombre = va.origen_nombre AND gac.contrato = 'CENCOSUD'
-      WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '7 days'
-        AND va.origen_nombre IS NOT NULL AND va.origen_nombre != 'Punto desconocido'
-        AND gac.id IS NULL AND va.km_ecu > 0
-      GROUP BY va.origen_nombre
-      UNION ALL
-      SELECT DISTINCT va.destino_nombre, 'DESTINO', COUNT(*)::int
-      FROM viajes_aprendizaje va
-      LEFT JOIN geocerca_alias_contrato gac ON gac.geocerca_nombre = va.destino_nombre AND gac.contrato = 'CENCOSUD'
-      WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '7 days'
-        AND va.destino_nombre IS NOT NULL AND va.destino_nombre != 'Punto desconocido'
-        AND gac.id IS NULL AND va.km_ecu > 0
-      GROUP BY va.destino_nombre
-      ORDER BY viajes DESC LIMIT 20
+      SELECT DISTINCT sub.nombre, sub.lat, sub.lng, sub.viajes FROM (
+        SELECT va.origen_nombre as nombre, va.origen_lat::float as lat, va.origen_lng::float as lng, COUNT(*)::int as viajes
+        FROM viajes_aprendizaje va
+        LEFT JOIN geocerca_alias_contrato gac ON gac.geocerca_nombre = va.origen_nombre AND gac.contrato = 'CENCOSUD'
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '14 days'
+          AND va.origen_nombre IS NOT NULL AND va.origen_nombre != 'Punto desconocido'
+          AND gac.id IS NULL AND va.km_ecu > 0 AND va.origen_lat IS NOT NULL
+        GROUP BY va.origen_nombre, va.origen_lat, va.origen_lng
+        UNION ALL
+        SELECT va.destino_nombre, va.destino_lat::float, va.destino_lng::float, COUNT(*)::int
+        FROM viajes_aprendizaje va
+        LEFT JOIN geocerca_alias_contrato gac ON gac.geocerca_nombre = va.destino_nombre AND gac.contrato = 'CENCOSUD'
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '14 days'
+          AND va.destino_nombre IS NOT NULL AND va.destino_nombre != 'Punto desconocido'
+          AND gac.id IS NULL AND va.km_ecu > 0 AND va.destino_lat IS NOT NULL
+        GROUP BY va.destino_nombre, va.destino_lat, va.destino_lng
+      ) sub ORDER BY viajes DESC LIMIT 100
     `);
 
-    if (sinAlias.rows.length > 0) {
-      // Obtener nombres del contrato para sugerir
-      const nombresContrato = await pool.query("SELECT DISTINCT origen as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' UNION SELECT DISTINCT destino FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD'");
-      const nombres = nombresContrato.rows.map((r: any) => r.nombre);
+    let mapeados = 0;
+    for (const s of sinAlias.rows) {
+      if (!s.lat || !s.lng) continue;
 
-      let sugeridos = 0;
-      for (const s of sinAlias.rows) {
-        // Intentar match simple: si el nombre de geocerca contiene el nombre del contrato
-        const match = nombres.find(n => {
-          const nNorm = n.replace(/CD |CT /g, "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const gNorm = s.nombre.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return gNorm.includes(nNorm) || nNorm.includes(gNorm.split("/")[0].trim().split("·")[0].trim());
-        });
+      // Buscar ciudad más cercana por coordenadas
+      let mejorMatch: string | null = null;
+      let mejorDist = Infinity;
 
-        if (match) {
-          try {
-            await pool.query("INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por) VALUES ($1,$2,'CENCOSUD',false,'AGENTE') ON CONFLICT DO NOTHING", [s.nombre, match]);
-            sugeridos++;
-          } catch {}
+      for (const ciudad of this.ciudadesContrato) {
+        const dist = this.distanciaKm(s.lat, s.lng, ciudad.lat, ciudad.lng);
+        if (dist < ciudad.radio && dist < mejorDist) {
+          mejorDist = dist;
+          mejorMatch = ciudad.nombre;
         }
       }
 
-      if (sinAlias.rows.length > 5) {
-        await enviarMensaje({
-          de: this.id, para: "agente-gerente-ops", tipo: "GEOCERCA_SIN_MAPEAR",
-          prioridad: "NORMAL",
-          titulo: `Cencosud: ${sinAlias.rows.length} geocercas sin alias`,
-          contenido: `Nombres sin mapear: ${sinAlias.rows.slice(0, 5).map((r: any) => r.nombre).join(", ")}. ${sugeridos} sugeridos automáticamente.`,
-          datos: { sin_alias: sinAlias.rows.length, sugeridos }
-        });
+      if (mejorMatch) {
+        try {
+          await pool.query("INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por) VALUES ($1,$2,'CENCOSUD',true,'AGENTE_GEO') ON CONFLICT DO NOTHING",
+            [s.nombre, mejorMatch]);
+          mapeados++;
+        } catch {}
       }
+    }
+
+    if (mapeados > 0) {
+      console.log(`[CENCOSUD] ${mapeados} geocercas mapeadas por coordenadas`);
+    }
+
+    // Reportar pendientes
+    const pendientes = sinAlias.rows.length - mapeados;
+    if (pendientes > 10) {
+      await enviarMensaje({
+        de: this.id, para: "agente-gerente-ops", tipo: "GEOCERCA_SIN_MAPEAR",
+        prioridad: pendientes > 50 ? "ALTA" : "NORMAL",
+        titulo: `Cencosud: ${mapeados} geocercas mapeadas, ${pendientes} pendientes`,
+        contenido: `Mapeé ${mapeados} geocercas por coordenadas. Quedan ${pendientes} sin mapear (fuera de radio de ciudades del contrato).`,
+        datos: { mapeados, pendientes }
+      });
     }
   },
 
