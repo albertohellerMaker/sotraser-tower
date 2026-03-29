@@ -18,11 +18,59 @@ router.get("/mensajes", async (req, res) => {
   try {
     const limite = parseInt((req.query.limite as string) || "20");
     const noLeidos = req.query.no_leidos === "true";
+    const de = req.query.de as string;
+    const para = req.query.para as string;
+    const prioridad = req.query.prioridad as string;
+    const buscar = req.query.q as string;
+
+    let where = "WHERE m.created_at >= NOW() - INTERVAL '72 hours'";
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (de) { where += ` AND m.de_agente = $${paramIdx++}`; params.push(de); }
+    if (para) { where += ` AND m.para_agente = $${paramIdx++}`; params.push(para); }
+    else { where += " AND m.para_agente = 'agente-ceo'"; } // default: al CEO
+    if (noLeidos) { where += " AND m.leido = false"; }
+    if (prioridad) { where += ` AND m.prioridad = $${paramIdx++}`; params.push(prioridad); }
+    if (buscar) { where += ` AND (m.titulo ILIKE $${paramIdx} OR m.contenido ILIKE $${paramIdx})`; params.push(`%${buscar}%`); paramIdx++; }
+
+    params.push(limite);
+
     const r = await pool.query(`
-      SELECT m.*, a.nombre as nombre_agente FROM agente_mensajes m LEFT JOIN agentes a ON a.id = m.de_agente
-      WHERE m.para_agente = 'agente-ceo' ${noLeidos ? "AND m.leido = false" : ""} AND m.created_at >= NOW() - INTERVAL '48 hours'
-      ORDER BY CASE m.prioridad WHEN 'CRITICA' THEN 1 WHEN 'ALTA' THEN 2 ELSE 3 END, m.created_at DESC LIMIT $1
-    `, [limite]);
+      SELECT m.*, a.nombre as nombre_agente, a2.nombre as nombre_destino
+      FROM agente_mensajes m
+      LEFT JOIN agentes a ON a.id = m.de_agente
+      LEFT JOIN agentes a2 ON a2.id = m.para_agente
+      ${where}
+      ORDER BY CASE m.prioridad WHEN 'CRITICA' THEN 1 WHEN 'ALTA' THEN 2 ELSE 3 END, m.created_at DESC
+      LIMIT $${paramIdx}
+    `, params);
+
+    // Stats
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE leido = false AND created_at >= NOW() - INTERVAL '72 hours')::int as no_leidos,
+        COUNT(*) FILTER (WHERE prioridad = 'CRITICA' AND leido = false AND created_at >= NOW() - INTERVAL '72 hours')::int as criticos,
+        COUNT(*) FILTER (WHERE prioridad = 'ALTA' AND leido = false AND created_at >= NOW() - INTERVAL '72 hours')::int as altos,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '72 hours')::int as total_72h
+      FROM agente_mensajes
+    `);
+
+    res.json({ mensajes: r.rows, stats: stats.rows[0] });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Conversación entre dos agentes
+router.get("/conversacion/:agente1/:agente2", async (req, res) => {
+  try {
+    const { agente1, agente2 } = req.params;
+    const r = await pool.query(`
+      SELECT m.*, a.nombre as nombre_agente
+      FROM agente_mensajes m LEFT JOIN agentes a ON a.id = m.de_agente
+      WHERE ((m.de_agente = $1 AND m.para_agente = $2) OR (m.de_agente = $2 AND m.para_agente = $1))
+        AND m.created_at >= NOW() - INTERVAL '7 days'
+      ORDER BY m.created_at DESC LIMIT 30
+    `, [agente1, agente2]);
     res.json({ mensajes: r.rows });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
