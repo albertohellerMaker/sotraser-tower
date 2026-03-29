@@ -6,17 +6,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 42,
+        "score": 41,
         "anticipacion": 39,
         "velocidad": 34,
         "motor": 60,
-        "combustible": 34
+        "combustible": 30
       }
     ],
-    "baseline": 42,
+    "baseline": 41,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.348Z"
+    "ultimaActualizacion": "2026-03-21T20:04:35.561Z"
   },
   "9BVX1F1A7KE860417": {
     "nombre": "Sin asignar",
@@ -35,7 +35,7 @@
     "baseline": 38,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.391Z"
+    "ultimaActualizacion": "2026-03-21T20:04:35.810Z"
   },
   "9BVX1F1C6KE862088": {
     "nombre": "Sin asignar",
@@ -44,17 +44,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 55,
+        "score": 42,
         "anticipacion": 39,
-        "velocidad": 34,
+        "velocidad": 37,
         "motor": 60,
-        "combustible": 85
+        "combustible": 32
       }
     ],
-    "baseline": 55,
+    "baseline": 42,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.435Z"
+    "ultimaActualizacion": "2026-03-21T20:04:36.188Z"
   },
   "YV2RG30C3MB341570": {
     "nombre": "Sin asignar",
@@ -63,17 +63,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 43,
+        "score": 41,
         "anticipacion": 39,
         "velocidad": 37,
         "motor": 60,
-        "combustible": 36
+        "combustible": 29
       }
     ],
-    "baseline": 43,
+    "baseline": 41,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.479Z"
+    "ultimaActualizacion": "2026-03-21T20:04:36.419Z"
   },
   "YV2RG30CXMB341730": {
     "nombre": "Sin asignar",
@@ -82,17 +82,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 50,
-        "anticipacion": 43,
-        "velocidad": 37,
-        "motor": 80,
-        "combustible": 39
+        "score": 40,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 28
       }
     ],
-    "baseline": 50,
+    "baseline": 40,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.522Z"
+    "ultimaActualizacion": "2026-03-21T20:04:36.644Z"
   },
   "YV2XG10C0NA893188": {
     "nombre": "Sin asignar",
@@ -101,17 +101,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 46,
-        "anticipacion": 43,
-        "velocidad": 34,
-        "motor": 80,
-        "combustible": 27
+        "score": 41,
+        "anticipacion": 39,
+        "velocidad": 29,
+        "motor": 60,
+        "combustible": 35
       }
     ],
-    "baseline": 46,
+    "baseline": 41,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.565Z"
+    "ultimaActualizacion": "2026-03-21T20:04:36.869Z"
   },
   "YV2XG10C6NA893194": {
     "nombre": "Sin asignar",
@@ -124,13 +124,13 @@
         "anticipacion": 47,
         "velocidad": 65,
         "motor": 60,
-        "combustible": 32
+        "combustible": 33
       }
     ],
     "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.609Z"
+    "ultimaActualizacion": "2026-03-21T20:04:37.096Z"
   },
   "YV2XG10CXNA893098": {
     "nombre": "Sin asignar",
@@ -139,17 +139,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 46,
+        "score": 60,
         "anticipacion": 63,
         "velocidad": 32,
         "motor": 60,
-        "combustible": 30
+        "combustible": 85
       }
     ],
-    "baseline": 46,
+    "baseline": 60,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.659Z"
+    "ultimaActualizacion": "2026-03-21T20:04:37.322Z"
   },
   "YV2XG10CXNA893120": {
     "nombre": "Sin asignar",
@@ -158,17 +158,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 41,
-        "anticipacion": 39,
-        "velocidad": 34,
+        "score": 49,
+        "anticipacion": 47,
+        "velocidad": 65,
         "motor": 60,
-        "combustible": 29
+        "combustible": 24
       }
     ],
-    "baseline": 41,
+    "baseline": 49,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.702Z"
+    "ultimaActualizacion": "2026-03-21T20:04:37.548Z"
   },
   "9BVRG40C1PE924826": {
     "nombre": "Sin asignar",
@@ -187,7 +187,7 @@
     "baseline": 40,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.745Z"
+    "ultimaActualizacion": "2026-03-21T20:04:37.773Z"
   },
   "9BVRG40C9PE924825": {
     "nombre": "Sin asignar",
@@ -196,17 +196,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 55,
+        "score": 41,
         "anticipacion": 39,
-        "velocidad": 34,
+        "velocidad": 29,
         "motor": 60,
-        "combustible": 85
+        "combustible": 34
       }
     ],
-    "baseline": 55,
+    "baseline": 41,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.788Z"
+    "ultimaActualizacion": "2026-03-21T20:04:37.997Z"
   },
   "9BVXG10C2PE928074": {
     "nombre": "Sin asignar",
@@ -225,7 +225,7 @@
     "baseline": 43,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.832Z"
+    "ultimaActualizacion": "2026-03-21T20:04:38.222Z"
   },
   "YV2XB40C0RA339932": {
     "nombre": "Sin asignar",
@@ -244,7 +244,7 @@
     "baseline": 38,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.875Z"
+    "ultimaActualizacion": "2026-03-21T20:04:38.483Z"
   },
   "YV2XZ80C6SA378792": {
     "nombre": "Sin asignar",
@@ -263,7 +263,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.918Z"
+    "ultimaActualizacion": "2026-03-21T20:04:38.707Z"
   },
   "YV2XZ80CXSA378780": {
     "nombre": "Sin asignar",
@@ -282,7 +282,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:01.961Z"
+    "ultimaActualizacion": "2026-03-21T20:04:38.958Z"
   },
   "9BVXG20D1SE615437": {
     "nombre": "Sin asignar",
@@ -301,7 +301,7 @@
     "baseline": 48,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.004Z"
+    "ultimaActualizacion": "2026-03-21T20:04:39.204Z"
   },
   "9BVXG20D4TE622213": {
     "nombre": "Sin asignar",
@@ -320,7 +320,7 @@
     "baseline": 65,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.047Z"
+    "ultimaActualizacion": "2026-03-21T20:04:39.435Z"
   },
   "9BVXG20D8SE613564": {
     "nombre": "Sin asignar",
@@ -329,17 +329,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 52,
-        "anticipacion": 47,
-        "velocidad": 65,
-        "motor": 60,
-        "combustible": 34
+        "score": 47,
+        "anticipacion": 43,
+        "velocidad": 34,
+        "motor": 80,
+        "combustible": 30
       }
     ],
-    "baseline": 52,
+    "baseline": 47,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.091Z"
+    "ultimaActualizacion": "2026-03-21T20:04:39.758Z"
   },
   "9BVXG20D9SE603456": {
     "nombre": "Sin asignar",
@@ -358,7 +358,7 @@
     "baseline": 42,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.134Z"
+    "ultimaActualizacion": "2026-03-21T20:04:39.989Z"
   },
   "YV2RB40C5RA337280": {
     "nombre": "Sin asignar",
@@ -377,7 +377,7 @@
     "baseline": 38,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.178Z"
+    "ultimaActualizacion": "2026-03-21T20:04:40.216Z"
   },
   "9BVRG30C3TE631944": {
     "nombre": "Sin asignar",
@@ -386,17 +386,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 45,
-        "anticipacion": 43,
+        "score": 38,
+        "anticipacion": 37,
         "velocidad": 34,
-        "motor": 80,
-        "combustible": 24
+        "motor": 60,
+        "combustible": 22
       }
     ],
-    "baseline": 45,
+    "baseline": 38,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.221Z"
+    "ultimaActualizacion": "2026-03-21T20:04:33.854Z"
   },
   "9BVXG20C0TE631619": {
     "nombre": "Sin asignar",
@@ -415,7 +415,7 @@
     "baseline": 39,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.264Z"
+    "ultimaActualizacion": "2026-03-21T20:04:40.446Z"
   },
   "9BVXG20C3TE628385": {
     "nombre": "Sin asignar",
@@ -434,7 +434,7 @@
     "baseline": 61,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.307Z"
+    "ultimaActualizacion": "2026-03-21T20:04:40.673Z"
   },
   "9BVXG20C5TE631617": {
     "nombre": "Sin asignar",
@@ -443,17 +443,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 39,
-        "anticipacion": 39,
+        "score": 38,
+        "anticipacion": 37,
         "velocidad": 34,
         "motor": 60,
-        "combustible": 24
+        "combustible": 22
       }
     ],
-    "baseline": 39,
+    "baseline": 38,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.350Z"
+    "ultimaActualizacion": "2026-03-21T20:04:40.902Z"
   },
   "9BVXG20C5TE632291": {
     "nombre": "Sin asignar",
@@ -472,7 +472,7 @@
     "baseline": 42,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.393Z"
+    "ultimaActualizacion": "2026-03-21T20:04:41.127Z"
   },
   "9BVXG20C7TE631698": {
     "nombre": "Sin asignar",
@@ -481,17 +481,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 38,
-        "anticipacion": 37,
+        "score": 48,
+        "anticipacion": 43,
         "velocidad": 34,
-        "motor": 60,
-        "combustible": 22
+        "motor": 80,
+        "combustible": 34
       }
     ],
-    "baseline": 38,
+    "baseline": 48,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.437Z"
+    "ultimaActualizacion": "2026-03-21T20:04:41.353Z"
   },
   "9BVXG20D1TE632217": {
     "nombre": "Sin asignar",
@@ -500,17 +500,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 57,
+        "score": 56,
         "anticipacion": 63,
         "velocidad": 28,
         "motor": 60,
-        "combustible": 76
+        "combustible": 74
       }
     ],
-    "baseline": 57,
+    "baseline": 56,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.480Z"
+    "ultimaActualizacion": "2026-03-21T20:04:41.630Z"
   },
   "9BVXG20D6TE631988": {
     "nombre": "Sin asignar",
@@ -519,17 +519,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 63,
-        "anticipacion": 70,
-        "velocidad": 35,
+        "score": 59,
+        "anticipacion": 63,
+        "velocidad": 28,
         "motor": 60,
         "combustible": 85
       }
     ],
-    "baseline": 63,
+    "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.525Z"
+    "ultimaActualizacion": "2026-03-21T20:04:41.867Z"
   },
   "9BVXG20D7TE631981": {
     "nombre": "Sin asignar",
@@ -548,7 +548,7 @@
     "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.568Z"
+    "ultimaActualizacion": "2026-03-21T20:04:42.242Z"
   },
   "9BVX1F1DXKE858425": {
     "nombre": "Sin asignar",
@@ -557,17 +557,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 60,
+        "score": 48,
         "anticipacion": 63,
         "velocidad": 32,
         "motor": 60,
-        "combustible": 85
+        "combustible": 36
       }
     ],
-    "baseline": 60,
+    "baseline": 48,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.612Z"
+    "ultimaActualizacion": "2026-03-21T20:04:42.489Z"
   },
   "9BVRG20D0KE863375": {
     "nombre": "Sin asignar",
@@ -576,17 +576,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 50,
-        "anticipacion": 70,
-        "velocidad": 40,
+        "score": 48,
+        "anticipacion": 63,
+        "velocidad": 32,
         "motor": 60,
-        "combustible": 31
+        "combustible": 37
       }
     ],
-    "baseline": 50,
+    "baseline": 48,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.699Z"
+    "ultimaActualizacion": "2026-03-21T20:04:42.715Z"
   },
   "9BVRG20D3KE863381": {
     "nombre": "Sin asignar",
@@ -595,17 +595,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 51,
-        "anticipacion": 70,
-        "velocidad": 40,
-        "motor": 60,
-        "combustible": 34
+        "score": 64,
+        "anticipacion": 67,
+        "velocidad": 35,
+        "motor": 70,
+        "combustible": 85
       }
     ],
-    "baseline": 51,
+    "baseline": 64,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.743Z"
+    "ultimaActualizacion": "2026-03-21T20:04:43.106Z"
   },
   "9BVRG30C2TE632246": {
     "nombre": "Sin asignar",
@@ -624,7 +624,7 @@
     "baseline": 71,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.864Z"
+    "ultimaActualizacion": "2026-03-21T20:04:43.331Z"
   },
   "9BVRG30C4ME898628": {
     "nombre": "Sin asignar",
@@ -643,7 +643,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.908Z"
+    "ultimaActualizacion": "2026-03-21T20:04:43.731Z"
   },
   "9BVRG30C6TE631945": {
     "nombre": "Sin asignar",
@@ -652,17 +652,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 41,
-        "anticipacion": 39,
-        "velocidad": 37,
-        "motor": 60,
-        "combustible": 28
+        "score": 44,
+        "anticipacion": 40,
+        "velocidad": 34,
+        "motor": 80,
+        "combustible": 22
       }
     ],
-    "baseline": 41,
+    "baseline": 44,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.951Z"
+    "ultimaActualizacion": "2026-03-21T20:04:43.985Z"
   },
   "9BVRG30D0SE615274": {
     "nombre": "Sin asignar",
@@ -671,17 +671,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 57,
-        "anticipacion": 70,
-        "velocidad": 35,
+        "score": 51,
+        "anticipacion": 59,
+        "velocidad": 28,
         "motor": 60,
-        "combustible": 64
+        "combustible": 55
       }
     ],
-    "baseline": 57,
+    "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:02.994Z"
+    "ultimaActualizacion": "2026-03-21T20:04:44.208Z"
   },
   "9BVRG40C8PE927810": {
     "nombre": "Sin asignar",
@@ -700,7 +700,7 @@
     "baseline": 43,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.037Z"
+    "ultimaActualizacion": "2026-03-21T20:04:44.611Z"
   },
   "9BVRG40CXPE926969": {
     "nombre": "Sin asignar",
@@ -709,17 +709,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 41,
+        "score": 43,
         "anticipacion": 39,
-        "velocidad": 34,
+        "velocidad": 37,
         "motor": 60,
-        "combustible": 29
+        "combustible": 35
       }
     ],
-    "baseline": 41,
+    "baseline": 43,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.080Z"
+    "ultimaActualizacion": "2026-03-21T20:04:44.837Z"
   },
   "9BVX1F1D0LE874446": {
     "nombre": "Sin asignar",
@@ -728,17 +728,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 47,
+        "score": 46,
         "anticipacion": 63,
         "velocidad": 32,
         "motor": 60,
-        "combustible": 32
+        "combustible": 29
       }
     ],
-    "baseline": 47,
+    "baseline": 46,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.124Z"
+    "ultimaActualizacion": "2026-03-21T20:04:45.112Z"
   },
   "9BVXG20C6SE600517": {
     "nombre": "Sin asignar",
@@ -747,17 +747,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 39,
-        "anticipacion": 37,
-        "velocidad": 37,
+        "score": 55,
+        "anticipacion": 39,
+        "velocidad": 34,
         "motor": 60,
-        "combustible": 22
+        "combustible": 85
       }
     ],
-    "baseline": 39,
+    "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.166Z"
+    "ultimaActualizacion": "2026-03-21T20:04:45.416Z"
   },
   "9BVXG20D6SE609496": {
     "nombre": "Sin asignar",
@@ -776,7 +776,7 @@
     "baseline": 66,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.210Z"
+    "ultimaActualizacion": "2026-03-21T20:04:45.656Z"
   },
   "9BVXG20D6TE632364": {
     "nombre": "Sin asignar",
@@ -785,17 +785,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 57,
+        "score": 54,
         "anticipacion": 63,
-        "velocidad": 31,
+        "velocidad": 28,
         "motor": 60,
-        "combustible": 74
+        "combustible": 65
       }
     ],
-    "baseline": 57,
+    "baseline": 54,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.253Z"
+    "ultimaActualizacion": "2026-03-21T20:04:45.906Z"
   },
   "9BVXG20D9SE613471": {
     "nombre": "Sin asignar",
@@ -804,17 +804,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 43,
-        "anticipacion": 59,
-        "velocidad": 32,
+        "score": 52,
+        "anticipacion": 70,
+        "velocidad": 40,
         "motor": 60,
-        "combustible": 22
+        "combustible": 36
       }
     ],
-    "baseline": 43,
+    "baseline": 52,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.296Z"
+    "ultimaActualizacion": "2026-03-21T20:04:46.273Z"
   },
   "YV2RG30C9MB341413": {
     "nombre": "Sin asignar",
@@ -823,17 +823,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 42,
+        "score": 41,
         "anticipacion": 39,
-        "velocidad": 37,
+        "velocidad": 34,
         "motor": 60,
-        "combustible": 31
+        "combustible": 32
       }
     ],
-    "baseline": 42,
+    "baseline": 41,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.339Z"
+    "ultimaActualizacion": "2026-03-21T20:04:46.529Z"
   },
   "YV2XG10C0NA893112": {
     "nombre": "Sin asignar",
@@ -842,17 +842,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 47,
-        "anticipacion": 63,
-        "velocidad": 32,
+        "score": 52,
+        "anticipacion": 70,
+        "velocidad": 40,
         "motor": 60,
-        "combustible": 32
+        "combustible": 39
       }
     ],
-    "baseline": 47,
+    "baseline": 52,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.382Z"
+    "ultimaActualizacion": "2026-03-21T20:04:46.757Z"
   },
   "YV2XG10C9NA893349": {
     "nombre": "Sin asignar",
@@ -861,17 +861,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 48,
-        "anticipacion": 63,
-        "velocidad": 32,
+        "score": 51,
+        "anticipacion": 70,
+        "velocidad": 40,
         "motor": 60,
-        "combustible": 35
+        "combustible": 32
       }
     ],
-    "baseline": 48,
+    "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.426Z"
+    "ultimaActualizacion": "2026-03-21T20:04:47.094Z"
   },
   "YV2XG10C9NB372156": {
     "nombre": "Sin asignar",
@@ -880,17 +880,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 48,
+        "score": 60,
         "anticipacion": 63,
         "velocidad": 32,
         "motor": 60,
-        "combustible": 36
+        "combustible": 85
       }
     ],
-    "baseline": 48,
+    "baseline": 60,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.476Z"
+    "ultimaActualizacion": "2026-03-21T20:04:47.324Z"
   },
   "YV2XZ80C8SA378745": {
     "nombre": "Sin asignar",
@@ -909,7 +909,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.520Z"
+    "ultimaActualizacion": "2026-03-21T20:04:47.567Z"
   },
   "9BVRG30D3ME898492": {
     "nombre": "Sin asignar",
@@ -918,17 +918,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 59,
-        "anticipacion": 60,
+        "score": 61,
+        "anticipacion": 63,
         "velocidad": 60,
         "motor": 60,
-        "combustible": 55
+        "combustible": 61
       }
     ],
-    "baseline": 59,
+    "baseline": 61,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.563Z"
+    "ultimaActualizacion": "2026-03-21T20:04:47.812Z"
   },
   "9BVRG30D4ME898582": {
     "nombre": "Sin asignar",
@@ -947,7 +947,7 @@
     "baseline": 69,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.606Z"
+    "ultimaActualizacion": "2026-03-21T20:04:48.074Z"
   },
   "9BVRG30D5LE873957": {
     "nombre": "Sin asignar",
@@ -966,7 +966,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.649Z"
+    "ultimaActualizacion": "2026-03-21T20:04:48.372Z"
   },
   "9BVRG30D6LE870501": {
     "nombre": "Sin asignar",
@@ -985,7 +985,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.692Z"
+    "ultimaActualizacion": "2026-03-21T20:04:48.601Z"
   },
   "9BVRG30D6LE873799": {
     "nombre": "Sin asignar",
@@ -1004,7 +1004,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.734Z"
+    "ultimaActualizacion": "2026-03-21T20:04:48.829Z"
   },
   "9BVRG30D9PE917357": {
     "nombre": "Sin asignar",
@@ -1013,17 +1013,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 60,
-        "anticipacion": 67,
+        "score": 54,
+        "anticipacion": 63,
         "velocidad": 28,
-        "motor": 80,
+        "motor": 60,
         "combustible": 63
       }
     ],
-    "baseline": 60,
+    "baseline": 54,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.777Z"
+    "ultimaActualizacion": "2026-03-21T20:04:49.174Z"
   },
   "9BVRG40C7PE927919": {
     "nombre": "Sin asignar",
@@ -1042,7 +1042,7 @@
     "baseline": 69,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.821Z"
+    "ultimaActualizacion": "2026-03-21T20:04:49.432Z"
   },
   "9BVRG40C9PE928211": {
     "nombre": "Sin asignar",
@@ -1051,17 +1051,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 55,
+        "score": 43,
         "anticipacion": 39,
-        "velocidad": 34,
+        "velocidad": 37,
         "motor": 60,
-        "combustible": 85
+        "combustible": 37
       }
     ],
-    "baseline": 55,
+    "baseline": 43,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.864Z"
+    "ultimaActualizacion": "2026-03-21T20:04:49.663Z"
   },
   "9BVX1F1A7KE857284": {
     "nombre": "Sin asignar",
@@ -1070,17 +1070,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 38,
-        "anticipacion": 37,
+        "score": 40,
+        "anticipacion": 39,
         "velocidad": 34,
         "motor": 60,
-        "combustible": 22
+        "combustible": 28
       }
     ],
-    "baseline": 38,
+    "baseline": 40,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.907Z"
+    "ultimaActualizacion": "2026-03-21T20:04:50.065Z"
   },
   "9BVX1F1A8KE860575": {
     "nombre": "Sin asignar",
@@ -1089,17 +1089,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 55,
-        "anticipacion": 39,
-        "velocidad": 37,
+        "score": 51,
+        "anticipacion": 47,
+        "velocidad": 65,
         "motor": 60,
-        "combustible": 85
+        "combustible": 31
       }
     ],
-    "baseline": 55,
+    "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.951Z"
+    "ultimaActualizacion": "2026-03-21T20:04:50.291Z"
   },
   "9BVX1F1C2KE861623": {
     "nombre": "Sin asignar",
@@ -1118,7 +1118,7 @@
     "baseline": 65,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:03.994Z"
+    "ultimaActualizacion": "2026-03-21T20:04:50.556Z"
   },
   "9BVX1F1D0KE856336": {
     "nombre": "Sin asignar",
@@ -1137,7 +1137,7 @@
     "baseline": 65,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.038Z"
+    "ultimaActualizacion": "2026-03-21T20:04:50.880Z"
   },
   "9BVX1F1D1KE856405": {
     "nombre": "Sin asignar",
@@ -1156,7 +1156,7 @@
     "baseline": 64,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.081Z"
+    "ultimaActualizacion": "2026-03-21T20:04:51.109Z"
   },
   "9BVX1F1D3LE874447": {
     "nombre": "Sin asignar",
@@ -1165,17 +1165,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 51,
+        "score": 50,
         "anticipacion": 70,
         "velocidad": 40,
         "motor": 60,
-        "combustible": 33
+        "combustible": 28
       }
     ],
-    "baseline": 51,
+    "baseline": 50,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.124Z"
+    "ultimaActualizacion": "2026-03-21T20:04:51.473Z"
   },
   "9BVXG10C9PE926755": {
     "nombre": "Sin asignar",
@@ -1184,60 +1184,22 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 47,
+        "score": 60,
         "anticipacion": 63,
         "velocidad": 32,
         "motor": 60,
-        "combustible": 34
+        "combustible": 85
       }
     ],
-    "baseline": 47,
+    "baseline": 60,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.167Z"
+    "ultimaActualizacion": "2026-03-21T20:04:51.760Z"
   },
   "9BVXG20C0TE628384": {
     "nombre": "Sin asignar",
     "vin": "9BVXG20C0TE628384",
     "patente": "2157",
-    "semanas": [
-      {
-        "semana": "2026-W12",
-        "score": 44,
-        "anticipacion": 40,
-        "velocidad": 34,
-        "motor": 80,
-        "combustible": 22
-      }
-    ],
-    "baseline": 44,
-    "variabilidad": 0,
-    "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.210Z"
-  },
-  "9BVXG20C4TE628449": {
-    "nombre": "Sin asignar",
-    "vin": "9BVXG20C4TE628449",
-    "patente": "2156",
-    "semanas": [
-      {
-        "semana": "2026-W12",
-        "score": 42,
-        "anticipacion": 39,
-        "velocidad": 34,
-        "motor": 60,
-        "combustible": 35
-      }
-    ],
-    "baseline": 42,
-    "variabilidad": 0,
-    "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.296Z"
-  },
-  "9BVXG20C9TE628447": {
-    "nombre": "Sin asignar",
-    "vin": "9BVXG20C9TE628447",
-    "patente": "2154",
     "semanas": [
       {
         "semana": "2026-W12",
@@ -1251,7 +1213,45 @@
     "baseline": 38,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.344Z"
+    "ultimaActualizacion": "2026-03-21T20:04:52.012Z"
+  },
+  "9BVXG20C4TE628449": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C4TE628449",
+    "patente": "2156",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 34
+      }
+    ],
+    "baseline": 42,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T20:04:52.544Z"
+  },
+  "9BVXG20C9TE628447": {
+    "nombre": "Sin asignar",
+    "vin": "9BVXG20C9TE628447",
+    "patente": "2154",
+    "semanas": [
+      {
+        "semana": "2026-W12",
+        "score": 40,
+        "anticipacion": 39,
+        "velocidad": 34,
+        "motor": 60,
+        "combustible": 28
+      }
+    ],
+    "baseline": 40,
+    "variabilidad": 0,
+    "umbralAlerta": 10,
+    "ultimaActualizacion": "2026-03-21T20:04:52.792Z"
   },
   "9BVXG20D0TE632297": {
     "nombre": "Sin asignar",
@@ -1270,7 +1270,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.387Z"
+    "ultimaActualizacion": "2026-03-21T20:04:53.052Z"
   },
   "9BVXG20D0TE632362": {
     "nombre": "Sin asignar",
@@ -1289,7 +1289,7 @@
     "baseline": 69,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.430Z"
+    "ultimaActualizacion": "2026-03-21T20:04:53.299Z"
   },
   "9BVXG20D2TE622135": {
     "nombre": "Sin asignar",
@@ -1298,17 +1298,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 64,
-        "anticipacion": 47,
-        "velocidad": 65,
+        "score": 42,
+        "anticipacion": 39,
+        "velocidad": 34,
         "motor": 60,
-        "combustible": 85
+        "combustible": 34
       }
     ],
-    "baseline": 64,
+    "baseline": 42,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.473Z"
+    "ultimaActualizacion": "2026-03-21T20:04:53.541Z"
   },
   "9BVXG20D2TE631983": {
     "nombre": "Sin asignar",
@@ -1327,7 +1327,7 @@
     "baseline": 68,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.516Z"
+    "ultimaActualizacion": "2026-03-21T20:04:53.779Z"
   },
   "9BVXG20D3TE632298": {
     "nombre": "Sin asignar",
@@ -1346,7 +1346,7 @@
     "baseline": 56,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.559Z"
+    "ultimaActualizacion": "2026-03-21T20:04:54.015Z"
   },
   "9BVXG20D6SE603455": {
     "nombre": "Sin asignar",
@@ -1365,7 +1365,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.602Z"
+    "ultimaActualizacion": "2026-03-21T20:04:54.258Z"
   },
   "9BVXG20D7TE622133": {
     "nombre": "Sin asignar",
@@ -1384,7 +1384,7 @@
     "baseline": 65,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.645Z"
+    "ultimaActualizacion": "2026-03-21T20:04:54.492Z"
   },
   "9BVXG20D9SE615436": {
     "nombre": "Sin asignar",
@@ -1393,17 +1393,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 43,
-        "anticipacion": 59,
-        "velocidad": 32,
+        "score": 50,
+        "anticipacion": 70,
+        "velocidad": 40,
         "motor": 60,
-        "combustible": 22
+        "combustible": 30
       }
     ],
-    "baseline": 43,
+    "baseline": 50,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.731Z"
+    "ultimaActualizacion": "2026-03-21T20:04:55.004Z"
   },
   "9BVXG20D9TE631989": {
     "nombre": "Sin asignar",
@@ -1412,17 +1412,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 54,
-        "anticipacion": 63,
+        "score": 51,
+        "anticipacion": 59,
         "velocidad": 28,
         "motor": 60,
-        "combustible": 65
+        "combustible": 55
       }
     ],
-    "baseline": 54,
+    "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.774Z"
+    "ultimaActualizacion": "2026-03-21T20:04:55.264Z"
   },
   "9BVXG40D4TE624994": {
     "nombre": "Sin asignar",
@@ -1441,7 +1441,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.817Z"
+    "ultimaActualizacion": "2026-03-21T20:04:55.499Z"
   },
   "9BVXG40D7TE624995": {
     "nombre": "Sin asignar",
@@ -1460,7 +1460,7 @@
     "baseline": 66,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.861Z"
+    "ultimaActualizacion": "2026-03-21T20:04:55.731Z"
   },
   "YV2RG30C1MB341311": {
     "nombre": "Sin asignar",
@@ -1479,7 +1479,7 @@
     "baseline": 42,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.904Z"
+    "ultimaActualizacion": "2026-03-21T20:04:55.998Z"
   },
   "YV2RG30C6MB341367": {
     "nombre": "Sin asignar",
@@ -1488,17 +1488,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 43,
+        "score": 55,
         "anticipacion": 39,
-        "velocidad": 37,
+        "velocidad": 34,
         "motor": 60,
-        "combustible": 34
+        "combustible": 85
       }
     ],
-    "baseline": 43,
+    "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.947Z"
+    "ultimaActualizacion": "2026-03-21T20:04:56.331Z"
   },
   "YV2X1F1A0MB341906": {
     "nombre": "Sin asignar",
@@ -1536,7 +1536,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.032Z"
+    "ultimaActualizacion": "2026-03-21T20:04:56.597Z"
   },
   "YV2XG10C2NA893175": {
     "nombre": "Sin asignar",
@@ -1545,17 +1545,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 65,
+        "score": 71,
         "anticipacion": 63,
-        "velocidad": 50,
+        "velocidad": 60,
         "motor": 60,
-        "combustible": 88
+        "combustible": 100
       }
     ],
-    "baseline": 65,
+    "baseline": 71,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.075Z"
+    "ultimaActualizacion": "2026-03-21T20:04:56.866Z"
   },
   "YV2XG10C4NB372131": {
     "nombre": "Sin asignar",
@@ -1564,17 +1564,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 43,
+        "score": 42,
         "anticipacion": 39,
-        "velocidad": 37,
+        "velocidad": 34,
         "motor": 60,
-        "combustible": 37
+        "combustible": 34
       }
     ],
-    "baseline": 43,
+    "baseline": 42,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.118Z"
+    "ultimaActualizacion": "2026-03-21T20:04:57.103Z"
   },
   "YV2XG10C4NB372422": {
     "nombre": "Sin asignar",
@@ -1583,17 +1583,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 40,
+        "score": 41,
         "anticipacion": 39,
         "velocidad": 34,
         "motor": 60,
-        "combustible": 28
+        "combustible": 31
       }
     ],
-    "baseline": 40,
+    "baseline": 41,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.161Z"
+    "ultimaActualizacion": "2026-03-21T20:04:57.391Z"
   },
   "YV2XZ80C5SA378833": {
     "nombre": "Sin asignar",
@@ -1612,7 +1612,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.204Z"
+    "ultimaActualizacion": "2026-03-21T20:04:57.657Z"
   },
   "9BVRG30C3PE927813": {
     "nombre": "Sin asignar",
@@ -1631,7 +1631,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.248Z"
+    "ultimaActualizacion": "2026-03-21T20:04:57.899Z"
   },
   "9BVRG30D2LE873794": {
     "nombre": "Sin asignar",
@@ -1650,7 +1650,7 @@
     "baseline": 61,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.291Z"
+    "ultimaActualizacion": "2026-03-21T20:04:58.146Z"
   },
   "9BVRG30D4LE870342": {
     "nombre": "Sin asignar",
@@ -1659,17 +1659,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 50,
-        "anticipacion": 70,
-        "velocidad": 40,
+        "score": 48,
+        "anticipacion": 63,
+        "velocidad": 32,
         "motor": 60,
-        "combustible": 29
+        "combustible": 36
       }
     ],
-    "baseline": 50,
+    "baseline": 48,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.334Z"
+    "ultimaActualizacion": "2026-03-21T20:04:58.416Z"
   },
   "9BVRG30D9ME898656": {
     "nombre": "Sin asignar",
@@ -1688,7 +1688,7 @@
     "baseline": 67,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.377Z"
+    "ultimaActualizacion": "2026-03-21T20:04:58.712Z"
   },
   "9BVRG30D9SE615277": {
     "nombre": "Sin asignar",
@@ -1707,7 +1707,7 @@
     "baseline": 53,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.420Z"
+    "ultimaActualizacion": "2026-03-21T20:04:58.961Z"
   },
   "9BVRG30D9SE615282": {
     "nombre": "Sin asignar",
@@ -1716,17 +1716,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 57,
-        "anticipacion": 65,
+        "score": 53,
+        "anticipacion": 63,
         "velocidad": 28,
-        "motor": 80,
-        "combustible": 55
+        "motor": 60,
+        "combustible": 62
       }
     ],
-    "baseline": 57,
+    "baseline": 53,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.463Z"
+    "ultimaActualizacion": "2026-03-21T20:04:59.201Z"
   },
   "9BVX1F1D6LE874448": {
     "nombre": "Sin asignar",
@@ -1735,17 +1735,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 42,
-        "anticipacion": 39,
-        "velocidad": 34,
+        "score": 51,
+        "anticipacion": 47,
+        "velocidad": 65,
         "motor": 60,
-        "combustible": 34
+        "combustible": 31
       }
     ],
-    "baseline": 42,
+    "baseline": 51,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.507Z"
+    "ultimaActualizacion": "2026-03-21T20:04:59.454Z"
   },
   "YV2XZ80C1SA378733": {
     "nombre": "Sin asignar",
@@ -1764,7 +1764,7 @@
     "baseline": 55,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.594Z"
+    "ultimaActualizacion": "2026-03-21T20:04:59.958Z"
   },
   "9BVXG20D8TE631985": {
     "nombre": "Sin asignar",
@@ -1773,17 +1773,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 77,
-        "anticipacion": 73,
-        "velocidad": 75,
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
         "motor": 60,
-        "combustible": 100
+        "combustible": 55
       }
     ],
-    "baseline": 77,
+    "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.689Z"
+    "ultimaActualizacion": "2026-03-21T20:04:54.763Z"
   },
   "9BVXG20C1TE628448": {
     "nombre": "Sin asignar",
@@ -1792,17 +1792,17 @@
     "semanas": [
       {
         "semana": "2026-W12",
-        "score": 38,
-        "anticipacion": 37,
-        "velocidad": 34,
+        "score": 44,
+        "anticipacion": 39,
+        "velocidad": 37,
         "motor": 60,
-        "combustible": 22
+        "combustible": 40
       }
     ],
-    "baseline": 38,
+    "baseline": 44,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.253Z"
+    "ultimaActualizacion": "2026-03-21T20:04:52.316Z"
   },
   "9BVXG30D4SE615808": {
     "nombre": "Sin asignar",
@@ -1821,6 +1821,6 @@
     "baseline": 53,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:05.550Z"
+    "ultimaActualizacion": "2026-03-21T20:04:59.685Z"
   }
 }

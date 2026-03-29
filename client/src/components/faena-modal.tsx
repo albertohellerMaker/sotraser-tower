@@ -49,7 +49,7 @@ export function FaenaModal({ faena, open, onClose }: FaenaModalProps) {
 
         <div className="space-y-4">
           <div>
-            <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">
+            <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">
               Nombre de la faena / cliente
             </Label>
             <Input value={nombre} onChange={e => setNombre(e.target.value)}
@@ -58,7 +58,7 @@ export function FaenaModal({ faena, open, onClose }: FaenaModalProps) {
           </div>
 
           <div>
-            <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase mb-1.5 block">
+            <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase mb-1.5 block">
               Color identificador
             </Label>
             <div className="flex items-center gap-3">

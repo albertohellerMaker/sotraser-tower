@@ -92,13 +92,13 @@ export default function AnalisisIATab() {
         </div>
         <div className="flex items-center gap-3">
           {haceMinutos !== null && (
-            <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+            <span className="font-exo text-xs" style={{ color: "#3a6080" }}>
               Ultimo analisis: {haceMinutos < 60 ? `hace ${haceMinutos}min` : haceMinutos < 1440 ? `hace ${Math.floor(haceMinutos / 60)}h` : `hace ${Math.floor(haceMinutos / 1440)}d`}
             </span>
           )}
           <button onClick={() => generarMutation.mutate()}
             disabled={generarMutation.isPending}
-            className="font-exo text-[10px] font-bold px-3 py-2 rounded cursor-pointer"
+            className="font-exo text-xs font-bold px-3 py-2 rounded cursor-pointer"
             style={{ background: "#00d4ff20", border: "1px solid #00d4ff", color: "#00d4ff" }}
             data-testid="btn-generar-ia">
             <Cpu className={`w-3 h-3 inline mr-1 ${generarMutation.isPending ? "animate-spin" : ""}`} />
@@ -127,8 +127,8 @@ export default function AnalisisIATab() {
         {progreso && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="font-exo text-[10px]" style={{ color: "#c8e8ff" }}>{progreso.paso}</span>
-              <span className="font-space text-[10px]" style={{ color: "#3a6080" }}>{progreso.progreso}/{progreso.total}</span>
+              <span className="font-exo text-xs" style={{ color: "#c8e8ff" }}>{progreso.paso}</span>
+              <span className="font-space text-xs" style={{ color: "#3a6080" }}>{progreso.progreso}/{progreso.total}</span>
             </div>
             <div className="h-2 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
               <div className="h-full rounded-full transition-all" style={{
@@ -137,7 +137,7 @@ export default function AnalisisIATab() {
               }} />
             </div>
             {progreso.detalles && (
-              <span className="font-exo text-[9px] mt-1 block" style={{ color: "#3a6080" }}>{progreso.detalles}</span>
+              <span className="font-exo text-[11px] mt-1 block" style={{ color: "#3a6080" }}>{progreso.detalles}</span>
             )}
           </div>
         )}
@@ -178,15 +178,15 @@ export default function AnalisisIATab() {
       {analisis?.resultadoJson && (
         <div className="mt-4 grid grid-cols-3 gap-3">
           <div className="dash-card px-4 py-3">
-            <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>VIAJES ANALIZADOS</div>
+            <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>VIAJES ANALIZADOS</div>
             <div className="font-space text-xl font-bold" style={{ color: "#00d4ff" }}>{analisis.resultadoJson.totalViajes || 0}</div>
           </div>
           <div className="dash-card px-4 py-3">
-            <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>KM GPS TOTAL</div>
+            <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>KM GPS TOTAL</div>
             <div className="font-space text-xl font-bold" style={{ color: "#00c97a" }}>{(analisis.resultadoJson.totalKmGps || 0).toLocaleString()}</div>
           </div>
           <div className="dash-card px-4 py-3">
-            <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CAMIONES</div>
+            <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CAMIONES</div>
             <div className="font-space text-xl font-bold" style={{ color: "#c8e8ff" }}>{analisis.resultadoJson.camionesAnalizados || 0}</div>
           </div>
         </div>

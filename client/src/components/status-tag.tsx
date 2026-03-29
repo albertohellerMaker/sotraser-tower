@@ -23,7 +23,7 @@ export function StatusTag({ label, variant = "info", color, dot, className }: St
     <span
       data-testid={`tag-${label.toLowerCase().replace(/\s/g, "-")}`}
       className={cn(
-        "inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-mono font-bold tracking-[0.15em] uppercase border whitespace-nowrap",
+        "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-mono font-bold tracking-[0.15em] uppercase border whitespace-nowrap",
         !isCustom && variantStyles[variant],
         className
       )}

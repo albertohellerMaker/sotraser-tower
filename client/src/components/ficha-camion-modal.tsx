@@ -52,7 +52,7 @@ function RutaPuntosTab({ camId, patente }: { camId: number; patente: string }) {
   return (
     <div className="space-y-4" data-testid="ruta-puntos-tab">
       <div className="flex items-center justify-between">
-        <div className="text-[9px] font-mono text-primary tracking-[0.15em] uppercase">
+        <div className="text-[11px] font-mono text-primary tracking-[0.15em] uppercase">
           RUTA Y PUNTOS — {patente}
         </div>
         <Button
@@ -69,7 +69,7 @@ function RutaPuntosTab({ camId, patente }: { camId: number; patente: string }) {
 
       {resumen && (
         <div className="p-3 border bg-primary/5 border-primary/20">
-          <div className="text-[8px] font-mono text-primary tracking-[0.2em] mb-1">RESUMEN RUTA</div>
+          <div className="text-xs font-mono text-primary tracking-[0.2em] mb-1">RESUMEN RUTA</div>
           <div className="text-[11px] leading-relaxed" style={{ color: "#D4E4F4" }}>{resumen}</div>
         </div>
       )}
@@ -89,12 +89,12 @@ function RutaPuntosTab({ camId, patente }: { camId: number; patente: string }) {
 
       {puntos.length > 0 && (
         <div className="bg-background border border-border">
-          <div className="grid grid-cols-[100px_1fr_80px_80px_80px] px-3 py-1.5 border-b border-border text-[8px] font-mono text-muted-foreground tracking-[0.15em]">
+          <div className="grid grid-cols-[100px_1fr_80px_80px_80px] px-3 py-1.5 border-b border-border text-xs font-mono text-muted-foreground tracking-[0.15em]">
             <div>TIPO</div><div>NOMBRE INFERIDO</div><div>FRECUENCIA</div><div>L. PROM</div><div>CONFIRMADO</div>
           </div>
           {puntos.map((p, i) => (
             <div key={p.id || i} className={`grid grid-cols-[100px_1fr_80px_80px_80px] px-3 py-2 items-center ${i < puntos.length - 1 ? "border-b border-border/20" : ""}`} data-testid={`punto-row-${p.id || i}`}>
-              <span className={`px-2 py-0.5 text-[9px] font-mono font-bold border w-fit ${tipoColors[p.tipo] || "text-gray-400 bg-gray-400/10 border-gray-400/30"}`}>
+              <span className={`px-2 py-0.5 text-[11px] font-mono font-bold border w-fit ${tipoColors[p.tipo] || "text-gray-400 bg-gray-400/10 border-gray-400/30"}`}>
                 {p.tipo || "N/A"}
               </span>
               <div className="text-[11px] font-mono" style={{ color: "#D4E4F4" }}>{p.nombreInferido || "Sin nombre"}</div>
@@ -102,9 +102,9 @@ function RutaPuntosTab({ camId, patente }: { camId: number; patente: string }) {
               <div className="text-[11px] font-mono text-muted-foreground">{p.litrosPromedio ? `${p.litrosPromedio}L` : "-"}</div>
               <div>
                 {p.confirmado ? (
-                  <span className="text-emerald-400 text-[10px] font-mono flex items-center gap-1"><CheckCircle className="w-3 h-3" /> SI</span>
+                  <span className="text-emerald-400 text-xs font-mono flex items-center gap-1"><CheckCircle className="w-3 h-3" /> SI</span>
                 ) : (
-                  <button onClick={() => confirmarPunto(p.id)} className="text-[10px] font-mono text-primary cursor-pointer hover:underline" data-testid={`btn-confirmar-${p.id || i}`}>
+                  <button onClick={() => confirmarPunto(p.id)} className="text-xs font-mono text-primary cursor-pointer hover:underline" data-testid={`btn-confirmar-${p.id || i}`}>
                     Confirmar
                   </button>
                 )}
@@ -146,7 +146,7 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
           {(["detalle", "ruta"] as const).map(t => (
             <button key={t} onClick={() => setFichaTab(t)}
               data-testid={`ficha-tab-${t}`}
-              className={`px-4 py-2 text-[10px] font-mono font-bold tracking-[0.15em] uppercase cursor-pointer border-b-2 transition-colors ${
+              className={`px-4 py-2 text-xs font-mono font-bold tracking-[0.15em] uppercase cursor-pointer border-b-2 transition-colors ${
                 fichaTab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground"
               }`}>
               {t === "detalle" ? "DETALLE" : "RUTA Y PUNTOS"}
@@ -174,7 +174,7 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[9px] font-mono text-muted-foreground mb-0.5">SYNC VOLVO CONNECT</div>
+              <div className="text-[11px] font-mono text-muted-foreground mb-0.5">SYNC VOLVO CONNECT</div>
               <div className={`text-[11px] font-mono ${cam.syncOk ? "text-emerald-400" : "text-red-400"}`}>
                 {cam.syncOk ? `● ${cam.syncAt}` : "✕ Sin sincronizar"}
               </div>
@@ -183,7 +183,7 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-[9px] font-mono text-primary tracking-[0.15em] uppercase mb-2.5">
+              <div className="text-[11px] font-mono text-primary tracking-[0.15em] uppercase mb-2.5">
                 VOLVO CONNECT — ECU
               </div>
               <div className="grid grid-cols-2 gap-2 mb-3">
@@ -213,13 +213,13 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
                   },
                 ].map((k, i) => (
                   <div key={i} className="bg-background border border-border p-2.5" data-testid={`ecu-${k.l.toLowerCase().replace(/\s/g, "-")}`}>
-                    <div className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] mb-0.5 uppercase">
+                    <div className="text-xs font-mono text-muted-foreground tracking-[0.15em] mb-0.5 uppercase">
                       {k.l}
                     </div>
                     <div className="text-base font-mono font-bold" style={{ color: k.c || "hsl(var(--foreground))" }}>
                       {k.v}
                     </div>
-                    {k.sub && <div className="text-[9px] text-muted-foreground mt-0.5">{k.sub}</div>}
+                    {k.sub && <div className="text-[11px] text-muted-foreground mt-0.5">{k.sub}</div>}
                   </div>
                 ))}
               </div>
@@ -232,7 +232,7 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
             </div>
 
             <div>
-              <div className="text-[9px] font-mono text-amber-400 tracking-[0.15em] uppercase mb-2.5">
+              <div className="text-[11px] font-mono text-amber-400 tracking-[0.15em] uppercase mb-2.5">
                 CUADRATURA TARJETA vs ECU
               </div>
               <div className="grid grid-cols-2 gap-2 mb-2.5">
@@ -243,14 +243,14 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
                   { l: "Costo desviado", v: f$(cam.litDesv * PRECIO), c: cam.litDesv > 0 ? "#FF2D4A" : "#00C87A" },
                 ].map((k, i) => (
                   <div key={i} className="bg-background border border-border p-2.5">
-                    <div className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] mb-0.5 uppercase">{k.l}</div>
+                    <div className="text-xs font-mono text-muted-foreground tracking-[0.15em] mb-0.5 uppercase">{k.l}</div>
                     <div className="text-[15px] font-mono font-bold" style={{ color: k.c || "hsl(var(--foreground))" }}>{k.v}</div>
                   </div>
                 ))}
               </div>
 
               <div className="bg-background border border-border">
-                <div className="grid grid-cols-6 px-3 py-1.5 border-b border-border text-[8px] font-mono text-muted-foreground tracking-[0.15em]">
+                <div className="grid grid-cols-6 px-3 py-1.5 border-b border-border text-xs font-mono text-muted-foreground tracking-[0.15em]">
                   <div>FECHA</div><div>SURT.</div><div>ECU</div><div>DIF</div><div>REND.</div><div>ESTADO</div>
                 </div>
                 {cam.cargasAnalizadas.map((c, i) => (

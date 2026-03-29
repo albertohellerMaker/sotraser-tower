@@ -72,13 +72,13 @@ export default function SplashAprendizaje({ onEntrar, showEntrar = true }: Splas
             })()}
           </div>
           <div className="font-space text-xl font-bold tracking-[0.3em]" style={{ color: "#00d4ff" }} data-testid="text-splash-title">SOTRASER</div>
-          <div className="font-exo text-[10px] tracking-[0.25em] font-extralight mt-0.5" style={{ color: "#4a7090" }}>SISTEMA ADAPTATIVO</div>
+          <div className="font-exo text-xs tracking-[0.25em] font-extralight mt-0.5" style={{ color: "#4a7090" }}>SISTEMA ADAPTATIVO</div>
         </div>
 
         <div className="mb-5 p-4" style={{ background: "rgba(0,212,255,0.03)", border: `1px solid ${borderColor}33`, borderRadius: "4px" }}>
           <div className="flex items-center gap-2 mb-2">
             <Brain className="w-3.5 h-3.5" style={{ color: borderColor }} />
-            <span className="font-exo text-[10px] tracking-[0.15em] font-bold" style={{ color: borderColor }}>QUE HA APRENDIDO EL SISTEMA</span>
+            <span className="font-exo text-xs tracking-[0.15em] font-bold" style={{ color: borderColor }}>QUE HA APRENDIDO EL SISTEMA</span>
           </div>
           {loadingResumen ? (
             <div className="space-y-2">
@@ -94,7 +94,7 @@ export default function SplashAprendizaje({ onEntrar, showEntrar = true }: Splas
         </div>
 
         <div className="mb-1">
-          <div className="font-exo text-[9px] tracking-[0.15em] uppercase mb-3" style={{ color: "#3a6080" }}>KPIS DE APRENDIZAJE</div>
+          <div className="font-exo text-[11px] tracking-[0.15em] uppercase mb-3" style={{ color: "#3a6080" }}>KPIS DE APRENDIZAJE</div>
           <div className="grid grid-cols-3 gap-2 mb-2">
             {[
               { val: estado?.dias_aprendiendo ?? "-", label: "DIA" + (estado?.dias_aprendiendo !== 1 ? "S" : ""), sub: "activo" + (estado?.dias_aprendiendo !== 1 ? "s" : "") },
@@ -105,8 +105,8 @@ export default function SplashAprendizaje({ onEntrar, showEntrar = true }: Splas
                 <div className="font-space text-xl font-bold" style={{ color: "#00d4ff" }} data-testid={`text-kpi-${i}`}>
                   {loadingEstado ? <Loader2 className="w-4 h-4 animate-spin mx-auto" style={{ color: "#3a6080" }} /> : k.val}
                 </div>
-                <div className="font-exo text-[9px] tracking-wider font-bold" style={{ color: "#c8e8ff" }}>{k.label}</div>
-                <div className="font-rajdhani text-[10px]" style={{ color: "#3a6080" }}>{k.sub}</div>
+                <div className="font-exo text-[11px] tracking-wider font-bold" style={{ color: "#c8e8ff" }}>{k.label}</div>
+                <div className="font-rajdhani text-xs" style={{ color: "#3a6080" }}>{k.sub}</div>
               </div>
             ))}
           </div>
@@ -120,15 +120,15 @@ export default function SplashAprendizaje({ onEntrar, showEntrar = true }: Splas
                 <div className="font-space text-xl font-bold" style={{ color: k.color || "#00d4ff" }} data-testid={`text-kpi-${i + 3}`}>
                   {loadingEstado ? <Loader2 className="w-4 h-4 animate-spin mx-auto" style={{ color: "#3a6080" }} /> : (typeof k.val === "number" ? k.val.toLocaleString() : k.val)}
                 </div>
-                <div className="font-exo text-[9px] tracking-wider font-bold" style={{ color: "#c8e8ff" }}>{k.label}</div>
-                <div className="font-rajdhani text-[10px]" style={{ color: "#3a6080" }}>{k.sub}</div>
+                <div className="font-exo text-[11px] tracking-wider font-bold" style={{ color: "#c8e8ff" }}>{k.label}</div>
+                <div className="font-rajdhani text-xs" style={{ color: "#3a6080" }}>{k.sub}</div>
               </div>
             ))}
           </div>
         </div>
 
         <div className="mb-5">
-          <div className="font-exo text-[9px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>MADUREZ DEL SISTEMA</div>
+          <div className="font-exo text-[11px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>MADUREZ DEL SISTEMA</div>
           <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
             <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700" style={{
               width: `${estado?.madurez_pct || 0}%`,
@@ -138,7 +138,7 @@ export default function SplashAprendizaje({ onEntrar, showEntrar = true }: Splas
           </div>
           <div className="flex justify-between mt-1.5">
             <span className="font-space text-[11px] font-bold" style={{ color: borderColor }}>{estado?.madurez_pct || 0}%</span>
-            <span className="font-rajdhani text-[10px]" style={{ color: "#3a6080" }}>
+            <span className="font-rajdhani text-xs" style={{ color: "#3a6080" }}>
               {(() => {
                 const pct = estado?.madurez_pct || 0;
                 const nextLevel = pct < 25 ? 25 : pct < 50 ? 50 : pct < 75 ? 75 : 100;
@@ -153,7 +153,7 @@ export default function SplashAprendizaje({ onEntrar, showEntrar = true }: Splas
         <div className="mb-6 p-3" style={{ background: "#091018", border: "1px solid #0d2035", borderRadius: "4px" }}>
           <div className="flex items-center gap-2 mb-2">
             <Search className="w-3 h-3" style={{ color: "#4a7090" }} />
-            <span className="font-exo text-[9px] tracking-[0.15em]" style={{ color: "#4a7090" }}>QUE QUIERES SABER?</span>
+            <span className="font-exo text-[11px] tracking-[0.15em]" style={{ color: "#4a7090" }}>QUE QUIERES SABER?</span>
           </div>
           <div className="flex gap-2">
             <input
@@ -265,7 +265,7 @@ export function ConsultaRapidaPanel({ onClose }: { onClose: () => void }) {
         <div className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <Search className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-            <span className="font-exo text-[10px] tracking-[0.15em] font-bold" style={{ color: "#00d4ff" }}>CONSULTAR AL SISTEMA</span>
+            <span className="font-exo text-xs tracking-[0.15em] font-bold" style={{ color: "#00d4ff" }}>CONSULTAR AL SISTEMA</span>
           </div>
 
           <div className="flex gap-2 mb-3">
@@ -296,7 +296,7 @@ export function ConsultaRapidaPanel({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="mb-3">
-            <div className="font-exo text-[9px] tracking-wider mb-2" style={{ color: "#3a6080" }}>SUGERENCIAS RAPIDAS:</div>
+            <div className="font-exo text-[11px] tracking-wider mb-2" style={{ color: "#3a6080" }}>SUGERENCIAS RAPIDAS:</div>
             <div className="flex flex-wrap gap-1.5">
               {sugerencias.map((s, i) => (
                 <button

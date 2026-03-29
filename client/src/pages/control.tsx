@@ -25,13 +25,13 @@ function KPICard({ label, value, sub, color, icon: Icon, trend }: {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Icon className="w-3.5 h-3.5" style={{ color }} />
-          <span className="font-exo text-[8px] font-bold tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>{label}</span>
+          <span className="font-exo text-xs font-bold tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>{label}</span>
         </div>
         {trend === "up" && <TrendingUp className="w-3 h-3" style={{ color: "#00ff88" }} />}
         {trend === "down" && <TrendingDown className="w-3 h-3" style={{ color: "#ff2244" }} />}
       </div>
       <div className="font-space text-[22px] font-bold" style={{ color }}>{value}</div>
-      {sub && <div className="font-rajdhani text-[10px] mt-0.5" style={{ color: "#4a7090" }}>{sub}</div>}
+      {sub && <div className="font-rajdhani text-xs mt-0.5" style={{ color: "#4a7090" }}>{sub}</div>}
     </div>
   );
 }
@@ -56,7 +56,7 @@ function PanelTab() {
         <div className="flex-1" />
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: "#00ff88", animation: "blink 2s infinite" }} />
-          <span className="font-exo text-[10px] font-bold tracking-wider" style={{ color: "#00ff88" }}>EN VIVO</span>
+          <span className="font-exo text-xs font-bold tracking-wider" style={{ color: "#00ff88" }}>EN VIVO</span>
         </div>
       </div>
 
@@ -74,7 +74,7 @@ function PanelTab() {
           const col = colores[c.contrato] || "#4a7090";
           return (
             <div key={c.contrato} className="rounded px-4 py-3" style={{ background: "#091018", border: `1px solid ${col}20`, borderLeft: `3px solid ${col}` }} data-testid={`contrato-card-${c.contrato}`}>
-              <div className="font-space text-[10px] font-bold tracking-wider mb-1" style={{ color: col }}>{c.contrato}</div>
+              <div className="font-space text-xs font-bold tracking-wider mb-1" style={{ color: col }}>{c.contrato}</div>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <div>
                   <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>ACTIVOS</div>
@@ -102,16 +102,16 @@ function PanelTab() {
         <div className="rounded px-4 py-3" style={{ background: "#091018", border: "1px solid #0d2035" }}>
           <div className="flex items-center gap-2 mb-3">
             <Shield className="w-3.5 h-3.5" style={{ color: "#ff2244" }} />
-            <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#ff2244" }}>ALERTAS CRITICAS</span>
-            <span className="font-space text-[10px] font-bold ml-auto px-2 py-0.5" style={{ background: "#ff224415", color: "#ff2244", border: "1px solid #ff224430" }}>{criticos}</span>
+            <span className="font-space text-xs font-bold tracking-wider" style={{ color: "#ff2244" }}>ALERTAS CRITICAS</span>
+            <span className="font-space text-xs font-bold ml-auto px-2 py-0.5" style={{ background: "#ff224415", color: "#ff2244", border: "1px solid #ff224430" }}>{criticos}</span>
           </div>
           <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
             {(alertas || []).slice(0, 15).map((a: any, i: number) => (
               <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: "#020508", border: "1px solid #0d2035" }} data-testid={`alerta-${i}`}>
                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: a.severidad === "CRITICA" ? "#ff2244" : "#ffcc00" }} />
-                <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{a.patente}</span>
-                <span className="font-rajdhani text-[10px] flex-1 truncate" style={{ color: "#4a7090" }}>{a.descripcion}</span>
-                <span className="font-space text-[8px] font-bold px-1.5 py-0.5" style={{ color: a.severidad === "CRITICA" ? "#ff2244" : "#ffcc00", background: a.severidad === "CRITICA" ? "#ff224410" : "#ffcc0010" }}>{a.severidad}</span>
+                <span className="font-space text-xs font-bold" style={{ color: "#00d4ff" }}>{a.patente}</span>
+                <span className="font-rajdhani text-xs flex-1 truncate" style={{ color: "#4a7090" }}>{a.descripcion}</span>
+                <span className="font-space text-xs font-bold px-1.5 py-0.5" style={{ color: a.severidad === "CRITICA" ? "#ff2244" : "#ffcc00", background: a.severidad === "CRITICA" ? "#ff224410" : "#ffcc0010" }}>{a.severidad}</span>
               </div>
             ))}
             {(!alertas || alertas.length === 0) && (
@@ -126,16 +126,16 @@ function PanelTab() {
         <div className="rounded px-4 py-3" style={{ background: "#091018", border: "1px solid #0d2035" }}>
           <div className="flex items-center gap-2 mb-3">
             <Fuel className="w-3.5 h-3.5" style={{ color: "#ff6600" }} />
-            <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#ff6600" }}>ESTACIONES - RESUMEN</span>
-            <span className="font-space text-[10px] font-bold ml-auto px-2 py-0.5" style={{ background: "#00ff8815", color: "#00ff88", border: "1px solid #00ff8830" }}>{conEcu} CON ECU</span>
+            <span className="font-space text-xs font-bold tracking-wider" style={{ color: "#ff6600" }}>ESTACIONES - RESUMEN</span>
+            <span className="font-space text-xs font-bold ml-auto px-2 py-0.5" style={{ background: "#00ff8815", color: "#00ff88", border: "1px solid #00ff8830" }}>{conEcu} CON ECU</span>
           </div>
           <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
             {(estaciones?.estaciones || []).slice(0, 10).map((est: any, i: number) => (
               <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: "#020508", border: `1px solid ${est.tiene_anomalias ? "#ff224420" : "#0d2035"}` }} data-testid={`est-resumen-${i}`}>
                 <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: est.tiene_anomalias ? "#ff2244" : "#00d4ff" }} />
-                <span className="font-space text-[10px] font-bold truncate flex-1" style={{ color: "#c8e8ff" }}>{est.nombre}</span>
-                <span className="font-space text-[9px]" style={{ color: "#4a7090" }}>{est.total_cargas} cargas</span>
-                <span className="font-space text-[9px] font-bold" style={{ color: "#ff6600" }}>{Math.round(est.total_litros).toLocaleString("es-CL")} L</span>
+                <span className="font-space text-xs font-bold truncate flex-1" style={{ color: "#c8e8ff" }}>{est.nombre}</span>
+                <span className="font-space text-[11px]" style={{ color: "#4a7090" }}>{est.total_cargas} cargas</span>
+                <span className="font-space text-[11px] font-bold" style={{ color: "#ff6600" }}>{Math.round(est.total_litros).toLocaleString("es-CL")} L</span>
                 {est.tiene_anomalias && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: "#ff2244" }} />}
               </div>
             ))}
@@ -176,7 +176,7 @@ function FlotaTab() {
             const active = filtroContrato === c;
             return (
               <button key={c} onClick={() => setFiltroContrato(c)}
-                className="px-2 py-1 font-space text-[8px] font-bold tracking-wider cursor-pointer transition-all"
+                className="px-2 py-1 font-space text-xs font-bold tracking-wider cursor-pointer transition-all"
                 style={{ background: active ? col + "15" : "transparent", color: active ? col : "#3a6080", border: `1px solid ${active ? col + "40" : "#0d203540"}` }}
                 data-testid={`filtro-contrato-${c}`}
               >{c}</button>
@@ -194,7 +194,7 @@ function FlotaTab() {
       <div className="rounded px-4 py-3" style={{ background: "#091018", border: "1px solid #0d2035" }}>
         <div className="flex items-center gap-2 mb-3">
           <Users className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-          <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>CAMIONES CON ALERTAS ({alertasFiltradas.length})</span>
+          <span className="font-space text-xs font-bold tracking-wider" style={{ color: "#c8e8ff" }}>CAMIONES CON ALERTAS ({alertasFiltradas.length})</span>
         </div>
         <div className="space-y-1 max-h-[500px] overflow-y-auto">
           {alertasFiltradas.map((a: any, i: number) => {
@@ -204,10 +204,10 @@ function FlotaTab() {
               <div key={i} className="flex items-center gap-3 px-3 py-2 rounded" style={{ background: "#020508", border: "1px solid #0d2035" }} data-testid={`flota-alerta-${i}`}>
                 <Truck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: col }} />
                 <span className="font-space text-[11px] font-bold w-[70px]" style={{ color: "#c8e8ff" }}>{a.patente}</span>
-                <span className="font-space text-[8px] font-bold px-1.5 py-0.5 w-[120px] text-center truncate" style={{ color: col, background: col + "10", border: `1px solid ${col}30` }}>{a.contrato}</span>
-                <span className="font-rajdhani text-[10px] flex-1 truncate" style={{ color: "#4a7090" }}>{a.conductor}</span>
-                <span className="font-rajdhani text-[10px] flex-1 truncate" style={{ color: "#c8e8ff" }}>{a.descripcion}</span>
-                <span className="font-space text-[8px] font-bold px-1.5 py-0.5" style={{ color: a.severidad === "CRITICA" ? "#ff2244" : "#ffcc00", background: a.severidad === "CRITICA" ? "#ff224410" : "#ffcc0010", border: `1px solid ${a.severidad === "CRITICA" ? "#ff224430" : "#ffcc0030"}` }}>{a.severidad}</span>
+                <span className="font-space text-xs font-bold px-1.5 py-0.5 w-[120px] text-center truncate" style={{ color: col, background: col + "10", border: `1px solid ${col}30` }}>{a.contrato}</span>
+                <span className="font-rajdhani text-xs flex-1 truncate" style={{ color: "#4a7090" }}>{a.conductor}</span>
+                <span className="font-rajdhani text-xs flex-1 truncate" style={{ color: "#c8e8ff" }}>{a.descripcion}</span>
+                <span className="font-space text-xs font-bold px-1.5 py-0.5" style={{ color: a.severidad === "CRITICA" ? "#ff2244" : "#ffcc00", background: a.severidad === "CRITICA" ? "#ff224410" : "#ffcc0010", border: `1px solid ${a.severidad === "CRITICA" ? "#ff224430" : "#ffcc0030"}` }}>{a.severidad}</span>
               </div>
             );
           })}
@@ -258,7 +258,7 @@ function CombustibleTab() {
             const col = colors[f];
             return (
               <button key={f} onClick={() => setFiltroEcu(f)}
-                className="px-2 py-1 font-space text-[8px] font-bold tracking-wider cursor-pointer transition-all"
+                className="px-2 py-1 font-space text-xs font-bold tracking-wider cursor-pointer transition-all"
                 style={{ background: filtroEcu === f ? col + "15" : "transparent", color: filtroEcu === f ? col : "#3a6080", border: `1px solid ${filtroEcu === f ? col + "40" : "#0d203540"}` }}
                 data-testid={`filtro-ecu-${f}`}
               >{labels[f]}</button>
@@ -282,7 +282,7 @@ function CombustibleTab() {
               <div className="rounded px-4 py-3 mb-4 flex items-start gap-3" style={{ background: "#ffcc0008", border: "1px solid #ffcc0025", borderLeft: "3px solid #ffcc00" }} data-testid="banner-calibracion-ctrl">
                 <Radio className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ffcc00" }} />
                 <div>
-                  <div className="font-space text-[10px] font-bold tracking-wider mb-1" style={{ color: "#ffcc00" }}>SISTEMA EN CALIBRACION</div>
+                  <div className="font-space text-xs font-bold tracking-wider mb-1" style={{ color: "#ffcc00" }}>SISTEMA EN CALIBRACION</div>
                   <div className="font-rajdhani text-[11px] leading-relaxed" style={{ color: "#c8e8ff" }}>
                     Cruce ECU disponible en {coberturaPct}% de las cargas. Los snapshots Volvo cubren desde el 19-Mar. La cobertura aumenta automaticamente a medida que se acumulan mas datos.
                   </div>
@@ -293,7 +293,7 @@ function CombustibleTab() {
               <div className="rounded px-4 py-3 mb-4 flex items-start gap-3" style={{ background: "#00d4ff08", border: "1px solid #00d4ff25", borderLeft: "3px solid #00d4ff" }} data-testid="banner-cobertura-parcial-ctrl">
                 <Radio className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#00d4ff" }} />
                 <div>
-                  <div className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>Cobertura parcial — {coberturaPct}% con ECU</div>
+                  <div className="font-space text-xs font-bold tracking-wider" style={{ color: "#00d4ff" }}>Cobertura parcial — {coberturaPct}% con ECU</div>
                 </div>
               </div>
             )}
@@ -313,9 +313,9 @@ function CombustibleTab() {
             <button className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer transition-all text-left" onClick={() => setExpandedEst(expandedEst === est.nombre ? null : est.nombre)}>
               <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: est.tiene_anomalias ? "#ff2244" : "#00d4ff" }} />
               <span className="font-space text-[11px] font-bold flex-1" style={{ color: "#c8e8ff" }}>{est.nombre}</span>
-              <span className="font-space text-[9px]" style={{ color: "#4a7090" }}>{est.total_cargas} cargas</span>
-              <span className="font-space text-[10px] font-bold" style={{ color: "#ff6600" }}>{Math.round(est.total_litros).toLocaleString("es-CL")} L</span>
-              <span className="font-space text-[9px]" style={{ color: "#4a7090" }}>{est.camiones_distintos} camiones</span>
+              <span className="font-space text-[11px]" style={{ color: "#4a7090" }}>{est.total_cargas} cargas</span>
+              <span className="font-space text-xs font-bold" style={{ color: "#ff6600" }}>{Math.round(est.total_litros).toLocaleString("es-CL")} L</span>
+              <span className="font-space text-[11px]" style={{ color: "#4a7090" }}>{est.camiones_distintos} camiones</span>
               {est.tiene_anomalias && <AlertTriangle className="w-3 h-3" style={{ color: "#ff2244" }} />}
               {expandedEst === est.nombre ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "#4a7090" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "#3a6080" }} />}
             </button>
@@ -327,10 +327,10 @@ function CombustibleTab() {
                   return (
                     <div key={ci} className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: "#020508", border: `1px solid ${c.tiene_cruce_ecu && c.nivel_alerta !== "NORMAL" ? col + "30" : "#0d2035"}`, borderLeft: `3px solid ${c.tiene_cruce_ecu ? col : "#4a7090"}` }}>
                       <Truck className="w-3 h-3 flex-shrink-0" style={{ color: "#00d4ff" }} />
-                      <span className="font-space text-[10px] font-bold w-[65px]" style={{ color: "#c8e8ff" }}>{c.patente}</span>
-                      <span className="font-rajdhani text-[10px] w-[120px] truncate" style={{ color: "#4a7090" }}>{c.conductor}</span>
-                      <span className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{c.hora}</span>
-                      <span className="font-space text-[10px] font-bold" style={{ color: "#ff6600" }}>{Math.round(c.litros_sigetra)} L</span>
+                      <span className="font-space text-xs font-bold w-[65px]" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                      <span className="font-rajdhani text-xs w-[120px] truncate" style={{ color: "#4a7090" }}>{c.conductor}</span>
+                      <span className="font-exo text-[11px]" style={{ color: "#c8e8ff" }}>{c.hora}</span>
+                      <span className="font-space text-xs font-bold" style={{ color: "#ff6600" }}>{Math.round(c.litros_sigetra)} L</span>
                       {c.tiene_cruce_ecu && (
                         <span className="font-space text-[7px] font-bold px-1.5 py-0.5" style={{ color: col, background: col + "15", border: `1px solid ${col}30` }}>{c.nivel_alerta}</span>
                       )}
@@ -338,7 +338,7 @@ function CombustibleTab() {
                         <>
                           <span className="font-space text-[7px] font-bold px-1.5 py-0.5" style={{ color: "#00ff88", background: "#00ff8815", border: "1px solid #00ff8830" }}>ECU OK</span>
                           {c.ecu_consumo_periodo != null && (
-                            <span className="font-space text-[9px] ml-auto" style={{ color: "#4a7090" }}>
+                            <span className="font-space text-[11px] ml-auto" style={{ color: "#4a7090" }}>
                               ECU: {Math.round(c.ecu_consumo_periodo)}L / {Math.round(c.ecu_km_periodo || 0)}km
                             </span>
                           )}
@@ -348,7 +348,7 @@ function CombustibleTab() {
                           <span className="font-space text-[7px] font-bold px-1.5 py-0.5 flex items-center gap-1" style={{ color: "#4a7090", background: "#4a709015", border: "1px solid #4a709030" }}>
                             <Radio className="w-2.5 h-2.5" /> SIN_DATOS
                           </span>
-                          <span className="font-rajdhani text-[9px] ml-auto" style={{ color: "#4a7090" }}>Snapshots no disponibles</span>
+                          <span className="font-rajdhani text-[11px] ml-auto" style={{ color: "#4a7090" }}>Snapshots no disponibles</span>
                         </>
                       )}
                     </div>
@@ -390,7 +390,7 @@ function OperacionesTab() {
                   <div className="font-exo text-[7px] tracking-wider mb-1" style={{ color: "#3a6080" }}>UTILIZACION</div>
                   <div className="flex items-end gap-2">
                     <span className="font-space text-[24px] font-bold" style={{ color: col }}>{pctActivos}%</span>
-                    <span className="font-rajdhani text-[10px] pb-1" style={{ color: "#4a7090" }}>{c.activos}/{c.total_camiones}</span>
+                    <span className="font-rajdhani text-xs pb-1" style={{ color: "#4a7090" }}>{c.activos}/{c.total_camiones}</span>
                   </div>
                   <div className="w-full h-1.5 rounded-full mt-1" style={{ background: "#0d2035" }}>
                     <div className="h-full rounded-full" style={{ width: `${pctActivos}%`, background: col }} />
@@ -400,7 +400,7 @@ function OperacionesTab() {
                   <div className="font-exo text-[7px] tracking-wider mb-1" style={{ color: "#3a6080" }}>RENDIMIENTO</div>
                   <div className="flex items-end gap-2">
                     <span className="font-space text-[24px] font-bold" style={{ color: "#c8e8ff" }}>{c.rendimiento || 0}</span>
-                    <span className="font-rajdhani text-[10px] pb-1" style={{ color: "#4a7090" }}>km/L</span>
+                    <span className="font-rajdhani text-xs pb-1" style={{ color: "#4a7090" }}>km/L</span>
                   </div>
                 </div>
               </div>
@@ -442,7 +442,7 @@ export default function Control() {
               data-testid={`ctrl-tab-${t.id}`}
             >
               <Icon className="w-3.5 h-3.5" style={{ color: active ? "#00d4ff" : "#3a6080" }} />
-              <span className="font-space text-[9px] font-bold tracking-[0.15em]" style={{ color: active ? "#00d4ff" : "#3a6080" }}>{t.label}</span>
+              <span className="font-space text-[11px] font-bold tracking-[0.15em]" style={{ color: active ? "#00d4ff" : "#3a6080" }}>{t.label}</span>
             </button>
           );
         })}

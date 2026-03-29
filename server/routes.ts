@@ -10,9 +10,21 @@ import { registerTMSRoutes } from "./tms-routes";
 import { registerCEORoutes } from "./ceo-routes";
 import { registerGeoRoutes } from "./geo-routes";
 import { registerRutasGpsRoutes } from "./rutas-gps-routes";
+import { registerCorredoresOperacionalesRoutes } from "./corredores-operacionales";
+import { registerProductividadRoutes } from "./productividad";
 import { registerCerebroRoutes } from "./cerebro-routes";
 import { registerEstacionesRoutes } from "./estaciones-routes";
 import { registerDriversRoutes } from "./drivers-routes";
+import { registerSupervisionRoutes } from "./supervision-engine";
+import { registerBrainRoutes } from "./brain-routes";
+import { registerWisetrackRoutes } from "./wisetrack-routes";
+import { registerWtEngineRoutes, initWisetrackTables } from "./wisetrack-engine";
+import { registerValidadorCruzadoRoutes } from "./validador-cruzado";
+import viajesTmsRoutes from "./viajes-tms-routes";
+import combustibleRoutes from "./combustible-routes";
+import biRoutes from "./bi-routes";
+import agentesRoutes from "./agentes-routes";
+import gerenteRoutes from "./gerente-routes";
 import { syncViajesHistorico, getSyncProgress, getViajesStats, buscarLugarCercano, clusterizarCorredores, recalcularScoresConCorredor, getCorredoresStats } from "./viajes-historico";
 import { detectarParadas } from "./paradas-detector";
 import { getAllContracts, getContractConfig, getContractPatentes, getContractCamiones, invalidateCache as invalidateFaenaCache } from "./faena-filter";
@@ -126,14 +138,12 @@ export async function registerRoutes(
 
   app.get("/api/camiones", async (req, res) => {
     const cams = await storage.getCamiones();
+    const faenas = await storage.getFaenas();
     const faenaIdFilter = req.query.faenaId ? parseInt(req.query.faenaId as string) : null;
-    const soloVolvo = req.query.soloVolvo === "true" || req.query.soloVolvo === "1";
-    let filtered = cams;
+    // All camiones with VIN (Volvo Connect)
+    let filtered = cams.filter(c => c.vin && c.vin.length > 0);
     if (faenaIdFilter) {
       filtered = filtered.filter(c => c.faenaId === faenaIdFilter);
-    }
-    if (soloVolvo) {
-      filtered = filtered.filter(c => c.vin && c.vin.length > 0);
     }
     res.json(filtered);
   });
@@ -1266,6 +1276,19 @@ export async function registerRoutes(
   registerRutasGpsRoutes(app);
   registerCerebroRoutes(app);
   registerDriversRoutes(app);
+  registerCorredoresOperacionalesRoutes(app);
+  registerProductividadRoutes(app);
+  registerSupervisionRoutes(app);
+  registerBrainRoutes(app);
+  registerWisetrackRoutes(app);
+  registerWtEngineRoutes(app);
+  initWisetrackTables().catch(e => console.error("[WT-ENGINE] Init error:", e.message));
+  registerValidadorCruzadoRoutes(app);
+  app.use("/api/viajes-tms", viajesTmsRoutes);
+  app.use("/api/combustible", combustibleRoutes);
+  app.use("/api/bi", biRoutes);
+  app.use("/api/agentes", agentesRoutes);
+  app.use("/api/gerente", gerenteRoutes);
 
   app.get("/api/sigetra/fusion", async (req, res) => {
     try {
@@ -1639,7 +1662,7 @@ export async function registerRoutes(
           fecha: v.gps?.positionDateTime || v.createdDateTime || new Date().toISOString(),
           lat: v.gps?.latitude || null,
           lng: v.gps?.longitude || null,
-          riesgo: speed > 120 ? "ALTO" : speed > 100 ? "MEDIO" : "BAJO",
+          riesgo: speed > 105 ? "ALTO" : speed > 90 ? "MEDIO" : "BAJO",
         });
       }
 

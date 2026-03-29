@@ -19,10 +19,9 @@ const BG_DEEP = "#020508";
 const BORDER = "#0d2035";
 
 const CONTRATO_COLORS: Record<string, string> = {
-  "CENCOSUD": "#00d4ff",
-  "ANGLO-CARGAS VARIAS": "#ff6b35",
-  "ANGLO-CAL": "#ffcc00",
   "ANGLO-COCU": "#00ff88",
+  "ANGLO-CAL": "#ff6b35",
+  "ANGLO-CARGAS VARIAS": "#00d4ff",
   "X ASIGNAR": "#4a7090",
 };
 
@@ -69,7 +68,7 @@ function KPICard({ label, value, sub, color, icon: Icon }: {
         <span className="font-exo text-[7px] font-bold tracking-[0.15em] uppercase" style={{ color: TEXT_DIM }}>{label}</span>
       </div>
       <div className="font-space text-[22px] font-bold" style={{ color }}>{value}</div>
-      {sub && <div className="font-rajdhani text-[10px] mt-0.5" style={{ color: TEXT_MUTED }}>{sub}</div>}
+      {sub && <div className="font-rajdhani text-xs mt-0.5" style={{ color: TEXT_MUTED }}>{sub}</div>}
     </div>
   );
 }
@@ -78,7 +77,7 @@ function HistoricoChart({ semanas }: { semanas: any[] }) {
   if (semanas.length < 2) {
     return (
       <div className="flex items-center justify-center py-6">
-        <span className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>Necesita al menos 2 semanas para grafico historico</span>
+        <span className="font-rajdhani text-xs" style={{ color: TEXT_MUTED }}>Necesita al menos 2 semanas para grafico historico</span>
       </div>
     );
   }
@@ -210,8 +209,8 @@ function EventosMap({ eventos, containerRef }: { eventos: any[]; containerRef: R
           <div className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>Sin coordenadas de eventos disponibles</div>
           {eventos.length > 0 && (
             <div className="mt-3">
-              <div className="font-space text-[9px] font-bold mb-2" style={{ color: TEXT_DIM }}>EVENTOS REGISTRADOS</div>
-              <div className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>
+              <div className="font-space text-[11px] font-bold mb-2" style={{ color: TEXT_DIM }}>EVENTOS REGISTRADOS</div>
+              <div className="font-rajdhani text-xs" style={{ color: TEXT_MUTED }}>
                 {eventos.length} eventos sin coordenadas — datos disponibles solo en tabla
               </div>
             </div>
@@ -243,7 +242,7 @@ function DriverRow({ driver, isExpanded, onToggle }: { driver: any; isExpanded: 
         </div>
 
         <div className="flex-1 text-left">
-          <div className="font-space text-[10px] font-bold" style={{ color: TEXT_MAIN }}>{driver.conductor}</div>
+          <div className="font-space text-xs font-bold" style={{ color: TEXT_MAIN }}>{driver.conductor}</div>
           <div className="flex items-center gap-1.5">
             <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>{driver.patente}</span>
             {driver.contrato && (
@@ -265,7 +264,7 @@ function DriverRow({ driver, isExpanded, onToggle }: { driver: any; isExpanded: 
 
         <div className="flex items-center gap-1 w-12 justify-center">
           <TrendIcon className="w-3 h-3" style={{ color: trendColor }} />
-          <span className="font-space text-[8px] font-bold" style={{ color: trendColor }}>
+          <span className="font-space text-xs font-bold" style={{ color: trendColor }}>
             {driver.tendenciaDelta > 0 ? "+" : ""}{driver.tendenciaDelta}
           </span>
         </div>
@@ -322,8 +321,8 @@ function DriverDetail({ driver }: { driver: any }) {
       {driver.nivel && (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded" style={{ background: `${driver.nivelColor || PURPLE}08`, border: `1px solid ${driver.nivelColor || PURPLE}20` }}>
           <div className="w-2 h-2 rounded-full" style={{ background: driver.nivelColor }} />
-          <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: driver.nivelColor }}>{driver.nivel}</span>
-          <span className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: driver.nivelColor }}>{driver.nivel}</span>
+          <span className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>
             {driver.nivel === "OPTIMO" ? "Desempeno destacado (85+)" :
              driver.nivel === "NORMAL" ? "Dentro del rango esperado (72+)" :
              driver.nivel === "REVISAR" ? "Requiere seguimiento (58+)" :
@@ -334,7 +333,7 @@ function DriverDetail({ driver }: { driver: any }) {
       )}
 
       <div className="rounded p-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-        <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: PURPLE }}>SCORE HISTORICO SEMANAL</div>
+        <div className="font-space text-[11px] font-bold tracking-wider mb-2" style={{ color: PURPLE }}>SCORE HISTORICO SEMANAL</div>
         <HistoricoChart semanas={driver.semanas || []} />
       </div>
 
@@ -352,7 +351,7 @@ function DriverDetail({ driver }: { driver: any }) {
                 <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>{c.label}</span>
               </div>
               <div className="font-space text-[18px] font-bold" style={{ color: scoreColor(c.value) }}>{c.value}</div>
-              <div className="font-rajdhani text-[9px]" style={{ color: delta >= 0 ? SUCCESS : ERROR }}>
+              <div className="font-rajdhani text-[11px]" style={{ color: delta >= 0 ? SUCCESS : ERROR }}>
                 {delta >= 0 ? "+" : ""}{delta} vs baseline ({avg})
               </div>
               {c.info && (
@@ -383,7 +382,7 @@ function DriverDetail({ driver }: { driver: any }) {
       <div className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${PURPLE}20` }}>
         <div className="flex items-center gap-2 mb-1.5">
           <Target className="w-3.5 h-3.5" style={{ color: PURPLE }} />
-          <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: PURPLE }}>ANALISIS CEREBRO</span>
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: PURPLE }}>ANALISIS CEREBRO</span>
         </div>
         <div className="font-rajdhani text-[11px] leading-relaxed" style={{ color: TEXT_MAIN }}>{driver.textoIA}</div>
       </div>
@@ -391,14 +390,14 @@ function DriverDetail({ driver }: { driver: any }) {
       <div className="rounded overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: BG_CARD }}>
           <MapPin className="w-3.5 h-3.5" style={{ color: "#ff6b35" }} />
-          <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: TEXT_MAIN }}>MAPA DE EVENTOS</span>
-          <span className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>{eventos.length} eventos</span>
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: TEXT_MAIN }}>MAPA DE EVENTOS</span>
+          <span className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>{eventos.length} eventos</span>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             <select
               value={filtroTipoEvento}
               onChange={e => setFiltroTipoEvento(e.target.value)}
-              className="font-space text-[8px] px-2 py-1 rounded outline-none cursor-pointer"
+              className="font-space text-xs px-3 py-1.5 rounded-sm font-bold rounded outline-none cursor-pointer"
               style={{ background: BG_DEEP, color: TEXT_MAIN, border: `1px solid ${BORDER}` }}
               data-testid="filtro-tipo-evento"
             >
@@ -410,7 +409,7 @@ function DriverDetail({ driver }: { driver: any }) {
             <select
               value={filtroSemana}
               onChange={e => setFiltroSemana(e.target.value)}
-              className="font-space text-[8px] px-2 py-1 rounded outline-none cursor-pointer"
+              className="font-space text-xs px-3 py-1.5 rounded-sm font-bold rounded outline-none cursor-pointer"
               style={{ background: BG_DEEP, color: TEXT_MAIN, border: `1px solid ${BORDER}` }}
               data-testid="filtro-semana-evento"
             >
@@ -442,7 +441,7 @@ function ZonaComparativo() {
   if (!zonas || zonas.length === 0) {
     return (
       <div className="text-center py-4">
-        <span className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>Sin datos de zona disponibles</span>
+        <span className="font-rajdhani text-xs" style={{ color: TEXT_MUTED }}>Sin datos de zona disponibles</span>
       </div>
     );
   }
@@ -455,10 +454,10 @@ function ZonaComparativo() {
         <div key={z.zona} className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
           <div className="flex items-center gap-3 mb-2">
             <MapPin className="w-4 h-4" style={{ color: zonaColors[z.zona] || CYAN }} />
-            <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: zonaColors[z.zona] || CYAN }}>ZONA {z.zona}</span>
-            <span className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>{z.totalConductores} conductores</span>
+            <span className="font-space text-xs font-bold tracking-wider" style={{ color: zonaColors[z.zona] || CYAN }}>ZONA {z.zona}</span>
+            <span className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>{z.totalConductores} conductores</span>
             {z.kmPromedioZona > 0 && (
-              <span className="font-rajdhani text-[9px]" style={{ color: TEXT_DIM }}>{z.kmPromedioZona} km/sem promedio</span>
+              <span className="font-rajdhani text-[11px]" style={{ color: TEXT_DIM }}>{z.kmPromedioZona} km/sem promedio</span>
             )}
             <div className="flex-1" />
             <span className="font-space text-[14px] font-bold" style={{ color: scoreColor(z.scorePromedio) }}>{z.scorePromedio}</span>
@@ -470,7 +469,7 @@ function ZonaComparativo() {
               <div className="font-exo text-[7px] tracking-wider mb-1" style={{ color: SUCCESS }}>SOBRE PROMEDIO</div>
               <div className="flex flex-wrap gap-1.5">
                 {z.sobrePromedio.slice(0, 6).map((d: any, i: number) => (
-                  <span key={i} className="font-space text-[8px] px-2 py-0.5 rounded" style={{ background: `${SUCCESS}10`, border: `1px solid ${SUCCESS}20`, color: TEXT_MAIN }}>
+                  <span key={i} className="font-space text-xs px-2 py-0.5 rounded" style={{ background: `${SUCCESS}10`, border: `1px solid ${SUCCESS}20`, color: TEXT_MAIN }}>
                     {d.conductor.split(",")[0]} <span style={{ color: SUCCESS }}>+{d.delta}</span>
                   </span>
                 ))}
@@ -483,14 +482,14 @@ function ZonaComparativo() {
               <div className="font-exo text-[7px] tracking-wider mb-1" style={{ color: ERROR }}>BAJO PROMEDIO</div>
               <div className="flex flex-wrap gap-1.5">
                 {z.bajoPromedio.slice(0, 6).map((d: any, i: number) => (
-                  <span key={i} className="font-space text-[8px] px-2 py-0.5 rounded" style={{ background: `${ERROR}10`, border: `1px solid ${d.contexto ? `${WARNING}30` : `${ERROR}20`}`, color: TEXT_MAIN }}>
+                  <span key={i} className="font-space text-xs px-2 py-0.5 rounded" style={{ background: `${ERROR}10`, border: `1px solid ${d.contexto ? `${WARNING}30` : `${ERROR}20`}`, color: TEXT_MAIN }}>
                     {d.conductor.split(",")[0]} <span style={{ color: ERROR }}>{d.delta}</span>
                     {d.contexto && <span className="ml-1" style={{ color: WARNING, fontSize: "7px" }} title={d.contexto}>*</span>}
                   </span>
                 ))}
               </div>
               {z.bajoPromedio.some((d: any) => d.contexto) && (
-                <div className="font-rajdhani text-[8px] mt-1" style={{ color: WARNING }}>
+                <div className="font-rajdhani text-xs mt-1" style={{ color: WARNING }}>
                   * Conductor con ruta mas exigente (mas km o geocercas) — contexto considerado
                 </div>
               )}
@@ -547,7 +546,7 @@ export default function DriversTab() {
       <div className="flex items-center justify-center py-16" data-testid="drivers-loading">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${PURPLE} transparent ${PURPLE} ${PURPLE}` }} />
-          <span className="font-space text-[10px] tracking-wider" style={{ color: TEXT_MUTED }}>CARGANDO EVALUACIONES VOLVO CONNECT...</span>
+          <span className="font-space text-xs tracking-wider" style={{ color: TEXT_MUTED }}>CARGANDO EVALUACIONES VOLVO CONNECT...</span>
         </div>
       </div>
     );
@@ -567,8 +566,8 @@ export default function DriversTab() {
           data-testid="filtro-contrato-todos"
         >
           <Filter className="w-3 h-3" style={{ color: filtroContrato === "TODOS" ? PURPLE : TEXT_DIM }} />
-          <span className="font-space text-[8px] font-bold tracking-wider" style={{ color: filtroContrato === "TODOS" ? PURPLE : TEXT_DIM }}>TODOS</span>
-          <span className="font-space text-[8px] font-bold" style={{ color: filtroContrato === "TODOS" ? PURPLE : TEXT_MUTED }}>{allDrivers.length}</span>
+          <span className="font-space text-xs font-bold tracking-wider" style={{ color: filtroContrato === "TODOS" ? PURPLE : TEXT_DIM }}>TODOS</span>
+          <span className="font-space text-xs font-bold" style={{ color: filtroContrato === "TODOS" ? PURPLE : TEXT_MUTED }}>{allDrivers.length}</span>
         </button>
         {porContrato.map((pc: any) => {
           const cc = CONTRATO_COLORS[pc.contrato] || TEXT_MUTED;
@@ -585,8 +584,8 @@ export default function DriversTab() {
               }}
               data-testid={`filtro-contrato-${pc.contrato.toLowerCase().replace(/\s/g, "-")}`}
             >
-              <span className="font-space text-[8px] font-bold tracking-wider" style={{ color: active ? cc : TEXT_DIM }}>{pc.contrato}</span>
-              <span className="font-space text-[8px] font-bold" style={{ color: active ? cc : TEXT_MUTED }}>{pc.total}</span>
+              <span className="font-space text-xs font-bold tracking-wider" style={{ color: active ? cc : TEXT_DIM }}>{pc.contrato}</span>
+              <span className="font-space text-xs font-bold" style={{ color: active ? cc : TEXT_MUTED }}>{pc.total}</span>
               <div className="w-6 h-1 rounded-full ml-0.5" style={{ background: BORDER }}>
                 <div className="h-full rounded-full" style={{ width: `${pc.scorePromedio}%`, background: scoreColor(pc.scorePromedio) }} />
               </div>
@@ -601,7 +600,7 @@ export default function DriversTab() {
           <div className="w-1.5 h-10 rounded-full" style={{ background: CONTRATO_COLORS[filtroContrato] || PURPLE }} />
           <div>
             <div className="font-space text-[12px] font-bold tracking-wider" style={{ color: CONTRATO_COLORS[filtroContrato] || PURPLE }}>{filtroContrato}</div>
-            <div className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>{drivers.length} conductores monitoreados</div>
+            <div className="font-rajdhani text-xs" style={{ color: TEXT_MUTED }}>{drivers.length} conductores monitoreados</div>
           </div>
           <div className="flex-1" />
           <div className="text-center px-4">
@@ -612,7 +611,7 @@ export default function DriversTab() {
             <div className="font-space text-[18px] font-bold" style={{ color: filteredKpis.conAlerta > 0 ? ERROR : SUCCESS }}>{filteredKpis.conAlerta}</div>
             <div className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>ALERTAS</div>
           </div>
-          <button onClick={() => setFiltroContrato("TODOS")} className="font-space text-[8px] px-2 py-1 rounded cursor-pointer" style={{ color: TEXT_MUTED, border: `1px solid ${BORDER}` }} data-testid="btn-limpiar-filtro">LIMPIAR</button>
+          <button onClick={() => setFiltroContrato("TODOS")} className="font-space text-xs px-3 py-1.5 rounded-sm font-bold rounded cursor-pointer" style={{ color: TEXT_MUTED, border: `1px solid ${BORDER}` }} data-testid="btn-limpiar-filtro">LIMPIAR</button>
         </div>
       )}
 
@@ -654,10 +653,10 @@ export default function DriversTab() {
       <div className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
         <div className="flex items-center gap-3 mb-3">
           <Shield className="w-4 h-4" style={{ color: CONTRATO_COLORS[filtroContrato] || CYAN }} />
-          <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: CONTRATO_COLORS[filtroContrato] || CYAN }}>
+          <span className="font-space text-xs font-bold tracking-wider" style={{ color: CONTRATO_COLORS[filtroContrato] || CYAN }}>
             RANKING CONDUCTORES {filtroContrato !== "TODOS" ? `— ${filtroContrato}` : ""}
           </span>
-          <span className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>{drivers.length} conductores | Semana actual</span>
+          <span className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>{drivers.length} conductores | Semana actual</span>
           <div className="flex-1" />
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
@@ -698,7 +697,7 @@ export default function DriversTab() {
             <div className="flex flex-col items-center justify-center py-8">
               <Users className="w-6 h-6 mb-2" style={{ color: TEXT_DIM }} />
               <span className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>Sin conductores Volvo Connect activos</span>
-              <span className="font-rajdhani text-[9px] mt-1" style={{ color: TEXT_DIM }}>Verificar sincronizacion de camiones con VIN</span>
+              <span className="font-rajdhani text-[11px] mt-1" style={{ color: TEXT_DIM }}>Verificar sincronizacion de camiones con VIN</span>
             </div>
           ) : (
             drivers.map((d: any) => (
@@ -716,15 +715,15 @@ export default function DriversTab() {
       <div className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
         <div className="flex items-center gap-3 mb-3">
           <MapPin className="w-4 h-4" style={{ color: PURPLE }} />
-          <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: PURPLE }}>COMPARATIVO POR ZONA</span>
-          <span className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>Agrupacion automatica por geocercas visitadas</span>
+          <span className="font-space text-xs font-bold tracking-wider" style={{ color: PURPLE }}>COMPARATIVO POR ZONA</span>
+          <span className="font-rajdhani text-[11px]" style={{ color: TEXT_MUTED }}>Agrupacion automatica por geocercas visitadas</span>
         </div>
         <ZonaComparativo />
       </div>
 
       <div className="flex items-center gap-4 px-2 py-2" style={{ borderTop: `1px solid ${BORDER}` }}>
         <Clock className="w-3 h-3" style={{ color: TEXT_DIM }} />
-        <span className="font-rajdhani text-[9px]" style={{ color: TEXT_DIM }}>
+        <span className="font-rajdhani text-[11px]" style={{ color: TEXT_DIM }}>
           Datos desde 01 Marzo 2026 | Baseline: promedio ponderado con peso decreciente | Umbral alerta: ajustado por variabilidad individual (min 4 semanas) | Contrato asignado via Volvo Connect / faena
         </span>
       </div>

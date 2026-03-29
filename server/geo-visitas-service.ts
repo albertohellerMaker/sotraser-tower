@@ -54,9 +54,9 @@ interface VisitaDetectada {
   tmsViajeId: number | null;
 }
 
-const RADIO_DETECCION_KM = 2.0;
+const RADIO_DETECCION_KM = 1.0; // 1000m para todas las faenas
 const VELOCIDAD_PARADA_KMH = 15;
-const TIEMPO_MINIMO_MIN = 30;
+const TIEMPO_MINIMO_MIN = 10; // Mínimo 10 minutos dentro de geocerca para validar
 const DISTANCIA_VIAJE_MIN_KM = 50;
 
 let destinosCencosud: DestinoCencosud[] = [];
@@ -98,7 +98,7 @@ export async function inicializarPerfilGPS(): Promise<void> {
         nombre: l.nombre,
         lat: parseFloat(l.lat),
         lng: parseFloat(l.lng),
-        radioMetros: l.radioMetros || 2000,
+        radioMetros: l.radioMetros || 1000,
       }));
 
     const perfilResult = await pool.query(`

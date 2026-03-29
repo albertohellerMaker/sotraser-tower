@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db, pool } from "./db";
 import { camiones, cargas, volvoFuelSnapshots, patronesCargaCombustible } from "@shared/schema";
 import { count } from "drizzle-orm";
-import { eq, desc, and, gte, lte, sql, asc, isNotNull } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, asc, isNotNull, ne } from "drizzle-orm";
 import { ESTACIONES_COMBUSTIBLE } from "./geo-routes";
 
 export function registerEstacionesRoutes(app: Express) {
@@ -24,7 +24,7 @@ export function registerEstacionesRoutes(app: Express) {
 
       const camionesConVin = await db.select()
         .from(camiones)
-        .where(isNotNull(camiones.vin));
+        .where(and(isNotNull(camiones.vin), ne(camiones.vin, "")));
 
       const vinPorPatente: Record<string, string> = {};
       for (const c of camionesConVin) {
@@ -1048,7 +1048,9 @@ export function registerEstacionesRoutes(app: Express) {
       const hastaAyer = new Date(anteayer);
       hastaAyer.setHours(23, 59, 59, 999);
 
-      const camionesConVin = await db.select().from(camiones).where(isNotNull(camiones.vin));
+      const camionesConVin = await db.select().from(camiones).where(
+        and(isNotNull(camiones.vin), ne(camiones.vin, ""))
+      );
       const vinPorPatente: Record<string, string> = {};
       for (const c of camionesConVin) {
         if (c.patente && c.vin) vinPorPatente[c.patente] = c.vin;
@@ -1165,6 +1167,31 @@ export function registerEstacionesRoutes(app: Express) {
       res.json({ resumen, periodos });
     } catch (error: any) {
       console.error("[periodos] Error:", error.message);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Resumen rápido para card de inicio
+  app.get("/api/estaciones/resumen-rapido", async (_req: Request, res: Response) => {
+    try {
+      const hoy = new Date();
+      const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+      const anomR = await pool.query(`
+        SELECT COUNT(*)::int as total FROM operaciones_cerradas
+        WHERE nivel_anomalia IN ('CRITICO','SOSPECHOSO') AND km_ecu >= 200 AND snap_count >= 15 AND horas_periodo >= 24 AND revisado = false
+      `);
+      const hoyR = await pool.query(`SELECT COUNT(*)::int as total FROM cargas WHERE fecha::timestamp >= $1 AND litros_surtidor > 0`, [inicioHoy]);
+      const mesR = await pool.query(`SELECT COUNT(*)::int as total_cargas, COALESCE(SUM(litros_surtidor::float), 0) as total_litros FROM cargas WHERE fecha::timestamp >= $1 AND litros_surtidor > 0`, [inicioMes]);
+
+      res.json({
+        anomalias_activas: anomR.rows[0]?.total || 0,
+        cargas_hoy: hoyR.rows[0]?.total || 0,
+        cargas_mes: mesR.rows[0]?.total_cargas || 0,
+        litros_mes: Math.round(parseFloat(mesR.rows[0]?.total_litros || "0")),
+      });
+    } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });

@@ -10,6 +10,7 @@ import { detectarLugar, registrarVisita, analizarHistoricoCompleto, generarAnali
 import { obtenerHistorialCamion, procesarFlotaHistorico, obtenerResumenFlota } from "./geo-reconstruccion-service";
 import { detectarVisitasFlota, obtenerResumenVisitas, obtenerVisitasCamion, inicializarPerfilGPS } from "./geo-visitas-service";
 import { buscarLugarCercano, LUGARES_CONOCIDOS } from "./viajes-historico";
+import { insertarGpsVolvo } from "./utils/gps-unificado";
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -69,46 +70,47 @@ export const ESTACIONES_COMBUSTIBLE: Record<string, { lat: number; lng: number; 
 
 export function registerGeoRoutes(app: Express) {
 
+  // Unified live fleet from gps_unificado (Volvo + WiseTrack)
   app.get("/api/geo/camiones-live", async (_req: Request, res: Response) => {
     try {
-      const allCamiones = await storage.getCamiones();
-      const withVin = allCamiones.filter(c => c.vin);
-      let fleet: any[] = [];
-      try { fleet = await getFleetStatus(); } catch {}
+      const r = await pool.query(`
+        SELECT patente, vin, lat, lng, velocidad, rumbo, timestamp_gps,
+          fuente, es_principal, tiene_ecu, odometro, combustible_nivel,
+          rpm, temp_motor, conductor, contrato,
+          EXTRACT(EPOCH FROM (NOW() - timestamp_gps))/60 as age_min
+        FROM ultima_posicion_camion
+        ORDER BY
+          CASE WHEN EXTRACT(EPOCH FROM (NOW() - timestamp_gps))/60 < 60 AND velocidad > 5 THEN 0
+               WHEN EXTRACT(EPOCH FROM (NOW() - timestamp_gps))/60 < 30 THEN 1
+               WHEN EXTRACT(EPOCH FROM (NOW() - timestamp_gps))/60 < 60 THEN 2
+               ELSE 3 END,
+          timestamp_gps DESC
+      `);
 
-      const vinToFleet = new Map(fleet.map(v => [v.vin, v]));
-
-      const result = withVin.map(c => {
-        const volvo = c.vin ? vinToFleet.get(c.vin) : null;
-        const lat = volvo?.gps?.latitude || null;
-        const lng = volvo?.gps?.longitude || null;
-        const speed = volvo?.wheelBasedSpeed ?? volvo?.gps?.speed ?? 0;
-        const heading = volvo?.gps?.heading ?? 0;
-        const gpsTime = volvo?.gps?.positionDateTime || volvo?.createdDateTime || null;
-        const ageMinutes = gpsTime ? (Date.now() - new Date(gpsTime).getTime()) / 60000 : 999;
-
+      const result = r.rows.map((c: any) => {
+        const ageMin = parseFloat(c.age_min) || 999;
         let estado = "SIN_SEÑAL";
-        if (ageMinutes < 60) {
-          estado = speed > 5 ? "EN_MOVIMIENTO" : (ageMinutes < 30 ? "DETENIDO_RECIENTE" : "DETENIDO");
+        if (ageMin < 60) {
+          estado = (c.velocidad || 0) > 5 ? "EN_MOVIMIENTO" : (ageMin < 30 ? "DETENIDO_RECIENTE" : "DETENIDO");
         }
-
         return {
-          camionId: c.id,
+          camionId: 0,
           patente: c.patente,
-          modelo: c.modelo,
-          conductor: c.conductor,
-          vin: c.vin,
-          lat, lng,
-          velocidad: Math.round(speed * 10) / 10,
-          rumbo: heading,
-          timestamp: gpsTime,
+          modelo: null,
+          conductor: c.conductor || null,
+          vin: c.vin || null,
+          lat: c.lat, lng: c.lng,
+          velocidad: Math.round((c.velocidad || 0) * 10) / 10,
+          rumbo: c.rumbo || 0,
+          timestamp: c.timestamp_gps,
           estado,
-          ageMinutes: Math.round(ageMinutes),
-          fuelLevel: volvo?.fuelLevel ?? null,
+          ageMinutes: Math.round(ageMin),
+          fuelLevel: c.combustible_nivel || null,
+          fuente: c.fuente,
+          contrato: c.contrato || null,
+          rpm: c.rpm || null,
+          tempMotor: c.temp_motor || null,
         };
-      }).sort((a, b) => {
-        const order: Record<string, number> = { EN_MOVIMIENTO: 0, DETENIDO_RECIENTE: 1, DETENIDO: 2, SIN_SEÑAL: 3 };
-        return (order[a.estado] ?? 9) - (order[b.estado] ?? 9);
       });
 
       res.json(result);
@@ -184,7 +186,7 @@ export function registerGeoRoutes(app: Express) {
       if (!nombre || !lat || !lng) return res.status(400).json({ message: "nombre, lat, lng requeridos" });
       const [base] = await db.insert(geoBases).values({
         nombre, lat: String(lat), lng: String(lng),
-        radioMetros: radioMetros || 3000,
+        radioMetros: radioMetros || 500,
         contrato: contrato || "GENERAL",
       }).returning();
       res.json(base);
@@ -252,12 +254,15 @@ export function registerGeoRoutes(app: Express) {
 
   app.post("/api/geocercas/recalibrar-viajes", async (_req: Request, res: Response) => {
     try {
+      // Buscar viajes con origen O destino sin resolver
       const viajes = await db.select()
         .from(viajesAprendizaje)
         .where(
           or(
             eq(viajesAprendizaje.origenNombre, 'Punto desconocido'),
-            isNull(viajesAprendizaje.origenNombre)
+            isNull(viajesAprendizaje.origenNombre),
+            eq(viajesAprendizaje.destinoNombre, 'Punto desconocido'),
+            isNull(viajesAprendizaje.destinoNombre)
           )
         );
 
@@ -265,40 +270,49 @@ export function registerGeoRoutes(app: Express) {
         .where(eq(geoBases.activa, true));
 
       let actualizados = 0;
+      const MAX_DIST_KM = 3.0; // radio máximo de búsqueda
 
       for (const viaje of viajes) {
-        if (!viaje.origenLat || !viaje.origenLng) continue;
-
         let mejorOrigen: string | null = null;
         let mejorDestino: string | null = null;
         let menorDistOrigen = 999;
         let menorDistDestino = 999;
 
-        for (const base of bases) {
-          const distO = haversineKm(
-            parseFloat(viaje.origenLat), parseFloat(viaje.origenLng),
-            parseFloat(base.lat), parseFloat(base.lng)
-          );
-          const distD = haversineKm(
-            parseFloat(viaje.destinoLat || '0'), parseFloat(viaje.destinoLng || '0'),
-            parseFloat(base.lat), parseFloat(base.lng)
-          );
+        const necesitaOrigen = !viaje.origenNombre || viaje.origenNombre === 'Punto desconocido';
+        const necesitaDestino = !viaje.destinoNombre || viaje.destinoNombre === 'Punto desconocido';
 
-          if (distO < menorDistOrigen && distO < 1.0) {
-            menorDistOrigen = distO;
-            mejorOrigen = base.nombre;
+        for (const base of bases) {
+          // Radio de la geocerca en km, con mínimo 1km y máximo MAX_DIST_KM
+          const radioKm = Math.min(Math.max((base.radioMetros || 500) / 1000, 1.0), MAX_DIST_KM);
+
+          if (necesitaOrigen && viaje.origenLat && viaje.origenLng) {
+            const distO = haversineKm(
+              parseFloat(viaje.origenLat), parseFloat(viaje.origenLng),
+              parseFloat(base.lat), parseFloat(base.lng)
+            );
+            if (distO < menorDistOrigen && distO < radioKm) {
+              menorDistOrigen = distO;
+              mejorOrigen = base.nombre;
+            }
           }
-          if (distD < menorDistDestino && distD < 1.0) {
-            menorDistDestino = distD;
-            mejorDestino = base.nombre;
+
+          if (necesitaDestino && viaje.destinoLat && viaje.destinoLng) {
+            const distD = haversineKm(
+              parseFloat(viaje.destinoLat), parseFloat(viaje.destinoLng),
+              parseFloat(base.lat), parseFloat(base.lng)
+            );
+            if (distD < menorDistDestino && distD < radioKm) {
+              menorDistDestino = distD;
+              mejorDestino = base.nombre;
+            }
           }
         }
 
         if (mejorOrigen || mejorDestino) {
           await db.update(viajesAprendizaje)
             .set({
-              origenNombre: mejorOrigen || viaje.origenNombre,
-              destinoNombre: mejorDestino || viaje.destinoNombre
+              ...(mejorOrigen ? { origenNombre: mejorOrigen } : {}),
+              ...(mejorDestino ? { destinoNombre: mejorDestino } : {}),
             })
             .where(eq(viajesAprendizaje.id, viaje.id));
           actualizados++;
@@ -502,6 +516,14 @@ export function registerGeoRoutes(app: Express) {
             kmOdometro: volvo.totalDistance != null ? String(Math.round(volvo.totalDistance / 1000)) : null,
             fuente: "VOLVO",
           });
+          // Also insert into unified GPS table
+          await insertarGpsVolvo(
+            cam.patente, cam.vin!, volvo.gps.latitude, volvo.gps.longitude,
+            volvo.wheelBasedSpeed ?? volvo.gps.speed ?? 0,
+            volvo.gps.heading ?? 0, new Date(gpsTime),
+            volvo.totalDistance ? Math.round(volvo.totalDistance / 1000) : undefined,
+            volvo.fuelLevel1 ?? undefined
+          );
           ingested++;
         }
       }
@@ -586,7 +608,7 @@ export function registerGeoRoutes(app: Express) {
 
           const inBase = bases.some(b => {
             const dist = haversineKm(lat, lng, parseFloat(b.lat as string), parseFloat(b.lng as string)) * 1000;
-            return dist <= (b.radioMetros || 3000);
+            return dist <= (b.radioMetros || 500);
           });
 
           if (!viajeInicio && !inBase && speed > 5) {
@@ -1600,6 +1622,7 @@ export function registerGeoRoutes(app: Express) {
         FROM viajes_aprendizaje va
         JOIN camiones c ON va.camion_id = c.id
         ${whereClause}
+          AND c.vin IS NOT NULL AND c.vin != ''
         ORDER BY va.contrato, va.fecha_inicio DESC
       `, params);
 
@@ -1640,7 +1663,17 @@ export function registerGeoRoutes(app: Express) {
         viajeIds: number[];
       }>();
 
-      const CLUSTER_RADIUS_KM = 8;
+      // Radio estándar 1km para todas las faenas
+      // Excepto mineras que usan radio más amplio
+      const FAENAS_MINERAS_GEO = ["ZALDIVAR", "GLENCORE", "ANGLO", "CODELCO", "CENTINELA", "MANTOS", "SIERRA ATACAMA", "MINISTRO HALES"];
+      function clusterRadius(kmViaje: number, contrato?: string): number {
+        if (contrato && FAENAS_MINERAS_GEO.some(f => contrato.toUpperCase().includes(f))) {
+          if (kmViaje < 100) return 5;
+          if (kmViaje < 300) return 8;
+          return 8;
+        }
+        return 1; // 1km = 1000m para todas las demás
+      }
 
       function getNombrePunto(lat: number, lng: number, contrato: string): string {
         const lugar = buscarLugarCercano(lat, lng, contrato);
@@ -1652,12 +1685,14 @@ export function registerGeoRoutes(app: Express) {
 
       for (const v of viajes) {
         if (!v.origen_lat || !v.destino_lat) continue;
+        const distViaje = haversineKm(v.origen_lat, v.origen_lng, v.destino_lat, v.destino_lng);
+        const radio = clusterRadius(v.km_ecu || distViaje);
         let matched = false;
         for (const [key, corr] of corredoresMap) {
           if (corr.contrato !== v.contrato) continue;
           const dOrigen = haversineKm(corr.origenLat, corr.origenLng, v.origen_lat, v.origen_lng);
           const dDestino = haversineKm(corr.destinoLat, corr.destinoLng, v.destino_lat, v.destino_lng);
-          if (dOrigen <= CLUSTER_RADIUS_KM && dDestino <= CLUSTER_RADIUS_KM) {
+          if (dOrigen <= radio && dDestino <= radio) {
             corr.viajes++;
             corr.camiones.add(v.patente);
             corr.totalKm += (v.km_ecu || 0);
@@ -1812,7 +1847,7 @@ export function registerGeoRoutes(app: Express) {
         SELECT c.id, c.patente, c.vin, c.meta_km_l, c.faena_id, f.nombre as contrato, f.color
         FROM camiones c
         JOIN faenas f ON c.faena_id = f.id
-        WHERE c.vin IS NOT NULL
+        WHERE c.vin IS NOT NULL AND c.vin != ''
       `);
       const camiones = camionesResult.rows;
       if (camiones.length === 0) {
@@ -2187,6 +2222,121 @@ export function registerGeoRoutes(app: Express) {
         pendientes_totales: pendientesR.rows[0]?.cnt || 0,
       });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════
+  // GET /api/recopilacion/cobertura
+  // Cobertura Volvo Connect: semáforo, estados, historial
+  // ═══════════════════════════════════════════════════
+  app.get("/api/recopilacion/cobertura", async (_req: Request, res: Response) => {
+    try {
+      // Total flota Anglo con VIN
+      const flotaTotal = await pool.query(`
+        SELECT DISTINCT c.patente, c.vin
+        FROM camiones c
+        JOIN faenas f ON c.faena_id = f.id
+        WHERE c.vin IS NOT NULL AND c.vin != ''
+      `);
+
+      // Último punto GPS por camión (from geo_puntos)
+      const ultimosPuntos = await pool.query(`
+        SELECT DISTINCT ON (g.patente)
+          g.patente,
+          g.timestamp_punto as ultimo_reporte,
+          g.lat::float as lat,
+          g.lng::float as lng,
+          g.velocidad_kmh::float as velocidad,
+          EXTRACT(EPOCH FROM (NOW() - g.timestamp_punto))/60 as minutos_sin_reporte
+        FROM geo_puntos g
+        WHERE g.patente IS NOT NULL
+        ORDER BY g.patente, g.timestamp_punto DESC
+      `);
+
+      // Puntos GPS por camión HOY
+      const coberturaPorCamion = await pool.query(`
+        SELECT
+          g.patente,
+          COUNT(g.id) as snapshots_hoy,
+          MAX(g.timestamp_punto) as ultimo_hoy,
+          MIN(g.timestamp_punto) as primero_hoy
+        FROM geo_puntos g
+        WHERE g.patente IS NOT NULL
+          AND g.timestamp_punto >= date_trunc('day', NOW())
+        GROUP BY g.patente
+      `);
+
+      // Historial 14 días
+      const historial = await pool.query(`
+        SELECT
+          DATE(timestamp_punto) as fecha,
+          COUNT(*) as puntos,
+          COUNT(DISTINCT patente) as camiones
+        FROM geo_puntos
+        WHERE timestamp_punto >= NOW() - INTERVAL '14 days'
+          AND patente IS NOT NULL
+        GROUP BY DATE(timestamp_punto)
+        ORDER BY fecha DESC
+      `);
+
+      // Cruzar datos
+      const puntosMap: Record<string, any> = {};
+      ultimosPuntos.rows.forEach((s: any) => { puntosMap[s.patente] = s; });
+
+      const coberturaMap: Record<string, any> = {};
+      coberturaPorCamion.rows.forEach((c: any) => { coberturaMap[c.patente] = c; });
+
+      const camionesDetalle = flotaTotal.rows.map((cam: any) => {
+        const ultimo = puntosMap[cam.patente];
+        const hoy = coberturaMap[cam.patente];
+        const minutos = parseFloat(ultimo?.minutos_sin_reporte || "9999");
+
+        let estado = "SIN_DATOS";
+        if (minutos <= 10) estado = "ACTIVO";
+        else if (minutos <= 120) estado = "RECIENTE";
+        else if (minutos <= 480) estado = "INACTIVO";
+        else estado = "PERDIDO";
+
+        return {
+          patente: cam.patente,
+          vin: cam.vin,
+          ultimo_reporte: ultimo?.ultimo_reporte || null,
+          minutos_sin_reporte: Math.round(minutos),
+          snapshots_hoy: parseInt(hoy?.snapshots_hoy || "0"),
+          lat: ultimo?.lat || null,
+          lng: ultimo?.lng || null,
+          velocidad: ultimo?.velocidad || 0,
+          estado,
+        };
+      });
+
+      const activos = camionesDetalle.filter((c: any) => c.estado === "ACTIVO").length;
+      const recientes = camionesDetalle.filter((c: any) => c.estado === "RECIENTE").length;
+      const inactivos = camionesDetalle.filter((c: any) => c.estado === "INACTIVO").length;
+      const perdidos = camionesDetalle.filter((c: any) => c.estado === "PERDIDO" || c.estado === "SIN_DATOS").length;
+
+      const totalFlota = camionesDetalle.length || 1;
+      const pctCobertura = Math.round((activos + recientes) / totalFlota * 100);
+
+      let semaforo = "VERDE";
+      if (perdidos > 3 || pctCobertura < 70) semaforo = "ROJO";
+      else if (perdidos > 0 || pctCobertura < 90) semaforo = "AMARILLO";
+
+      res.json({
+        semaforo,
+        pct_cobertura: pctCobertura,
+        total_flota: camionesDetalle.length,
+        activos,
+        recientes,
+        inactivos,
+        perdidos,
+        camiones: camionesDetalle.sort((a: any, b: any) => a.minutos_sin_reporte - b.minutos_sin_reporte),
+        historial: historial.rows,
+        total_puntos: historial.rows.reduce((s: number, r: any) => s + parseInt(r.puntos), 0),
+      });
+    } catch (error: any) {
+      console.error("[COBERTURA] Error:", error.message);
       res.status(500).json({ error: error.message });
     }
   });

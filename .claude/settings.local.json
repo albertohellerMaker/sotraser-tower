@@ -2,7 +2,34 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(wc:*)",
+      "Bash(npx vite:*)",
+      "Bash(psql:*)",
+      "Bash(npx tsx:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(curl -s http://127.0.0.1:3001/api/faenas)",
+      "Bash(curl:*)",
+      "Bash(npx railway:*)",
+      "Bash(railway up:*)",
+      "WebFetch(domain:sotraser-tower-production.up.railway.app)",
+      "Bash(railway logs:*)",
+      "Bash(railway variables:*)",
+      "Bash(railway status:*)",
+      "Bash(find /mnt -name \"geocercas*\")",
+      "Read(//Users/albertoheller/Downloads/**)",
+      "Read(//private/tmp/**)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require\" npx tsx server/scripts/importar-geocercas.ts)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require\" npx tsx server/scripts/diagnostico-viajes.ts)",
+      "Bash(npm run:*)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require\" npx tsx server/scripts/recalibrar-viajes.ts)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require\" npx drizzle-kit push 2>&1)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require\" npx tsx -e \"\nimport pg from 'pg';\nasync function main\\(\\) {\n  const client = new pg.Client\\({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }\\);\n  await client.connect\\(\\);\n  \n  await client.query\\(\\\\`\n    CREATE TABLE IF NOT EXISTS corredores_operacionales \\(\n      id serial PRIMARY KEY,\n      nombre text,\n      contrato text NOT NULL,\n      origen_nombre text,\n      origen_lat real,\n      origen_lng real,\n      origen_radio_km real DEFAULT 5,\n      destino_nombre text,\n      destino_lat real,\n      destino_lng real,\n      destino_radio_km real DEFAULT 30,\n      distancia_promedio_km real,\n      distancia_tolerancia_pct real DEFAULT 15,\n      total_viajes integer DEFAULT 0,\n      total_camiones integer DEFAULT 0,\n      km_total real DEFAULT 0,\n      rendimiento_promedio real,\n      rendimiento_mejor real,\n      rendimiento_peor real,\n      rendimiento_desviacion real,\n      activo boolean DEFAULT true,\n      creado_manual boolean DEFAULT false,\n      ultima_actualizacion timestamp DEFAULT now\\(\\),\n      creado_at timestamp DEFAULT now\\(\\)\n    \\)\n  \\\\`\\);\n  console.log\\('corredores_operacionales created'\\);\n\n  await client.query\\(\\\\`\n    CREATE TABLE IF NOT EXISTS viajes_corredor \\(\n      id serial PRIMARY KEY,\n      corredor_id integer NOT NULL REFERENCES corredores_operacionales\\(id\\),\n      viaje_id integer NOT NULL,\n      patente text NOT NULL,\n      conductor text,\n      contrato text,\n      fecha date NOT NULL,\n      km_ecu real,\n      litros_ecu real,\n      rendimiento real,\n      duracion_horas real,\n      paradas_json jsonb DEFAULT '[]',\n      creado_at timestamp DEFAULT now\\(\\),\n      UNIQUE\\(viaje_id\\)\n    \\)\n  \\\\`\\);\n  console.log\\('viajes_corredor created'\\);\n\n  // Verify\n  const r1 = await client.query\\(\\\\\"SELECT count\\(*\\) as c FROM corredores_operacionales\\\\\"\\);\n  const r2 = await client.query\\(\\\\\"SELECT count\\(*\\) as c FROM viajes_corredor\\\\\"\\);\n  console.log\\('corredores_operacionales:', r1.rows[0].c, 'rows'\\);\n  console.log\\('viajes_corredor:', r2.rows[0].c, 'rows'\\);\n\n  await client.end\\(\\);\n}\nmain\\(\\).catch\\(console.error\\);\n\")",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require\" npx tsx -e \":*)",
+      "Bash(grep -n \"^\\\\d\\\\|patente.*filter\\\\|filter.*patente\\\\|XXXX00\\\\|120.*km\\\\|105\" client/src/pages/geo-tabs/*.tsx)",
+      "Bash(grep -rn BALANCE --include=*.tsx --include=*.ts client/src/pages/ server/)",
+      "Bash(grep -n \"balances_dia\\\\|BALANCE\" /Users/albertoheller/Desktop/sotraser-app/sotraser-project/server/*.ts)"
     ]
   }
 }

@@ -327,14 +327,18 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
       <div className="absolute top-0 left-0 right-0 z-[110] flex items-center justify-between px-4 py-2"
         style={{ background: "#020508e0", borderBottom: "1px solid #0d2035", backdropFilter: "blur(8px)" }}>
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="p-1.5 cursor-pointer hover:opacity-70" data-testid="btn-cerrar-mapa-mes">
-            <X className="w-5 h-5" style={{ color: "#4a7090" }} />
+          <button onClick={onClose}
+            className="flex items-center gap-2 px-4 py-2 cursor-pointer hover:opacity-80 transition-all"
+            style={{ background: "#ff224415", border: "1px solid #ff224440", color: "#ff2244" }}
+            data-testid="btn-cerrar-mapa-mes">
+            <X className="w-4 h-4" />
+            <span className="font-exo text-xs font-bold tracking-wider">VOLVER</span>
           </button>
           <div>
             <div className="flex items-center gap-2">
               <span className="font-space text-[18px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>{patente}</span>
               {camionInfo?.contrato && (
-                <span className="font-exo text-[9px] px-2 py-0.5" style={{ color: cc, border: `1px solid ${cc}30`, background: `${cc}08` }}>
+                <span className="font-exo text-[11px] px-2 py-0.5" style={{ color: cc, border: `1px solid ${cc}30`, background: `${cc}08` }}>
                   {camionInfo.contrato}
                 </span>
               )}
@@ -342,7 +346,7 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
                 <span className="font-rajdhani text-[11px]" style={{ color: "#3a6080" }}>{camionInfo.modelo}</span>
               )}
             </div>
-            <div className="font-exo text-[10px] tracking-[0.1em]" style={{ color: "#4a7090" }}>
+            <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>
               TRABAJO DEL MES — {new Date().toLocaleDateString("es-CL", { month: "long", year: "numeric" }).toUpperCase()}
             </div>
           </div>
@@ -352,29 +356,29 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
           <div className="flex items-center gap-5">
             <div className="text-center">
               <div className="font-space text-[16px] font-bold" style={{ color: "#00d4ff" }}>{resumen.totalViajes}</div>
-              <div className="font-exo text-[8px] tracking-[0.1em]" style={{ color: "#4a7090" }}>VIAJES</div>
+              <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>VIAJES</div>
             </div>
             <div className="text-center">
               <div className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{resumen.totalKm?.toLocaleString()}</div>
-              <div className="font-exo text-[8px] tracking-[0.1em]" style={{ color: "#4a7090" }}>KM</div>
+              <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>KM</div>
             </div>
             <div className="text-center">
               <div className="font-space text-[16px] font-bold" style={{ color: resumen.rendimientoPromedio >= 2.85 ? "#00ff88" : "#ffcc00" }}>
                 {resumen.rendimientoPromedio > 0 ? resumen.rendimientoPromedio.toFixed(1) : "--"}
               </div>
-              <div className="font-exo text-[8px] tracking-[0.1em]" style={{ color: "#4a7090" }}>KM/L</div>
+              <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>KM/L</div>
             </div>
             <div className="text-center">
               <div className="font-space text-[16px] font-bold" style={{ color: "#ff6b35" }}>{resumen.totalCargas}</div>
-              <div className="font-exo text-[8px] tracking-[0.1em]" style={{ color: "#4a7090" }}>CARGAS</div>
+              <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>CARGAS</div>
             </div>
             <div className="text-center">
               <div className="font-space text-[16px] font-bold" style={{ color: "#a855f7" }}>{resumen.diasActivo}</div>
-              <div className="font-exo text-[8px] tracking-[0.1em]" style={{ color: "#4a7090" }}>DIAS</div>
+              <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>DIAS</div>
             </div>
             <div className="text-center">
               <div className="font-space text-[16px] font-bold" style={{ color: "#00d4ff40" }}>{resumen.totalPuntosGps?.toLocaleString()}</div>
-              <div className="font-exo text-[8px] tracking-[0.1em]" style={{ color: "#4a7090" }}>GPS</div>
+              <div className="font-exo text-xs tracking-[0.1em]" style={{ color: "#4a7090" }}>GPS</div>
             </div>
           </div>
         )}
@@ -392,7 +396,7 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
           }}
           data-testid="toggle-gps">
           {showGps ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-          <span className="font-exo text-[9px] font-bold tracking-[0.1em]">TRAIL GPS</span>
+          <span className="font-exo text-[11px] font-bold tracking-[0.1em]">TRAIL GPS</span>
         </button>
         <button onClick={() => setShowViajes(!showViajes)}
           className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all"
@@ -403,7 +407,7 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
           }}
           data-testid="toggle-viajes">
           {showViajes ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-          <span className="font-exo text-[9px] font-bold tracking-[0.1em]">VIAJES</span>
+          <span className="font-exo text-[11px] font-bold tracking-[0.1em]">VIAJES</span>
         </button>
         <button onClick={() => setShowCargas(!showCargas)}
           className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-all"
@@ -414,7 +418,7 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
           }}
           data-testid="toggle-cargas">
           {showCargas ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-          <span className="font-exo text-[9px] font-bold tracking-[0.1em]">CARGAS</span>
+          <span className="font-exo text-[11px] font-bold tracking-[0.1em]">CARGAS</span>
         </button>
       </div>
 
@@ -426,13 +430,13 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Route className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-              <span className="font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
+              <span className="font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
                 VIAJES ({viajes.length})
               </span>
             </div>
             {selectedViaje !== null && (
               <button onClick={() => setSelectedViaje(null)}
-                className="font-exo text-[9px] px-2 py-0.5 cursor-pointer"
+                className="font-exo text-[11px] px-2 py-0.5 cursor-pointer"
                 style={{ color: "#ff2244", border: "1px solid #ff224430" }}
                 data-testid="btn-ver-todos">
                 VER TODOS
@@ -470,11 +474,11 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ background: v.color }} />
                     <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>#{v.idx + 1}</span>
-                    <span className="font-space text-[10px]" style={{ color: "#4a7090" }}>{v.fecha}</span>
-                    <span className="font-space text-[9px]" style={{ color: "#3a6080" }}>{v.hora}</span>
+                    <span className="font-space text-xs" style={{ color: "#4a7090" }}>{v.fecha}</span>
+                    <span className="font-space text-[11px]" style={{ color: "#3a6080" }}>{v.hora}</span>
                   </div>
                   {v.estado !== "NORMAL" && (
-                    <span className="font-exo text-[8px] px-1.5 py-0.5"
+                    <span className="font-exo text-xs px-1.5 py-0.5"
                       style={{ color: "#ff2244", background: "#ff224410", border: "1px solid #ff224430" }}>
                       {v.estado}
                     </span>
@@ -484,15 +488,15 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
                   {v.origen} <span style={{ color: "#3a6080" }}>&rarr;</span> {v.destino}
                 </div>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="font-space text-[10px]" style={{ color: "#4a7090" }}>
+                  <span className="font-space text-xs" style={{ color: "#4a7090" }}>
                     <Route className="w-3 h-3 inline mr-0.5" style={{ verticalAlign: "middle" }} />
                     {v.km} km
                   </span>
-                  <span className="font-space text-[10px]" style={{ color: v.rend !== "--" && parseFloat(v.rend) >= 2.85 ? "#00ff88" : "#ffcc00" }}>
+                  <span className="font-space text-xs" style={{ color: v.rend !== "--" && parseFloat(v.rend) >= 2.85 ? "#00ff88" : "#ffcc00" }}>
                     <Gauge className="w-3 h-3 inline mr-0.5" style={{ verticalAlign: "middle" }} />
                     {v.rend} km/L
                   </span>
-                  <span className="font-space text-[10px]" style={{ color: "#4a7090" }}>
+                  <span className="font-space text-xs" style={{ color: "#4a7090" }}>
                     <Clock className="w-3 h-3 inline mr-0.5" style={{ verticalAlign: "middle" }} />
                     {v.duracion}
                   </span>
@@ -507,7 +511,7 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
             <div className="px-3 py-2.5" style={{ borderTop: "1px solid #0d2035", borderBottom: "1px solid #0d2035" }}>
               <div className="flex items-center gap-2">
                 <Fuel className="w-3.5 h-3.5" style={{ color: "#ff6b35" }} />
-                <span className="font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
+                <span className="font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
                   CARGAS COMBUSTIBLE ({cargasList.length})
                 </span>
               </div>
@@ -523,19 +527,19 @@ export default function MapaCamionMes({ patente, onClose }: MapaCamionMesProps) 
                       <span className="font-space text-[11px] font-bold" style={{ color: "#ff6b35" }}>
                         {c.litros ? `${Math.round(c.litros)} L` : "--"}
                       </span>
-                      <span className="font-space text-[10px]" style={{ color: "#4a7090" }}>{fecha}</span>
+                      <span className="font-space text-xs" style={{ color: "#4a7090" }}>{fecha}</span>
                     </div>
                     {c.rend_real > 0 && (
-                      <span className="font-space text-[10px]" style={{ color: c.rend_real >= 2.85 ? "#00ff88" : "#ffcc00" }}>
+                      <span className="font-space text-xs" style={{ color: c.rend_real >= 2.85 ? "#00ff88" : "#ffcc00" }}>
                         {c.rend_real.toFixed(1)} km/L
                       </span>
                     )}
                   </div>
-                  <div className="font-rajdhani text-[10px] truncate" style={{ color: "#4a7090" }}>
+                  <div className="font-rajdhani text-xs truncate" style={{ color: "#4a7090" }}>
                     {c.lugar || c.proveedor || "Estacion"}
                   </div>
                   {c.conductor && (
-                    <div className="font-rajdhani text-[9px]" style={{ color: "#3a6080" }}>{c.conductor}</div>
+                    <div className="font-rajdhani text-[11px]" style={{ color: "#3a6080" }}>{c.conductor}</div>
                   )}
                 </div>
               );

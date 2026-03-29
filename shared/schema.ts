@@ -35,6 +35,8 @@ export const camiones = pgTable("camiones", {
   configuracionEjes: varchar("configuracion_ejes", { length: 20 }),
   capacidadEstanqueLitros: integer("capacidad_estanque_litros"),
   numVeh: text("num_veh"),
+  idDisplay: text("id_display"),
+  idTipo: varchar("id_tipo", { length: 20 }),
 });
 
 export const insertCamionSchema = createInsertSchema(camiones).omit({ id: true });
@@ -664,3 +666,160 @@ export const aprendizajeFeedback = pgTable("aprendizaje_feedback", {
 export const insertAprendizajeFeedbackSchema = createInsertSchema(aprendizajeFeedback).omit({ id: true, creadoEn: true });
 export type InsertAprendizajeFeedback = z.infer<typeof insertAprendizajeFeedbackSchema>;
 export type AprendizajeFeedback = typeof aprendizajeFeedback.$inferSelect;
+
+// ═══════════════════════════════════════════════════
+// CORREDORES OPERACIONALES — Análisis de Rutas
+// ═══════════════════════════════════════════════════
+
+export const corredoresOperacionales = pgTable("corredores_operacionales", {
+  id: serial("id").primaryKey(),
+
+  // Identidad
+  nombre: text("nombre"),
+  contrato: text("contrato").notNull(),
+
+  // Zona origen
+  origenNombre: text("origen_nombre"),
+  origenLat: real("origen_lat"),
+  origenLng: real("origen_lng"),
+  origenRadioKm: real("origen_radio_km").default(5),
+
+  // Zona destino
+  destinoNombre: text("destino_nombre"),
+  destinoLat: real("destino_lat"),
+  destinoLng: real("destino_lng"),
+  destinoRadioKm: real("destino_radio_km").default(30),
+
+  // Criterios de match
+  distanciaPromedioKm: real("distancia_promedio_km"),
+  distanciaTolerancia: real("distancia_tolerancia_pct").default(15),
+
+  // Estadísticas acumuladas
+  totalViajes: integer("total_viajes").default(0),
+  totalCamiones: integer("total_camiones").default(0),
+  kmTotal: real("km_total").default(0),
+  rendimientoPromedio: real("rendimiento_promedio"),
+  rendimientoMejor: real("rendimiento_mejor"),
+  rendimientoPeor: real("rendimiento_peor"),
+  rendimientoDesviacion: real("rendimiento_desviacion"),
+
+  // Estado
+  activo: boolean("activo").default(true),
+  creadoManual: boolean("creado_manual").default(false),
+  ultimaActualizacion: timestamp("ultima_actualizacion").defaultNow(),
+  creadoAt: timestamp("creado_at").defaultNow(),
+});
+
+export const insertCorredorOperacionalSchema = createInsertSchema(corredoresOperacionales).omit({ id: true, creadoAt: true });
+export type InsertCorredorOperacional = z.infer<typeof insertCorredorOperacionalSchema>;
+export type CorredorOperacional = typeof corredoresOperacionales.$inferSelect;
+
+export const viajesCorredor = pgTable("viajes_corredor", {
+  id: serial("id").primaryKey(),
+  corredorId: integer("corredor_id").notNull().references(() => corredoresOperacionales.id),
+  viajeId: integer("viaje_id").notNull(),
+  patente: text("patente").notNull(),
+  conductor: text("conductor"),
+  contrato: text("contrato"),
+
+  fecha: date("fecha").notNull(),
+  kmEcu: real("km_ecu"),
+  litrosEcu: real("litros_ecu"),
+  rendimiento: real("rendimiento"),
+  duracionHoras: real("duracion_horas"),
+
+  paradasJson: jsonb("paradas_json").default([]),
+  creadoAt: timestamp("creado_at").defaultNow(),
+}, (t) => [unique().on(t.viajeId)]);
+
+export const insertViajeCorredor = createInsertSchema(viajesCorredor).omit({ id: true, creadoAt: true });
+export type InsertViajeCorredor = z.infer<typeof insertViajeCorredor>;
+export type ViajeCorredor = typeof viajesCorredor.$inferSelect;
+
+// ═══════════════════════════════════════════════════
+// OPERACIONES CERRADAS — Motor de cierre automático
+// ═══════════════════════════════════════════════════
+
+export const operacionesCerradas = pgTable("operaciones_cerradas", {
+  id: serial("id").primaryKey(),
+
+  patente: text("patente").notNull(),
+  vin: text("vin"),
+  conductor: text("conductor"),
+  contrato: text("contrato"),
+
+  // Par de cargas
+  cargaAId: integer("carga_a_id"),
+  cargaAFecha: timestamp("carga_a_fecha"),
+  cargaALitros: real("carga_a_litros"),
+  cargaAEstacion: text("carga_a_estacion"),
+
+  cargaBId: integer("carga_b_id"),
+  cargaBFecha: timestamp("carga_b_fecha"),
+  cargaBLitros: real("carga_b_litros"),
+  cargaBEstacion: text("carga_b_estacion"),
+
+  // Período calculado
+  horasPeriodo: real("horas_periodo"),
+  kmEcu: real("km_ecu"),
+  litrosConsumidosEcu: real("litros_consumidos_ecu"),
+  rendimientoEcu: real("rendimiento_ecu"),
+
+  // Balance
+  litrosCargados: real("litros_cargados"),
+  balanceLitros: real("balance_litros"),
+  balancePct: real("balance_pct"),
+
+  // Calidad
+  snapCount: integer("snap_count"),
+  coberturaPct: real("cobertura_pct"),
+  calidadDatos: text("calidad_datos"),
+
+  // Evaluación
+  nivelAnomalia: text("nivel_anomalia").default("NORMAL"),
+  revisado: boolean("revisado").default(false),
+  decisionCeo: text("decision_ceo"),
+
+  creadoAt: timestamp("creado_at").defaultNow(),
+}, (t) => [unique().on(t.cargaAId)]);
+
+export type OperacionCerrada = typeof operacionesCerradas.$inferSelect;
+
+// ═══════════════════════════════════════════════════
+// SUPERVISIÓN PREDICTIVA — Antes/Después del snapshot
+// ═══════════════════════════════════════════════════
+export const estadoCamionEsperado = pgTable("estado_camion_esperado", {
+  id: serial("id").primaryKey(),
+  patente: text("patente").notNull(),
+  vin: text("vin"),
+  contrato: text("contrato"),
+  fecha: date("fecha").notNull(),
+  debeEstarActivo: boolean("debe_estar_activo"),
+  kmEsperadoDia: real("km_esperado_dia"),
+  rendimientoEsperado: real("rendimiento_esperado"),
+  corredorProbable: text("corredor_probable"),
+  probabilidadCarga: real("probabilidad_carga"),
+  kmReal: real("km_real"),
+  rendimientoReal: real("rendimiento_real"),
+  estuvoActivo: boolean("estuvo_activo"),
+  tuvoCarga: boolean("tuvo_carga"),
+  desviacionKmPct: real("desviacion_km_pct"),
+  desviacionRendPct: real("desviacion_rend_pct"),
+  estadoSupervision: text("estado_supervision"),
+  procesado: boolean("procesado").default(false),
+  creadoAt: timestamp("creado_at").defaultNow(),
+}, (t) => [unique().on(t.patente, t.fecha)]);
+
+// ═══════════════════════════════════════════════════
+// IDENTIDADES DE CAMIONES — Matching Volvo ↔ Sigetra
+// ═══════════════════════════════════════════════════
+export const camionIdentidades = pgTable("camion_identidades", {
+  vin: text("vin").primaryKey(),
+  numeroInterno: text("numero_interno"),
+  patenteActual: text("patente_actual"),
+  idsValidos: text("ids_validos").array(),
+  idDisplay: text("id_display"),
+  tipoDisplay: text("tipo_display"),
+  activo: boolean("activo").default(true),
+  ultimaActualizacion: timestamp("ultima_actualizacion").defaultNow(),
+});

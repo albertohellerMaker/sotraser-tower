@@ -1,7 +1,13 @@
 import { syncSigetraToCargas } from "./sigetra-api";
-import { procesarViajesNuevos, calcularParametros, detectarCambiosPatron, cruzarConSigetra } from "./aprendizaje-engine";
+import { syncWisetrackToDB } from "./wisetrack-api";
+import { procesarViajesWisetrack, procesarProductividadWt } from "./wisetrack-engine";
+import { calcularExpectativasDiarias, compararRealVsEsperado } from "./supervision-engine";
+import { procesarViajesNuevos, calcularParametros, detectarCambiosPatron, cruzarConSigetra, procesarCierreAutomatico } from "./aprendizaje-engine";
+import { syncViajesHistorico } from "./viajes-historico";
+import { procesarProductividadDiaria } from "./productividad";
 import { getSistemaEstado } from "./sistema-estado";
 import { aprenderUmbralesScore } from "./score-conduccion";
+import { promoverPuntosNuevos } from "./geocerca-inteligente";
 import { pool, db, getDefaultDesde } from "./db";
 import { cargas, camiones, patronesCargaCombustible } from "@shared/schema";
 import { and, isNotNull, sql, eq } from "drizzle-orm";
@@ -18,6 +24,41 @@ const JOBS: Record<string, JobDef> = {
     nombre: "VIAJES_NUEVOS",
     fn: async () => {
       await procesarViajesNuevos();
+      await procesarCierreAutomatico(7, 50);
+      await procesarProductividadDiaria();
+      // Cross-validate: conductor from WT/Sigetra + doble validacion Volvo+WT
+      try {
+        await pool.query(`
+          UPDATE viajes_aprendizaje va SET conductor = wt.conductor
+          FROM (SELECT DISTINCT ON (va2.id) va2.id, ws.conductor FROM viajes_aprendizaje va2
+            JOIN camion_identidades ci ON va2.vin = ci.vin
+            JOIN wisetrack_snapshots ws ON ws.patente_norm = ANY(ci.ids_validos)
+            AND ws.conductor IS NOT NULL AND ws.conductor != '-' AND ws.conductor != ''
+            AND ws.captured_at >= va2.fecha_inicio - INTERVAL '30 min'
+            AND ws.captured_at <= COALESCE(va2.fecha_fin, va2.fecha_inicio + INTERVAL '12 hours')
+            WHERE va2.fecha_inicio >= NOW() - INTERVAL '3 days' AND (va2.conductor IS NULL OR va2.conductor = '')
+            ORDER BY va2.id, ABS(EXTRACT(EPOCH FROM (ws.captured_at - va2.fecha_inicio)))
+          ) wt WHERE va.id = wt.id
+        `);
+        await pool.query(`
+          UPDATE viajes_aprendizaje va SET conductor = sig.conductor
+          FROM (SELECT DISTINCT ON (va2.id) va2.id, c.conductor FROM viajes_aprendizaje va2
+            JOIN camion_identidades ci ON va2.vin = ci.vin
+            JOIN cargas c ON c.patente = ANY(ci.ids_validos) AND c.conductor IS NOT NULL AND c.conductor != ''
+            AND c.fecha::timestamp >= va2.fecha_inicio - INTERVAL '24 hours'
+            AND c.fecha::timestamp <= COALESCE(va2.fecha_fin, va2.fecha_inicio) + INTERVAL '24 hours'
+            WHERE va2.fecha_inicio >= NOW() - INTERVAL '3 days' AND (va2.conductor IS NULL OR va2.conductor = '')
+            ORDER BY va2.id, ABS(EXTRACT(EPOCH FROM (c.fecha::timestamp - va2.fecha_inicio)))
+          ) sig WHERE va.id = sig.id
+        `);
+        await pool.query(`
+          UPDATE viajes_aprendizaje va SET validado_volvo = true, validado_wt = true, validacion_doble = true
+          FROM wt_viajes wt JOIN camion_identidades ci ON wt.patente_norm = ANY(ci.ids_validos)
+          WHERE va.vin = ci.vin AND va.fecha_inicio >= NOW() - INTERVAL '3 days' AND wt.estado = 'CERRADO'
+            AND ABS(EXTRACT(EPOCH FROM (wt.fecha_inicio - va.fecha_inicio))) < 3600
+            AND va.validacion_doble = false
+        `);
+      } catch (e: any) { console.error("[VIAJES] Cross-validate error:", e.message); }
     },
   },
 
@@ -52,6 +93,7 @@ const JOBS: Record<string, JobDef> = {
       const desde = getDefaultDesde(7);
       const hasta = new Date();
       await syncSigetraToCargas(desde, hasta);
+      await procesarCierreAutomatico(7, 200);
     },
   },
 
@@ -76,6 +118,15 @@ const JOBS: Record<string, JobDef> = {
     nombre: "SCORE_CONDUCCION",
     fn: async () => {
       await aprenderUmbralesScore();
+    },
+  },
+
+  GEOCERCA_PROMOCION: {
+    intervalo: 6 * 60 * 60 * 1000, // cada 6 horas
+    nombre: "GEOCERCA_PROMOCION",
+    fn: async () => {
+      const n = await promoverPuntosNuevos();
+      if (n > 0) console.log(`[GEOCERCA] ${n} puntos nuevos promovidos a geocercas de 50m`);
     },
   },
 
@@ -180,48 +231,70 @@ export function iniciarJobs() {
     setInterval(() => runJob(JOBS.VIN_PATENTE_REFRESH), JOBS.VIN_PATENTE_REFRESH.intervalo!);
   }, 10 * 1000);
 
+  // Supervisión predictiva: expectativas a las 00:01, comparar cada hora
+  setTimeout(async () => {
+    try {
+      await calcularExpectativasDiarias();
+      await compararRealVsEsperado();
+      console.log("[JOBS] Supervisión inicial ejecutada");
+    } catch (e: any) { console.error("[JOBS] Error supervisión inicial:", e.message); }
+  }, 30 * 1000);
+
+  // Recalcular expectativas cada día a medianoche (aprox)
+  setInterval(async () => {
+    const h = new Date().getHours();
+    if (h === 0) {
+      try { await calcularExpectativasDiarias(); } catch {}
+    }
+  }, 60 * 60 * 1000);
+
+  // Comparar real vs esperado cada hora
+  setInterval(async () => {
+    try { await compararRealVsEsperado(); } catch {}
+  }, 60 * 60 * 1000);
+
+  // Sync viajes históricos cada 2 horas (crea viajes desde snapshots Volvo)
+  setInterval(async () => {
+    try {
+      console.log("[JOBS] Iniciando sync viajes historico (3 dias)...");
+      await syncViajesHistorico(3);
+      console.log("[JOBS] Sync viajes historico completado");
+    } catch (e: any) {
+      console.error("[JOBS] Error sync viajes historico:", e.message);
+    }
+  }, 2 * 60 * 60 * 1000);
+
+  // Refresh camion_identidades + cargas.vin_resuelto cada 6h
+  setInterval(async () => {
+    try {
+      await pool.query(`
+        INSERT INTO camion_identidades (vin, numero_interno, patente_actual, ids_validos, id_display, tipo_display)
+        SELECT vin,
+          MAX(patente) FILTER (WHERE patente ~ '^\\d+$'),
+          MAX(patente) FILTER (WHERE patente !~ '^\\d+$'),
+          ARRAY_AGG(DISTINCT patente) FILTER (WHERE patente IS NOT NULL),
+          CASE WHEN bool_or(patente ~ '^\\d+$') THEN MAX(patente) FILTER (WHERE patente ~ '^\\d+$') ELSE MAX(patente) END,
+          CASE WHEN bool_or(patente ~ '^\\d+$') THEN 'NUMERO' ELSE 'PATENTE' END
+        FROM camiones WHERE vin IS NOT NULL AND vin != '' GROUP BY vin
+        ON CONFLICT (vin) DO UPDATE SET
+          ids_validos = EXCLUDED.ids_validos, id_display = EXCLUDED.id_display,
+          numero_interno = EXCLUDED.numero_interno, patente_actual = EXCLUDED.patente_actual,
+          ultima_actualizacion = NOW()
+      `);
+      await pool.query(`UPDATE cargas c SET vin_resuelto = ci.vin FROM camion_identidades ci WHERE c.patente = ANY(ci.ids_validos) AND c.vin_resuelto IS NULL`);
+      console.log("[JOBS] camion_identidades y vin_resuelto actualizados");
+    } catch (e: any) { console.error("[JOBS] Error identidades:", e.message); }
+  }, 6 * 60 * 60 * 1000);
+
   console.log("[JOBS] Todos los jobs programados");
 }
 
 function programarSigetra() {
-  const HORAS_SYNC = [4, 8, 16, 20];
-  const CUADRATURA_DELAY = 2 * 60 * 60 * 1000;
+  const INTERVALO_MS = 60 * 60 * 1000; // 1 hora
 
-  const programarProximo = () => {
-    const ahora = new Date();
-    let proximoSync: Date | null = null;
+  console.log("[JOBS] Sigetra sync cada 1 hora");
 
-    for (const h of HORAS_SYNC) {
-      const candidato = new Date(ahora);
-      candidato.setHours(h, 0, 0, 0);
-      if (candidato > ahora) {
-        proximoSync = candidato;
-        break;
-      }
-    }
-    if (!proximoSync) {
-      proximoSync = new Date(ahora);
-      proximoSync.setDate(proximoSync.getDate() + 1);
-      proximoSync.setHours(HORAS_SYNC[0], 0, 0, 0);
-    }
-
-    const msHastaSync = proximoSync.getTime() - ahora.getTime();
-    const horaStr = `${proximoSync.getHours().toString().padStart(2, "0")}:00`;
-
-    console.log(`[JOBS] Sigetra sync programado para las ${horaStr} (en ${Math.round(msHastaSync / 60000)} min)`);
-
-    setTimeout(async () => {
-      await runJob(JOBS.SIGETRA_SYNC);
-
-      console.log(`[JOBS] Cuadratura Sigetra programada en 2h (despues del sync)`);
-      setTimeout(() => runJob(JOBS.CUADRATURA_SIGETRA), CUADRATURA_DELAY);
-
-      programarProximo();
-    }, msHastaSync);
-  };
-
-  programarProximo();
-
+  // Sync inicial a los 60s de arranque
   setTimeout(() => {
     console.log("[JOBS] Ejecutando sync Sigetra inicial...");
     runJob(JOBS.SIGETRA_SYNC).then(() => {
@@ -229,6 +302,45 @@ function programarSigetra() {
       setTimeout(() => runJob(JOBS.CUADRATURA_SIGETRA), 2 * 60 * 1000);
     });
   }, 60 * 1000);
+
+  // Cada 1 hora: sync + cuadratura 2h después
+  setInterval(async () => {
+    try {
+      await runJob(JOBS.SIGETRA_SYNC);
+      setTimeout(() => runJob(JOBS.CUADRATURA_SIGETRA), 2 * 60 * 60 * 1000);
+    } catch (e: any) {
+      console.error("[JOBS] Error Sigetra sync horario:", e.message);
+    }
+  }, INTERVALO_MS);
+
+  // WiseTrack sync every 90 seconds (same as Volvo)
+  console.log("[JOBS] WiseTrack sync cada 90 seg (igual que Volvo)");
+  setTimeout(async () => {
+    try {
+      const r = await syncWisetrackToDB();
+      console.log(`[WISETRACK-JOB] Initial sync: ${r.vehicles} vehicles, ${r.saved} saved`);
+    } catch (e: any) {
+      console.error("[WISETRACK-JOB] Initial sync error:", e.message);
+    }
+  }, 30 * 1000); // 30s after startup
+
+  setInterval(async () => {
+    try {
+      await syncWisetrackToDB();
+      await procesarViajesWisetrack();
+    } catch (e: any) {
+      console.error("[WISETRACK-JOB] Sync error:", e.message);
+    }
+  }, 90 * 1000); // every 90 seconds — same as Volvo
+
+  // WT productivity every hour
+  setInterval(async () => {
+    try {
+      await procesarProductividadWt();
+    } catch (e: any) {
+      console.error("[WT-PROD] Error:", e.message);
+    }
+  }, 60 * 60 * 1000);
 }
 
 function programarReporteDiario() {

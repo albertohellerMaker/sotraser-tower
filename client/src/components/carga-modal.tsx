@@ -62,36 +62,36 @@ export function CargaModal({ camionId, open, onClose }: CargaModalProps) {
 
         <div className="space-y-4">
           <div>
-            <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Fecha</Label>
+            <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Fecha</Label>
             <Input type="date" value={form.fecha} onChange={e => set("fecha", e.target.value)}
               className="font-mono bg-background" data-testid="input-fecha" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Litros surtidor (tarjeta)</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Litros surtidor (tarjeta)</Label>
               <Input type="number" value={form.litrosSurtidor} onChange={e => set("litrosSurtidor", e.target.value)}
                 placeholder="410" className="font-mono bg-background" data-testid="input-litros-surtidor" />
             </div>
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Litros ECU Volvo</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Litros ECU Volvo</Label>
               <Input type="number" value={form.litrosEcu} onChange={e => set("litrosEcu", e.target.value)}
                 placeholder="280" className="font-mono bg-background" data-testid="input-litros-ecu" />
             </div>
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Km anterior</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Km anterior</Label>
               <Input type="number" value={form.kmAnterior} onChange={e => set("kmAnterior", e.target.value)}
                 placeholder="301760" className="font-mono bg-background" data-testid="input-km-anterior" />
             </div>
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Km actual (odometro)</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Km actual (odometro)</Label>
               <Input type="number" value={form.kmActual} onChange={e => set("kmActual", e.target.value)}
                 placeholder="302100" className="font-mono bg-background" data-testid="input-km-actual" />
             </div>
           </div>
 
           <div>
-            <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Proveedor</Label>
+            <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Proveedor</Label>
             <Select value={form.proveedor} onValueChange={v => set("proveedor", v)}>
               <SelectTrigger className="font-mono bg-background" data-testid="select-proveedor">
                 <SelectValue />

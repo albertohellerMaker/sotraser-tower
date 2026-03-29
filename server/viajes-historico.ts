@@ -1,6 +1,7 @@
 import { pool } from "./db";
 import { getCachedFuelData } from "./sigetra-api";
 import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
+import { resolverGeocerca, resolverNombreViaje } from "./geocerca-inteligente";
 
 interface LugarConocido {
   nombre: string;
@@ -11,46 +12,47 @@ interface LugarConocido {
   contratos?: string[];
 }
 
+// Radio: 1km (1000m) para faenas normales, 3km para mineras
 const LUGARES_CONOCIDOS: LugarConocido[] = [
-  { nombre: "Base Sotraser Quilicura", lat: -33.3840, lng: -70.7520, tipo: "base", radio_km: 3, contratos: ["CENCOSUD", "ANGLO-CARGAS VARIAS", "ANGLO-COCU", "ANGLO-CAL"] },
-  { nombre: "Planta Anglo Los Bronces", lat: -33.1420, lng: -70.7010, tipo: "mina", radio_km: 5, contratos: ["ANGLO-COCU", "ANGLO-CARGAS VARIAS", "ANGLO-CAL"] },
-  { nombre: "Mina El Soldado", lat: -32.8440, lng: -70.9810, tipo: "mina", radio_km: 4, contratos: ["ANGLO-COCU"] },
-  { nombre: "Planta Chagres", lat: -32.9200, lng: -70.8100, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector Los Andes", lat: -33.1960, lng: -70.3400, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-CARGAS VARIAS", "ANGLO-CAL"] },
-  { nombre: "CD Cencosud Lo Espejo", lat: -33.4600, lng: -70.8800, tipo: "cd", radio_km: 3, contratos: ["CENCOSUD"] },
-  { nombre: "CD Cencosud Maipu", lat: -33.4400, lng: -70.7900, tipo: "cd", radio_km: 3, contratos: ["CENCOSUD"] },
-  { nombre: "Los Angeles", lat: -37.5200, lng: -72.6400, tipo: "descarga", radio_km: 8, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Temuco", lat: -38.5000, lng: -72.4500, tipo: "descarga", radio_km: 8, contratos: ["CENCOSUD"] },
-  { nombre: "Valdivia / Osorno", lat: -39.6100, lng: -72.9500, tipo: "descarga", radio_km: 10, contratos: ["CENCOSUD"] },
-  { nombre: "Chillan / Linares", lat: -36.6900, lng: -72.2500, tipo: "descarga", radio_km: 10, contratos: ["CENCOSUD"] },
-  { nombre: "Antofagasta / Mejillones", lat: -23.6100, lng: -70.2600, tipo: "descarga", radio_km: 10 },
-  { nombre: "La Serena", lat: -30.4800, lng: -71.4800, tipo: "descarga", radio_km: 6, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Colina", lat: -33.2700, lng: -70.7500, tipo: "descarga", radio_km: 3, contratos: ["ANGLO-CARGAS VARIAS"] },
-  { nombre: "Sector Pudahuel", lat: -33.3700, lng: -70.4900, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-CARGAS VARIAS"] },
-  { nombre: "Sector Las Condes / Lo Barnechea", lat: -33.3700, lng: -70.4000, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-CARGAS VARIAS"] },
-  { nombre: "Quintero / Ventanas", lat: -32.7500, lng: -71.4800, tipo: "puerto", radio_km: 5, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector Ruta 60 Los Andes", lat: -32.8500, lng: -70.8800, tipo: "carga", radio_km: 3, contratos: ["ANGLO-COCU"] },
-  { nombre: "Estacion Quilicura", lat: -33.3583, lng: -70.7250, tipo: "estacion", radio_km: 2 },
-  { nombre: "Estacion Lampa", lat: -33.2480, lng: -70.7170, tipo: "estacion", radio_km: 2 },
-  { nombre: "Estacion Renca", lat: -33.3890, lng: -70.6650, tipo: "estacion", radio_km: 2 },
-  { nombre: "Estacion Los Angeles", lat: -37.4695, lng: -72.3538, tipo: "estacion", radio_km: 3 },
-  { nombre: "Villa Alegre / Linares Sur", lat: -35.8400, lng: -71.6900, tipo: "estacion", radio_km: 3 },
-  { nombre: "Sector Lampa Norte", lat: -33.1500, lng: -70.6600, tipo: "descarga", radio_km: 3 },
-  { nombre: "Collipulli / Victoria", lat: -37.7400, lng: -72.2400, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
-  { nombre: "Angol / Renaico", lat: -37.5679, lng: -72.2915, tipo: "descarga", radio_km: 6, contratos: ["CENCOSUD"] },
-  { nombre: "Copiapo", lat: -27.6876, lng: -70.4809, tipo: "descarga", radio_km: 10 },
-  { nombre: "Vallenar", lat: -28.5999, lng: -70.7739, tipo: "descarga", radio_km: 8 },
-  { nombre: "Ovalle / Illapel", lat: -31.8997, lng: -71.4892, tipo: "descarga", radio_km: 8, contratos: ["CENCOSUD"] },
-  { nombre: "Puerto Montt", lat: -41.4700, lng: -72.9400, tipo: "descarga", radio_km: 10, contratos: ["CENCOSUD"] },
-  { nombre: "Osorno Centro", lat: -40.5700, lng: -73.1000, tipo: "descarga", radio_km: 6, contratos: ["CENCOSUD"] },
-  { nombre: "Valdivia", lat: -39.8134, lng: -73.2300, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
-  { nombre: "Panguipulli / Lago Ranco", lat: -39.5171, lng: -72.8233, tipo: "descarga", radio_km: 8, contratos: ["CENCOSUD"] },
-  { nombre: "Villarrica / Pucon", lat: -39.2700, lng: -72.2300, tipo: "descarga", radio_km: 8, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Padre Hurtado", lat: -33.4063, lng: -70.7279, tipo: "descarga", radio_km: 3, contratos: ["CENCOSUD"] },
-  { nombre: "Sector San Bernardo", lat: -33.4261, lng: -70.8178, tipo: "descarga", radio_km: 3, contratos: ["CENCOSUD"] },
-  { nombre: "Rancagua / Graneros", lat: -34.0490, lng: -70.7343, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
-  { nombre: "Freire / Pitrufquen", lat: -38.7461, lng: -72.6086, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Lautaro", lat: -38.4085, lng: -72.3937, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
+  { nombre: "Base Sotraser Quilicura", lat: -33.3840, lng: -70.7520, tipo: "base", radio_km: 1, contratos: ["CENCOSUD", "ANGLO-CARGAS VARIAS", "ANGLO-COCU", "ANGLO-CAL"] },
+  { nombre: "Planta Anglo Los Bronces", lat: -33.1420, lng: -70.7010, tipo: "mina", radio_km: 3, contratos: ["ANGLO-COCU", "ANGLO-CARGAS VARIAS", "ANGLO-CAL"] },
+  { nombre: "Mina El Soldado", lat: -32.8440, lng: -70.9810, tipo: "mina", radio_km: 3, contratos: ["ANGLO-COCU"] },
+  { nombre: "Planta Chagres", lat: -32.9200, lng: -70.8100, tipo: "descarga", radio_km: 3, contratos: ["ANGLO-COCU"] },
+  { nombre: "Sector Los Andes", lat: -33.1960, lng: -70.3400, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS", "ANGLO-CAL"] },
+  { nombre: "CD Cencosud Lo Espejo", lat: -33.4600, lng: -70.8800, tipo: "cd", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "CD Cencosud Maipu", lat: -33.4400, lng: -70.7900, tipo: "cd", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Los Angeles", lat: -37.5200, lng: -72.6400, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Sector Temuco", lat: -38.5000, lng: -72.4500, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Valdivia / Osorno", lat: -39.6100, lng: -72.9500, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Chillan / Linares", lat: -36.6900, lng: -72.2500, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Antofagasta / Mejillones", lat: -23.6100, lng: -70.2600, tipo: "descarga", radio_km: 1 },
+  { nombre: "La Serena", lat: -30.4800, lng: -71.4800, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Sector Colina", lat: -33.2700, lng: -70.7500, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS"] },
+  { nombre: "Sector Pudahuel", lat: -33.3700, lng: -70.4900, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS"] },
+  { nombre: "Sector Las Condes / Lo Barnechea", lat: -33.3700, lng: -70.4000, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS"] },
+  { nombre: "Quintero / Ventanas", lat: -32.7500, lng: -71.4800, tipo: "puerto", radio_km: 1, contratos: ["ANGLO-COCU"] },
+  { nombre: "Sector Ruta 60 Los Andes", lat: -32.8500, lng: -70.8800, tipo: "carga", radio_km: 1, contratos: ["ANGLO-COCU"] },
+  { nombre: "Estacion Quilicura", lat: -33.3583, lng: -70.7250, tipo: "estacion", radio_km: 1 },
+  { nombre: "Estacion Lampa", lat: -33.2480, lng: -70.7170, tipo: "estacion", radio_km: 1 },
+  { nombre: "Estacion Renca", lat: -33.3890, lng: -70.6650, tipo: "estacion", radio_km: 1 },
+  { nombre: "Estacion Los Angeles", lat: -37.4695, lng: -72.3538, tipo: "estacion", radio_km: 1 },
+  { nombre: "Villa Alegre / Linares Sur", lat: -35.8400, lng: -71.6900, tipo: "estacion", radio_km: 1 },
+  { nombre: "Sector Lampa Norte", lat: -33.1500, lng: -70.6600, tipo: "descarga", radio_km: 1 },
+  { nombre: "Collipulli / Victoria", lat: -37.7400, lng: -72.2400, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Angol / Renaico", lat: -37.5679, lng: -72.2915, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Copiapo", lat: -27.6876, lng: -70.4809, tipo: "descarga", radio_km: 1 },
+  { nombre: "Vallenar", lat: -28.5999, lng: -70.7739, tipo: "descarga", radio_km: 1 },
+  { nombre: "Ovalle / Illapel", lat: -31.8997, lng: -71.4892, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Puerto Montt", lat: -41.4700, lng: -72.9400, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Osorno Centro", lat: -40.5700, lng: -73.1000, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Valdivia", lat: -39.8134, lng: -73.2300, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Panguipulli / Lago Ranco", lat: -39.5171, lng: -72.8233, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Villarrica / Pucon", lat: -39.2700, lng: -72.2300, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Sector Padre Hurtado", lat: -33.4063, lng: -70.7279, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Sector San Bernardo", lat: -33.4261, lng: -70.8178, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Rancagua / Graneros", lat: -34.0490, lng: -70.7343, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Freire / Pitrufquen", lat: -38.7461, lng: -72.6086, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
+  { nombre: "Sector Lautaro", lat: -38.4085, lng: -72.3937, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
   { nombre: "Chillan Viejo", lat: -36.8000, lng: -72.3263, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
   { nombre: "Rio Bueno", lat: -40.2932, lng: -73.0730, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
   { nombre: "Sector Nogales", lat: -32.8024, lng: -70.9579, tipo: "carga", radio_km: 4, contratos: ["ANGLO-COCU"] },
@@ -70,21 +72,86 @@ const LUGARES_CONOCIDOS: LugarConocido[] = [
   { nombre: "Quillota / La Cruz", lat: -32.8800, lng: -71.2500, tipo: "descarga", radio_km: 5 },
 ];
 
-export function buscarLugarCercano(lat: number, lng: number, contrato?: string): LugarConocido | null {
-  let best: LugarConocido | null = null;
-  let bestDist = Infinity;
-  for (const lugar of LUGARES_CONOCIDOS) {
-    if (contrato && lugar.contratos && !lugar.contratos.includes(contrato)) continue;
-    const dist = haversineKm(lat, lng, lugar.lat, lugar.lng);
-    if (dist <= lugar.radio_km && dist < bestDist) {
-      best = lugar;
-      bestDist = dist;
+// Cache geocercas from DB (refreshed every 5 min)
+let _geocercasCache: LugarConocido[] = [];
+let _geocercasCacheTs = 0;
+
+async function cargarGeocercasOperacionales(): Promise<LugarConocido[]> {
+  if (Date.now() - _geocercasCacheTs < 5 * 60 * 1000 && _geocercasCache.length > 0) return _geocercasCache;
+  try {
+    const r = await pool.query(`SELECT nombre, lat, lng, radio_metros, tipo, contrato FROM geocercas_operacionales WHERE activa = true AND confianza IN ('ALTA', 'MEDIA') ORDER BY confirmada DESC, camiones_frecuentes DESC`);
+    _geocercasCache = r.rows.map((g: any) => ({
+      nombre: g.nombre, lat: g.lat, lng: g.lng, tipo: (g.tipo || "general").toLowerCase() as any,
+      radio_km: (g.radio_metros || 1000) / 1000, contratos: g.contrato ? [g.contrato] : undefined,
+    }));
+    // Also include hardcoded as fallback
+    for (const lc of LUGARES_CONOCIDOS) {
+      if (!_geocercasCache.some(g => haversineKm(g.lat, g.lng, lc.lat, lc.lng) < 0.5)) {
+        _geocercasCache.push(lc);
+      }
     }
+    _geocercasCacheTs = Date.now();
+    console.log(`[GEOCERCAS] Cache actualizado: ${_geocercasCache.length} geocercas operacionales`);
+  } catch (e) {
+    // Fallback to hardcoded
+    if (_geocercasCache.length === 0) _geocercasCache = [...LUGARES_CONOCIDOS];
   }
-  return best;
+  return _geocercasCache;
 }
 
-export { LUGARES_CONOCIDOS };
+// Init cache on module load
+cargarGeocercasOperacionales();
+
+// Sync version for backward compat — uses cache + fallback to nearest
+export function buscarLugarCercano(lat: number, lng: number, contrato?: string): LugarConocido | null {
+  const lugares = _geocercasCache.length > 0 ? _geocercasCache : LUGARES_CONOCIDOS;
+
+  // NIVEL 5 — exact match ≤5m
+  let best5m: LugarConocido | null = null;
+  let bestDist5m = Infinity;
+  for (const lugar of lugares) {
+    const dist = haversineKm(lat, lng, lugar.lat, lugar.lng);
+    if (dist <= 0.005 && dist < bestDist5m) { best5m = lugar; bestDist5m = dist; }
+  }
+  if (best5m) return best5m;
+
+  // NIVEL 1 — inside base radius
+  for (const lugar of lugares) {
+    if (contrato && lugar.contratos && !lugar.contratos.includes(contrato) && !lugar.contratos.includes("TODOS")) continue;
+    const dist = haversineKm(lat, lng, lugar.lat, lugar.lng);
+    if (dist <= lugar.radio_km) return lugar;
+  }
+
+  // NIVEL 2 — exact point 50m
+  let best50: LugarConocido | null = null;
+  let bestDist50 = Infinity;
+  for (const lugar of lugares) {
+    const dist = haversineKm(lat, lng, lugar.lat, lugar.lng);
+    if (dist <= 0.05 && dist < bestDist50) { best50 = lugar; bestDist50 = dist; }
+  }
+  if (best50) return best50;
+
+  // NIVEL 3 — associate nearest <10km
+  let closest: LugarConocido | null = null;
+  let closestDist = Infinity;
+  for (const lugar of lugares) {
+    const dist = haversineKm(lat, lng, lugar.lat, lugar.lng);
+    if (dist < closestDist) { closest = lugar; closestDist = dist; }
+  }
+  if (closest && closestDist <= 10) {
+    return { ...closest, nombre: closest.nombre + ` (${Math.round(closestDist * 1000)}m)` };
+  }
+
+  // NIVEL 4 — unknown
+  return null;
+}
+
+// Async version with full 5-level system (for new code)
+export async function buscarLugarInteligente(lat: number, lng: number, minutosDetenido: number = 0, contrato?: string): Promise<string> {
+  return resolverNombreViaje(lat, lng, minutosDetenido, contrato);
+}
+
+export { LUGARES_CONOCIDOS, cargarGeocercasOperacionales };
 
 interface SyncProgress {
   status: "idle" | "running" | "done" | "error";
@@ -313,8 +380,28 @@ interface CorredorCluster {
   camiones: Set<string>;
 }
 
-const CLUSTER_RADIUS_KM = 8;
+const CLUSTER_RADIUS_KM_DEFAULT = 1; // 1km = 1000m default
 const MIN_VIAJES_CORREDOR = 5;
+
+// Faenas mineras con radio extendido (zonas remotas, accesos largos)
+const FAENAS_MINERAS = ["ZALDIVAR", "GLENCORE", "ANGLO", "CODELCO", "CENTINELA", "MANTOS COPPER", "SIERRA ATACAMA", "MINISTRO HALES"];
+
+function esFaenaMinera(contrato: string): boolean {
+  if (!contrato) return false;
+  const c = contrato.toUpperCase();
+  return FAENAS_MINERAS.some(f => c.includes(f));
+}
+
+function getClusterRadius(kmViaje: number, contrato: string): number {
+  // Faenas mineras — radios amplios (zonas remotas, caminos largos a faena)
+  if (esFaenaMinera(contrato)) {
+    if (kmViaje < 100) return 5;
+    if (kmViaje < 300) return 8;
+    return 8;
+  }
+  // Todas las demás faenas — radio estándar 1km (1000m)
+  return 1;
+}
 
 export async function clusterizarCorredores(): Promise<{ total: number; nuevos: number; actualizados: number }> {
   console.log("[corredores] Iniciando clusterizacion de corredores...");
@@ -345,7 +432,8 @@ export async function clusterizarCorredores(): Promise<{ total: number; nuevos: 
       if (corr.contrato !== v.contrato) continue;
       const dOrigen = haversineKm(corr.origenLat, corr.origenLng, oLat, oLng);
       const dDestino = haversineKm(corr.destinoLat, corr.destinoLng, dLat, dLng);
-      if (dOrigen <= CLUSTER_RADIUS_KM && dDestino <= CLUSTER_RADIUS_KM) {
+      const radio = getClusterRadius(parseFloat(v.km_ecu) || 0, v.contrato || "");
+      if (dOrigen <= radio && dDestino <= radio) {
         corr.viajes.push({
           rendimiento: parseFloat(v.rendimiento_real) || 0,
           km: parseFloat(v.km_ecu) || 0,
@@ -433,7 +521,7 @@ export async function clusterizarCorredores(): Promise<{ total: number; nuevos: 
       `, [
         nombre, corr.contrato, corr.origenNombre, corr.destinoNombre,
         corr.origenLat, corr.origenLng, corr.destinoLat, corr.destinoLng,
-        CLUSTER_RADIUS_KM,
+        getClusterRadius(kmPromedio, corr.contrato),
         Math.round(rendPromedio * 100) / 100,
         Math.round(rendDesviacion * 100) / 100,
         Math.round(kmPromedio * 10) / 10,
@@ -447,7 +535,7 @@ export async function clusterizarCorredores(): Promise<{ total: number; nuevos: 
   const corredoresDB = await pool.query(`SELECT id, contrato, origen_lat, origen_lng, destino_lat, destino_lng, radio_tolerancia_km FROM corredores WHERE activo = true`);
   let asignados = 0;
   for (const corr of corredoresDB.rows) {
-    const radio = parseFloat(corr.radio_tolerancia_km) || CLUSTER_RADIUS_KM;
+    const radio = parseFloat(corr.radio_tolerancia_km) || CLUSTER_RADIUS_KM_DEFAULT;
     const updated = await pool.query(`
       UPDATE viajes_aprendizaje SET corredor_id = $1
       WHERE contrato = $2 AND corredor_id IS NULL
@@ -522,7 +610,7 @@ export async function recalcularScoresConCorredor(): Promise<{ recalculados: num
       else if (ratio < 0.8) score += 10;
     }
 
-    if (velMax > 120) score += 10;
+    if (velMax > 105) score += 10;
     else if (velMax > 100) score += 5;
 
     score = Math.min(score, 100);
@@ -681,7 +769,7 @@ function buildViajesFromSnapshots(
 
     
 
-    if (velMax > 120) { scoreAnomalia += 10; }
+    if (velMax > 105) { scoreAnomalia += 10; }
 
     if (scoreAnomalia >= 50) estado = "ANOMALIA";
     else if (scoreAnomalia >= 20) estado = "REVISAR";

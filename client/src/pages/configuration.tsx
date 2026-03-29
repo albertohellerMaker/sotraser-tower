@@ -152,7 +152,7 @@ export default function Configuration() {
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.color }} />
                   <div>
                     <div className="text-[13px] text-foreground font-semibold">{f.nombre}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                    <div className="text-xs font-mono text-muted-foreground mt-0.5">
                       {camiones.filter(c => c.faenaId === f.id).length} camiones
                     </div>
                   </div>
@@ -208,13 +208,13 @@ export default function Configuration() {
                         <span className="text-sm font-mono font-bold text-primary">{cam.patente}</span>
                         <StatusTag label={s.estado} variant={getStatusVariant(s.estado)} />
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                      <div className="text-xs text-muted-foreground mt-0.5">
                         {cam.modelo} · {faena?.nombre || "Sin faena"} · meta {cam.metaKmL} km/L
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className={`text-[10px] font-mono mr-2 ${cam.syncOk ? "text-emerald-400" : "text-red-400"}`}>
+                    <div className={`text-xs font-mono mr-2 ${cam.syncOk ? "text-emerald-400" : "text-red-400"}`}>
                       {cam.syncOk ? "Sync OK" : "Sin sync"}
                     </div>
                     <Button variant="outline" size="sm" className="h-7"
@@ -280,26 +280,26 @@ export default function Configuration() {
             <div className="grid grid-cols-4 gap-3 mb-3">
               <div className="bg-background border border-border p-2.5 text-center">
                 <div className="text-lg font-mono font-bold text-primary">{asignacionPreview.total}</div>
-                <div className="text-[9px] font-mono text-muted-foreground tracking-wider">TOTAL</div>
+                <div className="text-[11px] font-mono text-muted-foreground tracking-wider">TOTAL</div>
               </div>
               <div className="bg-background border border-border p-2.5 text-center">
                 <div className="text-lg font-mono font-bold text-emerald-400">{asignacionPreview.porAsignar}</div>
-                <div className="text-[9px] font-mono text-muted-foreground tracking-wider">POR ASIGNAR</div>
+                <div className="text-[11px] font-mono text-muted-foreground tracking-wider">POR ASIGNAR</div>
               </div>
               <div className="bg-background border border-border p-2.5 text-center">
                 <div className="text-lg font-mono font-bold text-primary">{asignacionPreview.yaAsignados}</div>
-                <div className="text-[9px] font-mono text-muted-foreground tracking-wider">YA ASIGNADOS</div>
+                <div className="text-[11px] font-mono text-muted-foreground tracking-wider">YA ASIGNADOS</div>
               </div>
               <div className="bg-background border border-border p-2.5 text-center">
                 <div className="text-lg font-mono font-bold text-muted-foreground">{asignacionPreview.sinDatos}</div>
-                <div className="text-[9px] font-mono text-muted-foreground tracking-wider">SIN DATOS</div>
+                <div className="text-[11px] font-mono text-muted-foreground tracking-wider">SIN DATOS</div>
               </div>
             </div>
 
             <div className="border border-border max-h-[400px] overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
                 <thead className="bg-background sticky top-0">
-                  <tr className="text-[9px] text-muted-foreground tracking-wider">
+                  <tr className="text-[11px] text-muted-foreground tracking-wider">
                     <th className="text-left px-3 py-2">PATENTE</th>
                     <th className="text-left px-3 py-2">CLIENTE SIGETRA</th>
                     <th className="text-right px-3 py-2">LITROS</th>
@@ -327,7 +327,7 @@ export default function Configuration() {
                         {row.faenaPropuesta || "\u2014"}
                       </td>
                       <td className="px-3 py-1.5 text-center">
-                        <span className={`inline-block px-2 py-0.5 text-[9px] font-bold tracking-wider ${
+                        <span className={`inline-block px-2 py-0.5 text-[11px] font-bold tracking-wider ${
                           row.accion === "ASIGNAR" ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" :
                           row.accion === "YA_ASIGNADO" ? "text-primary bg-primary/10 border border-primary/30" :
                           "text-muted-foreground bg-muted/10 border border-border"
@@ -377,13 +377,13 @@ export default function Configuration() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-3">
             <div>
-              <label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase block mb-1.5">
+              <label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase block mb-1.5">
                 Usuario API
               </label>
               <Input value={volvoStatus?.user || ""} readOnly className="font-mono bg-background" data-testid="input-volvo-user" />
             </div>
             <div>
-              <label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase block mb-1.5">
+              <label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase block mb-1.5">
                 Contrasena
               </label>
               <Input type="password" value="********" readOnly className="font-mono bg-background" data-testid="input-volvo-password" />
@@ -414,13 +414,13 @@ export default function Configuration() {
               )}
             </Button>
             {volvoStatus?.status !== "connected" && (
-              <p className="text-[10px] text-muted-foreground/60 font-mono">
+              <p className="text-xs text-muted-foreground/60 font-mono">
                 La sincronizacion se habilitara cuando Volvo active el acceso API.
               </p>
             )}
           </div>
           <div className="bg-background border border-border p-4">
-            <div className="text-[9px] font-mono text-primary tracking-[0.15em] mb-3">
+            <div className="text-[11px] font-mono text-primary tracking-[0.15em] mb-3">
               DATOS QUE SE SINCRONIZAN POR CAMION (rFMS v2.1)
             </div>
             {[
@@ -456,7 +456,7 @@ export default function Configuration() {
           <div className="text-[13px] font-mono text-muted-foreground">
             Arrastra el Excel aqui o haz clic para subir
           </div>
-          <div className="text-[10px] font-mono text-muted-foreground/60 mt-1.5">
+          <div className="text-xs font-mono text-muted-foreground/60 mt-1.5">
             Columnas: Patente · Fecha · Litros · Km · Proveedor
           </div>
         </div>

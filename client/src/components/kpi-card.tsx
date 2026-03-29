@@ -25,15 +25,15 @@ export function KpiCard({ label, value, unit, sub, color, icon, className }: Kpi
           {icon}
         </div>
       )}
-      <div className="text-[9px] font-mono text-muted-foreground tracking-[0.2em] uppercase mb-1.5">
+      <div className="text-[11px] font-mono text-muted-foreground tracking-[0.2em] uppercase mb-1.5">
         {label}
       </div>
       <div className="font-mono font-bold text-2xl leading-none" style={{ color }}>
         {value}
-        {unit && <span className="text-[10px] text-muted-foreground ml-1">{unit}</span>}
+        {unit && <span className="text-xs text-muted-foreground ml-1">{unit}</span>}
       </div>
       {sub && (
-        <div className="text-[10px] text-muted-foreground font-mono mt-1.5">{sub}</div>
+        <div className="text-xs text-muted-foreground font-mono mt-1.5">{sub}</div>
       )}
     </div>
   );

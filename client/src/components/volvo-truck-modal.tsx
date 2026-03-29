@@ -59,13 +59,13 @@ function formatCoord(val?: number | null, decimals = 6): string {
 function DataCell({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
   return (
     <div className="bg-background border border-border p-2.5" data-testid={`volvo-${label.toLowerCase().replace(/\s/g, "-")}`}>
-      <div className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] mb-0.5 uppercase">
+      <div className="text-xs font-mono text-muted-foreground tracking-[0.15em] mb-0.5 uppercase">
         {label}
       </div>
       <div className="text-base font-mono font-bold" style={{ color: color || "hsl(var(--foreground))" }}>
         {value}
       </div>
-      {sub && <div className="text-[9px] text-muted-foreground mt-0.5">{sub}</div>}
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -74,7 +74,7 @@ function SectionHeader({ icon, label, color }: { icon: React.ReactNode; label: s
   return (
     <div className="flex items-center gap-2 mb-2.5">
       <span style={{ color }} className="opacity-70">{icon}</span>
-      <span className="text-[9px] font-mono tracking-[0.15em] uppercase font-bold" style={{ color }}>
+      <span className="text-[11px] font-mono tracking-[0.15em] uppercase font-bold" style={{ color }}>
         {label}
       </span>
     </div>
@@ -217,9 +217,9 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
           <div className="bg-background px-3 py-1.5 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MapPin className="w-3 h-3 text-emerald-400" />
-              <span className="text-[9px] font-mono text-emerald-400 tracking-[0.1em] uppercase font-bold">Posicion actual GPS</span>
+              <span className="text-[11px] font-mono text-emerald-400 tracking-[0.1em] uppercase font-bold">Posicion actual GPS</span>
             </div>
-            <span className="text-[9px] font-mono text-muted-foreground">
+            <span className="text-[11px] font-mono text-muted-foreground">
               {gps.latitude!.toFixed(5)}, {gps.longitude!.toFixed(5)}
               {gps.speed != null && gps.speed > 0 && <span className="ml-2 text-emerald-400">{Math.round(gps.speed)} km/h</span>}
             </span>
@@ -232,7 +232,7 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
           />
           {gps.positionDateTime && (
             <div className="bg-background px-3 py-1 border-t border-border">
-              <span className="text-[8px] font-mono text-muted-foreground">Ultima posicion: {formatDateTime(gps.positionDateTime)}</span>
+              <span className="text-xs font-mono text-muted-foreground">Ultima posicion: {formatDateTime(gps.positionDateTime)}</span>
             </div>
           )}
         </div>
@@ -241,7 +241,7 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
       {hasCargas && data!.lugarSummary.length > 0 && (
         <div className="bg-background border border-border" data-testid="lugar-summary">
           <div className="px-3 py-2 border-b border-border">
-            <span className="text-[9px] font-mono text-amber-400 tracking-[0.1em] uppercase font-bold">
+            <span className="text-[11px] font-mono text-amber-400 tracking-[0.1em] uppercase font-bold">
               Resumen lugares de carga ({data!.periodo.from} a {data!.periodo.to})
             </span>
           </div>
@@ -252,9 +252,9 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
                   <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
                   <span className="text-[11px] font-mono font-bold text-foreground truncate">{s.lugar}</span>
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground text-right">{s.count}x</span>
-                <span className="text-[10px] font-mono font-bold text-amber-400 text-right">{fN(Math.round(s.totalLitros))} L</span>
-                <span className="text-[9px] font-mono text-muted-foreground text-right">{formatDateTime(s.lastDate).split(",")[0]}</span>
+                <span className="text-xs font-mono text-muted-foreground text-right">{s.count}x</span>
+                <span className="text-xs font-mono font-bold text-amber-400 text-right">{fN(Math.round(s.totalLitros))} L</span>
+                <span className="text-[11px] font-mono text-muted-foreground text-right">{formatDateTime(s.lastDate).split(",")[0]}</span>
               </div>
             ))}
           </div>
@@ -264,13 +264,13 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
       {hasCargas && (
         <div className="bg-background border border-border" data-testid="location-detail-table">
           <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-            <span className="text-[9px] font-mono text-primary tracking-[0.1em] uppercase font-bold">
+            <span className="text-[11px] font-mono text-primary tracking-[0.1em] uppercase font-bold">
               Detalle cargas ({data!.totalCargas} registros)
             </span>
             {data!.locations.length > 8 && (
               <button
                 onClick={() => setShowAll(!showAll)}
-                className="flex items-center gap-1 text-[9px] font-mono text-primary hover:text-primary/80 cursor-pointer"
+                className="flex items-center gap-1 text-[11px] font-mono text-primary hover:text-primary/80 cursor-pointer"
                 data-testid="btn-toggle-locations"
               >
                 {showAll ? "Ver menos" : `Ver todos (${data!.totalCargas})`}
@@ -279,23 +279,23 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
             )}
           </div>
           <div className="grid grid-cols-[5.5rem_1fr_4rem_5rem_5.5rem] gap-1.5 px-3 py-1.5 border-b border-border">
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.15em]">FECHA</span>
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.15em]">LUGAR</span>
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] text-right">LITROS</span>
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] text-right">KM REC.</span>
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.15em]">CONDUCTOR</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.15em]">FECHA</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.15em]">LUGAR</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.15em] text-right">LITROS</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.15em] text-right">KM REC.</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.15em]">CONDUCTOR</span>
           </div>
           <div className="divide-y divide-border/30 max-h-[300px] overflow-y-auto">
             {visibleLocations.map((loc, i) => (
               <div key={`${loc.numGuia}-${i}`} className="grid grid-cols-[5.5rem_1fr_4rem_5rem_5.5rem] gap-1.5 px-3 py-1.5 items-center" data-testid={`location-row-${i}`}>
-                <span className="text-[10px] font-mono text-muted-foreground">{formatDateTime(loc.fecha).split(",")[0]}</span>
+                <span className="text-xs font-mono text-muted-foreground">{formatDateTime(loc.fecha).split(",")[0]}</span>
                 <div className="flex items-center gap-1 min-w-0">
                   <MapPin className="w-2.5 h-2.5 text-primary/60 flex-shrink-0" />
-                  <span className="text-[10px] font-mono text-foreground truncate">{loc.lugar || "\u2014"}</span>
+                  <span className="text-xs font-mono text-foreground truncate">{loc.lugar || "\u2014"}</span>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-amber-400 text-right">{fN(Math.round(loc.litros))}</span>
-                <span className="text-[10px] font-mono text-foreground text-right">{loc.kmRecorrido != null ? fN(Math.round(loc.kmRecorrido)) : "\u2014"}</span>
-                <span className="text-[9px] font-mono text-muted-foreground truncate">{loc.conductor || "\u2014"}</span>
+                <span className="text-xs font-mono font-bold text-amber-400 text-right">{fN(Math.round(loc.litros))}</span>
+                <span className="text-xs font-mono text-foreground text-right">{loc.kmRecorrido != null ? fN(Math.round(loc.kmRecorrido)) : "\u2014"}</span>
+                <span className="text-[11px] font-mono text-muted-foreground truncate">{loc.conductor || "\u2014"}</span>
               </div>
             ))}
           </div>
@@ -348,13 +348,13 @@ export function VolvoTruckModal({ camion, status: passedStatus, faena, open, onC
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] uppercase mb-0.5">ULTIMA SYNC</div>
+              <div className="text-xs font-mono text-muted-foreground tracking-[0.15em] uppercase mb-0.5">ULTIMA SYNC</div>
               <div className={`text-[11px] font-mono ${camion.syncOk ? "text-emerald-400" : "text-red-400"}`} data-testid="text-volvo-sync">
                 {camion.syncAt || "Sin sincronizar"}
               </div>
               {status?.createdDateTime && (
                 <>
-                  <div className="text-[8px] font-mono text-muted-foreground tracking-[0.15em] uppercase mb-0.5 mt-1.5">DATO RFMS</div>
+                  <div className="text-xs font-mono text-muted-foreground tracking-[0.15em] uppercase mb-0.5 mt-1.5">DATO RFMS</div>
                   <div className="text-[11px] font-mono text-blue-400" data-testid="text-volvo-rfms-time">
                     {formatDateTime(status.createdDateTime)}
                   </div>

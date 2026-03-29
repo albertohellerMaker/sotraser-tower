@@ -1,9 +1,28 @@
 import { storage } from "./storage";
 import { pool } from "./db";
 
-export const CONTRATOS_VOLVO_ACTIVOS = ["CENCOSUD", "ANGLO-CARGAS VARIAS", "ANGLO-CAL", "ANGLO-COCU"];
+// Dynamic — populated at startup from DB
+export let CONTRATOS_VOLVO_ACTIVOS: string[] = ["ANGLO-COCU", "ANGLO-CAL", "ANGLO-CARGAS VARIAS", "CENCOSUD"];
+export const CONTRATO_DEFAULT = "ANGLO-COCU";
+
+export async function inicializarContratos() {
+  try {
+    const r = await pool.query(`
+      SELECT DISTINCT contrato FROM viajes_aprendizaje
+      WHERE km_ecu::float > 20 AND fecha_inicio >= NOW() - INTERVAL '30 days' AND contrato IS NOT NULL
+      ORDER BY contrato
+    `);
+    if (r.rows.length > 0) {
+      CONTRATOS_VOLVO_ACTIVOS = r.rows.map((row: any) => row.contrato);
+    }
+    console.log("[CONFIG] Contratos activos:", CONTRATOS_VOLVO_ACTIVOS);
+  } catch (e: any) {
+    console.error("[CONFIG] Error cargando contratos:", e.message);
+  }
+}
 
 export function isContratoActivo(contrato: string): boolean {
+  if (!contrato) return false;
   const upper = contrato.toUpperCase();
   return CONTRATOS_VOLVO_ACTIVOS.some(c => upper.includes(c.toUpperCase()));
 }
@@ -77,7 +96,8 @@ export async function getAllContracts(soloVolvo = false): Promise<{ name: string
   const faenas = await storage.getFaenas();
   const contracts: { name: string; faenas: { id: number; nombre: string }[]; camiones: number }[] = [];
 
-  for (const contrato of CONTRATOS_VOLVO_ACTIVOS) {
+  const contratosActivos = CONTRATOS_VOLVO_ACTIVOS.length > 0 ? CONTRATOS_VOLVO_ACTIVOS : faenas.map(f => f.nombre);
+  for (const contrato of contratosActivos) {
     const matchedFaenas = faenas.filter(f => f.nombre.toUpperCase() === contrato.toUpperCase());
     if (matchedFaenas.length === 0) continue;
     const faenaIdSet = new Set(matchedFaenas.map(f => f.id));

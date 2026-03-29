@@ -27,7 +27,7 @@ const SUGERENCIA_GROUPS = [
   {
     label: "SEGURIDAD",
     items: [
-      "Algun camion supero 120 km/h hoy?",
+      "Algun camion supero 105 km/h hoy?",
     ],
   },
 ];
@@ -77,12 +77,12 @@ export default function Asistente() {
           <span className="font-rajdhani text-xl font-bold" style={{ color: "#c8e8ff" }} data-testid="text-asistente-title">
             SOTRA IA
           </span>
-          <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Asistente de flota Volvo Connect</span>
+          <span className="font-exo text-xs" style={{ color: "#3a6080" }}>Asistente de flota Volvo Connect</span>
         </div>
         {messages.length > 0 && (
           <button onClick={() => setMessages([])}
             data-testid="btn-reset-chat"
-            className="flex items-center gap-1.5 px-3 py-1.5 font-exo text-[9px] font-bold tracking-wider cursor-pointer transition-all hover:bg-[#0d1e30]"
+            className="flex items-center gap-1.5 px-3 py-1.5 font-exo text-[11px] font-bold tracking-wider cursor-pointer transition-all hover:bg-[#0d1e30]"
             style={{ border: "1px solid #0d2035", color: "#3a6080" }}>
             <RotateCcw className="w-3 h-3" /> NUEVA CONVERSACION
           </button>
@@ -108,7 +108,7 @@ export default function Asistente() {
             <div className="w-full max-w-xl space-y-4">
               {SUGERENCIA_GROUPS.map((group) => (
                 <div key={group.label}>
-                  <div className="font-exo text-[10px] font-bold tracking-[0.2em] mb-2 px-1" style={{ color: "#4a7090" }}>
+                  <div className="font-exo text-xs font-bold tracking-[0.2em] mb-2 px-1" style={{ color: "#4a7090" }}>
                     {group.label}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -116,7 +116,7 @@ export default function Asistente() {
                       <button key={i}
                         onClick={() => { setInput(s); enviar(s); }}
                         data-testid={`chip-sugerencia-${group.label}-${i}`}
-                        className="px-3 py-2 font-exo text-[10px] cursor-pointer transition-all hover:bg-[rgba(0,212,255,0.06)]"
+                        className="px-3 py-2 font-exo text-xs cursor-pointer transition-all hover:bg-[rgba(0,212,255,0.06)]"
                         style={{ border: "1px solid #0d2035", color: "#6a90aa" }}>
                         {s}
                       </button>
@@ -147,7 +147,7 @@ export default function Asistente() {
                   {msg.content}
                 </div>
               </div>
-              <div className="font-space text-[9px] mt-1 px-1" style={{ color: "#3a608060" }}>
+              <div className="font-space text-[11px] mt-1 px-1" style={{ color: "#3a608060" }}>
                 {msg.time}
               </div>
             </div>

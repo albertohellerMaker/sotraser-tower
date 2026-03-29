@@ -73,19 +73,19 @@ export function CamionModal({ faenas, camion, open, onClose }: CamionModalProps)
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Patente</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Patente</Label>
               <Input value={form.patente} onChange={e => set("patente", e.target.value.toUpperCase())}
                 placeholder="DKPW78" className="font-mono bg-background" data-testid="input-patente" />
             </div>
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Modelo</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Modelo</Label>
               <Input value={form.modelo} onChange={e => set("modelo", e.target.value)}
                 placeholder="Volvo FH16 750" className="font-mono bg-background" data-testid="input-modelo" />
             </div>
           </div>
 
           <div>
-            <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Faena</Label>
+            <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Faena</Label>
             <Select value={form.faenaId} onValueChange={v => set("faenaId", v)}>
               <SelectTrigger className="font-mono bg-background" data-testid="select-faena">
                 <SelectValue />
@@ -99,28 +99,28 @@ export function CamionModal({ faenas, camion, open, onClose }: CamionModalProps)
           </div>
 
           <div>
-            <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Meta rendimiento (km/L)</Label>
+            <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Meta rendimiento (km/L)</Label>
             <Input type="number" value={form.metaKmL} onChange={e => set("metaKmL", e.target.value)}
               placeholder="2.1" className="font-mono bg-background" data-testid="input-meta" />
-            <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+            <p className="text-xs text-muted-foreground mt-1 font-mono">
               Se usa para detectar bajo rendimiento automaticamente
             </p>
           </div>
 
           <div className="flex items-center gap-3 py-1">
             <Separator className="flex-1" />
-            <span className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Datos Volvo Connect</span>
+            <span className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Datos Volvo Connect</span>
             <Separator className="flex-1" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">VIN (del camion)</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">VIN (del camion)</Label>
               <Input value={form.vin} onChange={e => set("vin", e.target.value)}
                 placeholder="YV2RT40A5KB123403" className="font-mono bg-background" data-testid="input-vin" />
             </div>
             <div>
-              <Label className="text-[9px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Conductor habitual</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Conductor habitual</Label>
               <Input value={form.conductor} onChange={e => set("conductor", e.target.value)}
                 placeholder="P. Contreras" className="font-mono bg-background" data-testid="input-conductor" />
             </div>

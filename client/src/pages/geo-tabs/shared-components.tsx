@@ -3,7 +3,7 @@ import { estadoColors, estadoLabels } from "./types";
 export function EstadoBadge({ estado }: { estado: string }) {
   const color = estadoColors[estado] || "#3a6080";
   return (
-    <span className="font-exo text-[10px] font-bold px-2 py-0.5 rounded" style={{
+    <span className="font-exo text-xs font-bold px-2 py-0.5 rounded" style={{
       background: color + "20",
       border: `1px solid ${color}`,
       color,

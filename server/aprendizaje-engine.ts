@@ -1,6 +1,7 @@
-import { pool } from "./db";
+import { pool, db } from "./db";
 import { buscarLugarCercano } from "./viajes-historico";
 import { getCachedFuelData } from "./sigetra-api";
+import { sql } from "drizzle-orm";
 
 export async function cruzarConSigetra(): Promise<number> {
   const limite72h = new Date(Date.now() - 72 * 60 * 60 * 1000);
@@ -13,6 +14,7 @@ export async function cruzarConSigetra(): Promise<number> {
     WHERE v.sigetra_cruzado = false
       AND v.procesado_aprendizaje = true
       AND v.fecha_inicio <= $1
+      AND c.vin IS NOT NULL AND c.vin != ''
     ORDER BY v.fecha_inicio ASC
     LIMIT 500
   `, [limite72h]);
@@ -521,5 +523,101 @@ function geocodearLugar(lat: number, lng: number): string {
     return lugar ? lugar.nombre : "Punto desconocido";
   } catch {
     return "Punto desconocido";
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   CIERRE AUTOMÁTICO DE OPERACIONES
+   Procesa pares de cargas y calcula balance ECU
+   ═══════════════════════════════════════════════════ */
+
+export async function procesarCierreAutomatico(diasAtras: number = 7, limite: number = 100): Promise<number> {
+  try {
+    const { calcularPeriodoEntreCargas } = await import("./utils/snapshots-carga");
+
+    // Pares de cargas consecutivas sin procesar
+    // nota: cargas.fecha es text, necesita cast a timestamp
+    const paresR = await pool.query(`
+      SELECT
+        c1.id as carga_a_id, c1.patente, c1.fecha as fecha_a,
+        c1.litros_surtidor::float as litros_a, c1.lugar_consumo as estacion_a,
+        c1.conductor, c1.faena as contrato,
+        c2.id as carga_b_id, c2.fecha as fecha_b,
+        c2.litros_surtidor::float as litros_b, c2.lugar_consumo as estacion_b,
+        cam.vin
+      FROM cargas c1
+      JOIN cargas c2 ON c2.patente = c1.patente
+        AND c2.fecha::timestamp > c1.fecha::timestamp
+        AND c2.fecha::timestamp <= c1.fecha::timestamp + INTERVAL '96 hours'
+        AND c2.id = (
+          SELECT id FROM cargas
+          WHERE patente = c1.patente AND fecha::timestamp > c1.fecha::timestamp
+          ORDER BY fecha::timestamp ASC LIMIT 1
+        )
+      JOIN camiones cam ON cam.patente = c1.patente AND cam.vin IS NOT NULL AND cam.vin != ''
+      LEFT JOIN operaciones_cerradas oc ON oc.carga_a_id = c1.id
+      WHERE c1.fecha::timestamp >= NOW() - INTERVAL '${diasAtras} days'
+        AND c1.litros_surtidor > 0
+        AND oc.id IS NULL
+      ORDER BY c1.fecha::timestamp ASC
+      LIMIT $1
+    `, [limite]);
+
+    let cerradas = 0;
+
+    for (const par of paresR.rows) {
+      try {
+        const periodo = await calcularPeriodoEntreCargas(
+          par.patente,
+          { fecha: new Date(par.fecha_a), litros: par.litros_a },
+          { fecha: new Date(par.fecha_b), litros: par.litros_b }
+        );
+
+        if (!periodo.kmEcu || periodo.kmEcu < 50) continue;
+        if (!periodo.litrosConsumidosEcu) continue;
+        if (periodo.snapCount < 5) continue;
+
+        const balanceLitros = par.litros_a - periodo.litrosConsumidosEcu;
+        const balancePct = Math.round(balanceLitros / periodo.litrosConsumidosEcu * 100);
+
+        let nivelAnomalia = "NORMAL";
+        if (periodo.kmEcu >= 200 && periodo.snapCount >= 15 && !periodo.periodoAbierto) {
+          if (balancePct > 80 && balanceLitros > 100) nivelAnomalia = "CRITICO";
+          else if (balancePct > 40 && balanceLitros > 50) nivelAnomalia = "SOSPECHOSO";
+          else if (balancePct > 20) nivelAnomalia = "REVISAR";
+        }
+
+        await pool.query(`
+          INSERT INTO operaciones_cerradas (
+            patente, vin, conductor, contrato,
+            carga_a_id, carga_a_fecha, carga_a_litros, carga_a_estacion,
+            carga_b_id, carga_b_fecha, carga_b_litros, carga_b_estacion,
+            horas_periodo, km_ecu, litros_consumidos_ecu, rendimiento_ecu,
+            litros_cargados, balance_litros, balance_pct,
+            snap_count, cobertura_pct, calidad_datos,
+            nivel_anomalia
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+          ON CONFLICT (carga_a_id) DO NOTHING
+        `, [
+          par.patente, par.vin, par.conductor, par.contrato,
+          par.carga_a_id, par.fecha_a, par.litros_a, par.estacion_a,
+          par.carga_b_id, par.fecha_b, par.litros_b, par.estacion_b,
+          periodo.horasPeriodo, periodo.kmEcu, periodo.litrosConsumidosEcu, periodo.rendimientoEcu,
+          par.litros_a, balanceLitros, balancePct,
+          periodo.snapCount, periodo.coberturaPct, periodo.calidadDatos,
+          nivelAnomalia,
+        ]);
+
+        cerradas++;
+      } catch (e: any) {
+        // Skip individual errors
+      }
+    }
+
+    if (cerradas > 0) console.log(`[CIERRE-AUTO] ${cerradas} operaciones cerradas de ${paresR.rows.length} pares`);
+    return cerradas;
+  } catch (e: any) {
+    console.error("[CIERRE-AUTO] Error:", e.message);
+    return 0;
   }
 }

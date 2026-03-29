@@ -1,1145 +1,632 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Truck, ChevronDown, ChevronUp, Check, X, AlertTriangle, Cpu, Search, Route, Fuel, Activity, Brain, Loader2, Radio, Calendar, Droplets, Gauge, CheckCircle } from "lucide-react";
+import { Loader2, Fuel, Truck, Users, ChevronDown, ChevronUp, MapPin, Search, AlertTriangle } from "lucide-react";
 
-function AprendizajeWidget() {
-  const { data: aprendizaje, isLoading } = useQuery<any>({
-    queryKey: ["/api/estaciones/aprendizaje"],
-    refetchInterval: 10 * 60 * 1000,
-  });
-
-  if (isLoading || !aprendizaje) return null;
-
-  const r = aprendizaje.resumen;
-  if (!r) return null;
-
-  if (r.total_patrones === 0) {
-    return (
-      <div className="mb-4 border p-4" style={{ borderColor: "#0d2035", background: "#060d14", borderLeft: "3px solid #3a6080" }} data-testid="widget-aprendizaje">
-        <div className="flex items-center gap-2 mb-2">
-          <Brain className="w-3.5 h-3.5" style={{ color: "#3a6080" }} />
-          <span className="font-space text-[10px] font-bold tracking-[0.15em]" style={{ color: "#3a6080" }}>APRENDIENDO PATRONES DE CARGA</span>
-        </div>
-        <div className="font-rajdhani text-[12px]" style={{ color: "#4a7090" }}>
-          El sistema comenzara a aprender patrones despues del primer ciclo de 30 minutos
-        </div>
-      </div>
-    );
-  }
-
-  const borderColor =
-    r.madurez_pct >= 80 ? "#00ff88" :
-    r.madurez_pct >= 50 ? "#00d4ff" :
-    r.madurez_pct >= 20 ? "#ffcc00" :
-    "#3a6080";
-
-  const confianzaNiveles = [
-    { key: "experta", label: "EXPERTA", color: "#00ff88", desc: "200+ cargas" },
-    { key: "alta", label: "ALTA", color: "#00d4ff", desc: "50+ cargas" },
-    { key: "media", label: "MEDIA", color: "#ffcc00", desc: "10+ cargas" },
-    { key: "baja", label: "BAJA", color: "#3a6080", desc: "<10 cargas" },
-  ];
-
-  return (
-    <div className="mb-4 border" style={{ borderColor: "#0d2035", background: "#060d14", borderLeft: `3px solid ${borderColor}` }} data-testid="widget-aprendizaje">
-      <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
-        <div className="flex items-center gap-2">
-          <Brain className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-          <span className="font-space text-[10px] font-bold tracking-[0.15em]" style={{ color: "#00d4ff" }}>
-            APRENDIENDO PATRONES DE CARGA
-          </span>
-          {r.ultima_actualizacion && (
-            <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
-              ultima actualizacion: {new Date(r.ultima_actualizacion).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
-        <span className="font-space text-[10px] font-bold px-2 py-1" style={{
-          color: r.madurez_pct >= 50 ? "#00ff88" : "#ffcc00",
-          border: `1px solid ${r.madurez_pct >= 50 ? "#00ff8840" : "#ffcc0040"}`,
-        }} data-testid="badge-madurez">
-          {r.madurez_pct}% calibrado
-        </span>
-      </div>
-
-      <div className="p-4">
-        <div className="font-rajdhani text-[12px] mb-4 leading-relaxed" style={{ color: "#c8e8ff" }} data-testid="mensaje-aprendizaje">
-          "{r.mensaje}"
-        </div>
-
-        <div className="mb-4">
-          <div className="flex justify-between mb-1">
-            <span className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#3a6080" }}>MADUREZ DEL SISTEMA</span>
-            <span className="font-space text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{r.madurez_pct}%</span>
-          </div>
-          <div className="h-1.5 w-full" style={{ background: "#0d2035" }}>
-            <div className="h-full transition-all duration-500" style={{
-              width: `${r.madurez_pct}%`,
-              background: r.madurez_pct >= 80 ? "#00ff88" : r.madurez_pct >= 50 ? "#00d4ff" : "#ffcc00",
-            }} />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <div className="p-3" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-            <div className="font-exo text-[7px] tracking-[0.2em] uppercase mb-1" style={{ color: "#3a6080" }}>PATRONES ACTIVOS</div>
-            <div className="font-space text-[20px] font-bold" style={{ color: "#00d4ff" }} data-testid="stat-patrones">{r.total_patrones}</div>
-            <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>combinaciones aprendidas</div>
-          </div>
-          <div className="p-3" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-            <div className="font-exo text-[7px] tracking-[0.2em] uppercase mb-1" style={{ color: "#3a6080" }}>CAMIONES CONOCIDOS</div>
-            <div className="font-space text-[20px] font-bold" style={{ color: "#00ff88" }} data-testid="stat-camiones">{r.camiones_con_patron}</div>
-            <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>con patron de carga propio</div>
-          </div>
-          <div className="p-3" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-            <div className="font-exo text-[7px] tracking-[0.2em] uppercase mb-1" style={{ color: "#3a6080" }}>ESTACIONES CONOCIDAS</div>
-            <div className="font-space text-[20px] font-bold" style={{ color: "#ffcc00" }} data-testid="stat-estaciones">{r.estaciones_conocidas}</div>
-            <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>con comportamiento aprendido</div>
-          </div>
-          <div className="p-3" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-            <div className="font-exo text-[7px] tracking-[0.2em] uppercase mb-1" style={{ color: "#3a6080" }}>CARGAS ANALIZADAS</div>
-            <div className="font-space text-[20px] font-bold" style={{ color: "#c8e8ff" }} data-testid="stat-cargas">{r.cargas_historicas.toLocaleString("es-CL")}</div>
-            <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>historial total procesado</div>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>DISTRIBUCION DE CONFIANZA</div>
-          <div className="grid grid-cols-4 gap-2">
-            {confianzaNiveles.map(nivel => (
-              <div key={nivel.key} className="p-2 text-center" style={{ background: "#0a1520", border: `1px solid ${nivel.color}30` }}>
-                <div className="font-space text-[16px] font-bold" style={{ color: nivel.color }}>{r.por_confianza[nivel.key]}</div>
-                <div className="font-exo text-[8px] font-bold" style={{ color: nivel.color }}>{nivel.label}</div>
-                <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{nivel.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {(() => {
-          const primerSnapshot = new Date("2026-03-19");
-          const diasConDatos = Math.max(1, Math.floor((Date.now() - primerSnapshot.getTime()) / (1000 * 60 * 60 * 24)));
-          const coberturaEcuPct = Math.min(95, diasConDatos * 3);
-          const diasParaCompleto = coberturaEcuPct >= 80 ? 0 : Math.ceil((80 - coberturaEcuPct) / 3);
-          return (
-            <div className="mb-4 rounded px-3 py-2" style={{ background: "#0a1520", border: "1px solid #0d2035" }} data-testid="widget-cobertura-ecu">
-              <div className="flex items-center gap-2 mb-2">
-                <Radio className="w-3 h-3" style={{ color: "#00d4ff" }} />
-                <span className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#3a6080" }}>COBERTURA ECU VOLVO</span>
-              </div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>{coberturaEcuPct}%</span>
-                <span className="font-rajdhani text-[10px]" style={{ color: "#4a7090" }}>Cobertura ECU actual</span>
-                {diasParaCompleto > 0 && (
-                  <span className="font-rajdhani text-[10px]" style={{ color: "#c8e8ff" }}>
-                    - Sistema completo estimado: en {diasParaCompleto} dias
-                  </span>
-                )}
-                {diasParaCompleto === 0 && (
-                  <span className="font-rajdhani text-[10px]" style={{ color: "#00ff88" }}>
-                    - Sistema operando normalmente
-                  </span>
-                )}
-              </div>
-              <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
-                <div className="h-full rounded-full transition-all duration-500" style={{
-                  width: `${coberturaEcuPct}%`,
-                  background: coberturaEcuPct >= 80 ? "#00ff88" : coberturaEcuPct >= 50 ? "#00d4ff" : "#ffcc00",
-                }} />
-              </div>
-            </div>
-          );
-        })()}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>CAMIONES MAS CONOCIDOS</div>
-            <div className="space-y-1">
-              {(aprendizaje.top_camiones || []).map((c: any, i: number) => (
-                <div key={c.patente} className="flex items-center justify-between px-2 py-1" style={{ background: "#0a1520" }} data-testid={`top-camion-${i}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{i + 1}</span>
-                    <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{c.patente}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{c.totalCargas || c.total_cargas} cargas</span>
-                    <span className="font-exo text-[8px] px-1" style={{
-                      color: c.confianza === "EXPERTA" ? "#00ff88" : c.confianza === "ALTA" ? "#00d4ff" : c.confianza === "MEDIA" ? "#ffcc00" : "#3a6080",
-                      border: "1px solid currentColor",
-                    }}>{c.confianza}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>ESTACIONES MAS CONOCIDAS</div>
-            <div className="space-y-1">
-              {(aprendizaje.top_estaciones || []).map((e: any, i: number) => (
-                <div key={e.estacion} className="flex items-center justify-between px-2 py-1" style={{ background: "#0a1520" }} data-testid={`top-estacion-${i}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{i + 1}</span>
-                    <span className="font-exo text-[10px] truncate max-w-[120px]" style={{ color: "#c8e8ff" }}>{e.estacion}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-space text-[10px]" style={{ color: "#ffcc00" }}>{Number(e.total_cargas).toLocaleString("es-CL")}</span>
-                    <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{e.camiones} cam.</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PeriodosEntreCargas() {
-  const { data, isLoading } = useQuery<any>({
-    queryKey: ["/api/estaciones/periodos-entre-cargas"],
-    refetchInterval: 5 * 60 * 1000,
-  });
-  const [filtroNivel, setFiltroNivel] = useState<string>("TODOS");
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
-
-  if (isLoading) return (
-    <div className="flex items-center justify-center py-20">
-      <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "#ff6600" }} />
-    </div>
-  );
-
-  const resumen = data?.resumen;
-  const periodos = useMemo(() => {
-    if (!data?.periodos) return [];
-    if (filtroNivel === "TODOS") return data.periodos;
-    if (filtroNivel === "ANOMALIAS") return data.periodos.filter((p: any) => p.evaluacion.evaluable && p.evaluacion.nivel !== "NORMAL");
-    return data.periodos.filter((p: any) => p.evaluacion.nivel === filtroNivel);
-  }, [data, filtroNivel]);
-
-  const nivelColors: Record<string, string> = {
-    NORMAL: "#00ff88", REVISAR: "#ffcc00", SOSPECHOSO: "#FF8C00", CRITICO: "#ff2244",
-    PENDIENTE: "#3a6080", SIN_DATOS: "#4a7090",
-  };
-
-  const filtros = [
-    { id: "TODOS", label: `TODOS (${resumen?.total_periodos || 0})`, color: "#c8e8ff" },
-    { id: "ANOMALIAS", label: `ANOMALIAS (${(resumen?.criticos || 0) + (resumen?.sospechosos || 0) + (resumen?.revisar || 0)})`, color: "#FF8C00" },
-    { id: "CRITICO", label: `CRITICOS (${resumen?.criticos || 0})`, color: "#ff2244" },
-    { id: "SOSPECHOSO", label: `SOSPECHOSOS (${resumen?.sospechosos || 0})`, color: "#FF8C00" },
-    { id: "NORMAL", label: `NORMAL (${resumen?.normales || 0})`, color: "#00ff88" },
-    { id: "PENDIENTE", label: `PENDIENTES (${resumen?.pendientes || 0})`, color: "#3a6080" },
-  ];
-
-  function formatDuracion(horas: number | null) {
-    if (horas == null) return "--";
-    const h = Math.floor(horas);
-    const m = Math.round((horas - h) * 60);
-    return `${h}h ${m}min`;
-  }
-
-  function formatFecha(fecha: string) {
-    const d = new Date(fecha);
-    return d.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" }) +
-      " " + d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
-  }
-
-  return (
-    <div data-testid="periodos-entre-cargas">
-      <div className="flex items-center gap-3 mb-4">
-        <Activity className="w-5 h-5" style={{ color: "#ff6600" }} />
-        <div>
-          <div className="font-space text-[13px] font-bold tracking-wider" style={{ color: "#ff6600" }}>
-            ANALISIS ENTRE CARGAS
-          </div>
-          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
-            {resumen?.periodo_label} — {resumen?.patentes_analizadas || 0} patentes Volvo — Solo fisica del camion
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-6 gap-2 mb-4">
-        <div className="px-3 py-2 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>PERIODOS</div>
-          <div className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{resumen?.total_periodos || 0}</div>
-        </div>
-        <div className="px-3 py-2 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>EVALUABLES</div>
-          <div className="font-space text-[16px] font-bold" style={{ color: "#00d4ff" }}>{resumen?.evaluables || 0}</div>
-        </div>
-        <div className="px-3 py-2 rounded" style={{ background: "#ff224410", border: "1px solid #ff224420" }}>
-          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CRITICOS</div>
-          <div className="font-space text-[16px] font-bold" style={{ color: "#ff2244" }}>{resumen?.criticos || 0}</div>
-        </div>
-        <div className="px-3 py-2 rounded" style={{ background: "#FF8C0010", border: "1px solid #FF8C0020" }}>
-          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>SOSPECHOSOS</div>
-          <div className="font-space text-[16px] font-bold" style={{ color: "#FF8C00" }}>{resumen?.sospechosos || 0}</div>
-        </div>
-        <div className="px-3 py-2 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>NORMALES</div>
-          <div className="font-space text-[16px] font-bold" style={{ color: "#00ff88" }}>{resumen?.normales || 0}</div>
-        </div>
-        <div className="px-3 py-2 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>PENDIENTES</div>
-          <div className="font-space text-[16px] font-bold" style={{ color: "#3a6080" }}>{resumen?.pendientes || 0}</div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 mb-3">
-        {filtros.map(f => (
-          <button key={f.id}
-            onClick={() => setFiltroNivel(f.id)}
-            data-testid={`btn-periodo-filtro-${f.id.toLowerCase()}`}
-            className="font-space text-[9px] font-bold tracking-wider px-3 py-1.5 cursor-pointer transition-all"
-            style={{
-              background: filtroNivel === f.id ? f.color + "15" : "#0a1520",
-              border: `1px solid ${filtroNivel === f.id ? f.color : "#0d2035"}`,
-              color: filtroNivel === f.id ? f.color : "#3a6080",
-            }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {periodos.length === 0 && (
-          <div className="text-center py-8 font-exo text-[11px]" style={{ color: "#3a6080" }}>
-            Sin periodos para el filtro seleccionado
-          </div>
-        )}
-        {periodos.map((p: any, idx: number) => {
-          const isExpanded = expandedIdx === idx;
-          const nc = nivelColors[p.evaluacion.nivel] || "#3a6080";
-          const borderColor = p.evaluacion.nivel === "CRITICO" ? "#ff2244" : p.evaluacion.nivel === "SOSPECHOSO" ? "#FF8C00" : "#0d2035";
-
-          return (
-            <div key={idx} className="rounded overflow-hidden" style={{ border: `1px solid ${borderColor}`, background: "#0a1520" }} data-testid={`periodo-${idx}`}>
-              <button
-                onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-                className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer transition-all text-left"
-                data-testid={`btn-periodo-${idx}`}>
-                <span className="font-space text-[8px] font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{
-                  background: nc + "15", border: `1px solid ${nc}30`, color: nc,
-                }}>{p.evaluacion.nivel}</span>
-                <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{p.patente}</span>
-                <span className="font-exo text-[9px]" style={{ color: "#4a7090" }}>{p.conductor}</span>
-                <span className="font-exo text-[8px] px-1.5 py-0.5 rounded" style={{ background: "#0d203550", color: "#4a7090" }}>{p.contrato}</span>
-                <div className="flex-1" />
-                {p.ecu.periodo_abierto ? (
-                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Periodo abierto</span>
-                ) : (
-                  <>
-                    <span className="font-space text-[10px]" style={{ color: "#4a7090" }}>{formatDuracion(p.ecu.horas_periodo)}</span>
-                    {p.ecu.km != null && <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{p.ecu.km} km</span>}
-                    {p.evaluacion.balance_litros != null && p.evaluacion.balance_litros > 0 && (
-                      <span className="font-space text-[10px] font-bold" style={{ color: p.evaluacion.balance_litros > 50 ? "#ff2244" : "#ffcc00" }}>
-                        +{p.evaluacion.balance_litros}L
-                      </span>
-                    )}
-                  </>
-                )}
-                {isExpanded ? <ChevronUp className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#3a6080" }} /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#3a6080" }} />}
-              </button>
-
-              {isExpanded && (
-                <div className="px-4 pb-4" style={{ borderTop: "1px solid #0d2035" }}>
-                  <div className="grid grid-cols-2 gap-4 mt-3">
-                    <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                      <div className="font-exo text-[7px] tracking-wider mb-1" style={{ color: "#3a6080" }}>CARGA A (INICIO PERIODO)</div>
-                      <div className="font-space text-[12px] font-bold" style={{ color: "#ff6600" }}>{p.carga_a.litros}L</div>
-                      <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>{p.carga_a.estacion}</div>
-                      <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{formatFecha(p.carga_a.fecha)}</div>
-                    </div>
-                    <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                      <div className="font-exo text-[7px] tracking-wider mb-1" style={{ color: "#3a6080" }}>CARGA B (FIN PERIODO)</div>
-                      {p.carga_b ? (
-                        <>
-                          <div className="font-space text-[12px] font-bold" style={{ color: "#ff6600" }}>{p.carga_b.litros}L</div>
-                          <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>{p.carga_b.estacion}</div>
-                          <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{formatFecha(p.carga_b.fecha)}</div>
-                        </>
-                      ) : (
-                        <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Periodo abierto — sin carga siguiente registrada</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {p.evaluacion.evaluable && (
-                    <div className="mt-3">
-                      <div className="font-exo text-[7px] tracking-wider mb-2" style={{ color: "#3a6080" }}>PERIODO: {formatDuracion(p.ecu.horas_periodo)}</div>
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CONSUMO ECU</div>
-                          <div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>
-                            {p.ecu.litros_consumidos != null ? `${p.ecu.litros_consumidos}L` : "--"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CARGADO (A)</div>
-                          <div className="font-space text-[14px] font-bold" style={{ color: "#ff6600" }}>{p.carga_a.litros}L</div>
-                        </div>
-                        <div>
-                          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>BALANCE</div>
-                          <div className="font-space text-[14px] font-bold" style={{
-                            color: p.evaluacion.balance_litros > 50 ? "#ff2244" : p.evaluacion.balance_litros > 20 ? "#ffcc00" : "#00ff88",
-                          }}>
-                            {p.evaluacion.balance_litros != null ? `${p.evaluacion.balance_litros > 0 ? "+" : ""}${p.evaluacion.balance_litros}L` : "--"}
-                            {p.evaluacion.balance_pct != null && (
-                              <span className="text-[10px] ml-1">({p.evaluacion.balance_pct}%)</span>
-                            )}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>RENDIMIENTO</div>
-                          <div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>
-                            {p.evaluacion.rendimiento_real != null ? `${p.evaluacion.rendimiento_real} km/L` : "--"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 mt-3">
-                        <div className="font-exo text-[8px]" style={{ color: "#4a7090" }}>
-                          Cobertura ECU: {p.ecu.cobertura_pct}% — {p.ecu.snap_count} snapshots — Calidad: {p.ecu.calidad}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {p.evaluacion.razones.length > 0 && (
-                    <div className="mt-3 space-y-1">
-                      {p.evaluacion.razones.map((r: string, ri: number) => (
-                        <div key={ri} className="flex items-start gap-2 rounded px-3 py-2" style={{
-                          background: "#020508", border: `1px solid ${nc}20`,
-                        }}>
-                          <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: nc }} />
-                          <span className="font-rajdhani text-[10px]" style={{ color: "#c8e8ff" }}>{r}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+function getContColor(c: string): string {
+  if (c?.includes("ANGLO-COCU")) return "#00ff88";
+  if (c?.includes("ANGLO")) return "#00d4ff";
+  if (c?.includes("CENCOSUD") || c?.includes("WALMART")) return "#00bfff";
+  return "#c8e8ff";
 }
 
 export default function EstacionesTab() {
-  const [subVista, setSubVista] = useState<"ESTACIONES" | "ENTRE_CARGAS">("ESTACIONES");
+  const [contrato, setContrato] = useState("TODOS");
+  const [dias, setDias] = useState(30);
+  const [vista, setVista] = useState<"estaciones" | "conductores" | "irregularidades" | "gestionadas">("estaciones");
+  const [expandida, setExpandida] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [selectedIrr, setSelectedIrr] = useState<any>(null);
+  const [calDia, setCalDia] = useState<string | null>(null);
+  const irrMarkerRef = useRef<any>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+
+  const { data: contratosData } = useQuery<any>({
+    queryKey: ["/api/rutas/contratos-disponibles"],
+    queryFn: () => fetch("/api/rutas/contratos-disponibles").then(r => r.json()),
+    staleTime: 600000,
+  });
+  const contratos = contratosData?.contratos || [{ id: "TODOS", label: "TODOS" }];
 
   const { data, isLoading } = useQuery<any>({
-    queryKey: ["/api/estaciones/analisis"],
-    refetchInterval: 5 * 60 * 1000,
+    queryKey: ["/api/estaciones/dashboard", contrato, dias],
+    queryFn: () => fetch(`/api/estaciones/dashboard?contrato=${contrato}&dias=${dias}`).then(r => r.json()),
   });
 
-  const [expandedEstacion, setExpandedEstacion] = useState<string | null>(null);
-  const [expandedCarga, setExpandedCarga] = useState<string | number | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filtro, setFiltro] = useState<"TODOS" | "ANOMALIAS" | "CRITICO" | "SOSPECHOSO" | "REVISAR" | "CON_ECU" | "SIN_ECU">("TODOS");
-  const [showResumenIA, setShowResumenIA] = useState(false);
-  const [soloConEcu, setSoloConEcu] = useState<boolean>(() => {
-    try { return localStorage.getItem("estaciones_solo_ecu") !== "false"; } catch { return true; }
+  const { data: detalle } = useQuery<any>({
+    queryKey: [vista === "estaciones" ? "/api/estaciones/detalle" : "/api/estaciones/conductor", expandida],
+    queryFn: () => {
+      if (!expandida) return null;
+      const ep = vista === "estaciones"
+        ? `/api/estaciones/detalle/${encodeURIComponent(expandida)}`
+        : `/api/estaciones/conductor/${encodeURIComponent(expandida)}`;
+      return fetch(ep).then(r => r.json());
+    },
+    enabled: !!expandida,
   });
 
-  const { data: resumenIA, isLoading: loadingIA } = useQuery<any>({
-    queryKey: ["/api/estaciones/resumen-inteligencia"],
-    enabled: showResumenIA,
+  const items = useMemo(() => {
+    const list = vista === "estaciones" ? (data?.estaciones || []) : (data?.conductores || []);
+    if (!busqueda) return list;
+    const q = busqueda.toLowerCase();
+    return list.filter((r: any) => (vista === "estaciones" ? r.nombre : r.conductor)?.toLowerCase().includes(q));
+  }, [data, vista, busqueda]);
+
+  // Irregularidades
+  const { data: irrData } = useQuery<any>({
+    queryKey: ["/api/estaciones/irregularidades", contrato, dias],
+    queryFn: () => fetch(`/api/estaciones/irregularidades?contrato=${contrato}&dias=${dias}`).then(r => r.json()),
+    enabled: vista === "irregularidades",
+  });
+  const [tipoIrr, setTipoIrr] = useState("error_digitacion");
+
+  const { data: gestData, refetch: refetchGest } = useQuery<any>({
+    queryKey: ["/api/estaciones/irregularidades/gestionadas"],
+    queryFn: () => fetch("/api/estaciones/irregularidades/gestionadas").then(r => r.json()),
+    enabled: vista === "gestionadas",
   });
 
-  const toggleSoloEcu = (val: boolean) => {
-    setSoloConEcu(val);
-    try { localStorage.setItem("estaciones_solo_ecu", String(val)); } catch {}
+  const [gestionados, setGestionados] = useState<Set<string>>(new Set());
+  const [gestionMsg, setGestionMsg] = useState<string | null>(null);
+
+  const gestionar = async (carga_id: number | null, patente: string, tipo: string, decision: string) => {
+    try {
+      await fetch("/api/estaciones/irregularidades/gestionar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carga_id, patente, tipo, decision }),
+      });
+      // Mark as gestioned visually
+      const key = `${carga_id || ""}:${patente}:${tipo}`;
+      setGestionados(prev => new Set([...prev, key]));
+      setGestionMsg(`${patente} → ${decision}`);
+      setTimeout(() => setGestionMsg(null), 2000);
+      refetchGest();
+    } catch (e) {
+      setGestionMsg("Error al gestionar");
+      setTimeout(() => setGestionMsg(null), 2000);
+    }
   };
 
-  const cargasSinEcuCount = useMemo(() => {
-    if (!data?.estaciones) return 0;
-    return (data.estaciones as any[]).reduce((sum: number, e: any) =>
-      sum + (e.cargas || []).filter((c: any) => !c.tiene_cruce_ecu && c.nivel_alerta === "NORMAL").length, 0);
-  }, [data]);
+  const isGestionado = (r: any, tipo: string) => {
+    const key = `${r.id || ""}:${r.patente}:${tipo}`;
+    return gestionados.has(key);
+  };
 
-  const estaciones = useMemo(() => {
-    if (!data?.estaciones) return [];
-    let filtered = data.estaciones.map((e: any) => {
-      let cargas = e.cargas || [];
-      if (soloConEcu && filtro !== "SIN_ECU") {
-        cargas = cargas.filter((c: any) => c.tiene_cruce_ecu || c.nivel_alerta !== "NORMAL");
-      }
-      if (filtro === "CON_ECU") cargas = cargas.filter((c: any) => c.tiene_cruce_ecu);
-      else if (filtro === "SIN_ECU") cargas = cargas.filter((c: any) => !c.tiene_cruce_ecu);
-      else if (filtro === "CRITICO") cargas = cargas.filter((c: any) => c.nivel_alerta === "CRITICO");
-      else if (filtro === "SOSPECHOSO") cargas = cargas.filter((c: any) => c.nivel_alerta === "SOSPECHOSO");
-      else if (filtro === "REVISAR") cargas = cargas.filter((c: any) => c.nivel_alerta === "REVISAR");
-      else if (filtro === "ANOMALIAS") cargas = cargas.filter((c: any) => c.nivel_alerta !== "NORMAL");
-      return { ...e, cargas, total_cargas: cargas.length, total_litros: cargas.reduce((s: number, c: any) => s + (c.litros_sigetra || 0), 0), camiones_distintos: new Set(cargas.map((c: any) => c.patente)).size, tiene_anomalias: cargas.some((c: any) => c.nivel_alerta !== "NORMAL"), alertas_count: cargas.filter((c: any) => c.nivel_alerta !== "NORMAL").length };
-    }).filter((e: any) => e.cargas.length > 0);
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter((e: any) =>
-        e.nombre.toLowerCase().includes(term) ||
-        e.ciudad?.toLowerCase().includes(term) ||
-        e.cargas?.some((c: any) => c.patente?.toLowerCase().includes(term))
-      );
+  const res = data?.resumen || {};
+
+  // Map
+  useEffect(() => {
+    if (!mapRef.current || !data?.estaciones) return;
+    const L = (window as any).L;
+    if (!L) return;
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = L.map(mapRef.current, { center: [-33.45, -70.65], zoom: 5, zoomControl: true, attributionControl: false });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18 }).addTo(mapInstanceRef.current);
     }
-    return filtered;
-  }, [data, searchTerm, filtro, soloConEcu]);
+    markersRef.current.forEach((m: any) => m.remove());
+    markersRef.current = [];
+    const estConGeo = data.estaciones.filter((e: any) => e.lat && e.lng);
+    if (estConGeo.length === 0) return;
+    const maxCargas = Math.max(...estConGeo.map((e: any) => e.cargas));
+    estConGeo.forEach((e: any) => {
+      const size = Math.max(10, Math.min(32, (e.cargas / maxCargas) * 32));
+      const color = e.cargas > maxCargas * 0.5 ? "#ff6b35" : e.cargas > maxCargas * 0.2 ? "#ffcc00" : "#00d4ff";
+      const isSel = expandida === e.nombre;
+      const icon = L.divIcon({
+        className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+        html: `<div style="width:${size}px;height:${size}px;background:${color};border:2px solid ${isSel ? "#fff" : color + "80"};border-radius:50%;opacity:0.85;box-shadow:0 0 ${isSel ? 12 : 6}px ${color};display:flex;align-items:center;justify-content:center">${size > 14 ? `<span style="font-size:7px;color:#000;font-weight:bold">${e.cargas}</span>` : ""}</div>`,
+      });
+      const m = L.marker([e.lat, e.lng], { icon }).addTo(mapInstanceRef.current);
+      m.bindTooltip(`<div style="font-family:monospace;font-size:11px;line-height:1.4"><b>${e.nombre}</b><br>${e.cargas} cargas · ${e.camiones} camiones<br>${(e.litros || 0).toLocaleString()} litros · ${e.conductores} conductores</div>`, { direction: "top", offset: [0, -size / 2] });
+      m.on("click", () => { setVista("estaciones"); setExpandida(e.nombre); });
+      markersRef.current.push(m);
+    });
+    if (estConGeo.length > 1) mapInstanceRef.current.fitBounds(L.latLngBounds(estConGeo.map((e: any) => [e.lat, e.lng])), { padding: [30, 30] });
+  }, [data, expandida]);
 
-  const resumen = data?.resumen;
-  const periodoLabel = resumen?.periodo?.label || "Ayer";
+  // Highlight selected irregularity on map — supports 2 stations for doble_carga
+  const irrLayersRef = useRef<any[]>([]);
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const L = (window as any).L;
+    if (!L) return;
+    // Clean previous
+    irrLayersRef.current.forEach((l: any) => { try { l.remove(); } catch {} });
+    irrLayersRef.current = [];
+    if (irrMarkerRef.current) { irrMarkerRef.current.remove(); irrMarkerRef.current = null; }
+    if (!selectedIrr) return;
 
-  const alertaColors: Record<string, string> = { NORMAL: "#00ff88", REVISAR: "#ffcc00", SOSPECHOSO: "#FF8C00", CRITICO: "#ff2244" };
+    const estaciones = data?.estaciones || [];
+    const findEst = (name: string) => estaciones.find((e: any) => e.nombre === name);
 
-  const filtroButtons = [
-    { id: "TODOS" as const, label: `TODOS (${resumen?.total_cargas || 0})`, color: "#c8e8ff" },
-    { id: "CON_ECU" as const, label: `CON ECU (${resumen?.cobertura?.cargas_con_cruce_ecu || 0})`, color: "#00ff88" },
-    { id: "SIN_ECU" as const, label: `SIN ECU (${resumen?.cobertura?.cargas_volvo_sin_cruce || 0})`, color: "#4a7090" },
-    { id: "ANOMALIAS" as const, label: `ANOMALIAS (${resumen?.cargas_anomalas || 0})`, color: "#FF8C00" },
-    { id: "CRITICO" as const, label: `CRITICOS (${resumen?.cargas_criticas || 0})`, color: "#ff2244" },
-    { id: "SOSPECHOSO" as const, label: "SOSPECHOSO", color: "#FF8C00" },
-    { id: "REVISAR" as const, label: "REVISAR", color: "#ffcc00" },
-  ];
+    // Doble carga — show both stations
+    if (selectedIrr.est1 && selectedIrr.est2) {
+      const e1 = findEst(selectedIrr.est1);
+      const e2 = findEst(selectedIrr.est2);
+      const points: any[] = [];
+
+      if (e1?.lat && e1?.lng) {
+        points.push([e1.lat, e1.lng]);
+        const icon1 = L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14],
+          html: `<div style="width:28px;height:28px;background:#ff6b35;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #ff6b35;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;font-weight:bold;color:#fff">1</span></div>` });
+        const m1 = L.marker([e1.lat, e1.lng], { icon: icon1 }).addTo(mapInstanceRef.current);
+        m1.bindPopup(`<div style="font-family:monospace;font-size:11px;line-height:1.5">
+          <b style="color:#ff6b35">CARGA 1</b><br>
+          <b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>
+          ${selectedIrr.est1}<br>
+          ${(selectedIrr.fecha1 || "").slice(0, 16)}<br>
+          <b style="color:#ffcc00">${selectedIrr.litros1} litros</b>
+        </div>`).openPopup();
+        irrLayersRef.current.push(m1);
+      }
+
+      if (e2?.lat && e2?.lng) {
+        points.push([e2.lat, e2.lng]);
+        const icon2 = L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14],
+          html: `<div style="width:28px;height:28px;background:#ff2244;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #ff2244;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;font-weight:bold;color:#fff">2</span></div>` });
+        const m2 = L.marker([e2.lat, e2.lng], { icon: icon2 }).addTo(mapInstanceRef.current);
+        m2.bindPopup(`<div style="font-family:monospace;font-size:11px;line-height:1.5">
+          <b style="color:#ff2244">CARGA 2</b><br>
+          <b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>
+          ${selectedIrr.est2}<br>
+          ${(selectedIrr.fecha2 || "").slice(0, 16)}<br>
+          <b style="color:#ffcc00">${selectedIrr.litros2} litros</b><br>
+          <b style="color:#ff2244">TOTAL: ${selectedIrr.litros_total} lt · ${selectedIrr.minutos_entre} min entre</b>
+        </div>`);
+        irrLayersRef.current.push(m2);
+      }
+
+      // Draw line between stations if both have coords
+      if (points.length === 2) {
+        const line = L.polyline(points, { color: "#ff2244", weight: 3, dashArray: "8,6", opacity: 0.8 }).addTo(mapInstanceRef.current);
+        // Midpoint label
+        const mid = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
+        const label = L.marker(mid, {
+          icon: L.divIcon({ className: "", iconSize: [120, 30], iconAnchor: [60, 15],
+            html: `<div style="background:#0a1520;border:1px solid #ff2244;border-radius:4px;padding:2px 8px;text-align:center;white-space:nowrap">
+              <span style="font-family:monospace;font-size:10px;color:#ff2244;font-weight:bold">${selectedIrr.minutos_entre} min · ${selectedIrr.litros_total} lt</span>
+            </div>` })
+        }).addTo(mapInstanceRef.current);
+        irrLayersRef.current.push(line, label);
+        mapInstanceRef.current.fitBounds(L.latLngBounds(points), { padding: [60, 60] });
+      } else if (points.length === 1) {
+        mapInstanceRef.current.setView(points[0], 10);
+      }
+    } else {
+      // Single station irregularity
+      const est = findEst(selectedIrr.estacion);
+      if (!est?.lat || !est?.lng) return;
+      const icon = L.divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12],
+        html: `<div style="width:24px;height:24px;background:#ff2244;border:3px solid #fff;border-radius:50%;box-shadow:0 0 15px #ff2244"></div>` });
+      irrMarkerRef.current = L.marker([est.lat, est.lng], { icon }).addTo(mapInstanceRef.current);
+      irrMarkerRef.current.bindPopup(`<div style="font-family:monospace;font-size:11px;line-height:1.5">
+        <b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>
+        ${selectedIrr.estacion}<br>
+        ${(selectedIrr.fecha || "").slice(0, 16)}<br>
+        <b style="color:#ffcc00">${Math.round(selectedIrr.litros || 0)} litros</b><br>
+        ${selectedIrr.km_ant ? `KM: ${selectedIrr.km_ant.toLocaleString()} → ${selectedIrr.km_act?.toLocaleString()}<br>` : ""}
+        <b style="color:#ff2244">${selectedIrr.tipo_error || selectedIrr.razon || "Irregularidad"}</b>
+      </div>`).openPopup();
+      mapInstanceRef.current.setView([est.lat, est.lng], 10);
+    }
+  }, [selectedIrr, data]);
+
+  // Calendar data
+  const calDias = useMemo(() => {
+    if (!irrData?.irregularidades) return [];
+    const all: any[] = [];
+    for (const arr of Object.values(irrData.irregularidades) as any[][]) {
+      arr.forEach((r: any) => {
+        const d = (r.fecha || r.fecha1 || "").slice(0, 10);
+        if (d) all.push(d);
+      });
+    }
+    const counts = new Map<string, number>();
+    all.forEach(d => counts.set(d, (counts.get(d) || 0) + 1));
+    return Array.from(counts.entries()).map(([d, n]) => ({ fecha: d, irregularidades: n })).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }, [irrData]);
+
+  if (isLoading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "#ff6b35" }} /></div>;
 
   return (
-    <div data-testid="estaciones-tab">
-      <div className="flex items-center gap-1 mb-4">
+    <div data-testid="estaciones-tab" className="relative">
+      {/* Toast */}
+      {gestionMsg && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg animate-pulse" style={{ background: "#0a1520", border: "1px solid #00ff8840" }}>
+          <span className="font-exo text-[11px] font-bold" style={{ color: "#00ff88" }}>{gestionMsg}</span>
+        </div>
+      )}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="font-rajdhani text-sm font-bold" style={{ color: "#c8e8ff" }}>Estaciones de Servicio</div>
+          <div className="font-exo text-xs" style={{ color: "#3a6080" }}>{res.estaciones || 0} estaciones · {(res.litros || 0).toLocaleString()} litros · {res.cargas || 0} cargas</div>
+        </div>
+        <div className="flex gap-2 items-center">
+          {[7, 14, 30].map(d => (
+            <button key={d} onClick={() => setDias(d)} className="font-space text-[9px] font-bold px-2 py-1 rounded cursor-pointer"
+              style={{ background: dias === d ? "#ff6b3515" : "transparent", border: `1px solid ${dias === d ? "#ff6b3540" : "#0d2035"}`, color: dias === d ? "#ff6b35" : "#3a6080" }}>{d}D</button>
+          ))}
+          {contratos.slice(0, 6).map((c: any) => (
+            <button key={c.id} onClick={() => setContrato(c.id)} className="font-exo text-[9px] font-bold px-2 py-1 rounded cursor-pointer"
+              style={{ background: contrato === c.id ? getContColor(c.id) + "15" : "transparent", border: `1px solid ${contrato === c.id ? getContColor(c.id) + "40" : "#0d2035"}`, color: contrato === c.id ? getContColor(c.id) : "#3a6080" }}>{c.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-5 gap-2 mb-3">
         {[
-          { id: "ESTACIONES" as const, label: "POR ESTACION", icon: <Fuel className="w-3.5 h-3.5" /> },
-          { id: "ENTRE_CARGAS" as const, label: "ENTRE CARGAS", icon: <Activity className="w-3.5 h-3.5" /> },
-        ].map(t => (
-          <button key={t.id}
-            onClick={() => setSubVista(t.id)}
-            data-testid={`btn-subvista-${t.id.toLowerCase()}`}
-            className="flex items-center gap-1.5 font-space text-[10px] font-bold tracking-wider px-4 py-2 cursor-pointer transition-all"
-            style={{
-              background: subVista === t.id ? "#ff660015" : "transparent",
-              borderBottom: subVista === t.id ? "2px solid #ff6600" : "2px solid transparent",
-              color: subVista === t.id ? "#ff6600" : "#3a6080",
-            }}>
-            {t.icon} {t.label}
-          </button>
+          { label: "ESTACIONES", value: res.estaciones || 0, color: "#ff6b35" },
+          { label: "CARGAS", value: res.cargas || 0, color: "#00d4ff" },
+          { label: "LITROS", value: `${Math.round((res.litros || 0) / 1000)}k`, color: "#ffcc00" },
+          { label: "CON MAPA", value: `${res.con_geo || 0}/${res.estaciones || 0}`, color: (res.con_geo || 0) >= ((res.estaciones || 1) * 0.5) ? "#00ff88" : "#ff2244" },
+          { label: "CONDUCTORES", value: res.conductores || 0, color: "#a855f7" },
+        ].map(k => (
+          <div key={k.label} className="text-center py-2 rounded" style={{ background: "#060d14", border: "1px solid #0d2035", borderTop: `2px solid ${k.color}` }}>
+            <div className="font-space text-[16px] font-bold" style={{ color: k.color }}>{k.value}</div>
+            <div className="font-exo text-[7px] tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>{k.label}</div>
+          </div>
         ))}
       </div>
 
-      {subVista === "ENTRE_CARGAS" ? <PeriodosEntreCargas /> : isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "#ff6600" }} />
-        </div>
-      ) : (
-      <>
-      <div className="mb-5 p-4 border" data-testid="panel-explicativo-estaciones"
-        style={{
-          borderColor: '#00d4ff20',
-          background: 'rgba(0,212,255,0.02)',
-          borderLeft: '3px solid #00d4ff'
-        }}>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="font-space text-[11px] font-bold tracking-[0.15em]" style={{ color: '#00d4ff' }}>
-            COMO FUNCIONA ESTE ANALISIS
-          </span>
-          <span className="font-exo text-[8px] px-2 py-0.5" style={{ color: '#00d4ff', border: '1px solid #00d4ff30' }}>
-            T-2 &middot; 48 HORAS
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div>
-            <div className="font-exo text-[8px] font-bold tracking-wider uppercase mb-2" style={{ color: '#00d4ff' }}>
-              POR QUE 48 HORAS ATRAS
-            </div>
-            <div className="font-rajdhani text-[12px] leading-relaxed" style={{ color: '#c8e8ff' }}>
-              Analizamos T-2 — antes de ayer completo.
-              Un camion puede cargar combustible hoy
-              y consumirlo en los proximos 2 dias.
-              Con 48 horas de distancia los periodos
-              entre cargas estan cerrados y el ECU
-              tiene el consumo real registrado.
-            </div>
+      {/* Map */}
+      <div ref={mapRef} className="rounded-lg mb-2" style={{ height: 260, background: "#060d14", border: `1px solid ${selectedIrr ? "#ff224440" : "#0d2035"}` }} />
+
+      {/* Calendar - below map when in irregularidades */}
+      {vista === "irregularidades" && calDias.length > 0 && (
+        <div className="mb-3 p-3 rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-exo text-[8px] uppercase tracking-wider" style={{ color: "#3a6080" }}>CALENDARIO DE IRREGULARIDADES</span>
+            {calDia && <button onClick={() => setCalDia(null)} className="font-exo text-[8px] px-2 py-0.5 rounded cursor-pointer" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>Limpiar filtro</button>}
           </div>
-          <div>
-            <div className="font-exo text-[8px] font-bold tracking-wider uppercase mb-2" style={{ color: '#00ff88' }}>
-              QUE CRUZAMOS
-            </div>
-            <div className="font-rajdhani text-[12px] leading-relaxed" style={{ color: '#c8e8ff' }}>
-              Sigetra registra los litros que el
-              surtidor entrego al camion.
-              Volvo Connect registra los litros
-              que el motor realmente quemo.
-              Cruzamos ambas fuentes en el periodo
-              real entre dos cargas consecutivas —
-              sin importar si son 8 o 36 horas.
-            </div>
-          </div>
-          <div>
-            <div className="font-exo text-[8px] font-bold tracking-wider uppercase mb-2" style={{ color: '#ffcc00' }}>
-              CUANDO ES ANOMALIA REAL
-            </div>
-            <div className="font-rajdhani text-[12px] leading-relaxed" style={{ color: '#c8e8ff' }}>
-              Solo marcamos anomalia cuando el camion
-              recorrio 100km+ y tiene 15+ snapshots
-              Volvo en ese periodo. Si el camion
-              simplemente no salio a ruta o el periodo
-              esta incompleto — no se evalua.
-              Sin evidencia suficiente no hay alerta.
-            </div>
+          <div className="flex flex-wrap gap-1">
+            {calDias.map(d => {
+              const isSel = calDia === d.fecha;
+              const color = d.irregularidades >= 5 ? "#ff2244" : d.irregularidades >= 2 ? "#ffcc00" : "#3a6080";
+              return (
+                <button key={d.fecha} onClick={() => setCalDia(isSel ? null : d.fecha)}
+                  className="text-center px-2 py-1.5 rounded cursor-pointer transition-all"
+                  style={{ background: isSel ? color + "20" : "#0a1520", border: `1px solid ${isSel ? color : "#0d2035"}`, minWidth: 52 }}>
+                  <div className="font-space text-[9px] font-bold" style={{ color: isSel ? color : "#c8e8ff" }}>{d.fecha.slice(5)}</div>
+                  <div className="font-space text-[7px]" style={{ color }}>{d.irregularidades} irr</div>
+                </button>
+              );
+            })}
           </div>
         </div>
-        <div className="flex items-center gap-6 pt-3 border-t" style={{ borderColor: '#0d2035' }}>
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00ff88', boxShadow: '0 0 4px #00ff88' }} />
-            <span className="font-exo text-[9px]" style={{ color: '#3a6080' }}>Solo camiones con Volvo Connect activo</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00d4ff' }} />
-            <span className="font-exo text-[9px]" style={{ color: '#3a6080' }}>Snapshots acumulando desde 19-Mar — cobertura mejora cada dia</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ffcc00' }} />
-            <span className="font-exo text-[9px]" style={{ color: '#3a6080' }}>Click en cualquier alerta para ver el historial del mes del camion</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <Fuel className="w-5 h-5" style={{ color: "#ff6600" }} />
-            <div className="font-space text-[13px] font-bold tracking-wider" style={{ color: "#ff6600" }}>
-              DETECCION DE IRREGULARIDADES
-            </div>
-          </div>
-          <div className="font-exo text-[10px] mt-1" style={{ color: "#3a6080" }}>
-            {periodoLabel} &middot; Solo camiones Volvo Connect &middot; Sigetra vs ECU
-          </div>
-          {resumen?.cobertura && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="font-rajdhani text-[10px]" style={{ color: "#4a7090" }}>
-                {resumen.cobertura.cargas_con_cruce_ecu} con cruce ECU / {resumen.total_cargas} cargas Volvo totales / {resumen.cobertura.cargas_total_sigetra} en Sigetra
-              </span>
-              <span className="font-space text-[9px] font-bold px-1.5 py-0.5 rounded" style={{
-                background: "#00ff8815",
-                border: "1px solid #00ff8830",
-                color: "#00ff88",
-              }} data-testid="badge-cobertura-ecu">
-                100% VOLVO CONNECT
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {(() => {
-            const tc = resumen?.total_cargas || 0;
-            const ce = resumen?.cobertura?.cargas_con_cruce_ecu || 0;
-            const se = tc - ce;
-            const cp = tc > 0 ? Math.round((ce / tc) * 100) : 0;
-            const anomVerif = data?.estaciones
-              ? (data.estaciones as any[]).reduce((sum: number, e: any) =>
-                sum + (e.cargas || []).filter((c: any) => c.tiene_cruce_ecu && c.nivel_alerta !== "NORMAL").length, 0)
-              : 0;
-            return (
-              <div className="grid grid-cols-4 gap-2">
-                <div className="px-3 py-1.5 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>PERIODOS TOTALES</div>
-                  <div className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>{tc}</div>
-                </div>
-                <div className="px-3 py-1.5 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CON CRUCE ECU</div>
-                  <div className="font-space text-[14px] font-bold" style={{ color: cp >= 50 ? "#00ff88" : "#ffcc00" }}>{ce}</div>
-                  <div className="font-exo text-[7px]" style={{ color: "#4a7090" }}>{cp}% cobertura</div>
-                </div>
-                <div className="px-3 py-1.5 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>SIN CRUCE ECU</div>
-                  <div className="font-space text-[14px] font-bold" style={{ color: "#4a7090" }}>{se}</div>
-                  <div className="font-exo text-[7px]" style={{ color: "#4a7090" }}>Mejora con el tiempo</div>
-                </div>
-                <div className="px-3 py-1.5 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>ANOMALIAS</div>
-                  <div className="font-space text-[14px] font-bold" style={{ color: anomVerif > 0 ? "#ff2244" : "#00ff88" }}>{anomVerif}</div>
-                  <div className="font-exo text-[7px]" style={{ color: "#4a7090" }}>De verificados</div>
-                </div>
-              </div>
-            );
-          })()}
-          <button
-            onClick={() => setShowResumenIA(!showResumenIA)}
-            data-testid="btn-resumen-ia"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded cursor-pointer transition-all"
-            style={{
-              background: showResumenIA ? "#00ff8815" : "#0a1520",
-              border: `1px solid ${showResumenIA ? "#00ff88" : "#0d2035"}`,
-            }}
-          >
-            <Brain className="w-4 h-4" style={{ color: showResumenIA ? "#00ff88" : "#4a7090" }} />
-            <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: showResumenIA ? "#00ff88" : "#4a7090" }}>
-              RESUMEN IA
-            </span>
+      )}
+
+      {/* Vista toggle + search */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex gap-1">
+          <button onClick={() => { setVista("estaciones"); setExpandida(null); }}
+            className="flex items-center gap-1.5 font-exo text-[9px] font-bold px-3 py-1.5 rounded cursor-pointer"
+            style={{ background: vista === "estaciones" ? "#ff6b3515" : "transparent", border: `1px solid ${vista === "estaciones" ? "#ff6b3540" : "#0d2035"}`, color: vista === "estaciones" ? "#ff6b35" : "#3a6080" }}>
+            <Fuel className="w-3 h-3" /> ESTACIONES ({data?.estaciones?.length || 0})
           </button>
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "#3a6080" }} />
-            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Buscar estacion o patente..."
-              data-testid="input-search-estacion"
-              className="pl-7 pr-3 py-1.5 rounded font-exo text-[11px]"
-              style={{ background: "#0d203550", border: "1px solid #0d2035", color: "#c8e8ff", width: "200px" }}
-            />
-          </div>
+          <button onClick={() => { setVista("conductores"); setExpandida(null); }}
+            className="flex items-center gap-1.5 font-exo text-[9px] font-bold px-3 py-1.5 rounded cursor-pointer"
+            style={{ background: vista === "conductores" ? "#a855f715" : "transparent", border: `1px solid ${vista === "conductores" ? "#a855f740" : "#0d2035"}`, color: vista === "conductores" ? "#a855f7" : "#3a6080" }}>
+            <Users className="w-3 h-3" /> CONDUCTORES ({data?.conductores?.length || 0})
+          </button>
+          <button onClick={() => { setVista("irregularidades"); setExpandida(null); }}
+            className="flex items-center gap-1.5 font-exo text-[9px] font-bold px-3 py-1.5 rounded cursor-pointer"
+            style={{ background: vista === "irregularidades" ? "#ff224415" : "transparent", border: `1px solid ${vista === "irregularidades" ? "#ff224440" : "#0d2035"}`, color: vista === "irregularidades" ? "#ff2244" : "#3a6080" }}>
+            <AlertTriangle className="w-3 h-3" /> IRREGULARIDADES
+          </button>
+          <button onClick={() => { setVista("gestionadas"); setExpandida(null); }}
+            className="flex items-center gap-1.5 font-exo text-[9px] font-bold px-3 py-1.5 rounded cursor-pointer"
+            style={{ background: vista === "gestionadas" ? "#00ff8815" : "transparent", border: `1px solid ${vista === "gestionadas" ? "#00ff8840" : "#0d2035"}`, color: vista === "gestionadas" ? "#00ff88" : "#3a6080" }}>
+            <MapPin className="w-3 h-3" /> GESTIONADAS
+          </button>
+        </div>
+        <div className="relative">
+          <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: "#3a6080" }} />
+          <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder={vista === "estaciones" ? "Buscar estacion..." : "Buscar conductor..."}
+            className="pl-7 pr-3 py-1.5 font-exo text-[10px] rounded outline-none w-48"
+            style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
         </div>
       </div>
 
-      {showResumenIA && (
-        <div className="mb-4 rounded overflow-hidden" style={{ background: "#0a1520", border: "1px solid #00ff8840" }} data-testid="panel-resumen-ia">
-          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-            <div className="flex items-center gap-2">
-              <Brain className="w-4 h-4" style={{ color: "#00ff88" }} />
-              <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#00ff88" }}>QUE HA APRENDIDO EL SISTEMA</span>
-            </div>
-            <button onClick={() => setShowResumenIA(false)} className="cursor-pointer" data-testid="btn-close-resumen-ia">
-              <X className="w-4 h-4" style={{ color: "#4a7090" }} />
-            </button>
-          </div>
-          {loadingIA ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#00ff88" }} />
-              <span className="ml-2 font-exo text-[11px]" style={{ color: "#4a7090" }}>Generando resumen de inteligencia...</span>
-            </div>
-          ) : resumenIA ? (
-            <div className="px-4 py-3">
-              <div className="grid grid-cols-5 gap-3 mb-4">
-                <div className="px-3 py-2 rounded" style={{ background: "#0d203530" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>PATRONES</div>
-                  <div className="font-space text-[16px] font-bold" style={{ color: "#00ff88" }}>{resumenIA.stats.total_patrones.toLocaleString("es-CL")}</div>
-                </div>
-                <div className="px-3 py-2 rounded" style={{ background: "#0d203530" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CAMIONES</div>
-                  <div className="font-space text-[16px] font-bold" style={{ color: "#00d4ff" }}>{resumenIA.stats.camiones}</div>
-                </div>
-                <div className="px-3 py-2 rounded" style={{ background: "#0d203530" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>ESTACIONES</div>
-                  <div className="font-space text-[16px] font-bold" style={{ color: "#ff6600" }}>{resumenIA.stats.estaciones}</div>
-                </div>
-                <div className="px-3 py-2 rounded" style={{ background: "#0d203530" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CARGA PROM</div>
-                  <div className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{resumenIA.stats.avg_carga_flota} L</div>
-                </div>
-                <div className="px-3 py-2 rounded" style={{ background: "#0d203530" }}>
-                  <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>DESV PROM</div>
-                  <div className="font-space text-[16px] font-bold" style={{ color: "#ffcc00" }}>{resumenIA.stats.desviacion_promedio} L</div>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                {resumenIA.insights.map((insight: string, i: number) => (
-                  <div key={i} className="flex gap-2 rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }} data-testid={`insight-${i}`}>
-                    <div className="w-1 rounded-full flex-shrink-0 mt-0.5" style={{ background: i === 0 ? "#00ff88" : i < 3 ? "#00d4ff" : "#4a7090", minHeight: "16px" }} />
-                    <p className="font-rajdhani text-[11px] leading-relaxed" style={{ color: "#c8e8ff" }}>{insight}</p>
-                  </div>
+      {/* IRREGULARIDADES VIEW */}
+      {vista === "irregularidades" && (
+        <div>
+          {!irrData ? <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" style={{ color: "#ff2244" }} /></div> : (
+            <div>
+              {/* Resumen KPIs */}
+              <div className="grid grid-cols-6 gap-2 mb-4">
+                {[
+                  { key: "error_digitacion", label: "ERROR DIGITO", n: irrData.resumen?.error_digitacion || 0, desc: "KM retrocede o salta (error tipeo)", color: "#ff2244" },
+                  { key: "rend_sospechoso", label: "REND. SOSPECH.", n: irrData.resumen?.rend_sospechoso || 0, desc: ">6 o <0.5 km/L (km valido)", color: "#ffcc00" },
+                  { key: "doble_carga", label: "DOBLE CARGA", n: irrData.resumen?.doble_carga || 0, desc: "2 cargas mismo camion <1h", color: "#a855f7" },
+                  { key: "litros_excesivo", label: "LITROS >600", n: irrData.resumen?.litros_excesivo || 0, desc: "Carga excesiva", color: "#00d4ff" },
+                  { key: "km_no_avanza", label: "KM NO AVANZA", n: irrData.resumen?.km_no_avanza || 0, desc: "Cargo litros pero 0 km", color: "#ff6b35" },
+                  { key: "km_cero", label: "SIN ODOMETRO", n: irrData.resumen?.km_cero || 0, desc: "KM en 0 con litros", color: "#3a6080" },
+                ].map(k => (
+                  <button key={k.key} onClick={() => setTipoIrr(k.key)}
+                    className="text-center py-3 rounded cursor-pointer transition-all"
+                    style={{ background: tipoIrr === k.key ? "#0a1a28" : "#060d14", border: `1px solid ${tipoIrr === k.key ? k.color + "50" : "#0d2035"}`, borderTop: `3px solid ${k.n > 0 ? k.color : "#0d2035"}` }}>
+                    <div className="font-space text-[20px] font-bold" style={{ color: k.n > 0 ? k.color : "#3a6080" }}>{k.n}</div>
+                    <div className="font-exo text-[7px] tracking-[0.1em] uppercase" style={{ color: tipoIrr === k.key ? k.color : "#3a6080" }}>{k.label}</div>
+                    <div className="font-exo text-[7px] mt-0.5" style={{ color: "#3a608080" }}>{k.desc}</div>
+                  </button>
                 ))}
               </div>
 
-              {resumenIA.stats.contratos && resumenIA.stats.contratos.length > 0 && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: "#ff6600" }}>MAYOR CONSUMO POR CARGA</div>
-                    <div className="space-y-1">
-                      {(resumenIA.stats.top_consumidores || []).map((c: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 rounded px-2 py-1" style={{ background: "#0d203530" }}>
-                          <Truck className="w-3 h-3 flex-shrink-0" style={{ color: "#ff2244" }} />
-                          <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
-                          <span className="ml-auto font-space text-[10px] font-bold" style={{ color: "#ff6600" }}>{c.litros} L</span>
-                          <span className="font-exo text-[8px]" style={{ color: "#4a7090" }}>{c.cargas} cargas</span>
+              {/* Camiones más irregulares */}
+              {irrData.camiones_irregulares?.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg" style={{ background: "#060d14", border: "1px solid #ff224420" }}>
+                  <div className="font-exo text-[8px] uppercase tracking-wider mb-2" style={{ color: "#ff2244" }}>
+                    CAMIONES CON MAS IRREGULARIDADES ({irrData.camiones_irregulares.length})
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {irrData.camiones_irregulares.slice(0, 12).map((c: any) => (
+                      <div key={c.patente} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "#0a1520", borderLeft: `2px solid ${c.irregularidades >= 3 ? "#ff2244" : "#ffcc00"}` }}>
+                        <div>
+                          <div className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</div>
+                          <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{c.contrato} · {c.total_cargas} cargas</div>
                         </div>
-                      ))}
+                        <div className="text-right">
+                          <div className="font-space text-[12px] font-bold" style={{ color: "#ff2244" }}>{c.irregularidades}</div>
+                          <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>
+                            {c.km_retrocede > 0 && `R:${c.km_retrocede} `}{c.km_excesivo > 0 && `E:${c.km_excesivo} `}{c.litros_excesivo > 0 && `L:${c.litros_excesivo}`}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Detalle del tipo seleccionado */}
+              <div className="rounded-lg p-3" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                <div className="font-exo text-[8px] uppercase tracking-wider mb-3" style={{ color: "#c8e8ff" }}>
+                  DETALLE: {tipoIrr.replace(/_/g, " ").toUpperCase()}
+                </div>
+
+                {tipoIrr === "doble_carga" ? (
+                  <div className="space-y-0.5 max-h-[400px] overflow-y-auto">
+                    {(irrData.irregularidades?.doble_carga || []).filter((r: any) => !calDia || (r.fecha1 || "").startsWith(calDia)).filter((r: any) => !isGestionado(r, "doble_carga")).map((r: any, i: number) => {
+                      const sevColor = r.severidad === "ALTA" ? "#ff2244" : r.severidad === "BAJA" ? "#00ff88" : "#ffcc00";
+                      return (
+                      <div key={i} onClick={() => setSelectedIrr({ ...r, estacion: r.est1, razon: r.clasificacion === "PROBABLE_LLENADO_2_ETAPAS" ? "Probable llenado en 2 etapas (misma estacion, <600lt)" : r.clasificacion === "SOSPECHOSO" ? "Sospechoso: estacion diferente o >600lt total" : "Revisar" })} className="flex items-center justify-between px-2 py-2 rounded cursor-pointer hover:opacity-80" style={{ background: selectedIrr?.id === r.id ? "#ff224415" : (i % 2 === 0 ? "#0a1520" : "transparent"), borderLeft: `3px solid ${sevColor}` }}>
+                        <div className="flex items-center gap-3">
+                          <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{r.patente}</span>
+                          <span className="font-exo text-[8px]" style={{ color: "#a855f7" }}>{r.conductor || "?"}</span>
+                          <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{r.minutos_entre} min</span>
+                          <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: sevColor, border: `1px solid ${sevColor}30`, background: sevColor + "10" }}>
+                            {r.clasificacion === "PROBABLE_LLENADO_2_ETAPAS" ? "LLENADO 2 ETAPAS" : r.clasificacion === "SOSPECHOSO" ? "SOSPECHOSO" : "REVISAR"}
+                          </span>
+                          {r.misma_estacion && <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>misma est.</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="font-space text-[9px] font-bold" style={{ color: "#ffcc00" }}>{Math.round(r.litros1)} lt</span>
+                            <span className="font-exo text-[8px] mx-1" style={{ color: "#3a6080" }}>{r.est1?.substring(0, 15)}</span>
+                          </div>
+                          <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>+</span>
+                          <div className="text-right">
+                            <span className="font-space text-[9px] font-bold" style={{ color: "#ffcc00" }}>{Math.round(r.litros2)} lt</span>
+                            <span className="font-exo text-[8px] mx-1" style={{ color: "#3a6080" }}>{r.est2?.substring(0, 15)}</span>
+                          </div>
+                          <span className="font-space text-[10px] font-bold" style={{ color: "#ff2244" }}> = {Math.round(r.litros_total)} lt</span>
+                          <div className="flex gap-1 ml-2">
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(null, r.patente, "doble_carga", "OK"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#00ff8815", border: "1px solid #00ff8830", color: "#00ff88" }}>OK</button>
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(null, r.patente, "doble_carga", "FRAUDE"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#ff224415", border: "1px solid #ff224430", color: "#ff2244" }}>FRAUDE</button>
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(null, r.patente, "doble_carga", "ERROR_DATO"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#ffcc0015", border: "1px solid #ffcc0030", color: "#ffcc00" }}>ERROR</button>
+                          </div>
+                        </div>
+                      </div>
+                    );})}
+                  </div>
+                ) : (
+                  <div className="space-y-0.5 max-h-[400px] overflow-y-auto">
+                    <div className="flex items-center justify-between px-2 py-1 mb-1" style={{ borderBottom: "1px solid #0d2035" }}>
+                      <span className="font-exo text-[7px] uppercase w-16" style={{ color: "#3a6080" }}>Patente</span>
+                      <span className="font-exo text-[7px] uppercase flex-1" style={{ color: "#3a6080" }}>Conductor</span>
+                      <span className="font-exo text-[7px] uppercase flex-1" style={{ color: "#3a6080" }}>Estacion</span>
+                      <span className="font-exo text-[7px] uppercase w-20 text-right" style={{ color: "#3a6080" }}>Fecha</span>
+                      <span className="font-exo text-[7px] uppercase w-16 text-right" style={{ color: "#3a6080" }}>Litros</span>
+                      <span className="font-exo text-[7px] uppercase w-20 text-right" style={{ color: "#3a6080" }}>KM ant</span>
+                      <span className="font-exo text-[7px] uppercase w-20 text-right" style={{ color: "#3a6080" }}>KM act</span>
+                      <span className="font-exo text-[7px] uppercase w-20 text-right" style={{ color: "#3a6080" }}>Diferencia</span>
+                    </div>
+                    {(irrData.irregularidades?.[tipoIrr] || []).filter((r: any) => !calDia || (r.fecha || "").startsWith(calDia)).filter((r: any) => !isGestionado(r, tipoIrr)).map((r: any, i: number) => {
+                      const diffLabel = tipoIrr === "error_digitacion" ? `${r.tipo_error || "?"}: ${Math.round(r.diferencia || 0).toLocaleString()}`
+                        : tipoIrr === "rend_sospechoso" ? (r.razon || `${(r.rendimiento || 0).toFixed(1)} km/L`)
+                        : tipoIrr === "litros_excesivo" ? `${Math.round(r.litros)} lt`
+                        : tipoIrr === "km_no_avanza" ? (r.razon || `${r.km_entre || 0} km`)
+                        : tipoIrr === "km_cero" ? "sin odometro"
+                        : `${r.km_entre || "?"} km`;
+                      return (
+                        <div key={i} onClick={() => setSelectedIrr(r)} className="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer hover:opacity-80" style={{ background: selectedIrr?.id === r.id ? "#ff224415" : (i % 2 === 0 ? "#0a1520" : "transparent"), borderLeft: selectedIrr?.id === r.id ? "3px solid #ff2244" : "none" }}>
+                          <span className="font-space text-[10px] font-bold w-16" style={{ color: "#c8e8ff" }}>{r.patente}</span>
+                          <span className="font-exo text-[8px] flex-1 truncate" style={{ color: "#a855f7" }}>{r.conductor || "—"}</span>
+                          <span className="font-exo text-[8px] flex-1 truncate" style={{ color: "#3a6080" }}>{(r.estacion || "").substring(0, 20)}</span>
+                          <span className="font-exo text-[8px] w-20 text-right" style={{ color: "#3a6080" }}>{r.fecha?.slice(5, 10)} {r.fecha?.slice(11, 16)}</span>
+                          <span className="font-space text-[9px] w-16 text-right" style={{ color: "#ffcc00" }}>{Math.round(r.litros || 0)}</span>
+                          <span className="font-space text-[9px] w-20 text-right" style={{ color: "#3a6080" }}>{r.km_ant ? Math.round(r.km_ant).toLocaleString() : "—"}</span>
+                          <span className="font-space text-[9px] w-20 text-right" style={{ color: "#3a6080" }}>{r.km_act ? Math.round(r.km_act).toLocaleString() : "—"}</span>
+                          <span className="font-space text-[10px] font-bold w-20 text-right" style={{ color: "#ff2244" }}>{diffLabel}</span>
+                          <div className="flex gap-1 ml-2">
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(r.id || null, r.patente, tipoIrr, "OK"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#00ff8815", border: "1px solid #00ff8830", color: "#00ff88" }}>OK</button>
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(r.id || null, r.patente, tipoIrr, "FRAUDE"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#ff224415", border: "1px solid #ff224430", color: "#ff2244" }}>FRAUDE</button>
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(r.id || null, r.patente, tipoIrr, "ERROR_DATO"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#ffcc0015", border: "1px solid #ffcc0030", color: "#ffcc00" }}>ERROR</button>
+                            <button onClick={(e) => { e.stopPropagation(); gestionar(r.id || null, r.patente, tipoIrr, "REVISAR"); }} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer" style={{ background: "#00d4ff15", border: "1px solid #00d4ff30", color: "#00d4ff" }}>REVISAR</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(irrData.irregularidades?.[tipoIrr] || []).length === 0 && (
+                      <div className="text-center py-6 font-exo text-[10px]" style={{ color: "#00ff88" }}>Sin irregularidades de este tipo</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected irregularity detail panel */}
+              {selectedIrr && (
+                <div className="mt-4 p-4 rounded-lg" style={{ background: "#0a1520", border: "1px solid #ff224440", borderTop: "3px solid #ff2244" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="w-4 h-4" style={{ color: "#ff2244" }} />
+                      <span className="font-space text-[13px] font-bold" style={{ color: "#c8e8ff" }}>{selectedIrr.patente}</span>
+                      {selectedIrr.conductor && <span className="font-exo text-[10px]" style={{ color: "#a855f7" }}>{selectedIrr.conductor}</span>}
+                    </div>
+                    <button onClick={() => setSelectedIrr(null)} className="font-exo text-[8px] px-2 py-1 rounded cursor-pointer" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>Cerrar</button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 mb-3">
+                    <div className="p-2 rounded" style={{ background: "#060d14" }}>
+                      <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>Estacion</div>
+                      <div className="font-exo text-[10px] font-bold" style={{ color: "#ff6b35" }}>{selectedIrr.estacion || selectedIrr.est1 || "?"}</div>
+                    </div>
+                    <div className="p-2 rounded" style={{ background: "#060d14" }}>
+                      <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>Fecha</div>
+                      <div className="font-exo text-[10px]" style={{ color: "#c8e8ff" }}>{(selectedIrr.fecha || selectedIrr.fecha1 || "").slice(0, 16)}</div>
+                    </div>
+                    <div className="p-2 rounded" style={{ background: "#060d14" }}>
+                      <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>Litros</div>
+                      <div className="font-space text-[12px] font-bold" style={{ color: "#ffcc00" }}>{Math.round(selectedIrr.litros || selectedIrr.litros_total || 0)} lt</div>
+                    </div>
+                    <div className="p-2 rounded" style={{ background: "#060d14" }}>
+                      <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>KM</div>
+                      <div className="font-exo text-[10px]" style={{ color: "#c8e8ff" }}>{selectedIrr.km_ant ? `${selectedIrr.km_ant.toLocaleString()} → ${selectedIrr.km_act?.toLocaleString()}` : (selectedIrr.km_entre ? `${selectedIrr.km_entre} km` : "—")}</div>
                     </div>
                   </div>
-                  <div>
-                    <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: "#00ff88" }}>MENOR CONSUMO POR CARGA</div>
-                    <div className="space-y-1">
-                      {(resumenIA.stats.top_eficientes || []).map((c: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 rounded px-2 py-1" style={{ background: "#0d203530" }}>
-                          <Truck className="w-3 h-3 flex-shrink-0" style={{ color: "#00ff88" }} />
-                          <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
-                          <span className="ml-auto font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>{c.litros} L</span>
-                          <span className="font-exo text-[8px]" style={{ color: "#4a7090" }}>{c.cargas} cargas</span>
-                        </div>
-                      ))}
+                  {(selectedIrr.tipo_error || selectedIrr.razon) && (
+                    <div className="px-3 py-2 rounded mb-3" style={{ background: "#ff224410", border: "1px solid #ff224430" }}>
+                      <span className="font-exo text-[9px] font-bold" style={{ color: "#ff2244" }}>{selectedIrr.tipo_error || selectedIrr.razon}</span>
                     </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => { gestionar(selectedIrr.id, selectedIrr.patente, tipoIrr, "OK"); setSelectedIrr(null); }} className="flex-1 py-2 rounded font-exo text-[10px] font-bold cursor-pointer" style={{ background: "#00ff8815", border: "1px solid #00ff8840", color: "#00ff88" }}>OK — Sin problema</button>
+                    <button onClick={() => { gestionar(selectedIrr.id, selectedIrr.patente, tipoIrr, "FRAUDE"); setSelectedIrr(null); }} className="flex-1 py-2 rounded font-exo text-[10px] font-bold cursor-pointer" style={{ background: "#ff224415", border: "1px solid #ff224440", color: "#ff2244" }}>FRAUDE</button>
+                    <button onClick={() => { gestionar(selectedIrr.id, selectedIrr.patente, tipoIrr, "ERROR_DATO"); setSelectedIrr(null); }} className="flex-1 py-2 rounded font-exo text-[10px] font-bold cursor-pointer" style={{ background: "#ffcc0015", border: "1px solid #ffcc0040", color: "#ffcc00" }}>ERROR DATO</button>
+                    <button onClick={() => { gestionar(selectedIrr.id, selectedIrr.patente, tipoIrr, "REVISAR"); setSelectedIrr(null); }} className="flex-1 py-2 rounded font-exo text-[10px] font-bold cursor-pointer" style={{ background: "#00d4ff15", border: "1px solid #00d4ff40", color: "#00d4ff" }}>REVISAR</button>
                   </div>
                 </div>
               )}
             </div>
-          ) : null}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        {filtroButtons.map(f => (
-          <button key={f.id}
-            onClick={() => setFiltro(f.id)}
-            data-testid={`btn-filtro-est-${f.id.toLowerCase()}`}
-            className="font-space text-[9px] font-bold tracking-wider px-3 py-1.5 cursor-pointer transition-all"
-            style={{
-              background: filtro === f.id ? f.color + "15" : "#0a1520",
-              border: `1px solid ${filtro === f.id ? f.color : "#0d2035"}`,
-              color: filtro === f.id ? f.color : "#3a6080",
-            }}>
-            {f.label}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => toggleSoloEcu(!soloConEcu)}
-            data-testid="btn-toggle-solo-ecu"
-            className="flex items-center gap-1.5 font-space text-[9px] font-bold tracking-wider px-3 py-1.5 cursor-pointer transition-all"
-            style={{
-              background: soloConEcu ? "#00ff8810" : "#0a1520",
-              border: `1px solid ${soloConEcu ? "#00ff8830" : "#0d2035"}`,
-              color: soloConEcu ? "#00ff88" : "#3a6080",
-            }}>
-            <Check className="w-3 h-3" style={{ opacity: soloConEcu ? 1 : 0.3 }} />
-            Solo con ECU
-          </button>
-          {soloConEcu && cargasSinEcuCount > 0 && (
-            <span className="font-exo text-[9px]" style={{ color: "#3a6080" }} data-testid="text-ocultas-sin-ecu">
-              {cargasSinEcuCount} cargas sin ECU ocultas
-            </span>
           )}
         </div>
-      </div>
+      )}
 
-      {(() => {
-        const totalC = resumen?.total_cargas || 0;
-        const conEcuC = resumen?.cobertura?.cargas_con_cruce_ecu || 0;
-        const cobPct = totalC > 0 ? Math.round((conEcuC / totalC) * 100) : 0;
-        if (cobPct < 50) return (
-          <div className="rounded px-4 py-3 mb-4 flex items-start gap-3" style={{ background: "#ffcc0008", border: "1px solid #ffcc0025", borderLeft: "3px solid #ffcc00" }} data-testid="banner-calibracion-est">
-            <Radio className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ffcc00" }} />
+      {/* GESTIONADAS VIEW */}
+      {vista === "gestionadas" && (
+        <div>
+          {!gestData ? <Loader2 className="w-5 h-5 animate-spin mx-auto mt-10" style={{ color: "#00ff88" }} /> : (
             <div>
-              <div className="font-space text-[10px] font-bold tracking-wider mb-1" style={{ color: "#ffcc00" }}>SISTEMA EN CALIBRACION</div>
-              <div className="font-rajdhani text-[11px] leading-relaxed" style={{ color: "#c8e8ff" }}>
-                Cruce ECU disponible en {cobPct}% de las cargas. Los snapshots Volvo cubren desde el 19-Mar. La cobertura aumenta automaticamente a medida que se acumulan mas datos.
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {[
+                  { label: "TOTAL", n: gestData.resumen?.total || 0, color: "#c8e8ff" },
+                  { label: "OK", n: gestData.resumen?.ok || 0, color: "#00ff88" },
+                  { label: "FRAUDE", n: gestData.resumen?.fraude || 0, color: "#ff2244" },
+                  { label: "ERROR DATO", n: gestData.resumen?.error_dato || 0, color: "#ffcc00" },
+                ].map(k => (
+                  <div key={k.label} className="text-center py-3 rounded" style={{ background: "#060d14", border: "1px solid #0d2035", borderTop: `2px solid ${k.color}` }}>
+                    <div className="font-space text-[18px] font-bold" style={{ color: k.color }}>{k.n}</div>
+                    <div className="font-exo text-[7px] tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-0.5 max-h-[500px] overflow-y-auto">
+                {(gestData.gestionadas || []).map((g: any, i: number) => (
+                  <div key={g.id} className="flex items-center justify-between px-3 py-2 rounded" style={{ background: i % 2 === 0 ? "#060d14" : "transparent", borderLeft: `3px solid ${g.decision === "OK" ? "#00ff88" : g.decision === "FRAUDE" ? "#ff2244" : g.decision === "ERROR_DATO" ? "#ffcc00" : "#00d4ff"}` }}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{g.patente}</span>
+                      <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{g.tipo}</span>
+                      {g.conductor && <span className="font-exo text-[8px]" style={{ color: "#a855f7" }}>{g.conductor}</span>}
+                      {g.estacion && <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{g.estacion?.substring(0, 20)}</span>}
+                      {g.fecha_carga && <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{g.fecha_carga?.slice(0, 10)}</span>}
+                      {g.litros > 0 && <span className="font-space text-[9px]" style={{ color: "#ffcc00" }}>{Math.round(g.litros)} lt</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-exo text-[8px] font-bold px-2 py-0.5 rounded" style={{ color: g.decision === "OK" ? "#00ff88" : g.decision === "FRAUDE" ? "#ff2244" : g.decision === "ERROR_DATO" ? "#ffcc00" : "#00d4ff", border: `1px solid ${g.decision === "OK" ? "#00ff8830" : g.decision === "FRAUDE" ? "#ff224430" : "#ffcc0030"}` }}>{g.decision}</span>
+                      <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{g.fecha_gestion?.slice(0, 10)}</span>
+                    </div>
+                  </div>
+                ))}
+                {(gestData.gestionadas || []).length === 0 && (
+                  <div className="text-center py-8 font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin irregularidades gestionadas aun</div>
+                )}
               </div>
             </div>
-          </div>
-        );
-        if (cobPct <= 80) return (
-          <div className="rounded px-4 py-3 mb-4 flex items-start gap-3" style={{ background: "#00d4ff08", border: "1px solid #00d4ff25", borderLeft: "3px solid #00d4ff" }} data-testid="banner-cobertura-parcial-est">
-            <Radio className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#00d4ff" }} />
-            <div>
-              <div className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>Cobertura parcial — {cobPct}% con ECU</div>
-            </div>
-          </div>
-        );
-        return null;
-      })()}
-
-      <div className="mb-4 rounded p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }} data-testid="panel-señales-activas">
-        <div className="font-space text-[10px] font-bold tracking-[0.15em] mb-3" style={{ color: "#ff6600" }}>SEÑALES ACTIVAS DE DETECCION</div>
-        <div className="grid grid-cols-5 gap-2">
-          <div className="rounded px-3 py-2" style={{ background: "#ff224408", border: "1px solid #ff224420" }}>
-            <div className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>ECU vs SIGETRA</div>
-            <div className="font-exo text-[8px] mt-1" style={{ color: "#4a7090" }}>Declaro mas litros de los que entraron</div>
-            <div className="font-exo text-[7px] mt-1 px-1 py-0.5 inline-block rounded" style={{ background: "#00ff8810", color: "#00ff88" }}>Solo Volvo</div>
-          </div>
-          <div className="rounded px-3 py-2" style={{ background: "#ff224408", border: "1px solid #ff224420" }}>
-            <div className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>BALANCE DEL DIA</div>
-            <div className="font-exo text-[8px] mt-1" style={{ color: "#4a7090" }}>Cargo mucho mas de lo que consumio</div>
-            <div className="font-exo text-[7px] mt-1 px-1 py-0.5 inline-block rounded" style={{ background: "#00ff8810", color: "#00ff88" }}>Solo Volvo</div>
-          </div>
-          <div className="rounded px-3 py-2" style={{ background: "#ff224408", border: "1px solid #ff224420" }}>
-            <div className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>CARGA ANTICIPADA</div>
-            <div className="font-exo text-[8px] mt-1" style={{ color: "#4a7090" }}>Cargo con estanque lleno sin necesidad</div>
-            <div className="font-exo text-[7px] mt-1 px-1 py-0.5 inline-block rounded" style={{ background: "#ffcc0015", color: "#ffcc00" }}>Todos (con ECU)</div>
-          </div>
-          <div className="rounded px-3 py-2" style={{ background: "#FF8C0008", border: "1px solid #FF8C0020" }}>
-            <div className="font-space text-[9px] font-bold" style={{ color: "#FF8C00" }}>DOBLE CARGA RAPIDA</div>
-            <div className="font-exo text-[8px] mt-1" style={{ color: "#4a7090" }}>Doble carga bajo umbral aprendido</div>
-            <div className="font-exo text-[7px] mt-1 px-1 py-0.5 inline-block rounded" style={{ background: "#ffcc0015", color: "#ffcc00" }}>Todos (con ECU)</div>
-          </div>
-          <div className="rounded px-3 py-2" style={{ background: "#FF8C0008", border: "1px solid #FF8C0020" }}>
-            <div className="font-space text-[9px] font-bold" style={{ color: "#FF8C00" }}>MICRO CARGA</div>
-            <div className="font-exo text-[8px] mt-1" style={{ color: "#4a7090" }}>Cargo menos del minimo operacional</div>
-            <div className="font-exo text-[7px] mt-1 px-1 py-0.5 inline-block rounded" style={{ background: "#c8e8ff10", color: "#c8e8ff" }}>Todos</div>
-          </div>
-        </div>
-      </div>
-
-      {data?.balances_dia && data.balances_dia.length > 0 && (
-        <div className="mb-4 rounded overflow-hidden" style={{ background: "#0a1520", border: "1px solid #ff224440", borderLeft: "3px solid #ff2244" }} data-testid="panel-balance-dia">
-          <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" style={{ color: "#ff2244" }} />
-              <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#ff2244" }}>
-                BALANCE POR PERIODO — {data.balances_dia.length} CAMION{data.balances_dia.length > 1 ? "ES" : ""} CON EXCESO
-              </span>
-            </div>
-            <div className="font-exo text-[9px] mt-1" style={{ color: "#4a7090" }}>
-              Periodos entre cargas donde lo cargado supera significativamente el consumo ECU
-            </div>
-          </div>
-          <div className="divide-y" style={{ borderColor: "#0d2035" }}>
-            {data.balances_dia.map((b: any, i: number) => (
-              <div key={i} className="px-4 py-2 flex items-center gap-4" data-testid={`balance-dia-${i}`}>
-                <span className="font-space text-[9px] font-bold px-1.5 py-0.5 rounded" style={{
-                  background: b.nivel === "CRITICO" ? "#ff224415" : "#FF8C0015",
-                  border: `1px solid ${b.nivel === "CRITICO" ? "#ff224430" : "#FF8C0030"}`,
-                  color: b.nivel === "CRITICO" ? "#ff2244" : "#FF8C00",
-                }}>{b.nivel}</span>
-                <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{b.patente}</span>
-                <span className="font-exo text-[9px] px-1.5 py-0.5 rounded" style={{ background: "#0d203550", color: "#4a7090" }}>{b.contrato}</span>
-                <div className="flex-1 font-rajdhani text-[10px]" style={{ color: "#c8e8ff" }}>{b.mensaje}</div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="text-right">
-                    <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>CARGADO</div>
-                    <div className="font-space text-[11px] font-bold" style={{ color: "#ff6600" }}>{b.litros_cargados_sigetra || b.litros_cargados}L</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>ECU CONSUMO</div>
-                    <div className="font-space text-[11px] font-bold" style={{ color: "#00ff88" }}>{b.litros_consumidos_ecu}L</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>EXCESO</div>
-                    <div className="font-space text-[11px] font-bold" style={{ color: "#ff2244" }}>+{b.diferencia}L ({b.pct_exceso}%)</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
       )}
 
-      <AprendizajeWidget />
-
-      <div className="space-y-2">
-        {estaciones.map((est: any, idx: number) => {
-          const isExpanded = expandedEstacion === est.nombre;
-          const totalLitros = resumen?.total_litros || 1;
-          const litrosPct = totalLitros > 0 ? Math.round((est.total_litros / totalLitros) * 100) : 0;
-          const borderColor = est.tiene_anomalias ? "#ff2244" : isExpanded ? "#ff6600" : "#0d2035";
+      {/* Lista estaciones/conductores */}
+      {vista !== "irregularidades" && vista !== "gestionadas" && <div className="space-y-1">
+        {items.map((r: any) => {
+          const name = vista === "estaciones" ? r.nombre : r.conductor;
+          const isOpen = expandida === name;
           return (
-            <div key={est.nombre}
-              data-testid={`card-estacion-${idx}`}
-              className="rounded overflow-hidden"
-              style={{ border: `1px solid ${borderColor}`, background: "#0a1520" }}>
-              <button
-                onClick={() => setExpandedEstacion(isExpanded ? null : est.nombre)}
-                className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer transition-all"
-                style={{ background: isExpanded ? "#ff660008" : "transparent" }}
-                data-testid={`btn-estacion-${idx}`}>
-                <Fuel className="w-4 h-4 flex-shrink-0" style={{ color: est.tiene_anomalias ? "#ff2244" : "#ff6600" }} />
+            <div key={name}>
+              <button onClick={() => setExpandida(isOpen ? null : name)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer transition-all hover:opacity-90"
+                style={{ background: isOpen ? "#0a1a28" : "#060d14", border: `1px solid ${isOpen ? (vista === "estaciones" ? "#ff6b3530" : "#a855f730") : "#0d2035"}`, borderLeft: `3px solid ${vista === "estaciones" ? "#ff6b35" : "#a855f7"}` }}>
                 <div className="flex-1 text-left min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{est.nombre}</span>
-                    {est.ciudad && <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{est.ciudad}</span>}
-                    {est.alertas_count > 0 && (
-                      <span className="font-space text-[8px] font-bold px-1.5 py-0.5" style={{ background: "#ff224415", border: "1px solid #ff224430", color: "#ff2244" }}>
-                        {est.alertas_count} ALERTA{est.alertas_count > 1 ? "S" : ""}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
-                      <div className="h-full rounded-full" style={{ width: `${litrosPct}%`, background: est.tiene_anomalias ? "#ff2244" : "#ff6600" }} />
-                    </div>
-                    <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{litrosPct}%</span>
+                  <div className="font-exo text-[10px] font-bold truncate" style={{ color: "#c8e8ff" }}>{name}</div>
+                  <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>
+                    {vista === "estaciones" ? `${r.camiones} camiones · ${r.conductores} conductores${r.lat ? "" : " · sin mapa"}` : `${r.camiones} camiones · ${r.estaciones} estaciones`}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-right flex-shrink-0">
-                  <div>
-                    <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>LITROS</div>
-                    <div className="font-space text-[12px] font-bold" style={{ color: "#ff6600" }}>{Math.round(est.total_litros).toLocaleString("es-CL")}</div>
-                  </div>
-                  <div>
-                    <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CARGAS</div>
-                    <div className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{est.total_cargas}</div>
-                  </div>
-                  <div>
-                    <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CAMIONES</div>
-                    <div className="font-space text-[12px] font-bold" style={{ color: "#00d4ff" }}>{est.camiones_distintos}</div>
-                  </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="text-center"><div className="font-space text-[13px] font-bold" style={{ color: "#00d4ff" }}>{r.cargas}</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>cargas</div></div>
+                  <div className="text-center"><div className="font-space text-[13px] font-bold" style={{ color: "#ffcc00" }}>{(r.litros || 0).toLocaleString()}</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>litros</div></div>
+                  <div className="text-center"><div className="font-space text-[13px] font-bold" style={{ color: "#c8e8ff" }}>{r.litros_prom || 0}</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>lt/carga</div></div>
+                  {isOpen ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "#3a6080" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "#3a6080" }} />}
                 </div>
-                {isExpanded ? <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: "#3a6080" }} /> : <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: "#3a6080" }} />}
               </button>
 
-              {isExpanded && (
-                <div className="px-4 pb-3" style={{ borderTop: "1px solid #0d2035" }}>
-                  <div className="font-space text-[9px] font-bold tracking-wider mb-1.5 pt-2" style={{ color: "#ff6600" }}>
-                    CARGAS EN ESTA ESTACION ({est.total_cargas})
-                  </div>
-                  <div className="space-y-1.5">
-                    {(est.cargas || []).sort((a: any, b: any) => {
-                      const order: Record<string, number> = { CRITICO: 0, SOSPECHOSO: 1, REVISAR: 2, NORMAL: 3 };
-                      return (order[a.nivel_alerta] ?? 3) - (order[b.nivel_alerta] ?? 3);
-                    }).map((carga: any, ci: number) => {
-                      const ac = alertaColors[carga.nivel_alerta] || "#3a6080";
-                      const cargaKey = carga.id ?? `${est.nombre}-${ci}`;
-                      const isDetailOpen = expandedCarga === cargaKey;
-                      const fechaCarga = new Date(carga.fecha);
-                      const fechaStr = fechaCarga.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+              {isOpen && detalle && (
+                <div className="mx-3 px-4 py-3 rounded-b" style={{ background: "#0a1520", borderLeft: `3px solid ${vista === "estaciones" ? "#ff6b35" : "#a855f7"}`, borderBottom: "1px solid #0d203530" }}>
+                  {vista === "estaciones" && detalle.conductores?.length > 0 && (
+                    <div className="mb-3 pb-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                      <div className="font-exo text-[8px] uppercase tracking-wider mb-2" style={{ color: "#a855f7" }}>CONDUCTORES EN ESTA ESTACION</div>
+                      <div className="flex flex-wrap gap-1">
+                        {detalle.conductores.map((c: any) => (
+                          <div key={c.conductor} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                            <span className="font-exo text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{c.conductor}</span>
+                            <span className="font-space text-[8px]" style={{ color: "#00d4ff" }}>{c.cargas}c</span>
+                            <span className="font-space text-[8px]" style={{ color: "#3a6080" }}>{c.camiones}cam</span>
+                            <span className="font-space text-[8px]" style={{ color: "#ffcc00" }}>{Math.round(c.litros)}lt</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {vista === "conductores" && r.estaciones_lista?.length > 0 && (
+                    <div className="mb-3 pb-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                      <div className="font-exo text-[8px] uppercase tracking-wider mb-2" style={{ color: "#ff6b35" }}>ESTACIONES DONDE CARGA</div>
+                      <div className="flex flex-wrap gap-1">
+                        {r.estaciones_lista.map((e: string) => (
+                          <span key={e} className="font-exo text-[8px] px-2 py-0.5 rounded" style={{ background: "#060d14", border: "1px solid #0d2035", color: "#c8e8ff" }}>{e}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="font-exo text-[8px] uppercase tracking-wider mb-2" style={{ color: "#3a6080" }}>ULTIMAS {detalle.total} CARGAS</div>
+                  <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+                    {(detalle.cargas || []).map((c: any, i: number) => {
+                      const km = (c.km_act && c.km_ant && c.km_act > c.km_ant) ? Math.round(c.km_act - c.km_ant) : null;
                       return (
-                        <div key={ci} className="rounded overflow-hidden" style={{ background: "#0d203520", border: `1px solid ${carga.nivel_alerta !== "NORMAL" ? ac + "40" : "#0d203580"}`, borderLeft: `3px solid ${ac}` }} data-testid={`estacion-carga-${idx}-${ci}`}>
-                          <button
-                            className="w-full p-2.5 cursor-pointer transition-all text-left"
-                            style={{ background: isDetailOpen ? ac + "08" : "transparent" }}
-                            onClick={() => setExpandedCarga(isDetailOpen ? null : cargaKey)}
-                            data-testid={`btn-carga-detail-${idx}-${ci}`}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
-                                <Truck className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-                                <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{carga.patente}</span>
-                                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{carga.conductor}</span>
-                                {carga.tiene_cruce_ecu ? (
-                                  <span className="font-space text-[8px] font-bold px-1.5 py-0.5" style={{ color: ac, background: ac + "15", border: `1px solid ${ac}30` }}>
-                                    {carga.nivel_alerta}
-                                  </span>
-                                ) : (
-                                  <span className="font-space text-[8px] font-bold px-1.5 py-0.5 flex items-center gap-1" style={{ color: "#4a7090", background: "#4a709015", border: "1px solid #4a709030" }}>
-                                    <Radio className="w-2.5 h-2.5" /> SIN_DATOS
-                                  </span>
-                                )}
-                                {carga.tiene_cruce_ecu && (
-                                  <span className="font-space text-[8px] font-bold px-1.5 py-0.5" style={{ color: "#00ff88", background: "#00ff8815", border: "1px solid #00ff8830" }}>
-                                    ECU OK
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{carga.hora}</span>
-                                <span className="font-space text-[10px] font-bold" style={{ color: "#ff6600" }}>{Math.round(carga.litros_sigetra)} L</span>
-                                {carga.tiene_cruce_ecu && carga.ecu_consumo_periodo != null && (
-                                  <span className="font-space text-[10px]" style={{ color: "#4a7090" }}>
-                                    ECU: {Math.round(carga.ecu_consumo_periodo)}L consumido / {Math.round(carga.ecu_km_periodo || 0)}km
-                                  </span>
-                                )}
-                                {isDetailOpen ? <ChevronUp className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#4a7090" }} /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#3a6080" }} />}
-                              </div>
-                            </div>
-                            {carga.razones.length > 0 && (
-                              <div className="ml-5 mt-1 space-y-0.5">
-                                {carga.razones.map((r: string, ri: number) => (
-                                  <div key={ri} className="font-rajdhani text-[10px] flex items-start gap-1" style={{ color: ac }}>
-                                    <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" /> {r}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </button>
-
-                          {isDetailOpen && (
-                            <div className="px-4 pb-3 pt-2" style={{ borderTop: `1px solid ${ac}25` }} data-testid={`detail-carga-${idx}-${ci}`}>
-                              <div className="grid grid-cols-3 gap-3 mb-3">
-                                <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Calendar className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>FECHA Y HORA</span>
-                                  </div>
-                                  <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{fechaStr}</div>
-                                  <div className="font-space text-[11px]" style={{ color: "#00d4ff" }}>{carga.hora}</div>
-                                </div>
-                                <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Droplets className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>LITROS SIGETRA</span>
-                                  </div>
-                                  <div className="font-space text-[16px] font-bold" style={{ color: "#ff6600" }}>{carga.litros_sigetra.toLocaleString("es-CL", { maximumFractionDigits: 1 })} L</div>
-                                </div>
-                                <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Gauge className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>ODOMETRO</span>
-                                  </div>
-                                  <div className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{carga.odometro ? carga.odometro.toLocaleString("es-CL") + " km" : "--"}</div>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3 mb-3">
-                                <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Truck className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CAMION</span>
-                                  </div>
-                                  <div className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{carga.patente}</div>
-                                  <div className="font-exo text-[10px]" style={{ color: "#4a7090" }}>{carga.conductor}</div>
-                                </div>
-                                <div className="rounded px-3 py-2" style={{ background: "#020508", border: "1px solid #0d2035" }}>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Route className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CONTRATO</span>
-                                  </div>
-                                  <div className="font-space text-[12px] font-bold" style={{ color: "#00d4ff" }}>{carga.contrato || "Sin contrato"}</div>
-                                </div>
-                              </div>
-
-                              {carga.tiene_cruce_ecu && (
-                                <div className="rounded px-3 py-2 mb-3" style={{ background: "#00ff8808", border: "1px solid #00ff8820" }}>
-                                  <div className="flex items-center gap-1.5 mb-2">
-                                    <Cpu className="w-3 h-3" style={{ color: "#00ff88" }} />
-                                    <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: "#00ff88" }}>CRUCE ECU VOLVO</span>
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-3">
-                                    <div>
-                                      <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>CONSUMO ENTRE SNAPSHOTS</div>
-                                      <div className="font-space text-[13px] font-bold" style={{ color: "#c8e8ff" }}>{carga.ecu_consumo_periodo != null ? carga.ecu_consumo_periodo.toFixed(1) + " L" : "--"}</div>
-                                    </div>
-                                    <div>
-                                      <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>KM ENTRE SNAPSHOTS</div>
-                                      <div className="font-space text-[13px] font-bold" style={{ color: "#c8e8ff" }}>{carga.ecu_km_periodo != null ? carga.ecu_km_periodo.toFixed(1) + " km" : "--"}</div>
-                                    </div>
-                                    <div>
-                                      <div className="font-exo text-[7px] tracking-wider" style={{ color: "#3a6080" }}>DELTA</div>
-                                      <div className="font-space text-[13px] font-bold" style={{ color: carga.litros_delta != null && carga.litros_delta > 25 ? "#ff2244" : "#00ff88" }}>
-                                        {carga.litros_delta != null ? (carga.litros_delta > 0 ? "+" : "") + carga.litros_delta.toFixed(1) + " L" : "OK"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="font-rajdhani text-[10px] mt-2" style={{ color: "#4a7090" }}>
-                                    Ventana: 3h antes / 3h despues de la carga. Consumo ECU = totalFuelUsed despues - antes.
-                                  </div>
-                                </div>
-                              )}
-
-                              {!carga.tiene_cruce_ecu && (
-                                <div className="rounded px-3 py-2 mb-3" style={{ background: "#4a709008", border: "1px solid #4a709020" }}>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Radio className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: "#4a7090" }}>{carga.patente} - Sin ECU disponible</span>
-                                  </div>
-                                  <div className="font-rajdhani text-[11px] mb-1" style={{ color: "#c8e8ff" }}>
-                                    Sigetra: {Math.round(carga.litros_sigetra)} L cargados
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <Radio className="w-3 h-3" style={{ color: "#4a7090" }} />
-                                    <span className="font-rajdhani text-[10px]" style={{ color: "#4a7090" }}>
-                                      Snapshots no disponibles para este periodo
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-
-                              {carga.razones.length > 0 && (
-                                <div className="rounded px-3 py-2" style={{ background: ac + "08", border: `1px solid ${ac}20` }}>
-                                  <div className="flex items-center gap-1.5 mb-2">
-                                    <AlertTriangle className="w-3 h-3" style={{ color: ac }} />
-                                    <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: ac }}>RAZONES DE ALERTA</span>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {carga.razones.map((r: string, ri: number) => (
-                                      <div key={ri} className="font-rajdhani text-[11px] flex items-start gap-2 rounded px-2 py-1.5" style={{ background: "#020508", border: `1px solid ${ac}15` }}>
-                                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: ac }} />
-                                        <span style={{ color: "#c8e8ff" }}>{r}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {carga.razones.length === 0 && carga.nivel_alerta === "NORMAL" && carga.tiene_cruce_ecu && (
-                                <div className="flex items-center gap-2 rounded px-3 py-2" style={{ background: "#00ff8808", border: "1px solid #00ff8820" }}>
-                                  <CheckCircle className="w-3.5 h-3.5" style={{ color: "#00ff88" }} />
-                                  <span className="font-rajdhani text-[11px]" style={{ color: "#00ff88" }}>Sin anomalias detectadas en esta carga</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                        <div key={c.id || i} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: i % 2 === 0 ? "#060d14" : "transparent" }}>
+                          <div className="flex items-center gap-3">
+                            <span className="font-space text-[9px] w-4 text-right" style={{ color: "#3a6080" }}>{i + 1}</span>
+                            <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                            {c.conductor && <span className="font-exo text-[8px]" style={{ color: "#a855f7" }}>{c.conductor}</span>}
+                            <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{c.fecha?.slice(0, 10)} {c.fecha?.slice(11, 16)}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {vista === "conductores" && c.estacion && <span className="font-exo text-[8px]" style={{ color: "#ff6b35" }}>{c.estacion}</span>}
+                            <span className="font-space text-[10px] font-bold" style={{ color: "#ffcc00" }}>{Math.round(c.litros)} lt</span>
+                            {km && km < 3000 && <span className="font-space text-[9px]" style={{ color: "#c8e8ff" }}>{km} km</span>}
+                            {c.contrato && <span className="font-exo text-[7px]" style={{ color: getContColor(c.contrato) }}>{c.contrato}</span>}
+                          </div>
                         </div>
                       );
                     })}
@@ -1149,15 +636,10 @@ export default function EstacionesTab() {
             </div>
           );
         })}
-
-        {estaciones.length === 0 && (
-          <div className="font-exo text-[11px] py-8 text-center" style={{ color: "#3a6080" }}>
-            {filtro !== "TODOS" ? `Sin estaciones con cargas ${filtro.toLowerCase()} ayer` : "Sin datos de cargas para ayer"}
-          </div>
+        {items.length === 0 && !isLoading && (
+          <div className="text-center py-8"><Fuel className="w-6 h-6 mx-auto mb-2" style={{ color: "#3a6080" }} /><div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin resultados</div></div>
         )}
-      </div>
-      </>
-      )}
+      </div>}
     </div>
   );
 }

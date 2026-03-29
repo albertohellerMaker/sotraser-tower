@@ -42,7 +42,7 @@ function CumpleBadge({ cumple }: { cumple: string }) {
   };
   const c = cfg[cumple] || cfg.SIN_DATOS;
   return (
-    <span className="font-space text-[8px] font-bold px-2 py-0.5 uppercase tracking-[0.1em]"
+    <span className="font-space text-xs font-bold px-2 py-0.5 uppercase tracking-[0.1em]"
       style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
       {c.label}
     </span>
@@ -89,7 +89,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label className="font-exo text-[9px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>CAMION</label>
+            <label className="font-exo text-[11px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>CAMION</label>
             <select
               className="w-full px-3 py-2 font-space text-[12px]"
               style={{ background: "#020508", border: "1px solid #0d2035", color: "#c8e8ff" }}
@@ -105,7 +105,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-exo text-[9px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>TARA (kg)</label>
+              <label className="font-exo text-[11px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>TARA (kg)</label>
               <input type="number" placeholder="Ej: 8500"
                 className="w-full px-3 py-2 font-space text-[12px]"
                 style={{ background: "#020508", border: "1px solid #0d2035", color: "#c8e8ff" }}
@@ -113,7 +113,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
                 data-testid="input-tara-kg" />
             </div>
             <div>
-              <label className="font-exo text-[9px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>PESO MAXIMO (kg)</label>
+              <label className="font-exo text-[11px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>PESO MAXIMO (kg)</label>
               <input type="number" placeholder="Ej: 45000"
                 className="w-full px-3 py-2 font-space text-[12px]"
                 style={{ background: "#020508", border: "1px solid #0d2035", color: "#c8e8ff" }}
@@ -122,7 +122,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
             </div>
           </div>
           <div>
-            <label className="font-exo text-[9px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>TIPO VEHICULO</label>
+            <label className="font-exo text-[11px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>TIPO VEHICULO</label>
             <select
               className="w-full px-3 py-2 font-space text-[12px]"
               style={{ background: "#020508", border: "1px solid #0d2035", color: "#c8e8ff" }}
@@ -138,7 +138,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-exo text-[9px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>ANO FABRICACION</label>
+              <label className="font-exo text-[11px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>ANO FABRICACION</label>
               <input type="number" placeholder="Ej: 2022"
                 className="w-full px-3 py-2 font-space text-[12px]"
                 style={{ background: "#020508", border: "1px solid #0d2035", color: "#c8e8ff" }}
@@ -146,7 +146,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
                 data-testid="input-anio" />
             </div>
             <div>
-              <label className="font-exo text-[9px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>CONFIG. EJES</label>
+              <label className="font-exo text-[11px] tracking-[0.15em] uppercase block mb-1" style={{ color: "#3a6080" }}>CONFIG. EJES</label>
               <input type="text" placeholder="Ej: 6x4"
                 className="w-full px-3 py-2 font-space text-[12px]"
                 style={{ background: "#020508", border: "1px solid #0d2035", color: "#c8e8ff" }}
@@ -155,7 +155,7 @@ function TaraModal({ onClose, camiones }: { onClose: () => void; camiones: { id:
             </div>
           </div>
           {mutation.isError && (
-            <div className="font-exo text-[10px]" style={{ color: "#ff2244" }}>
+            <div className="font-exo text-xs" style={{ color: "#ff2244" }}>
               {(mutation.error as Error).message}
             </div>
           )}
@@ -218,11 +218,11 @@ export default function PesoTara() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="font-exo text-[9px] px-2 py-1" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>
+          <span className="font-exo text-[11px] px-2 py-1" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>
             Para agregar camiones ir a Configuracion o usar boton +
           </span>
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 font-space text-[10px] font-bold tracking-[0.1em] uppercase transition-all hover:opacity-90"
+            className="flex items-center gap-1.5 px-3 py-1.5 font-space text-xs font-bold tracking-[0.1em] uppercase transition-all hover:opacity-90"
             style={{ background: "#00d4ff", color: "#020508" }}
             onClick={() => setShowModal(true)}
             data-testid="btn-registrar-tara"
@@ -235,24 +235,24 @@ export default function PesoTara() {
 
       <div className="grid grid-cols-4 gap-3">
         <div className="dash-card px-4 py-3" data-testid="kpi-con-tara">
-          <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CAMIONES CON TARA</div>
+          <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CAMIONES CON TARA</div>
           <div className="font-space text-2xl font-bold" style={{ color: "#00d4ff" }}>{totals.conTara}</div>
-          <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>de {totals.totalCamiones} CENCOSUD</div>
+          <div className="font-exo text-xs" style={{ color: "#3a6080" }}>de {totals.totalCamiones} CENCOSUD</div>
         </div>
         <div className="dash-card px-4 py-3" data-testid="kpi-cumplen">
-          <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CUMPLEN LIMITE</div>
+          <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CUMPLEN LIMITE</div>
           <div className="font-space text-2xl font-bold" style={{ color: "#00ff88" }}>{totals.cumplen}</div>
-          <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>dentro de norma</div>
+          <div className="font-exo text-xs" style={{ color: "#3a6080" }}>dentro de norma</div>
         </div>
         <div className="dash-card px-4 py-3" data-testid="kpi-exceden">
-          <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>EXCEDEN LIMITE</div>
+          <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>EXCEDEN LIMITE</div>
           <div className="font-space text-2xl font-bold" style={{ color: "#ff2244" }}>{totals.exceden}</div>
-          <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>sobre peso maximo</div>
+          <div className="font-exo text-xs" style={{ color: "#3a6080" }}>sobre peso maximo</div>
         </div>
         <div className="dash-card px-4 py-3" data-testid="kpi-pendientes">
-          <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>PENDIENTE VERIFICAR</div>
+          <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>PENDIENTE VERIFICAR</div>
           <div className="font-space text-2xl font-bold" style={{ color: "#3a6080" }}>{totals.sinDatos}</div>
-          <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>sin datos Volvo</div>
+          <div className="font-exo text-xs" style={{ color: "#3a6080" }}>sin datos Volvo</div>
         </div>
       </div>
 
@@ -264,7 +264,7 @@ export default function PesoTara() {
             Registre datos de tara para comenzar a monitorear el peso de la flota.
           </div>
           <button
-            className="mt-4 px-4 py-2 font-space text-[10px] font-bold tracking-[0.1em] uppercase transition-all hover:opacity-90"
+            className="mt-4 px-4 py-2 font-space text-xs font-bold tracking-[0.1em] uppercase transition-all hover:opacity-90"
             style={{ background: "#00d4ff", color: "#020508" }}
             onClick={() => setShowModal(true)}
             data-testid="btn-registrar-tara-empty"
@@ -275,14 +275,14 @@ export default function PesoTara() {
       ) : (
         <div className="dash-card overflow-hidden">
           <div className="flex items-center gap-3 px-5 py-2" style={{ borderBottom: "1px solid #0d2035", background: "#020508" }}>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080", width: "70px" }}>PATENTE</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080", width: "80px" }}>TIPO</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "75px" }}>TARA (kg)</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "80px" }}>PESO MAX (kg)</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "85px" }}>CARGA EST.</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "85px" }}>PESO TOTAL</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "80px" }}>VOLVO (kg)</span>
-            <span className="font-exo text-[8px] tracking-[0.15em] uppercase flex-1 text-right" style={{ color: "#3a6080" }}>CUMPLE</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080", width: "70px" }}>PATENTE</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080", width: "80px" }}>TIPO</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "75px" }}>TARA (kg)</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "80px" }}>PESO MAX (kg)</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "85px" }}>CARGA EST.</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "85px" }}>PESO TOTAL</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase text-right" style={{ color: "#3a6080", width: "80px" }}>VOLVO (kg)</span>
+            <span className="font-exo text-xs tracking-[0.15em] uppercase flex-1 text-right" style={{ color: "#3a6080" }}>CUMPLE</span>
           </div>
           {registros.map(r => (
             <div key={r.id} className="flex items-center gap-3 px-5 py-2.5 transition-all hover:bg-[rgba(0,212,255,0.03)]"
@@ -292,7 +292,7 @@ export default function PesoTara() {
                 <Truck className="w-3 h-3 flex-shrink-0" style={{ color: "#3a6080" }} />
                 <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{r.patente}</span>
               </div>
-              <span className="font-exo text-[9px] truncate" style={{ color: "#3a6080", width: "80px" }}>{r.tipoVehiculo || "---"}</span>
+              <span className="font-exo text-[11px] truncate" style={{ color: "#3a6080", width: "80px" }}>{r.tipoVehiculo || "---"}</span>
               <span className="font-space text-[11px] text-right" style={{ color: "#c8e8ff", width: "75px" }}>
                 {r.taraKg.toLocaleString()}
               </span>
@@ -310,7 +310,7 @@ export default function PesoTara() {
               }}>
                 {r.pesoTotal != null ? `${r.pesoTotal.toLocaleString()} kg` : "---"}
               </span>
-              <span className="font-space text-[10px] text-right" style={{ color: "#3a6080", width: "80px" }}>
+              <span className="font-space text-xs text-right" style={{ color: "#3a6080", width: "80px" }}>
                 {r.pesoVolvoKg != null ? `${r.pesoVolvoKg.toLocaleString()}` : "---"}
               </span>
               <div className="flex-1 text-right">
@@ -325,12 +325,12 @@ export default function PesoTara() {
         <h3 className="font-space text-[12px] font-bold tracking-[0.1em] uppercase mb-3" style={{ color: "#c8e8ff" }}>
           Registrar tara de camion
         </h3>
-        <p className="font-exo text-[10px] mb-3" style={{ color: "#3a6080" }}>
+        <p className="font-exo text-xs mb-3" style={{ color: "#3a6080" }}>
           Agregue datos de tara a mas camiones para monitorear el cumplimiento de peso.
           La carga estimada se calcula automaticamente con datos de peso bruto de Volvo rFMS (GrossCombinationVehicleWeight).
         </p>
         <button
-          className="flex items-center gap-1.5 px-4 py-2 font-space text-[10px] font-bold tracking-[0.1em] uppercase transition-all hover:opacity-90"
+          className="flex items-center gap-1.5 px-4 py-2 font-space text-xs font-bold tracking-[0.1em] uppercase transition-all hover:opacity-90"
           style={{ background: "#00d4ff", color: "#020508" }}
           onClick={() => setShowModal(true)}
           data-testid="btn-registrar-tara-bottom"
@@ -340,7 +340,7 @@ export default function PesoTara() {
         </button>
       </div>
 
-      <div className="text-[9px] font-space tracking-[0.15em]" style={{ color: "#3a6080" }}>
+      <div className="text-[11px] font-space tracking-[0.15em]" style={{ color: "#3a6080" }}>
         Peso bruto via Volvo rFMS GrossCombinationVehicleWeight &middot; CUMPLE: &lt;95% del maximo &middot; AL LIMITE: 95-100% &middot; EXCEDE: &gt;100%
       </div>
 

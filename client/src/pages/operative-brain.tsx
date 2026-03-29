@@ -1,532 +1,192 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Brain, Truck, AlertTriangle, MapPin, TrendingUp, Gauge, CheckCircle,
-  Clock, BarChart3, Eye, RefreshCw, Target, GitBranch, Shield,
-  Fuel, Activity, Radio, Layers, CircleDot, Zap, ChevronDown, ChevronUp, Users
-} from "lucide-react";
-import DriversTab from "./drivers-tab";
+import { Brain, Loader2, AlertTriangle, TrendingUp, Activity, Fuel, MapPin, Send, Route, Truck, X, RefreshCw } from "lucide-react";
 
-type BrainTab = "mapa" | "reporte" | "aprendizaje" | "drivers";
+function getRendColor(r: number): string {
+  if (r >= 2.85) return "#00ff88";
+  if (r >= 2.3) return "#ffcc00";
+  return "#ff2244";
+}
 
-const PURPLE = "#a855f7";
-const BG_CARD = "#091018";
-const BG_DEEP = "#020508";
-const BORDER = "#0d2035";
-const TEXT_MAIN = "#c8e8ff";
-const TEXT_MUTED = "#4a7090";
-const TEXT_DIM = "#3a6080";
-const SUCCESS = "#00ff88";
-const ERROR = "#ff2244";
-const WARNING = "#ffcc00";
-const CYAN = "#00d4ff";
+// ═══════════════════════════════════════════════════
+// OPERATIVE BRAIN v2
+// ═══════════════════════════════════════════════════
 
-const CONTRACT_COLORS: Record<string, string> = {
-  "CENCOSUD": "#00d4ff",
-  "ANGLO-CARGAS VARIAS": "#ff6b35",
-  "ANGLO-CAL": "#ffcc00",
-  "ANGLO-COCU": "#00ff88",
-};
+export default function OperativeBrain() {
+  const [contrato, setContrato] = useState("TODOS");
+  const [mensajeChat, setMensajeChat] = useState("");
+  const [historialChat, setHistorialChat] = useState<any[]>([]);
+  const [cargandoChat, setCargandoChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-const GEOCERCA_DEFAULT = "#D3D1C7";
-const GEOCERCA_ACTIVE = "#1D9E75";
-const GEOCERCA_ALERT = "#E24B4A";
+  // Dynamic contratos from viajes data
+  const { data: contratosData } = useQuery<any>({ queryKey: ["/api/rutas/contratos-disponibles"], queryFn: () => fetch("/api/rutas/contratos-disponibles").then(r => r.json()), staleTime: 600000 });
+  const getContColor = (c: string): string => {
+    if (c === "TODOS") return "#a855f7";
+    if (c?.includes("ANGLO-COCU")) return "#00ff88";
+    if (c?.includes("ANGLO-CAL")) return "#ff6b35";
+    if (c?.includes("ANGLO")) return "#00d4ff";
+    if (c?.includes("CENCOSUD") || c?.includes("WALMART")) return "#00bfff";
+    if (c?.includes("GLENCORE") || c?.includes("ACIDO")) return "#ff8c00";
+    const hash = c?.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0) || 0;
+    return ["#a855f7", "#06b6d4", "#f97316", "#84cc16", "#ec4899"][hash % 5];
+  };
+  const CONTRATOS = useMemo(() => {
+    if (!contratosData?.contratos) return [{ id: "TODOS", label: "TODOS", color: "#a855f7" }];
+    return contratosData.contratos.map((c: any) => ({ id: c.id, label: c.label || c.id, color: getContColor(c.id) }));
+  }, [contratosData]);
+  const color = getContColor(contrato);
 
-function MapaEnVivoTab() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMapRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const geocercaLayersRef = useRef<any[]>([]);
-  const [mapReady, setMapReady] = useState(false);
-  const [selectedTruck, setSelectedTruck] = useState<any>(null);
-  const [truckFilter, setTruckFilter] = useState<string>("todos");
+  const { data: estado } = useQuery<any>({ queryKey: ["/api/brain/estado-sistema"], queryFn: () => fetch("/api/brain/estado-sistema").then(r => r.json()), refetchInterval: 60000 });
+  const { data: pred } = useQuery<any>({ queryKey: ["/api/brain/predicciones", contrato], queryFn: () => fetch(`/api/brain/predicciones/${contrato}`).then(r => r.json()), refetchInterval: 300000 });
+  const { data: anomalias } = useQuery<any>({ queryKey: ["/api/brain/anomalias-macro", contrato], queryFn: () => fetch(`/api/brain/anomalias-macro?contrato=${contrato}`).then(r => r.json()), refetchInterval: 900000 });
+  const { data: kpis } = useQuery<any>({ queryKey: ["/api/brain/kpis-administrador", contrato], queryFn: () => fetch(`/api/brain/kpis-administrador/${contrato}`).then(r => r.json()), refetchInterval: 300000 });
 
-  const { data: fleetData, isLoading: fleetLoading } = useQuery<any[]>({
-    queryKey: ["/api/volvo/fleet-status"],
-    refetchInterval: 30000,
-  });
+  const sugerencias = useMemo(() => {
+    const base = ["Resumen del dia", "Que camion deberia revisar?", "Proyeccion fin de mes", "Hay algo inusual?"];
+    if ((anomalias || []).length > 0) base.unshift("Que anomalias hay hoy?");
+    return base.slice(0, 4);
+  }, [anomalias]);
 
-  const { data: camionesData } = useQuery<any[]>({
-    queryKey: ["/api/camiones"],
-    refetchInterval: 300000,
-  });
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [historialChat]);
 
-  const { data: geocercas } = useQuery<any[]>({
-    queryKey: ["/api/geo/bases"],
-    refetchInterval: 600000,
-  });
-
-  const { data: faenas } = useQuery<any[]>({
-    queryKey: ["/api/faenas"],
-    refetchInterval: 600000,
-  });
-
-  const faenaMap = useMemo(() => {
-    const m: Record<number, string> = {};
-    (faenas || []).forEach((f: any) => { m[f.id] = f.nombre; });
-    return m;
-  }, [faenas]);
-
-  const camionMap = useMemo(() => {
-    const m: Record<string, any> = {};
-    (camionesData || []).forEach((c: any) => { if (c.vin) m[c.vin] = c; });
-    return m;
-  }, [camionesData]);
-
-  const enrichedFleet = useMemo(() => {
-    if (!fleetData) return [];
-    return fleetData.filter((v: any) => v.gps?.latitude && v.gps?.longitude).map((v: any) => {
-      const cam = camionMap[v.vin];
-      const contrato = cam ? (faenaMap[cam.faenaId] || "Desconocido") : "Desconocido";
-      const color = CONTRACT_COLORS[contrato] || TEXT_MUTED;
-
-      let insideGeocerca: any = null;
-      if (geocercas && v.gps.latitude && v.gps.longitude) {
-        for (const g of geocercas) {
-          const dist = haversine(v.gps.latitude, v.gps.longitude, parseFloat(g.lat), parseFloat(g.lng));
-          if (dist <= (g.radioMetros || 3000)) {
-            insideGeocerca = g;
-            break;
-          }
-        }
-      }
-
-      return {
-        ...v,
-        patente: cam?.patente || v.vin.slice(-6),
-        contrato,
-        color,
-        insideGeocerca,
-        speed: v.gps?.speed || 0,
-        fuelPct: v.fuelLevel,
-      };
-    });
-  }, [fleetData, camionMap, faenaMap, geocercas]);
-
-  const filteredFleet = useMemo(() => {
-    if (truckFilter === "todos") return enrichedFleet;
-    if (truckFilter === "en_geocerca") return enrichedFleet.filter(t => t.insideGeocerca);
-    if (truckFilter === "en_movimiento") return enrichedFleet.filter(t => t.speed > 5);
-    if (truckFilter === "detenidos") return enrichedFleet.filter(t => t.speed <= 5);
-    return enrichedFleet.filter(t => t.contrato === truckFilter);
-  }, [enrichedFleet, truckFilter]);
-
-  const stats = useMemo(() => {
-    const total = enrichedFleet.length;
-    const enGeocerca = enrichedFleet.filter(t => t.insideGeocerca).length;
-    const enMovimiento = enrichedFleet.filter(t => t.speed > 5).length;
-    const detenidos = total - enMovimiento;
-    return { total, enGeocerca, enMovimiento, detenidos };
-  }, [enrichedFleet]);
-
-  useEffect(() => {
-    if (typeof (window as any).L === "undefined") {
-      const existing = document.querySelector('link[href*="leaflet"]');
-      if (!existing) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        document.head.appendChild(link);
-      }
-      const existingScript = document.querySelector('script[src*="leaflet"]');
-      if (!existingScript) {
-        const script = document.createElement("script");
-        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-        script.onload = () => setMapReady(false);
-        document.head.appendChild(script);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!mapRef.current || leafletMapRef.current) return;
-
-    const tryInit = () => {
-      const L = (window as any).L;
-      if (!L || !mapRef.current) return;
-
-      const map = L.map(mapRef.current, {
-        center: [-33.45, -70.65],
-        zoom: 6,
-        zoomControl: true,
-        attributionControl: false,
-      });
-
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19,
-      }).addTo(map);
-
-      leafletMapRef.current = map;
-      setMapReady(true);
-    };
-
-    if ((window as any).L) {
-      tryInit();
-    } else {
-      const interval = setInterval(() => {
-        if ((window as any).L) {
-          clearInterval(interval);
-          tryInit();
-        }
-      }, 200);
-      return () => clearInterval(interval);
-    }
-
-    return () => {
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-        setMapReady(false);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mapReady || !leafletMapRef.current) return;
-    const L = (window as any).L;
-    const map = leafletMapRef.current;
-
-    geocercaLayersRef.current.forEach(l => map.removeLayer(l));
-    geocercaLayersRef.current = [];
-
-    if (!geocercas) return;
-
-    const trucksInGeocerca = new Set<string>();
-    enrichedFleet.forEach(t => {
-      if (t.insideGeocerca) trucksInGeocerca.add(t.insideGeocerca.nombre);
-    });
-
-    geocercas.forEach((g: any) => {
-      const lat = parseFloat(g.lat);
-      const lng = parseFloat(g.lng);
-      if (isNaN(lat) || isNaN(lng)) return;
-
-      const hasTraffic = trucksInGeocerca.has(g.nombre);
-      const fillColor = hasTraffic ? GEOCERCA_ACTIVE : GEOCERCA_DEFAULT;
-      const fillOpacity = hasTraffic ? 0.25 : 0.08;
-      const borderColor = hasTraffic ? GEOCERCA_ACTIVE : GEOCERCA_DEFAULT;
-
-      const circle = L.circle([lat, lng], {
-        radius: g.radioMetros || 3000,
-        fillColor,
-        fillOpacity,
-        color: borderColor,
-        weight: 0.5,
-        opacity: 0.3,
-        className: "geocerca-transition",
-      }).addTo(map);
-
-      circle.bindTooltip(g.nombre, {
-        permanent: false,
-        direction: "top",
-        className: "geocerca-tooltip",
-        offset: [0, -10],
-      });
-
-      geocercaLayersRef.current.push(circle);
-    });
-  }, [mapReady, geocercas, enrichedFleet]);
-
-  useEffect(() => {
-    if (!mapReady || !leafletMapRef.current) return;
-    const L = (window as any).L;
-    const map = leafletMapRef.current;
-
-    markersRef.current.forEach(m => map.removeLayer(m));
-    markersRef.current = [];
-
-    filteredFleet.forEach((truck: any) => {
-      const statusColor = truck.insideGeocerca
-        ? GEOCERCA_ACTIVE
-        : truck.speed > 5 ? CYAN : TEXT_MUTED;
-
-      const marker = L.circleMarker([truck.gps.latitude, truck.gps.longitude], {
-        radius: 5,
-        fillColor: statusColor,
-        fillOpacity: 0.9,
-        color: statusColor,
-        weight: 1.5,
-        opacity: 0.6,
-      }).addTo(map);
-
-      const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
-      const tooltipParts = [
-        `<b style="color:${truck.color}">${esc(truck.patente)}</b>`,
-        `<span style="color:${TEXT_MUTED}">${esc(truck.contrato)}</span>`,
-        `<span style="color:${statusColor}">${truck.speed > 0 ? truck.speed + ' km/h' : 'Detenido'}</span>`,
-      ];
-      if (truck.insideGeocerca) tooltipParts.push(`<span style="color:${GEOCERCA_ACTIVE}">En: ${esc(truck.insideGeocerca.nombre)}</span>`);
-      if (truck.fuelPct != null) tooltipParts.push(`<span style="color:${WARNING}">Combustible: ${truck.fuelPct}%</span>`);
-
-      marker.bindTooltip(
-        `<div style="font-family:Space Mono;font-size:10px;color:${TEXT_MAIN};background:${BG_DEEP};border:1px solid ${BORDER};padding:6px 8px;border-radius:2px;line-height:1.6">${tooltipParts.join('<br/>')}</div>`,
-        { permanent: false, direction: "top", className: "truck-tooltip", offset: [0, -8] }
-      );
-
-      marker.on("click", () => setSelectedTruck(truck));
-      markersRef.current.push(marker);
-    });
-  }, [mapReady, filteredFleet]);
+  const enviarMensaje = async (texto?: string) => {
+    const msg = texto || mensajeChat.trim();
+    if (!msg) return;
+    const nuevo = [...historialChat, { role: "user", content: msg }];
+    setHistorialChat(nuevo);
+    setMensajeChat("");
+    setCargandoChat(true);
+    try {
+      const r = await fetch("/api/brain/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensaje: msg, contrato, historial: historialChat }) });
+      const data = await r.json();
+      setHistorialChat([...nuevo, { role: "assistant", content: data.respuesta }]);
+    } catch { setHistorialChat([...nuevo, { role: "assistant", content: "Error al conectar con la IA." }]); }
+    finally { setCargandoChat(false); }
+  };
 
   return (
-    <div data-testid="brain-mapa-tab">
-      <div className="flex items-center gap-3 mb-3">
-        <MapPin className="w-4 h-4" style={{ color: PURPLE }} />
-        <span className="font-space text-[13px] font-bold tracking-wider" style={{ color: TEXT_MAIN }}>MAPA EN VIVO</span>
-        <div className="flex-1" />
-        <div className="flex items-center gap-2">
-          {[
-            { id: "todos", label: "TODOS", count: stats.total },
-            { id: "en_movimiento", label: "MOVIMIENTO", count: stats.enMovimiento },
-            { id: "detenidos", label: "DETENIDOS", count: stats.detenidos },
-            { id: "en_geocerca", label: "EN GEOCERCA", count: stats.enGeocerca },
-          ].map(f => (
-            <button key={f.id} onClick={() => setTruckFilter(f.id)}
-              className="flex items-center gap-1 px-2 py-1 cursor-pointer transition-all"
-              style={{
-                background: truckFilter === f.id ? `${PURPLE}10` : "transparent",
-                border: `1px solid ${truckFilter === f.id ? `${PURPLE}40` : BORDER}`,
-              }} data-testid={`filter-${f.id}`}>
-              <span className="font-space text-[8px] font-bold tracking-wider" style={{ color: truckFilter === f.id ? PURPLE : TEXT_DIM }}>{f.label}</span>
-              <span className="font-space text-[9px] font-bold" style={{ color: truckFilter === f.id ? PURPLE : TEXT_MUTED }}>{f.count}</span>
+    <div className="min-h-screen p-4 space-y-4" style={{ background: "#020508" }}>
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <Brain className="w-5 h-5" style={{ color }} />
+            <span className="font-space text-[16px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>OPERATIVE BRAIN</span>
+            <span className="font-exo text-[9px] px-2 py-0.5 rounded" style={{ color, border: `1px solid ${color}40` }}>v2</span>
+          </div>
+          <div className="font-exo text-[10px] mt-1" style={{ color: "#3a6080" }}>
+            Administrador de Contrato · Sotraser · {new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {CONTRATOS.map(c => (
+            <button key={c.id} onClick={() => setContrato(c.id)}
+              className="px-3 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
+              style={{ background: contrato === c.id ? `${c.color}15` : "transparent", border: `1px solid ${contrato === c.id ? `${c.color}40` : "#0d2035"}`, borderTop: `2px solid ${contrato === c.id ? c.color : "transparent"}`, color: contrato === c.id ? c.color : "#3a6080", borderRadius: 4 }}>
+              {c.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 px-2 py-1" style={{ background: `${SUCCESS}10`, border: `1px solid ${SUCCESS}30` }}>
-          <Radio className="w-3 h-3" style={{ color: SUCCESS }} />
-          <span className="font-space text-[8px] font-bold tracking-wider" style={{ color: SUCCESS }}>ACTUALIZA CADA 30s</span>
-        </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 mb-3">
-        <div className="rounded px-3 py-2 flex items-center gap-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-          <Truck className="w-4 h-4" style={{ color: CYAN }} />
-          <div>
-            <div className="font-space text-[18px] font-bold" style={{ color: CYAN }}>{stats.total}</div>
-            <div className="font-exo text-[7px] font-bold tracking-wider" style={{ color: TEXT_DIM }}>CON GPS</div>
-          </div>
-        </div>
-        <div className="rounded px-3 py-2 flex items-center gap-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-          <Activity className="w-4 h-4" style={{ color: SUCCESS }} />
-          <div>
-            <div className="font-space text-[18px] font-bold" style={{ color: SUCCESS }}>{stats.enMovimiento}</div>
-            <div className="font-exo text-[7px] font-bold tracking-wider" style={{ color: TEXT_DIM }}>EN MOVIMIENTO</div>
-          </div>
-        </div>
-        <div className="rounded px-3 py-2 flex items-center gap-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-          <CircleDot className="w-4 h-4" style={{ color: WARNING }} />
-          <div>
-            <div className="font-space text-[18px] font-bold" style={{ color: WARNING }}>{stats.detenidos}</div>
-            <div className="font-exo text-[7px] font-bold tracking-wider" style={{ color: TEXT_DIM }}>DETENIDOS</div>
-          </div>
-        </div>
-        <div className="rounded px-3 py-2 flex items-center gap-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-          <MapPin className="w-4 h-4" style={{ color: GEOCERCA_ACTIVE }} />
-          <div>
-            <div className="font-space text-[18px] font-bold" style={{ color: GEOCERCA_ACTIVE }}>{stats.enGeocerca}</div>
-            <div className="font-exo text-[7px] font-bold tracking-wider" style={{ color: TEXT_DIM }}>EN GEOCERCA</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative rounded overflow-hidden" style={{ height: "520px", border: `1px solid ${BORDER}` }}>
-        {fleetLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: "rgba(2,5,8,0.8)" }}>
-            <RefreshCw className="w-6 h-6 animate-spin" style={{ color: PURPLE }} />
-          </div>
-        )}
-        <div ref={mapRef} style={{ width: "100%", height: "100%" }} data-testid="leaflet-map-brain" />
-
-        {selectedTruck && (
-          <div className="absolute bottom-3 left-3 z-20 rounded px-4 py-3 max-w-[320px]" style={{ background: BG_DEEP, border: `1px solid ${BORDER}` }} data-testid="truck-detail-panel">
-            <button onClick={() => setSelectedTruck(null)} className="absolute top-2 right-2 cursor-pointer" style={{ color: TEXT_DIM }}>x</button>
-            <div className="flex items-center gap-2 mb-2">
-              <Truck className="w-4 h-4" style={{ color: selectedTruck.color }} />
-              <span className="font-space text-[13px] font-bold" style={{ color: selectedTruck.color }}>{selectedTruck.patente}</span>
-              <span className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>{selectedTruck.contrato}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded px-2 py-1.5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-                <div className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>VELOCIDAD</div>
-                <div className="font-space text-[13px] font-bold" style={{ color: selectedTruck.speed > 5 ? SUCCESS : WARNING }}>{selectedTruck.speed} km/h</div>
+      {/* FILA 1: Estado + Predicciones + Anomalías */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Estado Sistema */}
+        <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+          <div className="font-exo text-[8px] tracking-[0.15em] uppercase mb-3" style={{ color: "#3a6080" }}>ESTADO DEL SISTEMA</div>
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Cobertura Volvo</span>
+                <span className="font-space text-[12px] font-bold" style={{ color: (estado?.cobertura_volvo?.pct || 0) >= 70 ? "#00ff88" : "#ff2244" }}>
+                  {estado?.cobertura_volvo?.pct || 0}%
+                </span>
               </div>
-              <div className="rounded px-2 py-1.5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-                <div className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>COMBUSTIBLE</div>
-                <div className="font-space text-[13px] font-bold" style={{ color: (selectedTruck.fuelPct ?? 0) < 20 ? ERROR : SUCCESS }}>
-                  {selectedTruck.fuelPct != null ? `${selectedTruck.fuelPct}%` : "S/D"}
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
+                <div className="h-full rounded-full" style={{ width: `${estado?.cobertura_volvo?.pct || 0}%`, background: (estado?.cobertura_volvo?.pct || 0) >= 70 ? "#00ff88" : "#ff2244" }} />
+              </div>
+              <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>{estado?.cobertura_volvo?.activos || 0} de {estado?.cobertura_volvo?.total || 0} camiones</div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Datos ECU</span>
+                <span className="font-space text-[12px] font-bold" style={{ color: (estado?.datos_ecu?.pct || 0) >= 50 ? "#00d4ff" : "#ffcc00" }}>
+                  {estado?.datos_ecu?.pct || 0}%
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
+                <div className="h-full rounded-full" style={{ width: `${estado?.datos_ecu?.pct || 0}%`, background: "#00d4ff" }} />
+              </div>
+              <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>{estado?.datos_ecu?.con_ecu || 0} de {estado?.datos_ecu?.total || 0} viajes verificados</div>
+            </div>
+            <div className="pt-2" style={{ borderTop: "1px solid #0d2035" }}>
+              <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Sync Volvo: {estado?.ultimo_sync_volvo ? new Date(estado.ultimo_sync_volvo).toLocaleString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "--"}</div>
+              <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Sync Sigetra: {estado?.ultimo_sync_sigetra ? new Date(estado.ultimo_sync_sigetra).toLocaleString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "--"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Predicciones */}
+        <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+          <div className="font-exo text-[8px] tracking-[0.15em] uppercase mb-3" style={{ color: "#3a6080" }}>PREDICCION FIN DE MES</div>
+          {pred ? (
+            <div className="space-y-3">
+              <div>
+                <div className="font-exo text-[9px] mb-1" style={{ color: "#3a6080" }}>KM PROYECTADOS</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-space text-[20px] font-bold" style={{ color: "#00d4ff" }}>{(pred.km_proyectado || 0).toLocaleString()}</span>
+                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>km</span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden mt-1" style={{ background: "#0d2035" }}>
+                  <div className="h-full rounded-full" style={{ width: `${pred.km_proyectado > 0 ? Math.min(100, Math.round(pred.km_mes_actual / pred.km_proyectado * 100)) : 0}%`, background: color }} />
+                </div>
+                <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>
+                  {(pred.km_mes_actual || 0).toLocaleString()} actuales · {pred.dias_restantes} dias restantes
                 </div>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Tendencia semanal</span>
+                <span className="font-space text-[11px] font-bold" style={{ color: (pred.tendencia_semanal_pct || 0) >= 0 ? "#00ff88" : "#ff2244" }}>
+                  {(pred.tendencia_semanal_pct || 0) >= 0 ? "+" : ""}{pred.tendencia_semanal_pct || 0}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Rendimiento proy.</span>
+                <span className="font-space text-[11px] font-bold" style={{ color: getRendColor(parseFloat(pred.rendimiento_proyectado || "0")) }}>{pred.rendimiento_proyectado || "--"} km/L</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Camiones hoy vs hist.</span>
+                <span className="font-space text-[11px]" style={{ color: "#c8e8ff" }}>{pred.camiones_activos_hoy} / {pred.camiones_promedio_historico}</span>
+              </div>
             </div>
-            {selectedTruck.insideGeocerca && (
-              <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded" style={{ background: `${GEOCERCA_ACTIVE}10`, border: `1px solid ${GEOCERCA_ACTIVE}30` }}>
-                <MapPin className="w-3 h-3" style={{ color: GEOCERCA_ACTIVE }} />
-                <span className="font-rajdhani text-[10px]" style={{ color: GEOCERCA_ACTIVE }}>En geocerca: {selectedTruck.insideGeocerca.nombre}</span>
-              </div>
-            )}
+          ) : <Loader2 className="w-4 h-4 animate-spin mx-auto mt-4" style={{ color: "#3a6080" }} />}
+        </div>
+
+        {/* Anomalías Macro */}
+        <div className="rounded-lg p-4" style={{ background: "#060d14", border: `1px solid ${(anomalias || []).length > 0 ? "#ff224430" : "#0d2035"}` }}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>ANOMALIAS MACRO</span>
+            <span className="font-space text-[11px] font-bold" style={{ color: (anomalias || []).length > 0 ? "#ff2244" : "#00ff88" }}>
+              {(anomalias || []).length}
+            </span>
           </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-4 mt-2">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: GEOCERCA_DEFAULT, opacity: 0.5 }} />
-          <span className="font-exo text-[8px] tracking-wider" style={{ color: TEXT_DIM }}>GEOCERCA VACIA</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: GEOCERCA_ACTIVE }} />
-          <span className="font-exo text-[8px] tracking-wider" style={{ color: TEXT_DIM }}>CON CAMION DENTRO</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: CYAN }} />
-          <span className="font-exo text-[8px] tracking-wider" style={{ color: TEXT_DIM }}>EN MOVIMIENTO</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: TEXT_MUTED }} />
-          <span className="font-exo text-[8px] tracking-wider" style={{ color: TEXT_DIM }}>DETENIDO</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReporteDelDiaTab() {
-  const { data: estado } = useQuery<any>({ queryKey: ["/api/cerebro/estado-general"], refetchInterval: 120000 });
-  const { data: alertas } = useQuery<any[]>({ queryKey: ["/api/cerebro/camiones-alerta"], refetchInterval: 120000 });
-  const { data: estaciones } = useQuery<any>({ queryKey: ["/api/estaciones/analisis"], refetchInterval: 300000 });
-  const { data: rendimiento } = useQuery<any[]>({ queryKey: ["/api/geo/rendimiento-contratos"], refetchInterval: 300000 });
-  const { data: fleetData } = useQuery<any[]>({ queryKey: ["/api/volvo/fleet-status"], refetchInterval: 60000 });
-  const { data: camionesData } = useQuery<any[]>({ queryKey: ["/api/camiones"], refetchInterval: 300000 });
-  const { data: faenas } = useQuery<any[]>({ queryKey: ["/api/faenas"], refetchInterval: 600000 });
-
-  const contratos = estado?.por_contrato || [];
-  const criticos = alertas?.filter((a: any) => a.severidad === "CRITICA").length || 0;
-
-  const faenaMap = useMemo(() => {
-    const m: Record<number, string> = {};
-    (faenas || []).forEach((f: any) => { m[f.id] = f.nombre; });
-    return m;
-  }, [faenas]);
-
-  const camionMap = useMemo(() => {
-    const m: Record<string, any> = {};
-    (camionesData || []).forEach((c: any) => { if (c.vin) m[c.vin] = c; });
-    return m;
-  }, [camionesData]);
-
-  const fleetByContract = useMemo(() => {
-    const result: Record<string, { total: number; conGps: number; enMovimiento: number }> = {};
-    (fleetData || []).forEach((v: any) => {
-      const cam = camionMap[v.vin];
-      const contrato = cam ? (faenaMap[cam.faenaId] || "Otros") : "Otros";
-      if (!result[contrato]) result[contrato] = { total: 0, conGps: 0, enMovimiento: 0 };
-      result[contrato].total++;
-      if (v.gps?.latitude) result[contrato].conGps++;
-      if ((v.gps?.speed || 0) > 5) result[contrato].enMovimiento++;
-    });
-    return result;
-  }, [fleetData, camionMap, faenaMap]);
-
-  const todasCargas = useMemo(() => {
-    return (estaciones?.estaciones || []).flatMap((e: any) => (e.cargas || []).map((c: any) => ({ ...c, estacion: e.nombre })));
-  }, [estaciones]);
-  const anomalas = todasCargas.filter((c: any) => c.nivel_alerta !== "NORMAL");
-
-  const hoy = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-
-  return (
-    <div data-testid="brain-reporte-tab">
-      <div className="flex items-center gap-3 mb-4">
-        <BarChart3 className="w-4 h-4" style={{ color: PURPLE }} />
-        <span className="font-space text-[13px] font-bold tracking-wider" style={{ color: TEXT_MAIN }}>REPORTE DEL DIA</span>
-        <span className="font-rajdhani text-[11px] capitalize" style={{ color: TEXT_MUTED }}>{hoy}</span>
-      </div>
-
-      <div className="grid grid-cols-5 gap-2 mb-4">
-        <StatCard label="FLOTA TOTAL" value={estado?.total_camiones || 0} color={CYAN} icon={Truck} />
-        <StatCard label="ACTIVOS HOY" value={estado?.camiones_activos || 0} sub={`${Math.round(((estado?.camiones_activos || 0) / (estado?.total_camiones || 1)) * 100)}%`} color={SUCCESS} icon={Activity} />
-        <StatCard label="KM HOY" value={(estado?.km_hoy || 0).toLocaleString("es-CL")} color={CYAN} icon={Target} />
-        <StatCard label="RENDIMIENTO" value={`${estado?.rendimiento_promedio || 0} km/L`} color={WARNING} icon={Gauge} />
-        <StatCard label="ALERTAS" value={criticos} sub={`${alertas?.length || 0} totales`} color={criticos > 0 ? ERROR : SUCCESS} icon={AlertTriangle} />
-      </div>
-
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        {contratos.map((c: any) => {
-          const col = CONTRACT_COLORS[c.contrato] || TEXT_MUTED;
-          const fleetInfo = fleetByContract[c.contrato];
-          const pct = c.total_camiones > 0 ? Math.round((c.activos / c.total_camiones) * 100) : 0;
-          return (
-            <div key={c.contrato} className="rounded px-3 py-2.5" style={{ background: BG_CARD, border: `1px solid ${col}20`, borderLeft: `3px solid ${col}` }} data-testid={`reporte-contrato-${c.contrato}`}>
-              <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: col }}>{c.contrato}</div>
-              <div className="flex items-end gap-2 mb-1.5">
-                <span className="font-space text-[20px] font-bold" style={{ color: col }}>{pct}%</span>
-                <span className="font-rajdhani text-[10px] pb-0.5" style={{ color: TEXT_MUTED }}>{c.activos}/{c.total_camiones}</span>
-              </div>
-              <div className="w-full h-1 rounded-full mb-2" style={{ background: BORDER }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: col }} />
-              </div>
-              <div className="flex justify-between text-[9px]">
-                <span className="font-rajdhani" style={{ color: TEXT_MUTED }}>{c.rendimiento} km/L</span>
-                <span className="font-rajdhani" style={{ color: TEXT_MUTED }}>{(c.km_hoy || 0).toLocaleString("es-CL")} km</span>
-              </div>
-              {fleetInfo && (
-                <div className="flex gap-2 mt-1.5 pt-1.5" style={{ borderTop: `1px solid ${BORDER}` }}>
-                  <span className="font-space text-[8px]" style={{ color: SUCCESS }}>{fleetInfo.conGps} GPS</span>
-                  <span className="font-space text-[8px]" style={{ color: CYAN }}>{fleetInfo.enMovimiento} mov</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Fuel className="w-3.5 h-3.5" style={{ color: "#ff6600" }} />
-            <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#ff6600" }}>ANOMALIAS COMBUSTIBLE HOY</span>
-            <span className="font-space text-[10px] font-bold ml-auto" style={{ color: anomalas.length > 0 ? ERROR : SUCCESS }}>{anomalas.length}</span>
-          </div>
-          {anomalas.length === 0 ? (
-            <div className="flex items-center gap-2 py-3 justify-center">
-              <CheckCircle className="w-4 h-4" style={{ color: SUCCESS }} />
-              <span className="font-rajdhani text-[11px]" style={{ color: SUCCESS }}>Sin anomalias detectadas</span>
+          {(anomalias || []).length === 0 ? (
+            <div className="text-center py-4">
+              <div className="font-exo text-[10px]" style={{ color: "#00ff88" }}>Sin anomalias detectadas</div>
+              <div className="font-exo text-[8px] mt-1" style={{ color: "#3a6080" }}>Ultimas 48h analizadas</div>
             </div>
           ) : (
-            <div className="space-y-1 max-h-[180px] overflow-y-auto">
-              {anomalas.slice(0, 10).map((c: any, i: number) => {
-                const alertColors: Record<string, string> = { CRITICO: ERROR, SOSPECHOSO: "#FF8C00", REVISAR: WARNING };
-                const acol = alertColors[c.nivel_alerta] || TEXT_MUTED;
-                return (
-                  <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: BG_DEEP, borderLeft: `2px solid ${acol}` }}>
-                    <span className="font-space text-[9px] font-bold" style={{ color: TEXT_MAIN }}>{c.patente}</span>
-                    <span className="font-rajdhani text-[9px] truncate flex-1" style={{ color: TEXT_MUTED }}>{c.estacion}</span>
-                    <span className="font-space text-[9px] font-bold" style={{ color: "#ff6600" }}>{Math.round(c.litros_sigetra)}L</span>
-                    <span className="font-space text-[7px] font-bold px-1 py-0.5" style={{ color: acol, background: `${acol}15`, border: `1px solid ${acol}30` }}>{c.nivel_alerta}</span>
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {(anomalias || []).slice(0, 5).map((a: any, i: number) => (
+                <div key={i} className="px-3 py-2 rounded" style={{ background: "#0a1520", borderLeft: `3px solid ${a.severidad === "ALTA" ? "#ff2244" : "#ffcc00"}` }}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</span>
+                    <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: a.severidad === "ALTA" ? "#ff2244" : "#ffcc00", border: `1px solid ${a.severidad === "ALTA" ? "#ff224430" : "#ffcc0030"}` }}>{a.severidad}</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-3.5 h-3.5" style={{ color: ERROR }} />
-            <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: ERROR }}>ALERTAS CRITICAS</span>
-            <span className="font-space text-[10px] font-bold ml-auto" style={{ color: ERROR }}>{criticos}</span>
-          </div>
-          {criticos === 0 ? (
-            <div className="flex items-center gap-2 py-3 justify-center">
-              <CheckCircle className="w-4 h-4" style={{ color: SUCCESS }} />
-              <span className="font-rajdhani text-[11px]" style={{ color: SUCCESS }}>Sin alertas criticas</span>
-            </div>
-          ) : (
-            <div className="space-y-1 max-h-[180px] overflow-y-auto">
-              {(alertas || []).filter((a: any) => a.severidad === "CRITICA").slice(0, 10).map((a: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: BG_DEEP, borderLeft: `2px solid ${ERROR}` }}>
-                  <span className="font-space text-[9px] font-bold" style={{ color: TEXT_MAIN }}>{a.patente}</span>
-                  <span className="font-rajdhani text-[9px] truncate flex-1" style={{ color: TEXT_MUTED }}>{a.descripcion}</span>
-                  <span className="font-rajdhani text-[8px]" style={{ color: TEXT_MUTED }}>{a.contrato}</span>
+                  <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
+                    {a.tipo === "RUTA_ANOMALA" ? `Ruta ${a.detalle.diff_km_pct}% diferente · ${a.detalle.destino_habitual} → ${a.detalle.destino_actual}` : `Velocidad ${a.detalle?.diff_pct || 0}% anómala`}
+                  </div>
                 </div>
               ))}
             </div>
@@ -534,427 +194,276 @@ function ReporteDelDiaTab() {
         </div>
       </div>
 
-      <div className="rounded px-4 py-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Gauge className="w-3.5 h-3.5" style={{ color: PURPLE }} />
-          <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: PURPLE }}>RENDIMIENTO POR CONTRATO</span>
-        </div>
-        <div className="space-y-2">
-          {(rendimiento || []).map((c: any, i: number) => {
-            const col = c.color || TEXT_MUTED;
-            const metaCumplida = c.rendimiento_promedio >= c.meta_kmL;
-            return (
-              <div key={i} className="flex items-center gap-3 px-3 py-2 rounded" style={{ background: BG_DEEP, border: `1px solid ${BORDER}` }}>
-                <div className="w-2 h-2 rounded-full" style={{ background: col }} />
-                <span className="font-space text-[10px] font-bold tracking-wider w-[160px]" style={{ color: col }}>{c.nombre}</span>
-                <div className="flex-1 h-1.5 rounded-full" style={{ background: BORDER }}>
-                  <div className="h-full rounded-full" style={{ width: `${Math.min((c.rendimiento_promedio / Math.max(c.meta_kmL, 1)) * 100, 150)}%`, background: metaCumplida ? SUCCESS : ERROR, maxWidth: "100%" }} />
-                </div>
-                <span className="font-space text-[10px] font-bold w-[60px] text-right" style={{ color: metaCumplida ? SUCCESS : ERROR }}>{c.rendimiento_promedio} km/L</span>
-                <span className="font-rajdhani text-[9px] w-[60px] text-right" style={{ color: TEXT_MUTED }}>meta {c.meta_kmL}</span>
-                {c.bajo_meta?.length > 0 && (
-                  <span className="font-space text-[8px] font-bold px-1.5 py-0.5" style={{ color: ERROR, background: `${ERROR}15`, border: `1px solid ${ERROR}30` }}>
-                    {c.bajo_meta.length} bajo meta
-                  </span>
-                )}
+      {/* KPIs ADMINISTRADOR */}
+      {kpis && (
+        <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+          <div className="font-exo text-[8px] tracking-[0.15em] uppercase mb-3" style={{ color: "#3a6080" }}>KPIs TECNICOS · MARZO 2026</div>
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {[
+              { label: "VIAJES VERIF.", value: kpis.viajes, color: "#00d4ff" },
+              { label: "KM/L REAL ECU", value: kpis.rend_prom?.toFixed(2) || "--", color: getRendColor(kpis.rend_prom || 0) },
+              { label: "CAMIONES", value: kpis.camiones, color: "#c8e8ff" },
+              { label: "KM TOTAL", value: (kpis.km_total || 0).toLocaleString(), color: "#c8e8ff" },
+            ].map(k => (
+              <div key={k.label} className="text-center px-3 py-2.5 rounded" style={{ background: "#0a1520", borderTop: `2px solid ${k.color}` }}>
+                <div className="font-space text-[18px] font-bold leading-none" style={{ color: k.color }}>{k.value}</div>
+                <div className="font-exo text-[7px] tracking-[0.12em] uppercase mt-1" style={{ color: "#3a6080" }}>{k.label}</div>
               </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AprendizajeTab() {
-  const { data: sistemaEstado } = useQuery<any>({ queryKey: ["/api/sistema/estado"], refetchInterval: 300000 });
-  const { data: aprendizaje } = useQuery<any>({ queryKey: ["/api/estaciones/aprendizaje"], refetchInterval: 300000 });
-  const { data: parametros } = useQuery<any>({ queryKey: ["/api/aprendizaje/parametros"], refetchInterval: 300000 });
-  const { data: alertasAprendizaje } = useQuery<any[]>({ queryKey: ["/api/cerebro/camiones-alerta"], refetchInterval: 300000 });
-  const { data: objetivosData } = useQuery<any>({ queryKey: ["/api/aprendizaje/objetivos"], refetchInterval: 300000 });
-  const [expandedSection, setExpandedSection] = useState<string | null>("sistema");
-
-  const diasActivo = sistemaEstado?.total_viajes_procesados ? Math.max(Math.ceil((sistemaEstado.total_viajes_procesados || 0) / 50), 1) : 0;
-  const enObservacion = diasActivo < 7;
-
-  const toggleSection = (s: string) => setExpandedSection(expandedSection === s ? null : s);
-
-  return (
-    <div data-testid="brain-aprendizaje-tab">
-      <div className="flex items-center gap-3 mb-4">
-        <Brain className="w-4 h-4" style={{ color: PURPLE }} />
-        <span className="font-space text-[13px] font-bold tracking-wider" style={{ color: TEXT_MAIN }}>APRENDIZAJE AUTONOMO</span>
-        <div className="flex items-center gap-2 ml-auto px-3 py-1" style={{ background: `${PURPLE}10`, border: `1px solid ${PURPLE}30` }}>
-          <Brain className="w-3 h-3" style={{ color: PURPLE }} />
-          <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: PURPLE }}>
-            MADUREZ: {sistemaEstado?.madurez_pct || 0}%
-          </span>
-          <div className="w-16 h-1 rounded-full" style={{ background: BORDER }}>
-            <div className="h-full rounded-full" style={{ width: `${sistemaEstado?.madurez_pct || 0}%`, background: PURPLE }} />
+            ))}
           </div>
-        </div>
-      </div>
-
-      {enObservacion && (
-        <div className="rounded px-4 py-3 mb-4 flex items-center gap-3" style={{ background: `${WARNING}08`, border: `1px solid ${WARNING}30` }} data-testid="observacion-banner">
-          <Eye className="w-5 h-5" style={{ color: WARNING }} />
-          <div>
-            <div className="font-space text-[11px] font-bold" style={{ color: WARNING }}>MODO OBSERVACION (Dia {diasActivo}/7)</div>
-            <div className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>
-              El sistema esta acumulando comportamiento real sin generar alertas. Los umbrales se calcularan automaticamente al completar 7 dias de datos.
+          <div className="grid grid-cols-2 gap-4">
+            {/* Top */}
+            <div>
+              <div className="font-exo text-[8px] tracking-[0.1em] uppercase mb-2" style={{ color: "#00ff88" }}>TOP 5 CAMIONES KM/L</div>
+              {(kpis.top_camiones || []).map((c: any, i: number) => (
+                <div key={c.patente} className="flex items-center justify-between px-2 py-1 rounded mb-0.5" style={{ background: "#0a1520" }}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-space text-[9px] w-3" style={{ color: "#3a6080" }}>{i + 1}</span>
+                    <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>{c.rend} km/L</span>
+                    <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{c.viajes}v</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-          <div className="w-20 h-1.5 rounded-full ml-auto" style={{ background: BORDER }}>
-            <div className="h-full rounded-full" style={{ width: `${(diasActivo / 7) * 100}%`, background: WARNING }} />
+            {/* Bottom */}
+            <div>
+              <div className="font-exo text-[8px] tracking-[0.1em] uppercase mb-2" style={{ color: "#ff2244" }}>REQUIEREN ATENCION</div>
+              {(kpis.bottom_camiones || []).map((c: any, i: number) => (
+                <div key={c.patente} className="flex items-center justify-between px-2 py-1 rounded mb-0.5" style={{ background: "#0a1520", borderLeft: "2px solid #ff2244" }}>
+                  <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-space text-[10px] font-bold" style={{ color: "#ff2244" }}>{c.rend} km/L</span>
+                    <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{c.viajes}v</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      <CollapsibleSection
-        title="ESTADO DEL SISTEMA"
-        icon={Target}
-        color={PURPLE}
-        expanded={expandedSection === "sistema"}
-        onToggle={() => toggleSection("sistema")}
-        testId="section-sistema"
-      >
-        <div className="grid grid-cols-4 gap-3">
-          <StatCard label="VIAJES PROCESADOS" value={sistemaEstado?.total_viajes_procesados || 0} color={CYAN} icon={Target} />
-          <StatCard label="CORREDORES" value={sistemaEstado?.total_corredores_conocidos || 0} color={SUCCESS} icon={GitBranch} />
-          <StatCard label="CONFIANZA" value={sistemaEstado?.confianza_global || "--"} color={sistemaEstado?.confianza_global === "ALTA" ? SUCCESS : WARNING} icon={Shield} />
-          <StatCard label="PATRONES" value={aprendizaje?.total_patrones || 0} sub={`${aprendizaje?.camiones_con_patron || 0} camiones`} color={PURPLE} icon={Brain} />
+      {/* CHAT IA */}
+      <div className="rounded-lg" style={{ background: "#060d14", border: `1px solid ${color}30`, borderTop: `2px solid ${color}` }}>
+        <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid #0d2035" }}>
+          <Brain className="w-4 h-4" style={{ color }} />
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color }}>CHAT IA</span>
+          <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>· Datos reales del sistema · Pregunta lo que quieras</span>
         </div>
-        <div className="font-rajdhani text-[10px] mt-2 px-1" style={{ color: TEXT_MUTED }}>{sistemaEstado?.estado_mensaje || ""}</div>
-      </CollapsibleSection>
 
-      <CollapsibleSection
-        title="UMBRALES APRENDIDOS"
-        icon={Layers}
-        color="#ff6600"
-        expanded={expandedSection === "umbrales"}
-        onToggle={() => toggleSection("umbrales")}
-        testId="section-umbrales"
-      >
-        <div className="font-rajdhani text-[10px] mb-3" style={{ color: TEXT_MUTED }}>
-          El sistema calcula automaticamente umbrales usando percentil 75 (normal) y percentil 90 (alerta) del comportamiento historico. Se recalibra cada 7 dias con los ultimos 30 dias.
-        </div>
-        <div className="grid grid-cols-4 gap-2 mb-3">
-          {(["BAJA", "MEDIA", "ALTA", "EXPERTA"] as const).map(nivel => {
-            const colores: Record<string, string> = { EXPERTA: SUCCESS, ALTA: CYAN, MEDIA: WARNING, BAJA: TEXT_MUTED };
-            const count = aprendizaje?.patrones_por_confianza?.[nivel] || 0;
-            return (
-              <div key={nivel} className="rounded px-3 py-2 text-center" style={{ background: BG_DEEP, border: `1px solid ${colores[nivel]}20` }}>
-                <div className="font-space text-[18px] font-bold" style={{ color: colores[nivel] }}>{count}</div>
-                <div className="font-exo text-[7px] font-bold tracking-wider" style={{ color: colores[nivel] }}>{nivel}</div>
+        <div className="px-4 py-3 space-y-3 max-h-[300px] overflow-y-auto">
+          {historialChat.length === 0 && (
+            <div className="text-center py-4">
+              <Brain className="w-6 h-6 mx-auto mb-2" style={{ color: "#3a6080" }} />
+              <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Tengo acceso a todos los datos de la operacion en tiempo real.</div>
+            </div>
+          )}
+          {historialChat.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[80%] px-3 py-2 rounded-lg"
+                style={{ background: msg.role === "user" ? `${color}15` : "#0a1520", border: `1px solid ${msg.role === "user" ? `${color}30` : "#0d2035"}` }}>
+                <div className="font-exo text-[10px] leading-relaxed whitespace-pre-wrap" style={{ color: "#c8e8ff" }}>{msg.content}</div>
               </div>
-            );
-          })}
+            </div>
+          ))}
+          {cargandoChat && (
+            <div className="flex justify-start"><div className="px-3 py-2 rounded-lg" style={{ background: "#0a1520", border: "1px solid #0d2035" }}><Loader2 className="w-4 h-4 animate-spin" style={{ color }} /></div></div>
+          )}
+          <div ref={chatEndRef} />
         </div>
 
-        <div className="rounded px-3 py-2" style={{ background: BG_DEEP, border: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-4 mb-2">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{ background: SUCCESS }} />
-              <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>NORMAL (Z ≤ 1.0)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{ background: WARNING }} />
-              <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>REVISAR (1.0 &lt; Z ≤ 1.5)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{ background: "#FF8C00" }} />
-              <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>ANOMALIA (1.5 &lt; Z ≤ 2.0)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full" style={{ background: ERROR }} />
-              <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>CRITICO (Z &gt; 2.0)</span>
-            </div>
-          </div>
-          <div className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>
-            Z-Score = (valor_observado - media_historica) / desviacion_estandar. El sistema ajusta estos parametros automaticamente basandose en datos reales.
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="COMBUSTIBLE - PATRONES"
-        icon={Fuel}
-        color="#ff6600"
-        expanded={expandedSection === "combustible"}
-        onToggle={() => toggleSection("combustible")}
-        testId="section-combustible"
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Truck className="w-3 h-3" style={{ color: CYAN }} />
-              <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: CYAN }}>TOP CAMIONES APRENDIDOS</span>
-            </div>
-            <div className="space-y-1">
-              {(aprendizaje?.top_camiones || []).slice(0, 8).map((cam: any, i: number) => {
-                const confianzaColor: Record<string, string> = { EXPERTA: SUCCESS, ALTA: CYAN, MEDIA: WARNING, BAJA: TEXT_MUTED };
-                return (
-                  <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: BG_DEEP, border: `1px solid ${BORDER}` }}>
-                    <span className="font-space text-[9px] font-bold" style={{ color: TEXT_MAIN }}>{cam.patente}</span>
-                    <span className="font-rajdhani text-[8px] truncate flex-1" style={{ color: TEXT_MUTED }}>{cam.contrato}</span>
-                    <span className="font-space text-[8px]" style={{ color: "#ff6600" }}>{Math.round(cam.carga_tipica)}L</span>
-                    <span className="font-space text-[7px] font-bold px-1 py-0.5" style={{ color: confianzaColor[cam.confianza], background: `${confianzaColor[cam.confianza]}15` }}>{cam.confianza}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <MapPin className="w-3 h-3" style={{ color: "#ff6600" }} />
-              <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: "#ff6600" }}>TOP ESTACIONES</span>
-            </div>
-            <div className="space-y-1">
-              {(aprendizaje?.top_estaciones || []).slice(0, 8).map((est: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: BG_DEEP, border: `1px solid ${BORDER}` }}>
-                  <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: "#ff6600" }} />
-                  <span className="font-space text-[9px] font-bold truncate flex-1" style={{ color: TEXT_MAIN }}>{est.estacion}</span>
-                  <span className="font-space text-[8px]" style={{ color: "#ff6600" }}>{est.total_cargas}</span>
-                  <span className="font-space text-[8px]" style={{ color: TEXT_MUTED }}>{est.camiones} cam</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: `1px solid ${BORDER}` }}>
-          <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>CARGAS HISTORICAS</span>
-          <span className="font-space text-[11px] font-bold" style={{ color: TEXT_MAIN }}>{(aprendizaje?.total_cargas_historicas || 0).toLocaleString("es-CL")}</span>
-          <span className="font-exo text-[7px] tracking-wider ml-3" style={{ color: TEXT_DIM }}>RECALIBRACION</span>
-          <span className="font-space text-[10px]" style={{ color: PURPLE }}>Cada 7 dias (ultimos 30 dias)</span>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="CORREDORES Y RUTAS"
-        icon={GitBranch}
-        color={CYAN}
-        expanded={expandedSection === "corredores"}
-        onToggle={() => toggleSection("corredores")}
-        testId="section-corredores"
-      >
-        <div className="grid grid-cols-3 gap-3 mb-2">
-          <StatCard label="CORREDORES CONOCIDOS" value={sistemaEstado?.total_corredores_conocidos || 0} color={CYAN} icon={GitBranch} />
-          <StatCard label="VIAJES TOTALES" value={sistemaEstado?.total_viajes_procesados || 0} color={SUCCESS} icon={Target} />
-          <StatCard label="CONFIANZA GLOBAL" value={sistemaEstado?.confianza_global || "--"} color={sistemaEstado?.confianza_global === "ALTA" ? SUCCESS : WARNING} icon={Shield} />
-        </div>
-        <div className="font-rajdhani text-[10px]" style={{ color: TEXT_MUTED }}>
-          Los corredores se detectan automaticamente agrupando viajes entre los mismos origenes y destinos (tolerancia 8km). Cada corredor acumula estadisticas de rendimiento que se usan como baseline para deteccion de anomalias.
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="DETECCION DE CAMBIOS"
-        icon={Zap}
-        color={ERROR}
-        expanded={expandedSection === "cambios"}
-        onToggle={() => toggleSection("cambios")}
-        testId="section-cambios"
-      >
-        <div className="font-rajdhani text-[10px] mb-3" style={{ color: TEXT_MUTED }}>
-          El sistema detecta automaticamente cambios de patron: degradacion de conductor (&gt;20% caida rendimiento), consumo anomalo de combustible, y desviaciones significativas respecto al corredor. Estos cambios generan alertas tipo CAMBIO_PATRON_CONDUCTOR.
-        </div>
-        {alertasAprendizaje && alertasAprendizaje.filter((a: any) => a.tipo?.includes("PATRON") || a.tipo?.includes("CAMBIO")).length > 0 ? (
-          <div className="space-y-1">
-            {alertasAprendizaje.filter((a: any) => a.tipo?.includes("PATRON") || a.tipo?.includes("CAMBIO")).slice(0, 6).map((a: any, i: number) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: BG_DEEP, borderLeft: `2px solid ${ERROR}` }}>
-                <Zap className="w-3 h-3" style={{ color: ERROR }} />
-                <span className="font-space text-[9px] font-bold" style={{ color: TEXT_MAIN }}>{a.patente}</span>
-                <span className="font-rajdhani text-[9px] truncate flex-1" style={{ color: TEXT_MUTED }}>{a.descripcion}</span>
-              </div>
+        {historialChat.length < 2 && (
+          <div className="px-4 pb-3 flex flex-wrap gap-2">
+            {sugerencias.map((s, i) => (
+              <button key={i} onClick={() => enviarMensaje(s)} className="font-exo text-[8px] px-2 py-1.5 cursor-pointer rounded-md hover:opacity-80"
+                style={{ color: "#3a6080", border: "1px solid #0d2035" }}>{s}</button>
             ))}
           </div>
-        ) : (
-          <div className="flex items-center gap-2 py-3 justify-center">
-            <CheckCircle className="w-4 h-4" style={{ color: SUCCESS }} />
-            <span className="font-rajdhani text-[11px]" style={{ color: SUCCESS }}>Sin cambios de patron detectados</span>
-          </div>
         )}
-      </CollapsibleSection>
 
-      <div className="rounded px-4 py-4 mt-4" style={{ background: BG_CARD, border: `1px solid ${PURPLE}20` }} data-testid="objetivos-aprendizaje">
-        <div className="flex items-center gap-3 mb-4">
-          <Target className="w-4 h-4" style={{ color: PURPLE }} />
-          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: PURPLE }}>OBJETIVOS DE APRENDIZAJE</span>
-          <span className="font-exo text-[8px] tracking-wider" style={{ color: TEXT_MUTED }}>CICLO 7 DIAS</span>
-          <div className="flex-1" />
-          {objetivosData && (() => {
-            const objs = objetivosData.objetivos || [];
-            const promedioTotal = objs.length > 0 ? Math.round(objs.reduce((s: number, o: any) => s + o.progreso, 0) / objs.length) : 0;
-            return (
-              <div className="flex items-center gap-2">
-                <span className="font-space text-[9px] font-bold" style={{ color: PURPLE }}>PROGRESO GLOBAL</span>
-                <div className="w-24 h-1.5 rounded-full" style={{ background: BORDER }}>
-                  <div className="h-full rounded-full transition-all" style={{ width: `${promedioTotal}%`, background: PURPLE }} />
-                </div>
-                <span className="font-space text-[11px] font-bold" style={{ color: PURPLE }}>{promedioTotal}%</span>
-              </div>
-            );
-          })()}
-        </div>
-
-        <div className="space-y-2.5">
-          {(objetivosData?.objetivos || []).map((obj: any) => {
-            const estadoColors: Record<string, string> = { ACTIVO: SUCCESS, APRENDIENDO: WARNING, OBSERVANDO: TEXT_MUTED };
-            const estadoColor = estadoColors[obj.estado] || TEXT_MUTED;
-            const iconMap: Record<string, typeof Brain> = {
-              eficiencia_corredor: Fuel,
-              patron_carga: Gauge,
-              tiempo_geocerca: Clock,
-              degradacion_conductor: TrendingUp,
-              ciclo_contrato: BarChart3,
-            };
-            const ObjIcon = iconMap[obj.id] || Target;
-            const progressColor = obj.progreso >= 80 ? SUCCESS : obj.progreso >= 40 ? WARNING : obj.progreso >= 10 ? CYAN : TEXT_MUTED;
-
-            return (
-              <div key={obj.id} className="rounded px-4 py-3" style={{ background: BG_DEEP, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${progressColor}` }} data-testid={`objetivo-${obj.id}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <ObjIcon className="w-4 h-4" style={{ color: progressColor }} />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: TEXT_MAIN }}>{obj.nombre}</span>
-                      <span className="font-space text-[7px] font-bold px-1.5 py-0.5" style={{
-                        color: estadoColor,
-                        background: `${estadoColor}12`,
-                        border: `1px solid ${estadoColor}30`,
-                      }}>{obj.estado}</span>
-                    </div>
-                    <div className="font-rajdhani text-[9px] mt-0.5" style={{ color: TEXT_MUTED }}>{obj.descripcion}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-space text-[20px] font-bold" style={{ color: progressColor }}>{obj.progreso}%</div>
-                    <div className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>DIA {obj.dia_inicio}/7</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: BORDER }}>
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${obj.progreso}%`, background: `linear-gradient(90deg, ${progressColor}80, ${progressColor})` }} />
-                  </div>
-                  <span className="font-space text-[8px] w-[180px] text-right" style={{ color: TEXT_MUTED }}>{obj.datos}</span>
-                </div>
-
-                <div className="flex items-center gap-2 mt-1.5">
-                  {Array.from({ length: 7 }).map((_, di) => {
-                    const filled = di < obj.dia_inicio;
-                    return (
-                      <div key={di} className="flex items-center gap-0.5">
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: filled ? progressColor : `${BORDER}` }} />
-                        {di < 6 && <div className="w-3 h-px" style={{ background: filled ? `${progressColor}40` : BORDER }} />}
-                      </div>
-                    );
-                  })}
-                  <span className="font-exo text-[7px] ml-1" style={{ color: TEXT_DIM }}>7 DIAS CICLO</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: SUCCESS }} />
-            <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>ACTIVO (&gt;80%)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: WARNING }} />
-            <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>APRENDIENDO (30-80%)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: TEXT_MUTED }} />
-            <span className="font-exo text-[7px] tracking-wider" style={{ color: TEXT_DIM }}>OBSERVANDO (&lt;30%)</span>
-          </div>
-          <div className="flex-1" />
-          <span className="font-rajdhani text-[9px]" style={{ color: TEXT_MUTED }}>Recalibracion automatica cada 7 dias con ultimos 30 dias de datos</span>
+        <div className="px-4 pb-4 flex gap-2">
+          <input value={mensajeChat} onChange={e => setMensajeChat(e.target.value)} onKeyDown={e => e.key === "Enter" && enviarMensaje()}
+            placeholder="Pregunta sobre la operacion..." className="flex-1 px-4 py-2.5 font-exo text-[11px] outline-none rounded-md"
+            style={{ background: "#0a1520", border: `1px solid ${color}30`, color: "#c8e8ff" }} />
+          <button onClick={() => enviarMensaje()} disabled={cargandoChat || !mensajeChat.trim()}
+            className="px-4 py-2.5 font-space text-[10px] font-bold cursor-pointer rounded-md hover:opacity-80 disabled:opacity-30 flex items-center gap-1.5"
+            style={{ background: `${color}20`, border: `1px solid ${color}40`, color }}>
+            <Send className="w-3.5 h-3.5" /> ENVIAR
+          </button>
         </div>
       </div>
+      {/* Panel Multi-Agente */}
+      <PanelAgentes />
+      {/* Gerente de Operaciones */}
+      <PanelGerenteOps />
+      {/* Chat Arquitecto */}
+      <PanelArquitecto />
     </div>
   );
 }
 
-function StatCard({ label, value, sub, color, icon: Icon }: {
-  label: string; value: string | number; sub?: string; color: string; icon: typeof Brain;
-}) {
+function PanelAgentes() {
+  const { data } = useQuery<any>({ queryKey: ["/api/agentes/estado"], queryFn: () => fetch("/api/agentes/estado").then(r => r.json()), refetchInterval: 60000 });
+  const { data: msgsData, refetch } = useQuery<any>({ queryKey: ["/api/agentes/mensajes"], queryFn: () => fetch("/api/agentes/mensajes?limite=10").then(r => r.json()), refetchInterval: 30000 });
+  const msgs = msgsData?.mensajes || [];
+  const pendientes = msgs.filter((m: any) => !m.leido).length;
+  const colorTipo = (t: string) => ({ MONITOR: "#00d4ff", ANALISTA: "#a855f7", PREDICTOR: "#ff6b35", REPORTERO: "#00ff88", GESTOR: "#ffcc00", CEO: "#ff2244", ARQUITECTO: "#34d399" }[t] || "#3a6080");
+
   return (
-    <div className="rounded px-3 py-2.5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className="w-3 h-3" style={{ color }} />
-        <span className="font-exo text-[7px] font-bold tracking-[0.15em] uppercase" style={{ color: TEXT_DIM }}>{label}</span>
+    <div style={{ background: "#060d14", border: "1px solid #a855f730", borderTop: "2px solid #a855f7", borderRadius: 8, marginTop: 12 }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+        <div className="flex items-center gap-2">
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#a855f7" }}>SISTEMA MULTI-AGENTE</span>
+          {pendientes > 0 && <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#ff224420", color: "#ff2244" }}>{pendientes} nuevos</span>}
+        </div>
+        <button onClick={() => { fetch("/api/agentes/mensajes/leer-todos", { method: "POST" }).then(() => refetch()); }} className="font-exo text-[8px] cursor-pointer" style={{ color: "#3a6080" }}>Marcar leído</button>
       </div>
-      <div className="font-space text-[18px] font-bold" style={{ color }}>{value}</div>
-      {sub && <div className="font-rajdhani text-[10px] mt-0.5" style={{ color: TEXT_MUTED }}>{sub}</div>}
-    </div>
-  );
-}
-
-function CollapsibleSection({ title, icon: Icon, color, expanded, onToggle, children, testId }: {
-  title: string; icon: typeof Brain; color: string; expanded: boolean; onToggle: () => void; children: React.ReactNode; testId: string;
-}) {
-  return (
-    <div className="rounded mb-3" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }} data-testid={testId}>
-      <button onClick={onToggle} className="w-full flex items-center gap-2 px-4 py-3 cursor-pointer transition-all" data-testid={`${testId}-toggle`}>
-        <Icon className="w-3.5 h-3.5" style={{ color }} />
-        <span className="font-space text-[10px] font-bold tracking-wider" style={{ color }}>{title}</span>
-        <div className="flex-1" />
-        {expanded ? <ChevronUp className="w-3.5 h-3.5" style={{ color: TEXT_DIM }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: TEXT_DIM }} />}
-      </button>
-      {expanded && <div className="px-4 pb-3">{children}</div>}
-    </div>
-  );
-}
-
-function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-export default function OperativeBrain() {
-  const [tab, setTab] = useState<BrainTab>("mapa");
-
-  const BRAIN_TABS: { id: BrainTab; label: string; icon: typeof Brain }[] = [
-    { id: "mapa", label: "MAPA EN VIVO", icon: MapPin },
-    { id: "reporte", label: "REPORTE DEL DIA", icon: BarChart3 },
-    { id: "drivers", label: "DRIVERS", icon: Users },
-    { id: "aprendizaje", label: "APRENDIZAJE", icon: Brain },
-  ];
-
-  return (
-    <div data-testid="operative-brain-page">
-      <div className="flex items-center gap-1.5 mb-4">
-        {BRAIN_TABS.map(t => {
-          const active = tab === t.id;
-          const Icon = t.icon;
+      <div className="grid grid-cols-7 gap-1.5 p-3" style={{ borderBottom: "1px solid #0d2035" }}>
+        {(data?.agentes || []).map((a: any) => {
+          const min = a.ultimo_ciclo ? Math.round((Date.now() - new Date(a.ultimo_ciclo).getTime()) / 60000) : null;
+          const ok = min !== null && min < 20;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className="flex items-center gap-2 px-4 py-2.5 cursor-pointer transition-all"
-              style={{
-                background: active ? `${PURPLE}08` : "transparent",
-                border: `1px solid ${active ? `${PURPLE}25` : `${BORDER}40`}`,
-                borderBottom: active ? `2px solid ${PURPLE}` : "2px solid transparent",
-              }}
-              data-testid={`brain-tab-${t.id}`}
-            >
-              <Icon className="w-3.5 h-3.5" style={{ color: active ? PURPLE : TEXT_DIM }} />
-              <span className="font-space text-[9px] font-bold tracking-[0.15em]" style={{ color: active ? PURPLE : TEXT_DIM }}>{t.label}</span>
-            </button>
+            <div key={a.id} className="text-center p-1.5" style={{ background: "#0a1520", borderTop: `2px solid ${ok ? colorTipo(a.tipo) : "#3a6080"}`, borderRadius: 4 }}>
+              <div className="font-exo text-[7px] uppercase" style={{ color: ok ? colorTipo(a.tipo) : "#3a6080" }}>{a.nombre.split(" ")[0]}</div>
+              <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{min !== null ? `${min}m` : "-"}</div>
+            </div>
           );
         })}
       </div>
+      <div className="overflow-auto" style={{ maxHeight: 200 }}>
+        {msgs.slice(0, 5).map((m: any) => (
+          <div key={m.id} onClick={() => { fetch(`/api/agentes/mensajes/${m.id}/leer`, { method: "POST" }).then(() => refetch()); }}
+            className="px-4 py-2 border-b cursor-pointer transition-all hover:bg-[rgba(255,255,255,0.02)]" style={{ borderColor: "#0a1520", borderLeft: !m.leido ? "3px solid #a855f7" : "3px solid transparent" }}>
+            <div className="flex items-center gap-2">
+              <span className="font-exo text-[8px] font-bold px-1.5 py-0.5" style={{ color: colorTipo(m.nombre_agente?.split(" ")[1]?.toUpperCase() || "MONITOR"), border: `1px solid ${colorTipo(m.nombre_agente?.split(" ")[1]?.toUpperCase() || "MONITOR")}30`, borderRadius: 3 }}>{m.nombre_agente || m.de_agente}</span>
+              {m.prioridad === "CRITICA" && <span className="font-exo text-[7px] font-bold" style={{ color: "#ff2244" }}>CRÍTICO</span>}
+            </div>
+            <div className="font-exo text-[9px] font-bold mt-1 truncate" style={{ color: "#c8e8ff" }}>{m.titulo}</div>
+            <div className="font-exo text-[8px] mt-0.5 line-clamp-1" style={{ color: "#3a6080" }}>{m.contenido?.substring(0, 80)}</div>
+          </div>
+        ))}
+        {msgs.length === 0 && <div className="text-center py-4 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin mensajes</div>}
+      </div>
+    </div>
+  );
+}
 
-      {tab === "mapa" && <MapaEnVivoTab />}
-      {tab === "reporte" && <ReporteDelDiaTab />}
-      {tab === "drivers" && <DriversTab />}
-      {tab === "aprendizaje" && <AprendizajeTab />}
+function PanelGerenteOps() {
+  const { data: estado } = useQuery<any>({ queryKey: ["/api/gerente/estado"], queryFn: () => fetch("/api/gerente/estado").then(r => r.json()), staleTime: 5 * 60000 });
+  const { data: puntos } = useQuery<any>({ queryKey: ["/api/gerente/puntos-resueltos"], queryFn: () => fetch("/api/gerente/puntos-resueltos").then(r => r.json()), staleTime: 10 * 60000 });
+  const aprendizaje = estado?.aprendizaje || [];
+  const parametros = estado?.parametros || [];
+  const totalMejorado = aprendizaje.reduce((s: number, a: any) => s + parseInt(a.viajes_mejorados || 0), 0);
+
+  return (
+    <div style={{ background: "#060d14", border: "1px solid #fbbf2430", borderTop: "2px solid #fbbf24", borderRadius: 8, marginTop: 12 }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+        <div className="flex items-center gap-2">
+          <span className="text-[14px]">⚙️</span>
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#fbbf24" }}>GERENTE DE OPERACIONES</span>
+          <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>· Auto-aprendizaje · Resuelve puntos · Ajusta parámetros</span>
+        </div>
+        <button onClick={() => fetch("/api/gerente/ejecutar", { method: "POST" })} className="font-exo text-[8px] px-3 py-1 cursor-pointer" style={{ color: "#fbbf24", border: "1px solid #fbbf2430", borderRadius: 4 }}>▶ Ejecutar</button>
+      </div>
+      <div className="grid grid-cols-4 gap-2 p-3" style={{ borderBottom: "1px solid #0d2035" }}>
+        {[
+          { l: "VIAJES MEJORADOS", v: totalMejorado, c: "#00ff88" },
+          { l: "RUTAS RESUELTAS", v: puntos?.pct_completamente_resuelto ? `${puntos.pct_completamente_resuelto}%` : "--", c: "#00d4ff" },
+          { l: "LUGARES", v: estado?.lugares?.reduce((s: number, l: any) => s + parseInt(l.total), 0) || 0, c: "#fbbf24" },
+          { l: "PARÁMETROS", v: parametros.length, c: "#a78bfa" },
+        ].map(k => (
+          <div key={k.l} className="text-center p-2" style={{ background: "#0a1520", borderRadius: 6 }}>
+            <div className="font-space text-[16px] font-bold" style={{ color: k.c }}>{k.v}</div>
+            <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2 p-3" style={{ borderBottom: "1px solid #0d2035" }}>
+        {parametros.slice(0, 6).map((p: any) => (
+          <div key={p.clave} className="flex items-center justify-between px-3 py-1.5" style={{ background: "#0a1520", borderRadius: 4, border: p.modificado_por === "GERENTE_BOT" ? "1px solid #fbbf2430" : "1px solid #0d2035" }}>
+            <span className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{p.descripcion?.substring(0, 28) || p.clave}</span>
+            <div className="flex items-center gap-1">
+              <span className="font-space text-[12px] font-bold" style={{ color: "#fbbf24" }}>{p.valor}</span>
+              {p.modificado_por === "GERENTE_BOT" && <span className="font-exo text-[6px]" style={{ color: "#fbbf24" }}>BOT</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {aprendizaje.length > 0 && (
+        <div className="px-4 py-2">
+          <div className="font-exo text-[7px] uppercase mb-1" style={{ color: "#3a6080" }}>APRENDIZAJE RECIENTE</div>
+          {aprendizaje.map((a: any) => (
+            <div key={a.tipo} className="flex items-center justify-between py-1">
+              <span className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{a.tipo.replace(/_/g, " ")}</span>
+              <span className="font-space text-[10px] font-bold" style={{ color: "#fbbf24" }}>×{a.total} {parseInt(a.viajes_mejorados) > 0 ? `(+${a.viajes_mejorados} viajes)` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PanelArquitecto() {
+  const [msg, setMsg] = useState("");
+  const [hist, setHist] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Load history on mount
+  useEffect(() => {
+    fetch("/api/agentes/arquitecto/historial").then(r => r.json()).then(d => {
+      setHist((d.historial || []).map((h: any) => ({ rol: h.rol, texto: h.mensaje })));
+    }).catch(() => {});
+  }, []);
+
+  const enviar = async () => {
+    if (!msg.trim()) return;
+    const texto = msg; setMsg(""); setLoading(true);
+    setHist(h => [...h, { rol: "CEO", texto }]);
+    try {
+      const r = await fetch("/api/agentes/arquitecto/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensaje: texto }) });
+      const d = await r.json();
+      setHist(h => [...h, { rol: "ARQUITECTO", texto: d.respuesta }]);
+    } catch { setHist(h => [...h, { rol: "ARQUITECTO", texto: "Error de conexión" }]); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ background: "#060d14", border: "1px solid #34d39930", borderTop: "2px solid #34d399", borderRadius: 8, marginTop: 12 }}>
+      <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+        <span className="text-[14px]">🏗️</span>
+        <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#34d399" }}>AGENTE ARQUITECTO</span>
+        <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>· Jefe técnico · Conoce todo el sistema</span>
+      </div>
+      <div className="overflow-auto px-4 py-3 space-y-2" style={{ maxHeight: 250 }}>
+        {hist.length === 0 && (
+          <div className="text-center py-3">
+            <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Pregúntale sobre el sistema</div>
+            <div className="flex gap-2 justify-center mt-2 flex-wrap">
+              {["¿Cómo está el sistema?", "¿Qué detectaron los agentes?", "¿Qué mejoras propones?"].map(s => (
+                <button key={s} onClick={() => setMsg(s)} className="font-exo text-[8px] px-2 py-1 cursor-pointer" style={{ color: "#3a6080", border: "1px solid #0d2035", borderRadius: 4 }}>{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {hist.map((h, i) => (
+          <div key={i} className={`flex ${h.rol === "CEO" ? "justify-end" : "justify-start"}`}>
+            <div className="max-w-[80%] px-3 py-2" style={{ background: h.rol === "CEO" ? "rgba(52,211,153,0.1)" : "#0a1520", border: `1px solid ${h.rol === "CEO" ? "#34d39930" : "#0d2035"}`, borderRadius: 8 }}>
+              <div className="font-exo text-[7px] uppercase mb-1" style={{ color: h.rol === "CEO" ? "#34d399" : "#3a6080" }}>{h.rol === "CEO" ? "TÚ" : "🏗️ ARQUITECTO"}</div>
+              <div className="font-exo text-[10px] leading-relaxed" style={{ color: "#c8e8ff" }}>{h.texto}</div>
+            </div>
+          </div>
+        ))}
+        {loading && <div className="flex justify-start"><div className="px-3 py-2" style={{ background: "#0a1520", borderRadius: 8 }}><Loader2 className="w-4 h-4 animate-spin" style={{ color: "#34d399" }} /></div></div>}
+      </div>
+      <div className="px-4 pb-4 flex gap-2" style={{ borderTop: "1px solid #0d2035", paddingTop: 12 }}>
+        <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && enviar()} placeholder="Habla con el Arquitecto..."
+          className="flex-1 px-3 py-2 font-exo text-[10px] outline-none" style={{ background: "#0a1520", border: "1px solid #34d39930", borderRadius: 6, color: "#c8e8ff" }} />
+        <button onClick={enviar} disabled={loading || !msg.trim()} className="px-4 py-2 font-space text-[9px] font-bold cursor-pointer disabled:opacity-30"
+          style={{ background: "rgba(52,211,153,0.1)", border: "1px solid #34d39930", color: "#34d399", borderRadius: 6 }}>ENVIAR</button>
+      </div>
     </div>
   );
 }

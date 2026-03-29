@@ -270,153 +270,73 @@ Maximo 3 parrafos.`;
 
   app.get("/api/cerebro/estado-general", async (_req: Request, res: Response) => {
     try {
-      const ahora = new Date();
-      const hace2h = new Date(ahora.getTime() - 2 * 60 * 60 * 1000);
-      const hoyStr = ahora.toISOString().split("T")[0];
+      const hoyStr = new Date().toISOString().split("T")[0];
 
-      const totalResult = await pool.query(`
-        SELECT COUNT(*)::int as total FROM camiones WHERE vin IS NOT NULL
+      // All from gps_unificado - single efficient query
+      const mainR = await pool.query(`
+        SELECT
+          COUNT(DISTINCT patente)::int as total_camiones,
+          COUNT(DISTINCT patente) FILTER (WHERE timestamp_gps >= NOW() - INTERVAL '2 hours')::int as activos,
+          COUNT(DISTINCT patente) FILTER (WHERE timestamp_gps < NOW() - INTERVAL '2 hours')::int as sin_gps,
+          COUNT(DISTINCT patente) FILTER (WHERE velocidad > 105 AND DATE(timestamp_gps) = CURRENT_DATE)::int as excesos_vel
+        FROM ultima_posicion_camion
       `);
-      const totalCamiones = totalResult.rows[0]?.total || 0;
+      const m = mainR.rows[0];
 
-      const activosResult = await pool.query(`
-        SELECT COUNT(DISTINCT g.patente)::int as activos
-        FROM geo_puntos g
-        JOIN camiones c ON g.camion_id = c.id
-        WHERE g.timestamp_punto >= $1
-      `, [hace2h]);
-      const camionesActivos = activosResult.rows[0]?.activos || 0;
+      // KM hoy from gps_unificado
+      const kmR = await pool.query(`
+        SELECT SUM(km_d)::int as km FROM (
+          SELECT patente, COALESCE(MAX(odometro) - MIN(odometro), 0) as km_d
+          FROM gps_unificado WHERE DATE(timestamp_gps) = CURRENT_DATE AND odometro > 0
+          GROUP BY patente HAVING MAX(odometro) - MIN(odometro) > 0 AND MAX(odometro) - MIN(odometro) < 5000
+        ) sub
+      `);
 
-      const kmResult = await pool.query(`
-        SELECT c.patente,
-          MAX(g.km_odometro) - MIN(g.km_odometro) as km_hoy
-        FROM geo_puntos g
-        JOIN camiones c ON g.camion_id = c.id
-        WHERE g.timestamp_punto >= $1::date AND g.timestamp_punto < ($1::date + interval '1 day')
-          AND g.km_odometro > 0
-        GROUP BY c.patente
-        HAVING MAX(g.km_odometro) - MIN(g.km_odometro) > 0
-      `, [hoyStr]);
-      const kmHoy = Math.round(kmResult.rows.reduce((s: number, r: any) => s + parseFloat(r.km_hoy || 0), 0));
-
-      const rendResult = await pool.query(`
-        SELECT AVG(
-          CASE WHEN km_delta > 0 AND litros_delta > 0 THEN km_delta / litros_delta END
-        )::numeric(6,2) as rend_prom
-        FROM (
-          SELECT v.vin,
-            (MAX(v.total_distance) - MIN(v.total_distance)) / 1000.0 as km_delta,
-            (MAX(v.total_fuel_used) - MIN(v.total_fuel_used)) / 1000.0 as litros_delta
-          FROM volvo_fuel_snapshots v
-          WHERE v.captured_at::timestamp >= $1::date AND v.captured_at::timestamp < ($1::date + interval '1 day')
-          GROUP BY v.vin
-          HAVING MAX(v.total_distance) > MIN(v.total_distance)
-            AND MAX(v.total_fuel_used) > MIN(v.total_fuel_used)
+      // Rendimiento from Volvo ECU (still best source for fuel)
+      const rendR = await pool.query(`
+        SELECT AVG(CASE WHEN km_d > 0 AND lt_d > 0 THEN km_d / lt_d END)::numeric(6,2) as rend FROM (
+          SELECT vin, (MAX(total_distance)-MIN(total_distance))/1000.0 as km_d, (MAX(total_fuel_used)-MIN(total_fuel_used))/1000.0 as lt_d
+          FROM volvo_fuel_snapshots WHERE captured_at::timestamp >= $1::date AND captured_at::timestamp < ($1::date + INTERVAL '1 day')
+          GROUP BY vin HAVING MAX(total_distance) > MIN(total_distance) AND MAX(total_fuel_used) > MIN(total_fuel_used)
         ) sub
       `, [hoyStr]);
-      const rendimientoPromedio = rendResult.rows[0]?.rend_prom ? parseFloat(rendResult.rows[0].rend_prom) : null;
 
-      const sinGpsResult = await pool.query(`
-        SELECT COUNT(DISTINCT c.patente)::int as sin_gps
-        FROM camiones c
-        WHERE c.vin IS NOT NULL
-          AND c.patente NOT IN (
-            SELECT DISTINCT g2.patente FROM geo_puntos g2
-            WHERE g2.timestamp_punto >= $1
-          )
-      `, [hace2h]);
-      const sinGps = sinGpsResult.rows[0]?.sin_gps || 0;
+      // Por contrato from gps_unificado
+      const pcR = await pool.query(`
+        SELECT contrato, COUNT(DISTINCT patente)::int as total_camiones,
+          COUNT(DISTINCT patente) FILTER (WHERE timestamp_gps >= NOW() - INTERVAL '2 hours')::int as activos,
+          COUNT(DISTINCT patente) FILTER (WHERE velocidad > 105 AND DATE(timestamp_gps) = CURRENT_DATE)::int as alertas
+        FROM ultima_posicion_camion
+        WHERE contrato IS NOT NULL AND contrato != ''
+        GROUP BY contrato ORDER BY total_camiones DESC
+      `);
 
-      const velResult = await pool.query(`
-        SELECT COUNT(DISTINCT g.patente)::int as excesos
-        FROM geo_puntos g
-        WHERE g.timestamp_punto >= $1::date AND g.timestamp_punto < ($1::date + interval '1 day')
-          AND g.velocidad_kmh > 120
-      `, [hoyStr]);
-      const excesosVelocidad = velResult.rows[0]?.excesos || 0;
+      // KM por contrato
+      const kmcR = await pool.query(`
+        SELECT contrato, SUM(km_d)::int as km FROM (
+          SELECT contrato, patente, COALESCE(MAX(odometro)-MIN(odometro),0) as km_d
+          FROM gps_unificado WHERE DATE(timestamp_gps) = CURRENT_DATE AND odometro > 0 AND contrato IS NOT NULL
+          GROUP BY contrato, patente HAVING MAX(odometro)-MIN(odometro) > 0 AND MAX(odometro)-MIN(odometro) < 5000
+        ) sub GROUP BY contrato
+      `);
+      const kmByContrato = new Map(kmcR.rows.map((r: any) => [r.contrato, r.km]));
 
-      const alertasCriticas = sinGps + excesosVelocidad;
-      const semaforo = alertasCriticas === 0 ? "NORMAL" : alertasCriticas <= 3 ? "ATENCION" : "ALERTA";
+      const porContrato = pcR.rows.map((r: any) => ({
+        contrato: r.contrato, total_camiones: r.total_camiones, activos: r.activos,
+        km_hoy: kmByContrato.get(r.contrato) || 0, rendimiento: null, alertas: r.alertas,
+      }));
 
-      const porContratoResult = await pool.query(`
-        SELECT f.nombre as contrato,
-          COUNT(DISTINCT c.id)::int as total_camiones,
-          COUNT(DISTINCT CASE WHEN g.patente IS NOT NULL THEN c.patente END)::int as activos
-        FROM camiones c
-        JOIN faenas f ON c.faena_id = f.id
-        LEFT JOIN (
-          SELECT DISTINCT patente FROM geo_puntos WHERE timestamp_punto >= $1
-        ) g ON c.patente = g.patente
-        WHERE c.vin IS NOT NULL
-        GROUP BY f.nombre
-        ORDER BY total_camiones DESC
-      `, [hace2h]);
-
-      const porContrato = [];
-      for (const row of porContratoResult.rows) {
-        const cKm = await pool.query(`
-          SELECT SUM(km_d)::int as km
-          FROM (
-            SELECT MAX(g.km_odometro) - MIN(g.km_odometro) as km_d
-            FROM geo_puntos g
-            JOIN camiones c ON g.camion_id = c.id
-            JOIN faenas f ON c.faena_id = f.id
-            WHERE f.nombre = $1
-              AND g.timestamp_punto >= $2::date AND g.timestamp_punto < ($2::date + interval '1 day')
-              AND g.km_odometro > 0
-            GROUP BY c.patente
-            HAVING MAX(g.km_odometro) - MIN(g.km_odometro) > 0
-          ) sub
-        `, [row.contrato, hoyStr]);
-
-        const cRend = await pool.query(`
-          SELECT AVG(
-            CASE WHEN km_delta > 0 AND litros_delta > 0 THEN km_delta / litros_delta END
-          )::numeric(6,2) as rend
-          FROM (
-            SELECT v.vin,
-              (MAX(v.total_distance) - MIN(v.total_distance)) / 1000.0 as km_delta,
-              (MAX(v.total_fuel_used) - MIN(v.total_fuel_used)) / 1000.0 as litros_delta
-            FROM volvo_fuel_snapshots v
-            JOIN camiones c ON v.vin = c.vin
-            JOIN faenas f ON c.faena_id = f.id
-            WHERE f.nombre = $1
-              AND v.captured_at::timestamp >= $2::date AND v.captured_at::timestamp < ($2::date + interval '1 day')
-            GROUP BY v.vin
-            HAVING MAX(v.total_distance) > MIN(v.total_distance)
-              AND MAX(v.total_fuel_used) > MIN(v.total_fuel_used)
-          ) sub
-        `, [row.contrato, hoyStr]);
-
-        const cAlertas = await pool.query(`
-          SELECT COUNT(DISTINCT g.patente)::int as alertas
-          FROM geo_puntos g
-          JOIN camiones c ON g.camion_id = c.id
-          JOIN faenas f ON c.faena_id = f.id
-          WHERE f.nombre = $1
-            AND g.timestamp_punto >= $2::date AND g.timestamp_punto < ($2::date + interval '1 day')
-            AND g.velocidad_kmh > 120
-        `, [row.contrato, hoyStr]);
-
-        porContrato.push({
-          contrato: row.contrato,
-          total_camiones: row.total_camiones,
-          activos: row.activos,
-          km_hoy: cKm.rows[0]?.km || 0,
-          rendimiento: cRend.rows[0]?.rend ? parseFloat(cRend.rows[0].rend) : null,
-          alertas: cAlertas.rows[0]?.alertas || 0,
-        });
-      }
+      const alertasCriticas = (m.sin_gps || 0) + (m.excesos_vel || 0);
 
       res.json({
-        camiones_activos: camionesActivos,
-        total_camiones: totalCamiones,
-        km_hoy: kmHoy,
-        rendimiento_promedio: rendimientoPromedio,
+        camiones_activos: m.activos || 0,
+        total_camiones: m.total_camiones || 0,
+        km_hoy: kmR.rows[0]?.km || 0,
+        rendimiento_promedio: rendR.rows[0]?.rend ? parseFloat(rendR.rows[0].rend) : null,
         alertas_criticas: alertasCriticas,
-        sin_gps: sinGps,
-        excesos_velocidad: excesosVelocidad,
-        semaforo,
+        sin_gps: m.sin_gps || 0,
+        excesos_velocidad: m.excesos_vel || 0,
+        semaforo: alertasCriticas === 0 ? "NORMAL" : alertasCriticas <= 3 ? "ATENCION" : "ALERTA",
         por_contrato: porContrato,
         fecha: hoyStr,
       });
@@ -443,7 +363,8 @@ Maximo 3 parrafos.`;
         JOIN camiones c ON g.camion_id = c.id
         JOIN faenas f ON c.faena_id = f.id
         WHERE g.timestamp_punto >= $1::date AND g.timestamp_punto < ($1::date + interval '1 day')
-          AND g.velocidad_kmh > 120
+          AND g.velocidad_kmh > 105
+          AND c.vin IS NOT NULL AND c.vin != ''
         GROUP BY g.patente, f.nombre
         ORDER BY vel_max DESC
         LIMIT 10
@@ -482,7 +403,7 @@ Maximo 3 parrafos.`;
            WHERE g2.patente = c.patente ORDER BY g2.timestamp_punto DESC LIMIT 1) as ultima_pos
         FROM camiones c
         JOIN faenas f ON c.faena_id = f.id
-        WHERE c.vin IS NOT NULL
+        WHERE c.vin IS NOT NULL AND c.vin != ''
           AND c.patente NOT IN (
             SELECT DISTINCT g3.patente FROM geo_puntos g3
             WHERE g3.timestamp_punto >= $1
@@ -514,6 +435,7 @@ Maximo 3 parrafos.`;
         JOIN camiones c ON v.vin = c.vin
         JOIN faenas f ON c.faena_id = f.id
         WHERE v.captured_at::timestamp >= $1::date AND v.captured_at::timestamp < ($1::date + interval '1 day')
+         
         GROUP BY c.patente, f.nombre
         HAVING MAX(v.total_distance) > MIN(v.total_distance)
           AND MAX(v.total_fuel_used) > MIN(v.total_fuel_used)
@@ -549,7 +471,15 @@ Maximo 3 parrafos.`;
         return (sev[a.severidad as keyof typeof sev] || 2) - (sev[b.severidad as keyof typeof sev] || 2);
       });
 
-      res.json(alertas.slice(0, 10));
+      // Filtrar alertas ya gestionadas (feedback dado hoy)
+      const gestionadasR = await pool.query(`
+        SELECT DISTINCT entidad_id FROM feedback_alertas
+        WHERE creado_en >= $1::date AND creado_en < ($1::date + interval '1 day')
+      `, [hoyStr]);
+      const gestionadas = new Set(gestionadasR.rows.map((r: any) => r.entidad_id));
+      const alertasFiltradas = alertas.filter(a => !gestionadas.has(a.patente));
+
+      res.json(alertasFiltradas.slice(0, 10));
     } catch (error: any) {
       console.error("[cerebro] Error camiones-alerta:", error.message);
       res.status(500).json({ message: error.message });
@@ -697,8 +627,48 @@ Maximo 3 parrafos.`;
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [alertaTipo, entidadTipo || "CAMION", entidadId, contrato || null, decision, nota || null, String(valorDetectado ?? ""), String(umbralUsado ?? ""), parametroAfectado || "rendimiento_kmL"]
       );
-      console.log(`[FEEDBACK] ${decision} para ${alertaTipo} ${entidadId} (${contrato || "sin contrato"})`);
-      res.json({ ok: true });
+
+      // Aplicar feedback al sistema
+      try {
+        if (decision === "FALSA_ALARMA") {
+          // Bajar umbral 8% para esta entidad
+          await pool.query(`
+            UPDATE parametros_adaptativos
+            SET umbral_anomalia = umbral_anomalia * 0.92, ultima_actualizacion = NOW()
+            WHERE scope_tipo = $1 AND scope_id = $2 AND parametro = $3
+          `, [entidadTipo || "CAMION", entidadId, parametroAfectado || "rendimiento_kmL"]);
+        } else if (decision === "CONFIRMADO") {
+          // Subir sensibilidad 3%
+          await pool.query(`
+            UPDATE parametros_adaptativos
+            SET umbral_anomalia = umbral_anomalia * 1.03, ultima_actualizacion = NOW()
+            WHERE scope_tipo = $1 AND scope_id = $2 AND parametro = $3
+          `, [entidadTipo || "CAMION", entidadId, parametroAfectado || "rendimiento_kmL"]);
+        }
+
+        // Marcar alertas_aprendizaje como gestionadas
+        await pool.query(`
+          UPDATE alertas_aprendizaje SET gestionado = true, nota = $1
+          WHERE entidad_nombre = $2 AND gestionado = false
+        `, [nota || decision || null, entidadId]);
+
+        // Marcar operaciones_cerradas como revisadas
+        if (alertaTipo === "BALANCE_ANOMALO" || alertaTipo === "BALANCE_COMBUSTIBLE") {
+          await pool.query(`
+            UPDATE operaciones_cerradas SET revisado = true, decision_ceo = $1
+            WHERE patente = $2 AND revisado = false AND nivel_anomalia != 'NORMAL'
+          `, [decision, entidadId]);
+        }
+      } catch (e: any) {
+        console.error("[FEEDBACK] Error aplicando:", e.message);
+      }
+
+      // Contar feedbacks del mes
+      const countR = await pool.query(`SELECT count(*) as c FROM feedback_alertas WHERE creado_en >= NOW() - INTERVAL '30 days'`);
+      const feedbackCount = parseInt(countR.rows[0]?.c || "0");
+
+      console.log(`[FEEDBACK] ${decision} para ${alertaTipo} ${entidadId} (${contrato || "sin contrato"}) — total feedbacks: ${feedbackCount}`);
+      res.json({ ok: true, feedbacks_mes: feedbackCount });
     } catch (error: any) {
       console.error("[FEEDBACK] Error:", error.message);
       res.status(500).json({ error: error.message });
@@ -821,38 +791,40 @@ Maximo 3 parrafos.`;
       const feedbackR = await pool.query(`SELECT inconsistencia_id FROM aprendizaje_feedback`);
       const yaResueltos = new Set(feedbackR.rows.map((f: any) => f.inconsistencia_id));
 
-      const balanceR = await pool.query(`
-        SELECT cp.patente, cp.contrato, cp.rendimiento_promedio, cp.total_jornadas,
-               c.id as camion_id
-        FROM camiones_perfil cp
-        JOIN camiones c ON c.patente = cp.patente
-        WHERE cp.rendimiento_promedio IS NOT NULL AND cp.total_jornadas >= 5
-      `);
+      // Anomalías verificadas: leer desde operaciones_cerradas (pre-calculado)
+      try {
+        const anomR = await pool.query(`
+          SELECT id, patente, conductor, contrato,
+            carga_a_litros, litros_consumidos_ecu, km_ecu, horas_periodo,
+            balance_pct, balance_litros, snap_count, nivel_anomalia,
+            carga_a_fecha
+          FROM operaciones_cerradas
+          WHERE nivel_anomalia IN ('CRITICO', 'SOSPECHOSO')
+            AND revisado = false
+            AND creado_at >= NOW() - INTERVAL '14 days'
+          ORDER BY balance_pct DESC
+          LIMIT 20
+        `);
 
-      for (const row of balanceR.rows) {
-        const rend = parseFloat(row.rendimiento_promedio);
-        if (isNaN(rend)) continue;
-        const contratoAvgR = await pool.query(`
-          SELECT AVG(rendimiento_promedio::float) as avg_rend FROM camiones_perfil
-          WHERE contrato = $1 AND rendimiento_promedio IS NOT NULL AND total_jornadas >= 5
-        `, [row.contrato]);
-        const avg = parseFloat(contratoAvgR.rows[0]?.avg_rend || "0");
-        if (avg <= 0) continue;
-        const desv = ((rend - avg) / avg) * 100;
-        if (Math.abs(desv) > 25) {
-          const itemId = `balance_${row.patente}`;
+        for (const row of anomR.rows) {
+          const itemId = `balance_${row.patente}_${row.id}`;
           if (yaResueltos.has(itemId)) continue;
+
           items.push({
             id: itemId,
             tipo: "BALANCE_ANOMALO",
-            nivel: Math.abs(desv) > 40 ? "CRITICO" : "SOSPECHOSO",
-            titulo: `${row.patente} rinde ${rend.toFixed(2)} km/L`,
-            descripcion: `Promedio del contrato ${row.contrato}: ${avg.toFixed(2)} km/L. Desviacion: ${desv > 0 ? '+' : ''}${desv.toFixed(1)}%`,
-            contrato: row.contrato,
-            valor: Math.round(desv),
-            acciones: desv < -25 ? ["INVESTIGAR", "FALSA_ALARMA"] : ["CONFIRMAR_NORMAL", "FALSA_ALARMA"],
+            nivel: row.nivel_anomalia === "CRITICO" ? "CRITICO" : "SOSPECHOSO",
+            titulo: `${row.patente} cargo ${Math.round(row.carga_a_litros || 0)}L`,
+            descripcion: `ECU registra ${Math.round(row.litros_consumidos_ecu || 0)}L consumidos en ${Math.round(row.km_ecu || 0)}km (${Math.round(row.horas_periodo || 0)}h). Exceso: +${Math.round(row.balance_pct || 0)}%`,
+            contrato: row.contrato || null,
+            valor: Math.round(row.balance_pct || 0),
+            km_ecu: row.km_ecu,
+            snap_count: row.snap_count,
+            acciones: ["INVESTIGAR", "FALSA_ALARMA"],
           });
         }
+      } catch (e: any) {
+        console.error("[INCONSISTENCIAS] Error leyendo operaciones_cerradas:", e.message);
       }
 
       const sinNombreR = await pool.query(`
@@ -1070,6 +1042,163 @@ Cada campo: 2-4 oraciones directas, con numeros concretos. Sin emojis. Habla en 
       console.error("[GENERAR-REPORTE] Error:", error.message);
       res.status(500).json({ message: error.message });
     }
+  });
+
+  // ── Detalle de alerta de velocidad ──
+  app.get("/api/alertas/detalle-velocidad/:patente", async (req: Request, res: Response) => {
+    try {
+      const { patente } = req.params;
+      const hoyStr = new Date().toISOString().split("T")[0];
+
+      // Puntos GPS con exceso hoy
+      const puntosR = await pool.query(`
+        SELECT gp.lat::float as lat, gp.lng::float as lng,
+          gp.velocidad_kmh::float as velocidad,
+          gp.timestamp_punto,
+          (SELECT gb.nombre FROM geo_bases gb
+           WHERE gb.activa = true
+           AND (6371 * acos(LEAST(1.0,
+             cos(radians(gp.lat::float)) * cos(radians(gb.lat::float)) *
+             cos(radians(gb.lng::float) - radians(gp.lng::float)) +
+             sin(radians(gp.lat::float)) * sin(radians(gb.lat::float))
+           ))) < 5
+           ORDER BY (6371 * acos(LEAST(1.0,
+             cos(radians(gp.lat::float)) * cos(radians(gb.lat::float)) *
+             cos(radians(gb.lng::float) - radians(gp.lng::float)) +
+             sin(radians(gp.lat::float)) * sin(radians(gb.lat::float))
+           ))) ASC LIMIT 1
+          ) as lugar_cercano
+        FROM geo_puntos gp
+        WHERE gp.patente = $1
+          AND gp.timestamp_punto >= $2::date
+          AND gp.timestamp_punto < ($2::date + interval '1 day')
+          AND gp.velocidad_kmh > 105
+        ORDER BY gp.velocidad_kmh DESC
+        LIMIT 20
+      `, [patente, hoyStr]);
+
+      const maxPunto = puntosR.rows[0];
+
+      // Conductor
+      const condR = await pool.query(`
+        SELECT conductor FROM cargas WHERE patente = $1 AND conductor IS NOT NULL ORDER BY fecha DESC LIMIT 1
+      `, [patente]);
+
+      // Contrato
+      const contR = await pool.query(`
+        SELECT f.nombre FROM camiones c JOIN faenas f ON c.faena_id = f.id WHERE c.patente = $1 LIMIT 1
+      `, [patente]);
+
+      const lugar = maxPunto?.lugar_cercano || (maxPunto ? `Ruta · ${maxPunto.lat.toFixed(3)}, ${maxPunto.lng.toFixed(3)}` : "Desconocido");
+
+      const timeline = puntosR.rows.map((p: any) => ({
+        hora: new Date(p.timestamp_punto).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
+        velocidad: Math.round(p.velocidad),
+        lat: p.lat,
+        lng: p.lng,
+        lugar: p.lugar_cercano || null,
+      }));
+
+      res.json({
+        patente,
+        conductor: condR.rows[0]?.conductor || "Sin asignar",
+        contrato: contR.rows[0]?.nombre || null,
+        velocidad_maxima: maxPunto ? Math.round(maxPunto.velocidad) : 0,
+        limite: 105,
+        exceso_kmh: maxPunto ? Math.round(maxPunto.velocidad - 105) : 0,
+        lugar_descripcion: lugar,
+        lat: maxPunto?.lat,
+        lng: maxPunto?.lng,
+        hora_exceso: maxPunto ? new Date(maxPunto.timestamp_punto).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : null,
+        puntos_exceso: timeline.length,
+        timeline,
+      });
+    } catch (error: any) {
+      console.error("[DETALLE-VEL] Error:", error.message);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ── Historial velocidad camión últimos N días ──
+  app.get("/api/alertas/historial-velocidad/:patente", async (req: Request, res: Response) => {
+    try {
+      const { patente } = req.params;
+      const dias = parseInt(req.query.dias as string || "7");
+      const desde = new Date();
+      desde.setDate(desde.getDate() - dias);
+
+      const excesosR = await pool.query(`
+        SELECT DATE(timestamp_punto) as fecha,
+          MAX(velocidad_kmh::float) as velocidad_max,
+          COUNT(*) as puntos_exceso
+        FROM geo_puntos
+        WHERE patente = $1 AND velocidad_kmh > 105 AND timestamp_punto >= $2
+        GROUP BY DATE(timestamp_punto)
+        ORDER BY fecha DESC
+      `, [patente, desde]);
+
+      const totalR = await pool.query(`
+        SELECT COUNT(*) as total FROM geo_puntos
+        WHERE patente = $1 AND timestamp_punto >= $2
+      `, [patente, desde]);
+
+      const totalPuntos = parseInt(totalR.rows[0]?.total || "0");
+      const totalExcesos = excesosR.rows.reduce((s: number, e: any) => s + parseInt(e.puntos_exceso), 0);
+
+      res.json({
+        patente,
+        dias_analizados: dias,
+        total_excesos: totalExcesos,
+        dias_con_exceso: excesosR.rows.length,
+        velocidad_max_periodo: excesosR.rows.length > 0 ? Math.round(Math.max(...excesosR.rows.map((e: any) => parseFloat(e.velocidad_max)))) : 0,
+        pct_tiempo_sobre_limite: totalPuntos > 0 ? Math.round(totalExcesos / totalPuntos * 100) : 0,
+        historial: excesosR.rows.map((e: any) => ({
+          fecha: e.fecha,
+          velocidad_max: Math.round(parseFloat(e.velocidad_max)),
+          puntos_exceso: parseInt(e.puntos_exceso),
+        })),
+      });
+    } catch (error: any) {
+      console.error("[HIST-VEL] Error:", error.message);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ── Ubicación de alerta (para mini mapa)
+  app.get("/api/control/ubicacion-alerta", async (req: Request, res: Response) => {
+    try {
+      const { patente, tipo } = req.query;
+      if (!patente) return res.status(400).json({ error: "patente required" });
+
+      if (tipo === "VELOCIDAD") {
+        const r = await pool.query(`
+          SELECT patente, lat, lng, velocidad, timestamp_gps::text as hora, contrato, conductor
+          FROM gps_unificado WHERE patente = $1 AND velocidad > 105 AND timestamp_gps >= NOW() - INTERVAL '48 hours'
+          ORDER BY velocidad DESC LIMIT 1
+        `, [patente]);
+        if (r.rows.length === 0) return res.json({ sin_datos: true });
+        return res.json(r.rows[0]);
+      }
+
+      if (tipo === "RUTA" || tipo === "RUTA_ANOMALA") {
+        const r = await pool.query(`
+          SELECT lat, lng FROM gps_unificado
+          WHERE patente = $1 AND timestamp_gps >= CURRENT_DATE
+          ORDER BY timestamp_gps ASC LIMIT 200
+        `, [patente]);
+        const pts = r.rows;
+        const lat = pts.length ? pts.reduce((s: number, p: any) => s + p.lat, 0) / pts.length : -33.45;
+        const lng = pts.length ? pts.reduce((s: number, p: any) => s + p.lng, 0) / pts.length : -70.65;
+        return res.json({ lat, lng, puntos_ruta: pts });
+      }
+
+      // Default: last known position
+      const r = await pool.query(`
+        SELECT lat, lng, velocidad, timestamp_gps::text as hora FROM gps_unificado
+        WHERE patente = $1 ORDER BY timestamp_gps DESC LIMIT 1
+      `, [patente]);
+      res.json(r.rows[0] || { sin_datos: true });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   console.log("[cerebro] Cerebro routes registered");

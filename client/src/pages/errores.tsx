@@ -335,7 +335,7 @@ export default function Errores() {
               Errores de Datos
             </h1>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground">
+          <span className="text-xs font-mono text-muted-foreground">
             Registros con datos imposibles o inconsistentes en Sigetra — ultimos {period === "7D" ? "7" : period === "14D" ? "14" : "30"} dias
           </span>
         </div>
@@ -346,7 +346,7 @@ export default function Errores() {
                 key={p}
                 onClick={() => setPeriod(p)}
                 data-testid={`btn-period-${p.toLowerCase()}`}
-                className={`px-3 py-1.5 text-[10px] font-mono font-bold transition-colors ${period === p ? "bg-amber-500/20 text-amber-400" : "text-muted-foreground hover:text-foreground"}`}
+                className={`px-3 py-1.5 text-xs font-mono font-bold transition-colors ${period === p ? "bg-amber-500/20 text-amber-400" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {p}
               </button>
@@ -367,7 +367,7 @@ export default function Errores() {
 
       <div className="bg-amber-500/5 border border-amber-500/20 p-3 flex items-center gap-2">
         <AlertOctagon className="w-4 h-4 text-amber-400 flex-shrink-0" />
-        <span className="text-[10px] font-mono text-amber-400">
+        <span className="text-xs font-mono text-amber-400">
           Estos registros tienen datos que no son fisicamente posibles (rendimiento &gt;15 km/L, odometros que retroceden, saltos de 100.000+ km, micro-cargas con miles de km) o cuadratura baja (&lt;95% match entre litros Volvo y Sigetra). Son excluidos del analisis de Fusion, Desviaciones y Performance IA.
         </span>
       </div>
@@ -378,50 +378,50 @@ export default function Errores() {
           className={`bg-card border p-3 text-left cursor-pointer transition-colors ${filterType === "all" ? "border-amber-500 bg-amber-500/10" : "border-border hover:border-amber-500/30"}`}>
           <div className="flex items-center gap-2 mb-1">
             <Bug className="w-4 h-4 text-amber-400" />
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.2em]">TOTAL ERRORES</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.2em]">TOTAL ERRORES</span>
           </div>
           <div className="text-2xl font-mono font-bold text-amber-400" data-testid="text-err-total">{stats.total}</div>
-          <div className="text-[10px] font-mono text-muted-foreground">{stats.trucks} camiones</div>
+          <div className="text-xs font-mono text-muted-foreground">{stats.trucks} camiones</div>
         </button>
         <button onClick={() => setFilterType("CUADRATURA_BAJA")}
           data-testid="btn-err-filter-cuadratura"
           className={`bg-card border p-3 text-left cursor-pointer transition-colors ${filterType === "CUADRATURA_BAJA" ? "border-amber-500 bg-amber-500/10" : "border-border hover:border-amber-500/30"}`}>
           <div className="flex items-center gap-2 mb-1">
             <ArrowDownUp className="w-4 h-4 text-amber-400" />
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.2em]">CUADRATURA BAJA</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.2em]">CUADRATURA BAJA</span>
           </div>
           <div className="text-2xl font-mono font-bold text-amber-400" data-testid="text-err-cuadratura">{stats.byType.get("CUADRATURA_BAJA") || 0}</div>
-          <div className="text-[10px] font-mono text-muted-foreground">&lt;95% Volvo vs Sigetra</div>
+          <div className="text-xs font-mono text-muted-foreground">&lt;95% Volvo vs Sigetra</div>
         </button>
         <button onClick={() => setFilterType("REND_IMPOSIBLE")}
           data-testid="btn-err-filter-rend"
           className={`bg-card border p-3 text-left cursor-pointer transition-colors ${filterType === "REND_IMPOSIBLE" ? "border-amber-500 bg-amber-500/10" : "border-border hover:border-amber-500/30"}`}>
           <div className="flex items-center gap-2 mb-1">
             <Gauge className="w-4 h-4 text-amber-400" />
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.2em]">REND. IMPOSIBLE</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.2em]">REND. IMPOSIBLE</span>
           </div>
           <div className="text-2xl font-mono font-bold text-amber-400">{stats.byType.get("REND_IMPOSIBLE") || 0}</div>
-          <div className="text-[10px] font-mono text-muted-foreground">&gt;15 km/L</div>
+          <div className="text-xs font-mono text-muted-foreground">&gt;15 km/L</div>
         </button>
         <button onClick={() => setFilterType("odo_group")}
           data-testid="btn-err-filter-km-neg"
           className={`bg-card border p-3 text-left cursor-pointer transition-colors ${filterType === "odo_group" ? "border-red-500 bg-red-500/10" : "border-border hover:border-red-500/30"}`}>
           <div className="flex items-center gap-2 mb-1">
             <ArrowDownUp className="w-4 h-4 text-red-400" />
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.2em]">ODOMETRO CORRUPTO</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.2em]">ODOMETRO CORRUPTO</span>
           </div>
           <div className="text-2xl font-mono font-bold text-red-400">{(stats.byType.get("KM_NEGATIVO") || 0) + (stats.byType.get("ODO_SALTO") || 0) + (stats.byType.get("KM_EXTREMO") || 0)}</div>
-          <div className="text-[10px] font-mono text-muted-foreground">km neg / salto / extremo</div>
+          <div className="text-xs font-mono text-muted-foreground">km neg / salto / extremo</div>
         </button>
         <button onClick={() => setFilterType("MICRO_CARGA")}
           data-testid="btn-err-filter-micro"
           className={`bg-card border p-3 text-left cursor-pointer transition-colors ${filterType === "MICRO_CARGA" ? "border-blue-500 bg-blue-500/10" : "border-border hover:border-blue-500/30"}`}>
           <div className="flex items-center gap-2 mb-1">
             <Fuel className="w-4 h-4 text-blue-400" />
-            <span className="text-[8px] font-mono text-muted-foreground tracking-[0.2em]">MICRO-CARGAS</span>
+            <span className="text-xs font-mono text-muted-foreground tracking-[0.2em]">MICRO-CARGAS</span>
           </div>
           <div className="text-2xl font-mono font-bold text-blue-400">{stats.byType.get("MICRO_CARGA") || 0}</div>
-          <div className="text-[10px] font-mono text-muted-foreground">&lt;0.5L sospechosas</div>
+          <div className="text-xs font-mono text-muted-foreground">&lt;0.5L sospechosas</div>
         </button>
       </div>
 
@@ -433,12 +433,12 @@ export default function Errores() {
             className="pl-8 font-mono text-xs bg-card"
             data-testid="input-err-search" />
         </div>
-        <span className="text-[10px] font-mono text-muted-foreground">{filtered.length} camiones</span>
+        <span className="text-xs font-mono text-muted-foreground">{filtered.length} camiones</span>
       </div>
 
       <div className="border border-border bg-card overflow-hidden">
         <div className="bg-background border-b border-border px-3 py-2">
-          <span className="text-[8px] font-mono font-bold text-muted-foreground tracking-[0.15em]">
+          <span className="text-xs font-mono font-bold text-muted-foreground tracking-[0.15em]">
             REGISTROS CON ERRORES DE DATOS
           </span>
         </div>
@@ -459,17 +459,17 @@ export default function Errores() {
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-mono font-bold text-foreground">{fleetNum}</span>
-                      <span className="text-[10px] font-mono text-muted-foreground">{t.patenteReal || ""}</span>
-                      <span className="text-[10px] font-mono text-muted-foreground">{t.faenaSigetra || ""}</span>
+                      <span className="text-xs font-mono text-muted-foreground">{t.patenteReal || ""}</span>
+                      <span className="text-xs font-mono text-muted-foreground">{t.faenaSigetra || ""}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-mono font-bold text-amber-400">{errors.length} error{errors.length > 1 ? "es" : ""}</span>
+                      <span className="text-[11px] font-mono font-bold text-amber-400">{errors.length} error{errors.length > 1 ? "es" : ""}</span>
                       {isExpanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {Array.from(new Set(errors.map(e => e.errorType))).map(type => (
-                      <span key={type} className={`text-[8px] font-mono px-1.5 py-0.5 border ${ERROR_COLORS[type]}`}>
+                      <span key={type} className={`text-xs font-mono px-1.5 py-0.5 border ${ERROR_COLORS[type]}`}>
                         {ERROR_LABELS[type]}
                       </span>
                     ))}
@@ -494,13 +494,13 @@ export default function Errores() {
                       <div key={i} className={`border p-3 ${ERROR_COLORS[e.errorType]}`}>
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <AlertOctagon className="w-3.5 h-3.5" />
-                          <span className="text-[10px] font-mono font-bold">{e.errorLabel}</span>
-                          <span className="text-[9px] font-mono opacity-70" data-testid={`text-err-patente-${i}`}>{e.truck.patenteReal || e.truck.fleetNum}</span>
-                          {e.carga && <span className="text-[9px] font-mono opacity-70" data-testid={`text-err-fecha-${i}`}>{formatDateTime(e.carga.fecha)}</span>}
-                          {e.carga && <span className="text-[9px] font-mono opacity-70">Guia #{e.carga.numGuia}</span>}
+                          <span className="text-xs font-mono font-bold">{e.errorLabel}</span>
+                          <span className="text-[11px] font-mono opacity-70" data-testid={`text-err-patente-${i}`}>{e.truck.patenteReal || e.truck.fleetNum}</span>
+                          {e.carga && <span className="text-[11px] font-mono opacity-70" data-testid={`text-err-fecha-${i}`}>{formatDateTime(e.carga.fecha)}</span>}
+                          {e.carga && <span className="text-[11px] font-mono opacity-70">Guia #{e.carga.numGuia}</span>}
                         </div>
                         {e.carga ? (
-                          <div className="grid grid-cols-[1fr_70px_80px_80px_70px] gap-0 mb-2 text-[10px] font-mono">
+                          <div className="grid grid-cols-[1fr_70px_80px_80px_70px] gap-0 mb-2 text-xs font-mono">
                             <div>
                               <span className="text-muted-foreground">Fecha: </span>
                               <span>{formatDateTime(e.carga.fecha)}</span>
@@ -523,7 +523,7 @@ export default function Errores() {
                             </div>
                           </div>
                         ) : e.errorType === "CUADRATURA_BAJA" && (
-                          <div className="grid grid-cols-3 gap-4 mb-2 text-[10px] font-mono">
+                          <div className="grid grid-cols-3 gap-4 mb-2 text-xs font-mono">
                             <div>
                               <span className="text-muted-foreground">Volvo: </span>
                               <span className="text-amber-400 font-bold">{e.truck.litrosVolvoPeriodo != null ? fN(Math.round(e.truck.litrosVolvoPeriodo)) : "\u2014"} L</span>
@@ -542,7 +542,7 @@ export default function Errores() {
                             </div>
                           </div>
                         )}
-                        <div className="text-[9px] font-mono opacity-80">{e.detail}</div>
+                        <div className="text-[11px] font-mono opacity-80">{e.detail}</div>
                       </div>
                     ))}
                   </div>

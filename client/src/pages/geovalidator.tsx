@@ -5,9 +5,11 @@ import { Map as MapIcon, CheckCircle, RefreshCw, MapPin, Clock, Gauge, Truck, Ch
 import MapaEnVivo from "./geo-tabs/mapa-en-vivo";
 import ViajesCerrados from "./geo-tabs/viajes-cerrados";
 import AnalisisIATab from "./geo-tabs/analisis-ia-tab";
+import RutasOperacionales from "./geo-tabs/rutas-operacionales";
+import AcumulacionTab from "./geo-tabs/acumulacion-tab";
 import EstacionesTab from "./geo-tabs/estaciones-tab";
 
-type GeoTab = "mapa" | "viajes" | "conductores" | "camiones" | "ia" | "recopilacion" | "aprendizaje" | "estaciones" | "rendimiento";
+type GeoTab = "mapa" | "viajes" | "acumulacion" | "conductores" | "camiones" | "ia" | "recopilacion" | "aprendizaje" | "estaciones" | "rendimiento" | "rutas";
 
 interface CamionLive {
   camionId: number;
@@ -72,7 +74,7 @@ const estadoLabels: Record<string, string> = {
 function EstadoBadge({ estado }: { estado: string }) {
   const color = estadoColors[estado] || "#3a6080";
   return (
-    <span className="font-exo text-[10px] font-bold px-2 py-0.5 rounded" style={{
+    <span className="font-exo text-xs font-bold px-2 py-0.5 rounded" style={{
       background: color + "20",
       border: `1px solid ${color}`,
       color,
@@ -95,10 +97,9 @@ function CamionStatusDot({ estado }: { estado: string }) {
 function CamionesTab() {
   const CONTRATOS = [
     { id: "TODOS", label: "TODOS", color: "#c8e8ff" },
-    { id: "CENCOSUD", label: "CENCOSUD", color: "#00d4ff" },
-    { id: "ANGLO-COCU", label: "ANGLO-COCU", color: "#1A8FFF" },
-    { id: "ANGLO-CARGAS VARIAS", label: "A-CARGAS VAR", color: "#FF6B35" },
-    { id: "ANGLO-CAL", label: "ANGLO-CAL", color: "#00C49A" },
+    { id: "ANGLO-COCU", label: "ANGLO-COCU", color: "#00ff88" },
+    { id: "ANGLO-CARGAS VARIAS", label: "A-CARGAS VAR", color: "#00d4ff" },
+    { id: "ANGLO-CAL", label: "ANGLO-CAL", color: "#ff6b35" },
   ];
 
   const [contrato, setContrato] = useState("TODOS");
@@ -111,7 +112,7 @@ function CamionesTab() {
   const contractQueries = CONTRATOS.filter(c => c.id !== "TODOS");
   const queries = useQueries({
     queries: contractQueries.map(c => {
-      const params = c.id === "CENCOSUD" ? "contrato=CENCOSUD" : `contrato=${c.id.split("-")[0]}&subfaena=${c.id.split("-").slice(1).join("-")}`;
+      const params = `contrato=${c.id.split("-")[0]}&subfaena=${c.id.split("-").slice(1).join("-")}`;
       return {
         queryKey: ["/api/geo/cruce-mensual", c.id],
         queryFn: () => fetch(`/api/geo/cruce-mensual?${params}`).then(r => r.json()),
@@ -209,7 +210,7 @@ function CamionesTab() {
         {CONTRATOS.map(c => (
           <button key={c.id} onClick={() => { setContrato(c.id); setExpandedRow(null); }}
             data-testid={`camiones-filter-${c.id}`}
-            className="font-exo text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer transition-all tracking-[0.08em]"
+            className="font-exo text-xs font-bold px-3 py-1.5 rounded cursor-pointer transition-all tracking-[0.08em]"
             style={{
               background: contrato === c.id ? c.color + "20" : "transparent",
               border: `1px solid ${contrato === c.id ? c.color : "#0d2035"}`,
@@ -235,7 +236,7 @@ function CamionesTab() {
           { label: "KM VOLVO", val: fN(totals.km), color: "#3a6080" },
         ].map(k => (
           <div key={k.label} className="dash-card px-3 py-2.5" data-testid={`camiones-kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
-            <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>{k.label}</div>
+            <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>{k.label}</div>
             <div className="font-space text-[18px] font-bold" style={{ color: k.color }}>{k.val}</div>
           </div>
         ))}
@@ -263,7 +264,7 @@ function CamionesTab() {
                 ].map(col => (
                   <th key={col.key}
                     onClick={() => ["patente", "diffLt", "diffPct", "litrosSig", "litrosEcu"].includes(col.key) ? setSortBy(col.key as any) : null}
-                    className={`font-exo text-[9px] tracking-[0.12em] text-left px-2.5 py-2.5 ${col.w} ${["patente", "diffLt", "diffPct", "litrosSig", "litrosEcu"].includes(col.key) ? "cursor-pointer hover:text-[#c8e8ff]" : ""}`}
+                    className={`font-exo text-[11px] tracking-[0.12em] text-left px-2.5 py-2.5 ${col.w} ${["patente", "diffLt", "diffPct", "litrosSig", "litrosEcu"].includes(col.key) ? "cursor-pointer hover:text-[#c8e8ff]" : ""}`}
                     style={{ color: sortBy === col.key ? "#00d4ff" : "#3a6080", borderBottom: "1px solid #0d2035" }}>
                     {col.label}
                   </th>
@@ -278,15 +279,15 @@ function CamionesTab() {
                     className="cursor-pointer transition-colors hover:bg-[#0d203520]"
                     style={{ borderBottom: "1px solid #0d2035" }}>
                     <td className="font-space text-[12px] font-bold px-2.5 py-2.5" style={{ color: "#00d4ff" }}>{c.patente}</td>
-                    <td className="font-exo text-[10px] px-2.5 py-2.5">
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: getContratoColor(c.contrato) + "20", color: getContratoColor(c.contrato) }}>
+                    <td className="font-exo text-xs px-2.5 py-2.5">
+                      <span className="px-1.5 py-0.5 rounded text-[11px] font-bold" style={{ background: getContratoColor(c.contrato) + "20", color: getContratoColor(c.contrato) }}>
                         {CONTRATOS.find(ct => ct.id === c.contrato)?.label || c.contrato}
                       </span>
                     </td>
                     <td className="font-space text-[11px] px-2.5 py-2.5" style={{ color: "#00d4ff" }}>{fN(c.litrosEcu)}</td>
                     <td className="font-space text-[11px] px-2.5 py-2.5" style={{ color: "#c8e8ff" }}>{c.viajesEcu}</td>
                     <td className="px-2.5 py-2.5">
-                      <span className="font-exo text-[9px] font-bold px-2 py-0.5 rounded" style={{
+                      <span className="font-exo text-[11px] font-bold px-2 py-0.5 rounded" style={{
                         background: c.confianza === "ALTA" ? "#00c97a20" : c.confianza === "MEDIA" ? "#ffcc0020" : "#ff224420",
                         color: c.confianza === "ALTA" ? "#00c97a" : c.confianza === "MEDIA" ? "#ffcc00" : "#ff2244",
                       }} data-testid={`confianza-${c.patente}`}>
@@ -299,7 +300,7 @@ function CamionesTab() {
                     </td>
                     <td className="px-2.5 py-2.5">
                       <div className="flex items-center gap-1">
-                        <div className="font-exo text-[8px] w-5" style={{ color: "#3a6080" }}>ECU</div>
+                        <div className="font-exo text-xs w-5" style={{ color: "#3a6080" }}>ECU</div>
                         <div className="flex-1 h-2 rounded-sm overflow-hidden" style={{ background: "#0d2035" }}>
                           <div className="h-full rounded-sm" style={{ width: `${Math.min((c.litrosEcu / barMax) * 100, 100)}%`, background: "#00d4ff" }} />
                         </div>
@@ -312,17 +313,17 @@ function CamionesTab() {
                         <div className="p-4">
                           <div className="grid grid-cols-3 gap-3 mb-3">
                             <div className="dash-card p-3">
-                              <div className="font-exo text-[8px] tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>KM ECU VOLVO</div>
+                              <div className="font-exo text-xs tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>KM ECU VOLVO</div>
                               <div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{fN(c.kmEcu)}</div>
                             </div>
                             <div className="dash-card p-3">
-                              <div className="font-exo text-[8px] tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>REND ECU</div>
+                              <div className="font-exo text-xs tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>REND ECU</div>
                               <div className="font-space text-[14px] font-bold" style={{ color: c.rendimientoEcu > 0 ? "#00d4ff" : "#3a6080" }}>
                                 {c.rendimientoEcu > 0 ? `${c.rendimientoEcu.toFixed(2)} km/L` : "--"}
                               </div>
                             </div>
                             <div className="dash-card p-3">
-                              <div className="font-exo text-[8px] tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>LT ECU CONSUMIDOS</div>
+                              <div className="font-exo text-xs tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>LT ECU CONSUMIDOS</div>
                               <div className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>
                                 {fN(c.litrosEcu)} L
                               </div>
@@ -330,7 +331,7 @@ function CamionesTab() {
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="flex-1">
-                              <div className="font-exo text-[9px] mb-1" style={{ color: "#3a6080" }}>ECU: {fN(c.litrosEcu)} L</div>
+                              <div className="font-exo text-[11px] mb-1" style={{ color: "#3a6080" }}>ECU: {fN(c.litrosEcu)} L</div>
                               <div className="h-5 rounded overflow-hidden" style={{ background: "#0d2035" }}>
                                 <div className="h-full rounded" style={{ width: `${Math.min((c.litrosEcu / barMax) * 100, 100)}%`, background: "#00d4ff" }} />
                               </div>
@@ -345,7 +346,7 @@ function CamionesTab() {
               {filtered.length > 0 && (
                 <tr style={{ background: "#091018", borderTop: "2px solid #0d2035" }}>
                   <td className="font-space text-[11px] font-bold px-2.5 py-2.5" style={{ color: "#c8e8ff" }}>TOTAL</td>
-                  <td className="font-exo text-[10px] px-2.5 py-2.5" style={{ color: "#3a6080" }}>{filtered.length} cam</td>
+                  <td className="font-exo text-xs px-2.5 py-2.5" style={{ color: "#3a6080" }}>{filtered.length} cam</td>
                   <td className="font-space text-[11px] font-bold px-2.5 py-2.5" style={{ color: "#00d4ff" }}>{fN(totals.litrosEcu)}</td>
                   <td className="font-space text-[11px] px-2.5 py-2.5" style={{ color: "#c8e8ff" }}>{fN(totals.viajes)}</td>
                   <td />
@@ -374,11 +375,11 @@ function CamionesTab() {
             <h3 className="font-space text-[13px] font-bold tracking-[0.1em]" style={{ color: "#3a6080" }}>
               SIN TELEMETRIA SUFICIENTE
             </h3>
-            <span className="font-exo text-[10px] px-2 py-0.5 rounded" style={{ background: "#ff224415", color: "#ff2244" }}>
+            <span className="font-exo text-xs px-2 py-0.5 rounded" style={{ background: "#ff224415", color: "#ff2244" }}>
               {sinTelemetria.length} camiones — menos de 5 snapshots ECU
             </span>
           </div>
-          <p className="font-exo text-[10px] mb-3" style={{ color: "#3a6080" }}>
+          <p className="font-exo text-xs mb-3" style={{ color: "#3a6080" }}>
             Estos camiones tienen datos ECU insuficientes para un cruce confiable. Excluidos del analisis principal.
           </p>
           <div className="dash-card overflow-hidden">
@@ -386,7 +387,7 @@ function CamionesTab() {
               <thead>
                 <tr style={{ background: "#091018" }}>
                   {["PATENTE", "CONTRATO", "LT ECU", "SNAPS", "CONFIANZA"].map(h => (
-                    <th key={h} className="font-exo text-[9px] tracking-[0.12em] text-left px-2.5 py-2"
+                    <th key={h} className="font-exo text-[11px] tracking-[0.12em] text-left px-2.5 py-2"
                       style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>{h}</th>
                   ))}
                 </tr>
@@ -395,15 +396,15 @@ function CamionesTab() {
                 {sinTelemetria.map((c: any) => (
                   <tr key={c.patente} style={{ borderBottom: "1px solid #0d203530" }} data-testid={`sin-tel-row-${c.patente}`}>
                     <td className="font-space text-[11px] font-bold px-2.5 py-2" style={{ color: "#3a6080" }}>{c.patente}</td>
-                    <td className="font-exo text-[10px] px-2.5 py-2">
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: getContratoColor(c.contrato) + "20", color: getContratoColor(c.contrato) }}>
+                    <td className="font-exo text-xs px-2.5 py-2">
+                      <span className="px-1.5 py-0.5 rounded text-[11px] font-bold" style={{ background: getContratoColor(c.contrato) + "20", color: getContratoColor(c.contrato) }}>
                         {CONTRATOS.find(ct => ct.id === c.contrato)?.label || c.contrato}
                       </span>
                     </td>
                     <td className="font-space text-[11px] px-2.5 py-2" style={{ color: "#3a6080" }}>{fN(c.litrosEcu)}</td>
                     <td className="font-space text-[11px] px-2.5 py-2" style={{ color: "#3a6080" }}>{c.viajesEcu}</td>
                     <td className="px-2.5 py-2">
-                      <span className="font-exo text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: "#ff224420", color: "#ff2244" }}>
+                      <span className="font-exo text-[11px] font-bold px-2 py-0.5 rounded" style={{ background: "#ff224420", color: "#ff2244" }}>
                         BAJA
                       </span>
                     </td>
@@ -419,16 +420,13 @@ function CamionesTab() {
 }
 
 const CONTRATOS_GEO = [
-  { id: "CENCOSUD", label: "CENCOSUD", color: "#00d4ff" },
-  { id: "ANGLO", label: "ANGLO", color: "#FF6B35", subfaenas: [
-    { id: "ANGLO-COCU", label: "COCU", color: "#1A8FFF" },
-    { id: "ANGLO-CARGAS VARIAS", label: "CARGAS VARIAS", color: "#FF6B35" },
-    { id: "ANGLO-CAL", label: "CAL", color: "#00C49A" },
-  ]},
+  { id: "ANGLO-COCU", label: "ANGLO-COCU", color: "#00ff88" },
+  { id: "ANGLO-CARGAS VARIAS", label: "ANGLO-CV", color: "#00d4ff" },
+  { id: "ANGLO-CAL", label: "ANGLO-CAL", color: "#ff6b35" },
 ];
 
 function ConductoresTab() {
-  const [selectedContrato, setSelectedContrato] = useState("CENCOSUD");
+  const [selectedContrato, setSelectedContrato] = useState("ANGLO-COCU");
   const [selectedSubfaena, setSelectedSubfaena] = useState("");
 
   const contratoParam = selectedContrato;
@@ -483,7 +481,7 @@ function ConductoresTab() {
           <button key={c.id}
             onClick={() => { setSelectedContrato(c.id); setSelectedSubfaena(""); setExpandedConductor(null); }}
             data-testid={`btn-contrato-${c.id}`}
-            className="font-space text-[10px] font-bold tracking-wider px-3 py-1.5 cursor-pointer transition-all"
+            className="font-space text-xs font-bold tracking-wider px-3 py-1.5 cursor-pointer transition-all"
             style={{
               background: selectedContrato === c.id ? c.color + "20" : "#0a1520",
               border: `1px solid ${selectedContrato === c.id ? c.color : "#0d2035"}`,
@@ -496,7 +494,7 @@ function ConductoresTab() {
           <button key={sf.id}
             onClick={() => { setSelectedSubfaena(selectedSubfaena === sf.id ? "" : sf.id); setExpandedConductor(null); }}
             data-testid={`btn-subfaena-${sf.id}`}
-            className="font-space text-[9px] font-bold tracking-wider px-2.5 py-1 cursor-pointer transition-all"
+            className="font-space text-[11px] font-bold tracking-wider px-2.5 py-1 cursor-pointer transition-all"
             style={{
               background: selectedSubfaena === sf.id ? sf.color + "20" : "#0a1520",
               border: `1px solid ${selectedSubfaena === sf.id ? sf.color : "#0d2035"}`,
@@ -512,10 +510,10 @@ function ConductoresTab() {
           <div className="font-space text-[13px] font-bold tracking-wider" style={{ color: activeColor }}>
             CONDUCTORES {selectedSubfaena || selectedContrato}
           </div>
-          <div className="font-exo text-[10px] px-2 py-0.5 rounded" style={{ background: activeColor + "15", border: `1px solid ${activeColor}30`, color: activeColor }}>
+          <div className="font-exo text-xs px-2 py-0.5 rounded" style={{ background: activeColor + "15", border: `1px solid ${activeColor}30`, color: activeColor }}>
             {conductoresData?.totalConductores || 0} conductores
           </div>
-          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+          <div className="font-exo text-xs" style={{ color: "#3a6080" }}>
             Desde {conductoresData?.desde || "01-03-2026"}
           </div>
         </div>
@@ -528,7 +526,7 @@ function ConductoresTab() {
             ]).map(s => (
               <button key={s.id} onClick={() => setSortBy(s.id)}
                 data-testid={`btn-sort-${s.id}`}
-                className="font-exo text-[10px] font-bold px-2.5 py-1 rounded cursor-pointer transition-all"
+                className="font-exo text-xs font-bold px-2.5 py-1 rounded cursor-pointer transition-all"
                 style={{
                   background: sortBy === s.id ? (s.id === "rend_asc" ? "#ff224420" : s.id === "rend_desc" ? "#00c97a20" : "#00d4ff15") : "#0d203530",
                   border: `1px solid ${sortBy === s.id ? (s.id === "rend_asc" ? "#ff2244" : s.id === "rend_desc" ? "#00c97a" : "#00d4ff") : "#0d2035"}`,
@@ -558,7 +556,7 @@ function ConductoresTab() {
           <thead>
             <tr style={{ background: "#0d203540" }}>
               {["CONDUCTOR", "CAMIONES", "CARGAS", "LITROS TOTAL", "KM TOTAL", "REND km/L", "ULT. CARGA"].map(h => (
-                <th key={h} className="px-3 py-2 text-left font-space text-[10px] font-bold tracking-wider" style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+                <th key={h} className="px-3 py-2 text-left font-space text-xs font-bold tracking-wider" style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
                   {h}
                 </th>
               ))}
@@ -586,7 +584,7 @@ function ConductoresTab() {
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       {cond.camiones.map((p: string) => (
-                        <span key={p} className="font-space text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#ff660015", border: "1px solid #ff660030", color: "#ff6600" }}>{p}</span>
+                        <span key={p} className="font-space text-xs px-1.5 py-0.5 rounded" style={{ background: "#ff660015", border: "1px solid #ff660030", color: "#ff6600" }}>{p}</span>
                       ))}
                     </div>
                   </td>
@@ -596,7 +594,7 @@ function ConductoresTab() {
                   <td className="px-3 py-2 font-space text-[11px] font-bold" style={{ color: cond.rendimiento >= 3.5 ? "#00c97a" : cond.rendimiento > 0 ? "#ff2244" : "#3a6080" }}>
                     {cond.rendimiento > 0 ? cond.rendimiento.toFixed(2) : "--"}
                   </td>
-                  <td className="px-3 py-2 font-exo text-[10px]" style={{ color: "#3a6080" }}>
+                  <td className="px-3 py-2 font-exo text-xs" style={{ color: "#3a6080" }}>
                     {cond.ultimaCarga ? new Date(cond.ultimaCarga).toLocaleDateString("es-CL") : "--"}
                   </td>
                 </tr>
@@ -604,19 +602,19 @@ function ConductoresTab() {
                   <tr>
                     <td colSpan={7} className="px-3 py-2" style={{ background: "#0d203515" }}>
                       <div className="ml-6 space-y-1 max-h-[300px] overflow-y-auto">
-                        <div className="font-space text-[10px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>
+                        <div className="font-space text-xs font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>
                           DETALLE DE CARGAS ({cond.cargasDetalle.length})
                         </div>
                         {cond.cargasDetalle.map((c: any, i: number) => (
                           <div key={i} className="flex items-center gap-3 p-1.5 rounded" style={{ background: "#0d203530", border: "1px solid #0d203560" }}>
-                            <span className="font-exo text-[10px] w-24 flex-shrink-0" style={{ color: "#c8e8ff" }}>
+                            <span className="font-exo text-xs w-24 flex-shrink-0" style={{ color: "#c8e8ff" }}>
                               {new Date(c.fecha).toLocaleDateString("es-CL")} {new Date(c.fecha).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                             </span>
-                            <span className="font-space text-[10px] font-bold w-14 text-right flex-shrink-0" style={{ color: "#ff6600" }}>{c.litros.toFixed(1)} L</span>
-                            <span className="font-space text-[10px] w-12 flex-shrink-0 px-1.5 py-0.5 rounded text-center" style={{ background: "#ff660015", border: "1px solid #ff660030", color: "#ff6600" }}>{c.patente}</span>
-                            <span className="font-exo text-[9px] flex-1 truncate" style={{ color: "#3a6080" }}>{c.lugar}</span>
-                            <span className="font-exo text-[9px] w-16 text-right flex-shrink-0" style={{ color: "#3a6080" }}>{c.km > 0 ? `${c.km.toLocaleString("es-CL")} km` : "--"}</span>
-                            <span className="font-space text-[10px] w-16 text-right flex-shrink-0 font-bold" style={{ color: c.rend >= 3.5 ? "#00c97a" : c.rend > 0 && c.rend < 100 ? "#ff2244" : "#3a6080" }}>
+                            <span className="font-space text-xs font-bold w-14 text-right flex-shrink-0" style={{ color: "#ff6600" }}>{c.litros.toFixed(1)} L</span>
+                            <span className="font-space text-xs w-12 flex-shrink-0 px-1.5 py-0.5 rounded text-center" style={{ background: "#ff660015", border: "1px solid #ff660030", color: "#ff6600" }}>{c.patente}</span>
+                            <span className="font-exo text-[11px] flex-1 truncate" style={{ color: "#3a6080" }}>{c.lugar}</span>
+                            <span className="font-exo text-[11px] w-16 text-right flex-shrink-0" style={{ color: "#3a6080" }}>{c.km > 0 ? `${c.km.toLocaleString("es-CL")} km` : "--"}</span>
+                            <span className="font-space text-xs w-16 text-right flex-shrink-0 font-bold" style={{ color: c.rend >= 3.5 ? "#00c97a" : c.rend > 0 && c.rend < 100 ? "#ff2244" : "#3a6080" }}>
                               {c.rend > 0 && c.rend < 100 ? `${c.rend.toFixed(2)} km/L` : "--"}
                             </span>
                           </div>
@@ -635,17 +633,13 @@ function ConductoresTab() {
 }
 
 function RecopilacionTab() {
-  const { data: stats, isLoading } = useQuery<any>({
-    queryKey: ["/api/geo/stats"],
-    refetchInterval: 30000,
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/recopilacion/cobertura"],
+    queryFn: () => fetch("/api/recopilacion/cobertura").then(r => r.json()),
+    refetchInterval: 60000,
   });
 
-  const ingestMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/geo/ingest-volvo"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/geo/stats"] });
-    },
-  });
+  const [filtro, setFiltro] = useState<string>("TODOS");
 
   if (isLoading) {
     return (
@@ -655,144 +649,197 @@ function RecopilacionTab() {
     );
   }
 
-  const kpis = [
-    { label: "PUNTOS GPS TOTAL", value: stats?.totalPuntos?.toLocaleString() || "0", color: "#00d4ff" },
-    { label: "CAMIONES RASTREADOS", value: stats?.totalCamiones || 0, color: "#00c97a" },
-    { label: "PUNTOS HOY", value: stats?.puntosHoy?.toLocaleString() || "0", color: "#ffcc00" },
-    { label: "PUNTOS 7 DIAS", value: stats?.puntos7d?.toLocaleString() || "0", color: "#ff6600" },
-  ];
+  const semaforoColor: Record<string, string> = { VERDE: "#00ff88", AMARILLO: "#ffcc00", ROJO: "#ff2244" };
+  const semColor = semaforoColor[data?.semaforo || "VERDE"] || "#00ff88";
+
+  const estadoLabel: Record<string, { label: string; color: string; sub: string }> = {
+    ACTIVO: { label: "ACTIVO", color: "#00ff88", sub: "Reporto hace menos de 10 min" },
+    RECIENTE: { label: "RECIENTE", color: "#00d4ff", sub: "Reporto hace menos de 2h" },
+    INACTIVO: { label: "INACTIVO", color: "#ffcc00", sub: "Sin reporte 2-8h" },
+    PERDIDO: { label: "SIN SEÑAL", color: "#ff2244", sub: "Sin reporte > 8h" },
+    SIN_DATOS: { label: "SIN DATOS", color: "#3a6080", sub: "Sin snapshots registrados" },
+  };
+
+  const camiones = (data?.camiones || []).filter((c: any) => filtro === "TODOS" || c.estado === filtro);
+
+  const formatTiempo = (min: number) => {
+    if (min > 1440) return `${Math.round(min / 1440)}d sin señal`;
+    if (min > 60) return `${Math.round(min / 60)}h ${min % 60}min`;
+    return `${min} min`;
+  };
 
   return (
-    <div data-testid="recopilacion-tab">
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-exo text-[13px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>
-          RECOPILACION DE DATOS GPS
+    <div className="space-y-4" data-testid="cobertura-volvo">
+      {/* HEADER SEMAFORO */}
+      <div className="grid grid-cols-5 gap-3">
+        {/* Semaforo principal */}
+        <div className="col-span-1 p-5 flex flex-col items-center justify-center rounded-lg"
+          style={{ background: `${semColor}10`, border: `2px solid ${semColor}40` }}>
+          <div className="w-12 h-12 rounded-full mb-3 relative flex items-center justify-center"
+            style={{ background: `${semColor}20`, border: `2px solid ${semColor}` }}>
+            <div className="w-6 h-6 rounded-full" style={{ background: semColor }} />
+            {data?.semaforo === "ROJO" && (
+              <div className="absolute inset-0 rounded-full animate-ping" style={{ background: `${semColor}30` }} />
+            )}
+          </div>
+          <div className="font-space text-[14px] font-bold text-center" style={{ color: semColor }}>
+            {data?.semaforo === "VERDE" ? "COBERTURA OK" : data?.semaforo === "AMARILLO" ? "REVISAR" : "PROBLEMA"}
+          </div>
+          <div className="font-space text-[28px] font-bold mt-1" style={{ color: semColor }}>{data?.pct_cobertura || 0}%</div>
+          <div className="font-exo text-[11px] text-center mt-1" style={{ color: "#3a6080" }}>de flota con señal</div>
         </div>
-        <button
-          onClick={() => ingestMutation.mutate()}
-          disabled={ingestMutation.isPending}
-          data-testid="button-ingest-manual"
-          className="flex items-center gap-2 px-4 py-2 font-exo text-[11px] font-bold tracking-wider rounded cursor-pointer"
-          style={{
-            background: "rgba(0,212,255,0.12)",
-            border: "1px solid #00d4ff",
-            color: "#00d4ff",
-          }}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${ingestMutation.isPending ? "animate-spin" : ""}`} />
-          {ingestMutation.isPending ? "INGESTING..." : "INGESTAR AHORA"}
-        </button>
-      </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        {kpis.map((k, i) => (
-          <div key={i} className="rounded-lg p-4" style={{
-            background: "rgba(6,13,20,0.6)",
-            border: `1px solid ${k.color}30`,
-          }} data-testid={`kpi-recopilacion-${i}`}>
-            <div className="font-exo text-[10px] font-bold tracking-wider mb-1" style={{ color: "#3a6080" }}>
-              {k.label}
-            </div>
-            <div className="font-space text-[24px] font-bold" style={{ color: k.color }}>
-              {k.value}
-            </div>
+        {/* KPIs de estado */}
+        {[
+          { label: "ACTIVOS AHORA", value: data?.activos || 0, sub: "Reportaron hace < 10 min", color: "#00ff88" },
+          { label: "RECIENTES", value: data?.recientes || 0, sub: "Reportaron hace < 2h", color: "#00d4ff" },
+          { label: "INACTIVOS", value: data?.inactivos || 0, sub: "Sin reporte 2-8h", color: "#ffcc00" },
+          { label: "SIN SEÑAL", value: data?.perdidos || 0, sub: "Sin reporte > 8h", color: (data?.perdidos || 0) > 0 ? "#ff2244" : "#3a6080" },
+        ].map(kpi => (
+          <div key={kpi.label} className="p-4 flex flex-col justify-between rounded-lg"
+            style={{ background: "#060d14", border: `1px solid ${kpi.color}20`, borderTop: `2px solid ${kpi.color}` }}>
+            <div className="font-exo text-[7px] tracking-[0.2em] uppercase mb-2" style={{ color: "#3a6080" }}>{kpi.label}</div>
+            <div className="font-space text-[32px] font-bold leading-none" style={{ color: kpi.color }}>{kpi.value}</div>
+            <div className="font-exo text-[11px] mt-2" style={{ color: "#3a6080" }}>{kpi.sub}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="rounded-lg p-4" style={{
-          background: "rgba(6,13,20,0.6)",
-          border: "1px solid #0d2035",
-        }}>
-          <div className="font-exo text-[11px] font-bold tracking-wider mb-1" style={{ color: "#3a6080" }}>
-            PRIMER PUNTO REGISTRADO
+      {/* CAMIONES SIN SEÑAL — ALERTA */}
+      {(data?.perdidos || 0) > 0 && (
+        <div className="p-4 rounded-lg" style={{ background: "rgba(255,34,68,0.05)", border: "1px solid #ff224430", borderLeft: "4px solid #ff2244" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4" style={{ color: "#ff2244" }} />
+            <span className="font-space text-[11px] font-bold" style={{ color: "#ff2244" }}>CAMIONES SIN SEÑAL</span>
+            <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Requieren atencion</span>
           </div>
-          <div className="font-space text-[14px]" style={{ color: "#c8e8ff" }}>
-            {stats?.primerPunto ? new Date(stats.primerPunto).toLocaleString("es-CL") : "---"}
-          </div>
-        </div>
-        <div className="rounded-lg p-4" style={{
-          background: "rgba(6,13,20,0.6)",
-          border: "1px solid #0d2035",
-        }}>
-          <div className="font-exo text-[11px] font-bold tracking-wider mb-1" style={{ color: "#3a6080" }}>
-            ULTIMO PUNTO REGISTRADO
-          </div>
-          <div className="font-space text-[14px]" style={{ color: "#c8e8ff" }}>
-            {stats?.ultimoPunto ? new Date(stats.ultimoPunto).toLocaleString("es-CL") : "---"}
+          <div className="grid grid-cols-3 gap-2">
+            {(data?.camiones || []).filter((c: any) => c.estado === "PERDIDO" || c.estado === "SIN_DATOS").map((cam: any) => (
+              <div key={cam.patente} className="px-3 py-2 flex items-center justify-between rounded-md"
+                style={{ background: "#060d14", border: "1px solid #ff224420" }}>
+                <span className="font-space text-[12px] font-bold" style={{ color: "#ff2244" }}>{cam.patente}</span>
+                <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>{formatTiempo(cam.minutos_sin_reporte)}</span>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="rounded-lg p-4" style={{
-        background: "rgba(6,13,20,0.6)",
-        border: "1px solid #0d2035",
-      }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Activity className="w-4 h-4" style={{ color: "#00d4ff" }} />
-          <div className="font-exo text-[12px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>
-            HISTORIAL DIARIO (ULTIMOS 14 DIAS)
-          </div>
-        </div>
-        <div className="font-exo text-[10px] tracking-wider mb-2" style={{ color: "#3a6080" }}>
-          INGESTION AUTOMATICA CADA 5 MINUTOS - TODOS LOS CONTRATOS
+      {/* TABLA DE TODOS LOS CAMIONES */}
+      <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+        {/* Filtros */}
+        <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid #0d2035" }}>
+          <span className="font-exo text-xs tracking-wider uppercase mr-2" style={{ color: "#3a6080" }}>FILTRAR:</span>
+          {[
+            { id: "TODOS", label: "TODOS", count: data?.total_flota, color: "#00d4ff" },
+            { id: "ACTIVO", label: "ACTIVOS", count: data?.activos, color: "#00ff88" },
+            { id: "RECIENTE", label: "RECIENTES", count: data?.recientes, color: "#00d4ff" },
+            { id: "INACTIVO", label: "INACTIVOS", count: data?.inactivos, color: "#ffcc00" },
+            { id: "PERDIDO", label: "SIN SEÑAL", count: data?.perdidos, color: "#ff2244" },
+          ].map(f => (
+            <button key={f.id} onClick={() => setFiltro(f.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer font-exo text-xs font-bold tracking-wider rounded-md"
+              style={{
+                background: filtro === f.id ? `${f.color}15` : "transparent",
+                border: `1px solid ${filtro === f.id ? `${f.color}40` : "#0d2035"}`,
+                color: filtro === f.id ? f.color : "#3a6080",
+              }}>
+              {f.label}
+              {f.count !== undefined && <span className="font-space text-[11px]">({f.count})</span>}
+            </button>
+          ))}
         </div>
 
-        {stats?.porDia?.length > 0 ? (
-          <div className="space-y-1">
-            <div className="grid grid-cols-[120px_1fr_80px_80px] gap-2 py-1 border-b" style={{ borderColor: "#0d2035" }}>
-              <div className="font-exo text-[10px] font-bold tracking-wider" style={{ color: "#3a6080" }}>FECHA</div>
-              <div className="font-exo text-[10px] font-bold tracking-wider" style={{ color: "#3a6080" }}>VOLUMEN</div>
-              <div className="font-exo text-[10px] font-bold tracking-wider text-right" style={{ color: "#3a6080" }}>PUNTOS</div>
-              <div className="font-exo text-[10px] font-bold tracking-wider text-right" style={{ color: "#3a6080" }}>CAMIONES</div>
-            </div>
-            {stats.porDia.map((d: any, i: number) => {
-              const maxPuntos = Math.max(...stats.porDia.map((x: any) => x.puntos));
-              const pct = maxPuntos > 0 ? (d.puntos / maxPuntos) * 100 : 0;
-              return (
-                <div key={i} className="grid grid-cols-[120px_1fr_80px_80px] gap-2 py-1.5 items-center" data-testid={`row-dia-${i}`}>
-                  <div className="font-space text-[12px]" style={{ color: "#c8e8ff" }}>
-                    {new Date(d.dia).toLocaleDateString("es-CL", { weekday: "short", day: "2-digit", month: "short" })}
-                  </div>
-                  <div className="h-3 rounded-full overflow-hidden" style={{ background: "#0d2035" }}>
-                    <div className="h-full rounded-full transition-all" style={{
-                      width: `${pct}%`,
-                      background: `linear-gradient(90deg, #00d4ff, #00c97a)`,
+        {/* Header tabla */}
+        <div className="grid grid-cols-6 px-4 py-2" style={{ background: "#0a1520", borderBottom: "1px solid #0d2035" }}>
+          {["CAMION", "ESTADO", "ULTIMO REPORTE", "SIN SEÑAL HACE", "SNAPSHOTS HOY", "VELOCIDAD"].map(h => (
+            <div key={h} className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{h}</div>
+          ))}
+        </div>
+
+        {/* Filas */}
+        <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+          {camiones.map((cam: any) => {
+            const est = estadoLabel[cam.estado] || estadoLabel.SIN_DATOS;
+            return (
+              <div key={cam.patente} className="grid grid-cols-6 px-4 py-3 transition-all hover:bg-[rgba(255,255,255,0.02)]"
+                style={{ borderBottom: "1px solid #0d2035", borderLeft: `3px solid ${est.color}` }}>
+                <div className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{cam.patente}</div>
+                <div>
+                  <span className="font-exo text-xs font-bold px-2 py-0.5 rounded"
+                    style={{ color: est.color, background: `${est.color}12`, border: `1px solid ${est.color}30` }}>
+                    {est.label}
+                  </span>
+                </div>
+                <div className="font-exo text-[11px]" style={{ color: "#c8e8ff" }}>
+                  {cam.ultimo_reporte ? new Date(cam.ultimo_reporte).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin registro"}
+                </div>
+                <div className="font-space text-[11px] font-bold" style={{ color: est.color }}>{formatTiempo(cam.minutos_sin_reporte)}</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 overflow-hidden rounded-sm" style={{ background: "#0d2035", maxWidth: 60 }}>
+                    <div className="h-full" style={{
+                      width: `${Math.min(100, (cam.snapshots_hoy / 500) * 100)}%`,
+                      background: cam.snapshots_hoy > 200 ? "#00ff88" : cam.snapshots_hoy > 50 ? "#ffcc00" : "#ff2244",
                     }} />
                   </div>
-                  <div className="font-space text-[12px] text-right" style={{ color: "#00d4ff" }}>
-                    {d.puntos.toLocaleString()}
-                  </div>
-                  <div className="font-space text-[12px] text-right" style={{ color: "#00c97a" }}>
-                    {d.camiones}
-                  </div>
+                  <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>{cam.snapshots_hoy}</span>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <Database className="w-8 h-8 mx-auto mb-2" style={{ color: "#3a6080" }} />
-            <div className="font-exo text-[12px]" style={{ color: "#3a6080" }}>
-              SIN DATOS AUN - LA INGESTION AUTOMATICA COMENZARA A ACUMULAR PUNTOS GPS
-            </div>
-          </div>
-        )}
+                <div className="font-space text-[11px]" style={{
+                  color: (cam.velocidad || 0) > 105 ? "#ff2244" : (cam.velocidad || 0) > 0 ? "#c8e8ff" : "#3a6080"
+                }}>
+                  {cam.velocidad > 0 ? `${Math.round(cam.velocidad)} km/h` : "--"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="mt-4 rounded-lg p-4" style={{
-        background: "rgba(0,212,255,0.05)",
-        border: "1px solid rgba(0,212,255,0.15)",
-      }}>
-        <div className="font-exo text-[11px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>
-          COMO FUNCIONA LA RECOPILACION
+      {/* HISTORIAL 14 DÍAS */}
+      <div className="p-4 rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-exo text-xs tracking-wider uppercase" style={{ color: "#3a6080" }}>HISTORIAL DE COBERTURA · 14 DIAS</div>
+            <div className="font-exo text-xs mt-1" style={{ color: "#c8e8ff" }}>
+              {data?.total_puntos?.toLocaleString("es-CL")} puntos GPS acumulados en total
+            </div>
+          </div>
+          <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Actualiza cada 5 minutos</div>
         </div>
-        <div className="font-rajdhani text-[13px] leading-relaxed space-y-1" style={{ color: "#6a90aa" }}>
-          <p>Cada 5 minutos se consulta Volvo Connect por la posicion GPS de todos los camiones con VIN registrado.</p>
-          <p>Los puntos se almacenan con coordenadas, velocidad, rumbo y odometro para reconstruir viajes.</p>
-          <p>Con suficientes datos se podran detectar patrones: rutas habituales, paradas sospechosas, desvios y tiempos muertos.</p>
-          <p>Mientras mas datos se acumulen, mejor sera la deteccion de anomalias en el comportamiento de cada camion.</p>
+
+        <div className="space-y-2">
+          {(data?.historial || []).map((dia: any) => {
+            const maxPuntos = Math.max(...(data?.historial || []).map((d: any) => parseInt(d.puntos || "0")));
+            const pct = maxPuntos > 0 ? Math.round(parseInt(dia.puntos) / maxPuntos * 100) : 0;
+            const esHoy = dia.fecha === new Date().toISOString().slice(0, 10);
+            return (
+              <div key={dia.fecha} className="flex items-center gap-3">
+                <div className="font-exo text-[11px] w-20 text-right" style={{ color: "#3a6080" }}>
+                  {new Date(dia.fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
+                </div>
+                <div className="flex-1 h-6 overflow-hidden relative rounded" style={{ background: "#0a1520" }}>
+                  <div className="h-full transition-all" style={{
+                    width: `${pct}%`,
+                    background: esHoy ? "#00d4ff" : pct > 80 ? "#00ff88" : pct > 30 ? "#ffcc00" : "#ff6b35",
+                    opacity: 0.7,
+                  }} />
+                  <div className="absolute inset-0 flex items-center px-2">
+                    <span className="font-exo text-xs" style={{ color: "#c8e8ff" }}>
+                      {parseInt(dia.puntos).toLocaleString("es-CL")} puntos · {dia.camiones} camiones
+                      {esHoy && <span style={{ color: "#00d4ff" }}>{" "} HOY</span>}
+                    </span>
+                  </div>
+                </div>
+                <div className="font-space text-xs w-8 text-right" style={{ color: "#3a6080" }}>{pct}%</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid #0d2035" }}>
+          <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>El sistema consulta Volvo Connect cada 5 minutos para todos los camiones con VIN registrado.</div>
+          <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Cada punto GPS incluye posicion, velocidad y consumo de combustible ECU.</div>
+          <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>A mas puntos acumulados, mejor es la deteccion de anomalias y el calculo de rendimiento.</div>
         </div>
       </div>
     </div>
@@ -892,14 +939,14 @@ function AprendizajeTab() {
           </div>
           <button onClick={() => setShowExplicacion(!showExplicacion)}
             data-testid="button-explicacion"
-            className="px-2 py-1 font-exo text-[9px] font-bold tracking-wider rounded cursor-pointer"
+            className="px-2 py-1 font-exo text-[11px] font-bold tracking-wider rounded cursor-pointer"
             style={{ background: "#00d4ff15", border: "1px solid #00d4ff40", color: "#00d4ff" }}>
             {showExplicacion ? "CERRAR" : "QUE HACE?"}
           </button>
         </div>
         <div className="flex items-center gap-2">
           {progress?.status === "running" && (
-            <div className="flex items-center gap-2 font-exo text-[10px]" style={{ color: "#ffcc00" }}>
+            <div className="flex items-center gap-2 font-exo text-xs" style={{ color: "#ffcc00" }}>
               <RefreshCw className="w-3 h-3 animate-spin" />
               SYNC {progress.procesados}/{progress.totalCamiones}
             </div>
@@ -908,7 +955,7 @@ function AprendizajeTab() {
             onClick={() => autoSyncMutation.mutate(!autoSyncStatus?.active)}
             disabled={autoSyncMutation.isPending}
             data-testid="button-auto-sync"
-            className="flex items-center gap-2 px-3 py-1.5 font-exo text-[10px] font-bold tracking-wider rounded cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 font-exo text-xs font-bold tracking-wider rounded cursor-pointer"
             style={{
               background: autoSyncStatus?.active ? "rgba(0,201,122,0.12)" : "rgba(58,96,128,0.1)",
               border: `1px solid ${autoSyncStatus?.active ? "#00c97a" : "#3a6080"}`,
@@ -925,7 +972,7 @@ function AprendizajeTab() {
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending || progress?.status === "running"}
             data-testid="button-sync-viajes"
-            className="flex items-center gap-2 px-3 py-1.5 font-exo text-[10px] font-bold tracking-wider rounded cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 font-exo text-xs font-bold tracking-wider rounded cursor-pointer"
             style={{
               background: "rgba(0,212,255,0.12)",
               border: "1px solid #00d4ff",
@@ -940,7 +987,7 @@ function AprendizajeTab() {
             onClick={() => corredoresMutation.mutate()}
             disabled={corredoresMutation.isPending || recalcMutation.isPending}
             data-testid="button-clusterizar"
-            className="flex items-center gap-2 px-3 py-1.5 font-exo text-[10px] font-bold tracking-wider rounded cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 font-exo text-xs font-bold tracking-wider rounded cursor-pointer"
             style={{
               background: "rgba(0,255,136,0.08)",
               border: "1px solid #00ff8840",
@@ -986,7 +1033,7 @@ function AprendizajeTab() {
             background: "rgba(6,13,20,0.6)",
             border: `1px solid ${k.color}30`,
           }} data-testid={`kpi-data-viajes-${i}`}>
-            <div className="font-exo text-[9px] font-bold tracking-wider mb-1" style={{ color: "#3a6080" }}>
+            <div className="font-exo text-[11px] font-bold tracking-wider mb-1" style={{ color: "#3a6080" }}>
               {k.label}
             </div>
             <div className="font-space text-[20px] font-bold" style={{ color: k.color }}>
@@ -1005,14 +1052,14 @@ function AprendizajeTab() {
             <div className="font-exo text-[11px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>
               CORREDORES APRENDIDOS ({(corredores || []).length} rutas)
             </div>
-            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+            <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>
               Baselines de rendimiento por ruta — min {MIN_VIAJES_CORREDOR} viajes
             </div>
           </div>
           <div className="space-y-1">
             <div className="grid grid-cols-[1fr_100px_80px_70px_70px_60px] gap-2 py-1 border-b" style={{ borderColor: "#0d2035" }}>
               {["CORREDOR", "CONTRATO", "REND PROM", "DESV", "KM PROM", "VIAJES"].map(h => (
-                <div key={h} className="font-exo text-[9px] font-bold tracking-wider" style={{ color: "#3a6080" }}>{h}</div>
+                <div key={h} className="font-exo text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>{h}</div>
               ))}
             </div>
             {(corredores || []).slice(0, 15).map((c: any, i: number) => {
@@ -1021,22 +1068,22 @@ function AprendizajeTab() {
                 <div key={i} className="grid grid-cols-[1fr_100px_80px_70px_70px_60px] gap-2 py-1.5 items-center"
                   data-testid={`row-corredor-${i}`}
                   style={{ borderBottom: "1px solid rgba(13,32,53,0.3)" }}>
-                  <div className="font-exo text-[10px] truncate" style={{ color: "#c8e8ff" }}>
+                  <div className="font-exo text-xs truncate" style={{ color: "#c8e8ff" }}>
                     {c.nombre}
                   </div>
-                  <div className="font-exo text-[9px] truncate" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-[11px] truncate" style={{ color: "#3a6080" }}>
                     {c.contrato}
                   </div>
                   <div className="font-space text-[11px] font-bold" style={{ color: rendColor }}>
                     {c.rendimientoPromedio.toFixed(2)} km/L
                   </div>
-                  <div className="font-space text-[10px]" style={{ color: "#4a7090" }}>
+                  <div className="font-space text-xs" style={{ color: "#4a7090" }}>
                     +/-{c.rendimientoDesviacion.toFixed(2)}
                   </div>
-                  <div className="font-space text-[10px]" style={{ color: "#4a7090" }}>
+                  <div className="font-space text-xs" style={{ color: "#4a7090" }}>
                     {c.kmPromedio.toFixed(0)} km
                   </div>
-                  <div className="font-space text-[10px] text-center" style={{ color: "#4a7090" }}>
+                  <div className="font-space text-xs text-center" style={{ color: "#4a7090" }}>
                     {c.totalViajes}
                   </div>
                 </div>
@@ -1098,7 +1145,7 @@ function AprendizajeTab() {
             {["todos", "REVISAR", "ANOMALIA"].map(est => (
               <button key={est} onClick={() => setFiltroEstado(est)}
                 data-testid={`filter-estado-${est}`}
-                className="px-3 py-1 font-exo text-[10px] font-bold tracking-wider rounded cursor-pointer"
+                className="px-3 py-1 font-exo text-xs font-bold tracking-wider rounded cursor-pointer"
                 style={{
                   background: filtroEstado === est ? (estadoColors[est] || "#00d4ff") + "20" : "transparent",
                   border: `1px solid ${filtroEstado === est ? (estadoColors[est] || "#00d4ff") : "#0d2035"}`,
@@ -1114,7 +1161,7 @@ function AprendizajeTab() {
           <div className="space-y-1">
             <div className="grid grid-cols-[70px_90px_80px_65px_65px_65px_85px_1fr_40px] gap-2 py-1 border-b" style={{ borderColor: "#0d2035" }}>
               {["PATENTE", "CONTRATO", "FECHA", "KM ECU", "L ECU", "REND", "CUADRATURA", "CORREDOR", "SC"].map(h => (
-                <div key={h} className="font-exo text-[9px] font-bold tracking-wider" style={{ color: "#3a6080" }}>{h}</div>
+                <div key={h} className="font-exo text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>{h}</div>
               ))}
             </div>
             {anomalias.map((a: any, i: number) => {
@@ -1133,19 +1180,19 @@ function AprendizajeTab() {
                   data-testid={`row-anomalia-${i}`}
                   style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }}>
                   <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</div>
-                  <div className="font-exo text-[9px] truncate" style={{ color: "#3a6080" }}>{a.contrato}</div>
-                  <div className="font-space text-[10px]" style={{ color: "#6a90aa" }}>
+                  <div className="font-exo text-[11px] truncate" style={{ color: "#3a6080" }}>{a.contrato}</div>
+                  <div className="font-space text-xs" style={{ color: "#6a90aa" }}>
                     {a.fecha_inicio ? new Date(a.fecha_inicio).toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : "--"}
                   </div>
-                  <div className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{parseFloat(a.km_ecu || 0).toFixed(0)} km</div>
-                  <div className="font-space text-[10px]" style={{ color: "#00d4ff" }}>{parseFloat(a.litros_consumidos_ecu || 0).toFixed(1)} L</div>
+                  <div className="font-space text-xs" style={{ color: "#c8e8ff" }}>{parseFloat(a.km_ecu || 0).toFixed(0)} km</div>
+                  <div className="font-space text-xs" style={{ color: "#00d4ff" }}>{parseFloat(a.litros_consumidos_ecu || 0).toFixed(1)} L</div>
                   <div className="font-space text-[11px] font-bold" style={{ color: rendColor }}>
                     {rend.toFixed(2)}
                     {corrRend > 0 && (
-                      <span className="font-exo text-[8px] ml-0.5" style={{ color: "#3a6080" }}>/{corrRend.toFixed(1)}</span>
+                      <span className="font-exo text-xs ml-0.5" style={{ color: "#3a6080" }}>/{corrRend.toFixed(1)}</span>
                     )}
                   </div>
-                  <div className="font-exo text-[9px]" style={{ color: !cruzado ? "#3a6080" : delta != null && delta > 15 ? "#ff2244" : delta != null && delta > 0 ? "#ffcc00" : "#4a7090" }}>
+                  <div className="font-exo text-[11px]" style={{ color: !cruzado ? "#3a6080" : delta != null && delta > 15 ? "#ff2244" : delta != null && delta > 0 ? "#ffcc00" : "#4a7090" }}>
                     {!cruzado ? (
                       <span style={{ color: "#3a608060" }}>PENDIENTE</span>
                     ) : litrosSigetra > 0 ? (
@@ -1154,7 +1201,7 @@ function AprendizajeTab() {
                       <span style={{ color: "#3a608060" }}>SIN MATCH</span>
                     )}
                   </div>
-                  <div className="font-exo text-[9px] truncate" style={{ color: a.corredor_nombre ? "#4a7090" : "#1e3a50" }}>
+                  <div className="font-exo text-[11px] truncate" style={{ color: a.corredor_nombre ? "#4a7090" : "#1e3a50" }}>
                     {a.corredor_nombre || (a.origen_nombre && a.destino_nombre ? `${a.origen_nombre} → ${a.destino_nombre}` : "--")}
                   </div>
                   <div className="font-space text-[11px] font-bold text-center" style={{ color: scoreColor }}>{score}</div>
@@ -1178,10 +1225,9 @@ function AprendizajeTab() {
 const MIN_VIAJES_CORREDOR = 5;
 
 const CONTRATO_COLORS: Record<string, string> = {
-  "CENCOSUD": "#00d4ff",
-  "ANGLO-CARGAS VARIAS": "#ff6b35",
-  "ANGLO-CAL": "#ffcc00",
   "ANGLO-COCU": "#00ff88",
+  "ANGLO-CAL": "#ff6b35",
+  "ANGLO-CARGAS VARIAS": "#00d4ff",
 };
 
 function RendimientoECUTab() {
@@ -1266,11 +1312,11 @@ function RendimientoECUTab() {
           <table className="w-full" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #0d2035' }}>
-                <th className="text-left font-exo text-[10px] font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>PATENTE</th>
-                <th className="text-left font-exo text-[10px] font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>CONTRATO</th>
-                <th className="text-right font-exo text-[10px] font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>REND. REAL</th>
-                <th className="text-right font-exo text-[10px] font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>META</th>
-                <th className="text-right font-exo text-[10px] font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>DIFERENCIA</th>
+                <th className="text-left font-exo text-xs font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>PATENTE</th>
+                <th className="text-left font-exo text-xs font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>CONTRATO</th>
+                <th className="text-right font-exo text-xs font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>REND. REAL</th>
+                <th className="text-right font-exo text-xs font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>META</th>
+                <th className="text-right font-exo text-xs font-bold tracking-wider py-2 px-2" style={{ color: '#4a7090' }}>DIFERENCIA</th>
               </tr>
             </thead>
             <tbody>
@@ -1305,16 +1351,18 @@ function RendimientoECUTab() {
 export default function GeoValidator({ initialTab }: { initialTab?: GeoTab } = {}) {
   const [tab, setTab] = useState<GeoTab>(initialTab || "mapa");
 
-  const subtabs: { id: GeoTab; label: string; icon: typeof MapIcon }[] = [
+  const subtabs: { id: GeoTab; label: string; icon: typeof MapIcon; oculto?: boolean }[] = [
     { id: "mapa", label: "MAPA", icon: MapIcon },
-    { id: "recopilacion", label: "RECOPILACION", icon: Database },
+    { id: "recopilacion", label: "COBERTURA", icon: Radio },
     { id: "aprendizaje", label: "DATA VIAJES", icon: TrendingUp },
+    { id: "rutas", label: "RUTAS", icon: Route },
+    { id: "acumulacion", label: "ACUMULACION", icon: TrendingUp },
     { id: "viajes", label: "VIAJES CERRADOS", icon: Route },
-    { id: "rendimiento", label: "RENDIMIENTO", icon: Gauge },
+    { id: "rendimiento", label: "RENDIMIENTO", icon: Gauge, oculto: true },
     { id: "estaciones", label: "ESTACIONES", icon: Fuel },
     { id: "conductores", label: "CONDUCTORES", icon: Users },
-    { id: "camiones", label: "CAMIONES", icon: Truck },
-    { id: "ia", label: "IA", icon: Cpu },
+    { id: "camiones", label: "CAMIONES", icon: Truck, oculto: true },
+    { id: "ia", label: "IA", icon: Cpu, oculto: true },
   ];
 
   return (
@@ -1326,12 +1374,12 @@ export default function GeoValidator({ initialTab }: { initialTab?: GeoTab } = {
           </div>
         </div>
         <div className="flex gap-1 flex-wrap">
-          {subtabs.map(t => {
+          {subtabs.filter(t => !t.oculto).map(t => {
             const Icon = t.icon;
             return (
               <button key={t.id} onClick={() => setTab(t.id)}
                 data-testid={`geo-tab-${t.id}`}
-                className={`flex items-center gap-1.5 px-3 py-2 font-exo text-[10px] font-bold tracking-[0.12em] cursor-pointer transition-all border-b-2 ${
+                className={`flex items-center gap-1.5 px-3 py-2 font-exo text-xs font-bold tracking-[0.12em] cursor-pointer transition-all border-b-2 ${
                   tab === t.id
                     ? "border-[#00d4ff] text-[#00d4ff]"
                     : "border-transparent text-[#4a7090] hover:text-[#c8e8ff]"
@@ -1347,6 +1395,8 @@ export default function GeoValidator({ initialTab }: { initialTab?: GeoTab } = {
       {tab === "mapa" && <MapaEnVivo />}
       {tab === "recopilacion" && <RecopilacionTab />}
       {tab === "aprendizaje" && <AprendizajeTab />}
+      {tab === "rutas" && <RutasOperacionales />}
+      {tab === "acumulacion" && <AcumulacionTab />}
       {tab === "viajes" && <ViajesCerrados />}
       {tab === "rendimiento" && <RendimientoECUTab />}
       {tab === "estaciones" && <EstacionesTab />}

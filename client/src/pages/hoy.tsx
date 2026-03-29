@@ -112,7 +112,7 @@ function WidgetAprendizajeEstaciones() {
       <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
         <div className="flex items-center gap-2">
           <Brain className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-          <span className="font-space text-[10px] font-bold tracking-[0.15em]" style={{ color: "#00d4ff" }}>
+          <span className="font-space text-xs font-bold tracking-[0.15em]" style={{ color: "#00d4ff" }}>
             APRENDIZAJE - ESTACIONES
           </span>
         </div>
@@ -120,7 +120,7 @@ function WidgetAprendizajeEstaciones() {
           onClick={() => {
             window.dispatchEvent(new CustomEvent("sotraser-navigate", { detail: { tab: "geo", subtab: "estaciones" } }));
           }}
-          className="font-exo text-[9px] px-2 py-1 border cursor-pointer transition-all hover:border-[#00d4ff]"
+          className="font-exo text-[11px] px-2 py-1 border cursor-pointer transition-all hover:border-[#00d4ff]"
           style={{ borderColor: "#0d2035", color: "#3a6080" }}
           data-testid="btn-ver-detalle-aprendizaje">
           VER DETALLE <ChevronRight className="w-3 h-3 inline" />
@@ -134,8 +134,8 @@ function WidgetAprendizajeEstaciones() {
 
         <div className="mb-3">
           <div className="flex justify-between mb-1">
-            <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Calibracion del sistema</span>
-            <span className="font-space text-[9px] font-bold" style={{ color: colorMadurez }}>{r.madurez_pct}%</span>
+            <span className="font-exo text-xs" style={{ color: "#3a6080" }}>Calibracion del sistema</span>
+            <span className="font-space text-[11px] font-bold" style={{ color: colorMadurez }}>{r.madurez_pct}%</span>
           </div>
           <div className="h-1" style={{ background: "#0d2035" }}>
             <div className="h-full transition-all" style={{ width: `${r.madurez_pct}%`, background: colorMadurez }} />
@@ -158,7 +158,7 @@ function WidgetAprendizajeEstaciones() {
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Confianza:</span>
+          <span className="font-exo text-xs" style={{ color: "#3a6080" }}>Confianza:</span>
           {[
             { k: "experta", c: "#00ff88", l: "EXP" },
             { k: "alta", c: "#00d4ff", l: "ALTA" },
@@ -166,7 +166,7 @@ function WidgetAprendizajeEstaciones() {
             { k: "baja", c: "#3a6080", l: "BAJA" },
           ].map(n => (
             <div key={n.k} className="flex items-center gap-1">
-              <span className="font-space text-[10px] font-bold" style={{ color: n.c }}>{r.por_confianza[n.k]}</span>
+              <span className="font-space text-xs font-bold" style={{ color: n.c }}>{r.por_confianza[n.k]}</span>
               <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{n.l}</span>
             </div>
           ))}
@@ -307,7 +307,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
               <div className="font-space text-[14px] font-bold tracking-[0.15em]" style={{ color: estadoBadge.color }}>
                 {estadoBadge.label}
               </div>
-              <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+              <div className="font-exo text-xs" style={{ color: "#3a6080" }}>
                 {totalActivos}/{totalCamiones} camiones en linea
               </div>
             </div>
@@ -318,7 +318,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
             {(["1d", "7d", "30d"] as Periodo[]).map(p => (
               <button key={p} onClick={() => setPeriodo(p)}
                 data-testid={`hoy-periodo-${p}`}
-                className="font-space text-[10px] font-bold px-3 py-1 cursor-pointer transition-all border"
+                className="font-space text-xs font-bold px-3 py-1 cursor-pointer transition-all border"
                 style={{
                   color: periodo === p ? "#020508" : "#3a6080",
                   background: periodo === p ? "#00d4ff" : "transparent",
@@ -328,7 +328,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
               </button>
             ))}
           </div>
-          <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+          <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>
             hace {minAgo < 1 ? "<1" : minAgo} min
           </span>
           <button onClick={handleRefreshAll} className="p-1.5 cursor-pointer transition-all hover:bg-[rgba(0,212,255,0.1)] rounded"
@@ -384,13 +384,13 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
       {/* BLOQUE C — CONTRATOS */}
       <div data-testid="hoy-contratos">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-exo text-[9px] tracking-[0.2em] uppercase font-semibold" style={{ color: "#c8e8ff" }}>
+          <div className="font-exo text-[11px] tracking-[0.2em] uppercase font-semibold" style={{ color: "#c8e8ff" }}>
             ESTADO POR CONTRATO
           </div>
           {totalAlertas > 0 && (
             <div className="flex items-center gap-1.5">
               <AlertTriangle className="w-3 h-3" style={{ color: "#ff2244" }} />
-              <span className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>
+              <span className="font-space text-[11px] font-bold" style={{ color: "#ff2244" }}>
                 {totalAlertas} alertas activas en flota
               </span>
             </div>
@@ -421,7 +421,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                       <span className="font-space text-[12px] font-bold tracking-[0.1em]" style={{ color: col }}>
                         {c.nombre}
                       </span>
-                      <span className="font-space text-[8px] font-bold px-1.5 py-0.5 rounded"
+                      <span className="font-space text-xs font-bold px-1.5 py-0.5 rounded"
                         style={{
                           color: estadoColors[c.estado],
                           background: `${estadoColors[c.estado]}15`,
@@ -441,21 +441,21 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
 
                   <div className="grid grid-cols-3 gap-3 mb-3">
                     <div>
-                      <div className="font-exo text-[8px] uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>Camiones</div>
+                      <div className="font-exo text-xs uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>Camiones</div>
                       <div className="font-space text-[16px] font-bold leading-none" style={{ color: "#c8e8ff" }}>
                         {c.camionesActivos != null ? c.camionesActivos : c.camionesTotal}
-                        <span className="text-[10px] font-normal" style={{ color: "#3a6080" }}>/{c.camionesTotal}</span>
+                        <span className="text-xs font-normal" style={{ color: "#3a6080" }}>/{c.camionesTotal}</span>
                       </div>
                     </div>
                     <div>
-                      <div className="font-exo text-[8px] uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>Rend.</div>
+                      <div className="font-exo text-xs uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>Rend.</div>
                       <div className="font-space text-[16px] font-bold leading-none" style={{ color: c.rendPromedio >= 3.0 ? "#00ff88" : c.rendPromedio >= 2.0 ? "#ffcc00" : "#ff2244" }}>
                         {c.rendPromedio > 0 ? c.rendPromedio.toFixed(1) : "N/D"}
-                        {c.rendPromedio > 0 && <span className="text-[9px] font-normal" style={{ color: "#3a6080" }}> km/L</span>}
+                        {c.rendPromedio > 0 && <span className="text-[11px] font-normal" style={{ color: "#3a6080" }}> km/L</span>}
                       </div>
                     </div>
                     <div>
-                      <div className="font-exo text-[8px] uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>Alertas</div>
+                      <div className="font-exo text-xs uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>Alertas</div>
                       <div className="font-space text-[16px] font-bold leading-none" style={{ color: c.alertasCriticas > 0 ? "#ff2244" : "#00ff88" }}>
                         {c.alertasCriticas}
                       </div>
@@ -469,14 +469,14 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setContratoDetalle({ nombre: c.nombre, color: col })}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 font-space text-[10px] font-bold tracking-[0.1em] cursor-pointer transition-all border hover:border-[#00d4ff] hover:shadow-[0_0_10px_rgba(0,212,255,0.15)]"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 font-space text-xs font-bold tracking-[0.1em] cursor-pointer transition-all border hover:border-[#00d4ff] hover:shadow-[0_0_10px_rgba(0,212,255,0.15)]"
                       style={{ background: "rgba(0,212,255,0.06)", borderColor: "rgba(0,212,255,0.25)", color: "#00d4ff" }}
                       data-testid={`hoy-contrato-dia-${i}`}>
                       <Activity className="w-3 h-3" /> DIA (24h)
                     </button>
                     <button
                       onClick={() => onNavigateFlota?.(c.nombre)}
-                      className="flex items-center gap-1 px-3 py-2 font-exo text-[10px] font-bold cursor-pointer transition-all hover:text-[#00d4ff] border"
+                      className="flex items-center gap-1 px-3 py-2 font-exo text-xs font-bold cursor-pointer transition-all hover:text-[#00d4ff] border"
                       style={{ color: "#3a6080", borderColor: "#0d2035" }}
                       data-testid={`hoy-contrato-detalle-${i}`}>
                       FLOTA <ChevronRight className="w-3 h-3" />
@@ -508,10 +508,10 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#ff2244" }} />
-                <span className="font-exo text-[9px] tracking-[0.2em] uppercase font-semibold" style={{ color: "#c8e8ff" }}>
+                <span className="font-exo text-[11px] tracking-[0.2em] uppercase font-semibold" style={{ color: "#c8e8ff" }}>
                   REQUIERE TU ATENCION
                 </span>
-                <span className="font-space text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "#ff2244", color: "#020508" }}>
+                <span className="font-space text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "#ff2244", color: "#020508" }}>
                   {Array.isArray(alertas) ? alertas.length : 0}
                 </span>
               </div>
@@ -527,8 +527,8 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                     <span className="text-[14px] mt-0.5 flex-shrink-0">{info.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{a.titulo}</div>
-                      <div className="font-exo text-[10px] mt-0.5" style={{ color: "#3a6080" }}>{a.detalle}</div>
-                      <div className="font-exo text-[9px] mt-1" style={{ color: "#1a3550" }}>{a.hace}</div>
+                      <div className="font-exo text-xs mt-0.5" style={{ color: "#3a6080" }}>{a.detalle}</div>
+                      <div className="font-exo text-[11px] mt-1" style={{ color: "#1a3550" }}>{a.hace}</div>
                     </div>
                     <button
                       onClick={() => {
@@ -539,7 +539,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                           onNavigateFlota?.();
                         }
                       }}
-                      className="font-exo text-[9px] font-bold px-2.5 py-1.5 cursor-pointer transition-all border hover:border-[#00d4ff] hover:text-[#00d4ff] flex-shrink-0 rounded"
+                      className="font-exo text-[11px] font-bold px-2.5 py-1.5 cursor-pointer transition-all border hover:border-[#00d4ff] hover:text-[#00d4ff] flex-shrink-0 rounded"
                       style={{ borderColor: "#0d2035", color: "#3a6080" }}
                       data-testid={`hoy-alerta-investigar-${i}`}>
                       <Search className="w-3 h-3 inline mr-0.5" />Investigar
@@ -549,7 +549,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
               })}
               {Array.isArray(alertas) && alertas.length > 5 && (
                 <button onClick={scrollToAlertas}
-                  className="font-exo text-[10px] font-bold cursor-pointer px-3 py-2 w-full text-center transition-all hover:text-[#00d4ff]"
+                  className="font-exo text-xs font-bold cursor-pointer px-3 py-2 w-full text-center transition-all hover:text-[#00d4ff]"
                   style={{ color: "#3a6080" }}
                   data-testid="hoy-alertas-mas">
                   Ver {(Array.isArray(alertas) ? alertas.length : 0) - 5} alertas mas <ChevronRight className="w-3 h-3 inline" />
@@ -566,18 +566,18 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Activity className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-              <span className="font-space text-[10px] font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>
+              <span className="font-space text-xs font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>
                 TENDENCIA {periodo === "1d" ? "HOY" : periodo.toUpperCase()}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-[2px] rounded" style={{ background: "#00d4ff" }} />
-                <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Litros</span>
+                <span className="font-exo text-xs" style={{ color: "#3a6080" }}>Litros</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-[2px] rounded" style={{ background: "#00ff88" }} />
-                <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>km/L</span>
+                <span className="font-exo text-xs" style={{ color: "#3a6080" }}>km/L</span>
               </div>
             </div>
           </div>
@@ -591,12 +591,12 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                 <CartesianGrid strokeDasharray="3 3" stroke="#0d2035" />
                 <XAxis
                   dataKey="fecha"
-                  tick={{ fill: "#3a6080", fontSize: 9, fontFamily: "Space Mono" }}
+                  tick={{ fill: "#3a6080", fontSize: 11, fontFamily: "Space Mono" }}
                   tickFormatter={(v: string) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth() + 1}`; }}
                   stroke="#0d2035"
                 />
-                <YAxis yAxisId="left" tick={{ fill: "#3a6080", fontSize: 9 }} stroke="#0d2035" />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: "#00ff88", fontSize: 9 }} stroke="#0d2035" />
+                <YAxis yAxisId="left" tick={{ fill: "#3a6080", fontSize: 11 }} stroke="#0d2035" />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: "#00ff88", fontSize: 11 }} stroke="#0d2035" />
                 <ReTooltip
                   contentStyle={{ background: "#091018", border: "1px solid #0d2035", fontFamily: "Exo 2", fontSize: 11, color: "#c8e8ff" }}
                   labelFormatter={(v: string) => new Date(v).toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
@@ -613,13 +613,13 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Brain className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-              <span className="font-space text-[10px] font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>
+              <span className="font-space text-xs font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>
                 DIAGNOSTICO IA
               </span>
             </div>
             <div className="flex items-center gap-2">
               {diagnostico && (
-                <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
+                <span className="font-exo text-xs" style={{ color: "#3a6080" }}>
                   hace {diagnostico.generadoHaceMin < 1 ? "<1" : diagnostico.generadoHaceMin} min
                 </span>
               )}
@@ -633,7 +633,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
           {loadingDiag ? (
             <div className="flex items-center gap-2 py-6 justify-center">
               <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#00d4ff" }} />
-              <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Generando diagnostico...</span>
+              <span className="font-exo text-xs" style={{ color: "#3a6080" }}>Generando diagnostico...</span>
             </div>
           ) : diagnostico?.texto ? (
             <div className="space-y-2">
@@ -641,7 +641,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                 <div key={i} className="flex items-start gap-2 py-1">
                   <span className="text-[12px] flex-shrink-0">{line.icon}</span>
                   <div className="min-w-0">
-                    <span className="font-space text-[9px] font-bold tracking-[0.1em] mr-1" style={{ color: line.color }}>
+                    <span className="font-space text-[11px] font-bold tracking-[0.1em] mr-1" style={{ color: line.color }}>
                       {line.label}:
                     </span>
                     <span className="font-exo text-[11px]" style={{ color: "#c8e8ff" }}>{line.text}</span>
@@ -650,7 +650,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
               ))}
               {onOpenIA && (
                 <button onClick={onOpenIA}
-                  className="mt-2 font-exo text-[10px] font-bold cursor-pointer transition-all hover:text-[#00d4ff] flex items-center gap-1"
+                  className="mt-2 font-exo text-xs font-bold cursor-pointer transition-all hover:text-[#00d4ff] flex items-center gap-1"
                   style={{ color: "#3a6080" }}
                   data-testid="hoy-consultar-ia">
                   Consultar mas <ChevronRight className="w-3 h-3" />
@@ -683,11 +683,11 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
             <div className="flex items-center gap-3">
               <Search className="w-4 h-4" style={{ color: "#00d4ff" }} />
               <div>
-                <span className="font-exo text-[9px] tracking-[0.2em] uppercase" style={{ color: "#3a6080" }}>INVESTIGACION</span>
+                <span className="font-exo text-[11px] tracking-[0.2em] uppercase" style={{ color: "#3a6080" }}>INVESTIGACION</span>
                 <div className="font-space text-[16px] font-bold" style={{ color: "#00d4ff" }}>
                   {investigarPatente}
                   {investigacion?.camion && (
-                    <span className="font-exo text-[10px] font-normal ml-2" style={{ color: "#3a6080" }}>
+                    <span className="font-exo text-xs font-normal ml-2" style={{ color: "#3a6080" }}>
                       {investigacion.camion.contrato} {investigacion.camion.modelo && `/ ${investigacion.camion.modelo}`}
                     </span>
                   )}
@@ -709,7 +709,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
               <div className="flex gap-1 px-5 pt-3" data-testid="investigacion-tabs">
                 {(["resumen", "cargas", "viajes"] as const).map(tab => (
                   <button key={tab} onClick={() => setInvestigarTab(tab)}
-                    className="font-exo text-[10px] font-bold px-4 py-2 cursor-pointer transition-all rounded-t"
+                    className="font-exo text-xs font-bold px-4 py-2 cursor-pointer transition-all rounded-t"
                     style={{
                       background: investigarTab === tab ? "#0d2035" : "transparent",
                       color: investigarTab === tab ? "#00d4ff" : "#3a6080",
@@ -728,37 +728,37 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                   <div className="space-y-4" data-testid="investigacion-resumen">
                     <div className="grid grid-cols-4 gap-3">
                       <div className="p-3 rounded" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
-                        <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CARGAS</div>
+                        <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>CARGAS</div>
                         <div className="font-space text-[20px] font-bold" style={{ color: "#ffcc00" }}>{investigacion.resumen.totalCargas}</div>
-                        <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{investigacion.resumen.totalLitrosCargados} L total</div>
+                        <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>{investigacion.resumen.totalLitrosCargados} L total</div>
                       </div>
                       <div className="p-3 rounded" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
-                        <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>VIAJES ECU</div>
+                        <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>VIAJES ECU</div>
                         <div className="font-space text-[20px] font-bold" style={{ color: "#00d4ff" }}>{investigacion.resumen.totalViajes}</div>
-                        <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>registrados</div>
+                        <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>registrados</div>
                       </div>
                       <div className="p-3 rounded" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
-                        <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>RENDIMIENTO</div>
+                        <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>RENDIMIENTO</div>
                         <div className="font-space text-[20px] font-bold" style={{ color: investigacion.resumen.rendimientoPromedio && investigacion.resumen.rendimientoPromedio >= 3 ? "#00c97a" : "#ffcc00" }}>
                           {investigacion.resumen.rendimientoPromedio?.toFixed(2) || "N/D"}
                         </div>
-                        <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>km/L promedio</div>
+                        <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>km/L promedio</div>
                       </div>
                       <div className="p-3 rounded" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
-                        <div className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>VIN</div>
+                        <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>VIN</div>
                         <div className="font-space text-[11px] font-bold mt-1 break-all" style={{ color: "#c8e8ff" }}>
                           {investigacion.camion.vin || "Sin VIN"}
                         </div>
-                        <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{investigacion.camion.ano || ""}</div>
+                        <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>{investigacion.camion.ano || ""}</div>
                       </div>
                     </div>
 
                     {investigacion.conductores.length > 0 && (
                       <div>
-                        <div className="font-exo text-[9px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>CONDUCTORES ASOCIADOS</div>
+                        <div className="font-exo text-[11px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>CONDUCTORES ASOCIADOS</div>
                         <div className="flex flex-wrap gap-2">
                           {investigacion.conductores.map((c, ci) => (
-                            <span key={ci} className="font-space text-[10px] px-3 py-1.5 rounded" style={{ background: "#0d2035", color: "#c8e8ff" }}>{c}</span>
+                            <span key={ci} className="font-space text-xs px-3 py-1.5 rounded" style={{ background: "#0d2035", color: "#c8e8ff" }}>{c}</span>
                           ))}
                         </div>
                       </div>
@@ -766,26 +766,26 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
 
                     {investigacion.snapshotEcu && (
                       <div>
-                        <div className="font-exo text-[9px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>DATOS ECU (VOLVO CONNECT)</div>
+                        <div className="font-exo text-[11px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>DATOS ECU (VOLVO CONNECT)</div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-2.5 rounded" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Km acumulados</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Km acumulados</span>
                               <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{investigacion.snapshotEcu.kmAcumulados.toLocaleString()} km</span>
                             </div>
                             <div className="flex justify-between mt-1">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Delta ultimo</span>
-                              <span className="font-space text-[10px]" style={{ color: "#00d4ff" }}>+{investigacion.snapshotEcu.kmDelta} km</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Delta ultimo</span>
+                              <span className="font-space text-xs" style={{ color: "#00d4ff" }}>+{investigacion.snapshotEcu.kmDelta} km</span>
                             </div>
                           </div>
                           <div className="p-2.5 rounded" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Litros acumulados</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Litros acumulados</span>
                               <span className="font-space text-[11px] font-bold" style={{ color: "#ffcc00" }}>{investigacion.snapshotEcu.litrosAcumulados.toLocaleString()} L</span>
                             </div>
                             <div className="flex justify-between mt-1">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Delta ultimo</span>
-                              <span className="font-space text-[10px]" style={{ color: "#ffcc00" }}>+{investigacion.snapshotEcu.litrosDelta} L</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Delta ultimo</span>
+                              <span className="font-space text-xs" style={{ color: "#ffcc00" }}>+{investigacion.snapshotEcu.litrosDelta} L</span>
                             </div>
                           </div>
                         </div>
@@ -794,13 +794,13 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
 
                     {investigacion.gpsUltimo && (
                       <div>
-                        <div className="font-exo text-[9px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>ULTIMA POSICION GPS</div>
+                        <div className="font-exo text-[11px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>ULTIMA POSICION GPS</div>
                         <div className="p-2.5 rounded flex items-center justify-between" style={{ background: "#0a1520", borderTop: "1px solid #0d2035", borderRight: "1px solid #0d2035", borderBottom: "1px solid #0d2035", borderLeft: "1px solid #0d2035" }}>
                           <div>
-                            <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>
+                            <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>
                               {investigacion.gpsUltimo.lat.toFixed(4)}, {investigacion.gpsUltimo.lng.toFixed(4)}
                             </span>
-                            <span className="font-exo text-[9px] ml-3" style={{ color: "#3a6080" }}>
+                            <span className="font-exo text-[11px] ml-3" style={{ color: "#3a6080" }}>
                               {new Date(investigacion.gpsUltimo.timestamp_punto).toLocaleString("es-CL")}
                             </span>
                           </div>
@@ -826,7 +826,7 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                           <thead>
                             <tr style={{ borderBottom: "1px solid #0d2035" }}>
                               {["FECHA", "LITROS", "KM ODO", "CONDUCTOR", "ESTACION", "CIUDAD"].map(h => (
-                                <th key={h} className="font-exo text-[9px] tracking-[0.15em] text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
+                                <th key={h} className="font-exo text-[11px] tracking-[0.15em] text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -835,21 +835,21 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                               const kmDelta = c.odometro > 0 && c.odometroPrevio > 0 ? c.odometro - c.odometroPrevio : null;
                               return (
                                 <tr key={ci} style={{ borderBottom: "1px solid #0d203530" }} data-testid={`carga-row-${ci}`}>
-                                  <td className="font-space text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>
+                                  <td className="font-space text-xs px-3 py-2" style={{ color: "#c8e8ff" }}>
                                     {c.fecha ? new Date(c.fecha).toLocaleDateString("es-CL") : "--"}
                                   </td>
                                   <td className="font-space text-[11px] font-bold px-3 py-2" style={{ color: "#ffcc00" }}>
                                     {c.litros.toFixed(1)} L
                                   </td>
-                                  <td className="font-space text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>
+                                  <td className="font-space text-xs px-3 py-2" style={{ color: "#c8e8ff" }}>
                                     {c.odometro > 0 ? c.odometro.toLocaleString() : "--"}
                                     {kmDelta != null && kmDelta > 0 && (
-                                      <span className="font-exo text-[8px] ml-1" style={{ color: "#3a6080" }}>({kmDelta.toLocaleString()} km)</span>
+                                      <span className="font-exo text-xs ml-1" style={{ color: "#3a6080" }}>({kmDelta.toLocaleString()} km)</span>
                                     )}
                                   </td>
-                                  <td className="font-exo text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>{c.conductor || "--"}</td>
-                                  <td className="font-exo text-[10px] px-3 py-2" style={{ color: "#c8e8ff" }}>{c.estacion || "--"}</td>
-                                  <td className="font-exo text-[10px] px-3 py-2" style={{ color: "#3a6080" }}>{c.ciudad || "--"}</td>
+                                  <td className="font-exo text-xs px-3 py-2" style={{ color: "#c8e8ff" }}>{c.conductor || "--"}</td>
+                                  <td className="font-exo text-xs px-3 py-2" style={{ color: "#c8e8ff" }}>{c.estacion || "--"}</td>
+                                  <td className="font-exo text-xs px-3 py-2" style={{ color: "#3a6080" }}>{c.ciudad || "--"}</td>
                                 </tr>
                               );
                             })}
@@ -877,37 +877,37 @@ export default function Hoy({ onNavigateFlota, onOpenIA }: { onNavigateFlota?: (
                               data-testid={`viaje-inv-${vi}`}>
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>
+                                  <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>
                                     {v.fecha_inicio ? new Date(v.fecha_inicio).toLocaleDateString("es-CL") : ""}
                                   </span>
-                                  <span className="font-exo text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: estadoColor + "20", color: estadoColor }}>
+                                  <span className="font-exo text-[11px] font-bold px-2 py-0.5 rounded" style={{ background: estadoColor + "20", color: estadoColor }}>
                                     {v.estado}
                                   </span>
                                   {v.score > 20 && (
-                                    <span className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>SCORE {v.score}</span>
+                                    <span className="font-space text-[11px] font-bold" style={{ color: "#ff2244" }}>SCORE {v.score}</span>
                                   )}
                                 </div>
                                 <span className="font-space text-[12px] font-bold" style={{ color: rendColor }}>{v.rendimiento?.toFixed(2)} km/L</span>
                               </div>
-                              <div className="font-exo text-[10px] font-bold mb-1.5" style={{ color: "#c8e8ff" }}>
+                              <div className="font-exo text-xs font-bold mb-1.5" style={{ color: "#c8e8ff" }}>
                                 {v.origen_nombre || "?"} → {v.destino_nombre || "?"}
                               </div>
                               <div className="grid grid-cols-4 gap-2">
                                 <div>
-                                  <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>KM ECU</span>
-                                  <div className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{v.km_ecu?.toFixed(0)} km</div>
+                                  <span className="font-exo text-xs" style={{ color: "#3a6080" }}>KM ECU</span>
+                                  <div className="font-space text-xs font-bold" style={{ color: "#c8e8ff" }}>{v.km_ecu?.toFixed(0)} km</div>
                                 </div>
                                 <div>
-                                  <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>L ECU</span>
-                                  <div className="font-space text-[10px] font-bold" style={{ color: "#ffcc00" }}>{v.litros_ecu?.toFixed(1)} L</div>
+                                  <span className="font-exo text-xs" style={{ color: "#3a6080" }}>L ECU</span>
+                                  <div className="font-space text-xs font-bold" style={{ color: "#ffcc00" }}>{v.litros_ecu?.toFixed(1)} L</div>
                                 </div>
                                 <div>
-                                  <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>CONDUCTOR</span>
-                                  <div className="font-exo text-[10px]" style={{ color: "#c8e8ff" }}>{v.conductor || "--"}</div>
+                                  <span className="font-exo text-xs" style={{ color: "#3a6080" }}>CONDUCTOR</span>
+                                  <div className="font-exo text-xs" style={{ color: "#c8e8ff" }}>{v.conductor || "--"}</div>
                                 </div>
                                 <div>
-                                  <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>DURACION</span>
-                                  <div className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>
+                                  <span className="font-exo text-xs" style={{ color: "#3a6080" }}>DURACION</span>
+                                  <div className="font-space text-xs" style={{ color: "#c8e8ff" }}>
                                     {v.duracion_min ? `${Math.floor(v.duracion_min / 60)}h ${v.duracion_min % 60}m` : "--"}
                                   </div>
                                 </div>
@@ -975,7 +975,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                     data-testid="text-contrato-nombre">
                     {nombre}
                   </div>
-                  <div className="font-exo text-[10px] tracking-wider" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-xs tracking-wider" style={{ color: "#3a6080" }}>
                     CUADRATURA · {data.resumen?.periodo?.desde} → {data.resumen?.periodo?.hasta} · {data.resumen?.periodo?.dias} dias
                   </div>
                 </div>
@@ -1022,7 +1022,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                       <div className="font-space text-[22px] font-bold" style={{ color: kpi.kpiColor }}>
                         {kpi.value}
                       </div>
-                      <div className="font-exo text-[9px] mt-1" style={{ color: "#3a6080" }}>
+                      <div className="font-exo text-[11px] mt-1" style={{ color: "#3a6080" }}>
                         {kpi.sub}
                       </div>
                     </div>
@@ -1030,7 +1030,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                 </div>
 
                 <div>
-                  <div className="font-exo text-[8px] tracking-[0.2em] uppercase mb-2" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-xs tracking-[0.2em] uppercase mb-2" style={{ color: "#3a6080" }}>
                     CALIDAD DE CIERRE
                   </div>
                   <div className="flex gap-3">
@@ -1045,7 +1045,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                         <div className="font-space text-[22px] font-bold" style={{ color: q.c }}>
                           {data.resumen?.calidad_distribucion?.[q.k] ?? 0}
                         </div>
-                        <div className="font-exo text-[8px] font-bold" style={{ color: q.c }}>{q.l}</div>
+                        <div className="font-exo text-xs font-bold" style={{ color: q.c }}>{q.l}</div>
                         <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{q.desc}</div>
                       </div>
                     ))}
@@ -1053,13 +1053,13 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                 </div>
 
                 <div>
-                  <div className="font-exo text-[8px] tracking-[0.2em] uppercase mb-3" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-xs tracking-[0.2em] uppercase mb-3" style={{ color: "#3a6080" }}>
                     CAMIONES · CLICK PARA VER CUADRATURA INDIVIDUAL
                   </div>
 
                   <div className="grid grid-cols-7 px-3 py-2 mb-1" style={{ background: "#0a1520" }}>
                     {["CAMION", "CONDUCTOR", "OPS", "KM ECU", "L ECU", "REND", "BALANCE"].map(h => (
-                      <div key={h} className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{h}</div>
+                      <div key={h} className="font-exo text-xs tracking-wider uppercase" style={{ color: "#3a6080" }}>{h}</div>
                     ))}
                   </div>
 
@@ -1077,10 +1077,10 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                       style={{ borderColor: "#0d2035" }}
                       data-testid={`camion-row-${cam.patente}`}>
                       <div className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{cam.patente}</div>
-                      <div className="font-exo text-[10px] truncate" style={{ color: "#c8e8ff" }}>{cam.conductor}</div>
+                      <div className="font-exo text-xs truncate" style={{ color: "#c8e8ff" }}>{cam.conductor}</div>
                       <div className="font-space text-[11px]" style={{ color: "#c8e8ff" }}>
                         {cam.operaciones?.length ?? 0}
-                        <span className="font-exo text-[8px] ml-1" style={{ color: "#3a6080" }}>ops</span>
+                        <span className="font-exo text-xs ml-1" style={{ color: "#3a6080" }}>ops</span>
                       </div>
                       <div className="font-space text-[11px]" style={{ color: "#c8e8ff" }}>
                         {Math.round(cam.km_total).toLocaleString("es-CL")}
@@ -1152,12 +1152,12 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                     <span className="font-space text-[18px] font-bold" style={{ color: "#00d4ff" }}
                       data-testid="text-camion-patente">{patente}</span>
                     <span className="font-exo text-[11px]" style={{ color: "#c8e8ff" }}>{data.conductor}</span>
-                    <span className="font-exo text-[9px] px-2 py-0.5"
+                    <span className="font-exo text-[11px] px-2 py-0.5"
                       style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>
                       {data.contrato}
                     </span>
                   </div>
-                  <div className="font-exo text-[9px] mt-1" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-[11px] mt-1" style={{ color: "#3a6080" }}>
                     CUADRO OPERACIONAL · MES ACTUAL HASTA T-1
                   </div>
                 </div>
@@ -1174,9 +1174,9 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                     <div className="font-space text-[28px] font-bold" style={{ color: "#00d4ff" }}>
                       {data.resumen_mes?.operaciones_verificadas ?? 0}
                     </div>
-                    <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>verificadas este mes</div>
+                    <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>verificadas este mes</div>
                     {(data.resumen_mes?.operaciones_con_alerta ?? 0) > 0 && (
-                      <div className="font-exo text-[9px] mt-1" style={{ color: "#ff2244" }}>
+                      <div className="font-exo text-[11px] mt-1" style={{ color: "#ff2244" }}>
                         +{data.resumen_mes.operaciones_con_alerta} con alerta
                       </div>
                     )}
@@ -1186,20 +1186,20 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                     <div className="font-space text-[28px] font-bold" style={{ color: "#c8e8ff" }}>
                       {(data.resumen_mes?.km_total ?? 0).toLocaleString("es-CL")}
                     </div>
-                    <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>kilometros verificados</div>
+                    <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>kilometros verificados</div>
                   </div>
                   <div className="p-4" style={{ background: "#060d14", border: "1px solid #0d2035", borderTop: "2px solid #ffcc00" }}>
                     <div className="font-exo text-[7px] tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>LITROS ECU</div>
                     <div className="font-space text-[28px] font-bold" style={{ color: "#ffcc00" }}>
                       {(data.resumen_mes?.litros_ecu_total ?? 0).toLocaleString("es-CL")}L
                     </div>
-                    <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>consumo real verificado</div>
+                    <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>consumo real verificado</div>
                   </div>
                 </div>
 
                 <div className="p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
                   <div className="flex items-center justify-between mb-3">
-                    <div className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#3a6080" }}>RENDIMIENTO vs META</div>
+                    <div className="font-exo text-xs tracking-wider uppercase" style={{ color: "#3a6080" }}>RENDIMIENTO vs META</div>
                     {data.resumen_mes?.vs_meta != null && (
                       <span className="font-space text-[11px] font-bold"
                         style={{ color: data.resumen_mes.vs_meta >= 0 ? "#00ff88" : "#ff2244" }}>
@@ -1213,10 +1213,10 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                         style={{ color: !data.resumen_mes?.rendimiento_promedio ? "#3a6080" : data.resumen_mes.rendimiento_promedio >= data.meta_kmL ? "#00ff88" : "#ffcc00" }}>
                         {data.resumen_mes?.rendimiento_promedio ? `${data.resumen_mes.rendimiento_promedio}` : "--"}
                       </div>
-                      <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>km/L promedio del mes</div>
+                      <div className="font-exo text-xs" style={{ color: "#3a6080" }}>km/L promedio del mes</div>
                     </div>
                     <div className="mb-1">
-                      <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>meta: {data.meta_kmL} km/L</div>
+                      <div className="font-exo text-xs" style={{ color: "#3a6080" }}>meta: {data.meta_kmL} km/L</div>
                     </div>
                   </div>
                   <div className="mt-3">
@@ -1238,7 +1238,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                     background: "#060d14",
                     border: `1px solid ${Math.abs(data.resumen_mes?.balance_litros ?? 0) < 200 ? "#0d2035" : Math.abs(data.resumen_mes?.balance_litros ?? 0) < 1000 ? "#ffcc0040" : "#ff224440"}`,
                   }}>
-                  <div className="font-exo text-[8px] tracking-wider uppercase mb-3" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-xs tracking-wider uppercase mb-3" style={{ color: "#3a6080" }}>
                     CUADRATURA — SIGETRA vs ECU
                   </div>
                   <div className="grid grid-cols-3 gap-4">
@@ -1246,20 +1246,20 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                       <div className="font-space text-[20px] font-bold" style={{ color: "#ffcc00" }}>
                         {(data.resumen_mes?.litros_sigetra_total ?? 0).toLocaleString("es-CL")}L
                       </div>
-                      <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Sigetra (cargado)</div>
+                      <div className="font-exo text-xs" style={{ color: "#3a6080" }}>Sigetra (cargado)</div>
                     </div>
                     <div className="text-center">
                       <div className="font-space text-[20px] font-bold" style={{ color: "#00d4ff" }}>
                         {(data.resumen_mes?.litros_ecu_total ?? 0).toLocaleString("es-CL")}L
                       </div>
-                      <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>ECU (consumido real)</div>
+                      <div className="font-exo text-xs" style={{ color: "#3a6080" }}>ECU (consumido real)</div>
                     </div>
                     <div className="text-right">
                       <div className="font-space text-[20px] font-bold"
                         style={{ color: Math.abs(data.resumen_mes?.balance_litros ?? 0) < 200 ? "#00ff88" : Math.abs(data.resumen_mes?.balance_litros ?? 0) < 1000 ? "#ffcc00" : "#ff2244" }}>
                         {(data.resumen_mes?.balance_litros ?? 0) > 0 ? "+" : ""}{data.resumen_mes?.balance_litros ?? 0}L
                       </div>
-                      <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
+                      <div className="font-exo text-xs" style={{ color: "#3a6080" }}>
                         balance · {data.resumen_mes?.balance_pct ?? 0}%
                       </div>
                     </div>
@@ -1276,7 +1276,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
 
                 {data.tendencia_semanal && data.tendencia_semanal.length > 0 && (
                   <div className="p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
-                    <div className="font-exo text-[8px] tracking-wider uppercase mb-3" style={{ color: "#3a6080" }}>
+                    <div className="font-exo text-xs tracking-wider uppercase mb-3" style={{ color: "#3a6080" }}>
                       RENDIMIENTO SEMANAL
                     </div>
                     <div className="space-y-2">
@@ -1285,14 +1285,14 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                         const barColor = s.rendimiento >= data.meta_kmL ? "#00ff88" : "#ffcc00";
                         return (
                           <div key={s.semana} className="flex items-center gap-3">
-                            <div className="font-exo text-[9px] w-6" style={{ color: "#3a6080" }}>{s.semana}</div>
+                            <div className="font-exo text-[11px] w-6" style={{ color: "#3a6080" }}>{s.semana}</div>
                             <div className="flex-1 h-1.5" style={{ background: "#0d2035" }}>
                               <div className="h-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
                             </div>
-                            <div className="font-space text-[10px] font-bold w-16 text-right" style={{ color: barColor }}>
+                            <div className="font-space text-xs font-bold w-16 text-right" style={{ color: barColor }}>
                               {s.rendimiento ? `${s.rendimiento} km/L` : "--"}
                             </div>
-                            <div className="font-exo text-[8px] w-8" style={{ color: "#3a6080" }}>{s.operaciones} op</div>
+                            <div className="font-exo text-xs w-8" style={{ color: "#3a6080" }}>{s.operaciones} op</div>
                           </div>
                         );
                       })}
@@ -1303,7 +1303,7 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                 {data.perfil_aprendido && (
                   <div className="p-3 flex items-center justify-between"
                     style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
-                    <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+                    <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>
                       Perfil aprendido · {data.perfil_aprendido.total_jornadas} jornadas · Confianza: {data.perfil_aprendido.confianza}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1311,14 +1311,14 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                         style={{ color: data.perfil_aprendido.score >= 70 ? "#00ff88" : "#ffcc00" }}>
                         {data.perfil_aprendido.score}
                       </span>
-                      <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>score</span>
+                      <span className="font-exo text-xs" style={{ color: "#3a6080" }}>score</span>
                     </div>
                   </div>
                 )}
 
                 {data.operaciones && data.operaciones.length > 0 && (
                   <div>
-                    <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>
+                    <div className="font-exo text-xs tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>
                       OPERACIONES DEL MES ({data.operaciones.length})
                     </div>
                     <div className="space-y-1 max-h-[300px] overflow-y-auto">
@@ -1328,28 +1328,28 @@ export function ContratoPage({ nombre, color, onClose }: { nombre: string; color
                           <div key={op.id} className="flex items-center gap-3 px-3 py-2"
                             style={{ background: "#060d14", border: "1px solid #0d2035" }}
                             data-testid={`operacion-row-${op.id}`}>
-                            <span className="font-space text-[8px] font-bold px-1.5 py-0.5"
+                            <span className="font-space text-xs font-bold px-1.5 py-0.5"
                               style={{ color: calidadColor, background: `${calidadColor}15`, border: `1px solid ${calidadColor}30` }}>
                               {op.calidad}
                             </span>
-                            <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+                            <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>
                               {op.fecha ? new Date(op.fecha).toLocaleDateString("es-CL") : "--"}
                             </span>
-                            <span className="font-exo text-[9px] truncate flex-1" style={{ color: "#c8e8ff" }}>
+                            <span className="font-exo text-[11px] truncate flex-1" style={{ color: "#c8e8ff" }}>
                               {op.origen || "--"} → {op.destino || "--"}
                             </span>
-                            <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>
+                            <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>
                               {Math.round(op.km_ecu)} km
                             </span>
-                            <span className="font-space text-[10px]" style={{ color: "#ffcc00" }}>
+                            <span className="font-space text-xs" style={{ color: "#ffcc00" }}>
                               {Math.round(op.litros_ecu)}L
                             </span>
-                            <span className="font-space text-[10px] font-bold"
+                            <span className="font-space text-xs font-bold"
                               style={{ color: op.rendimiento >= (data.meta_kmL ?? 2.85) ? "#00ff88" : "#ffcc00" }}>
                               {op.rendimiento > 0 ? `${op.rendimiento} km/L` : "--"}
                             </span>
                             {op.balance != null && (
-                              <span className="font-space text-[9px]"
+                              <span className="font-space text-[11px]"
                                 style={{ color: Math.abs(op.balance) < 50 ? "#00ff88" : Math.abs(op.balance) < 200 ? "#ffcc00" : "#ff2244" }}>
                                 {op.balance > 0 ? "+" : ""}{op.balance}L
                               </span>
@@ -1378,7 +1378,7 @@ function KpiCard({ label, value, sub, color, progress, loading, tooltip, onClick
       onClick={onClick}>
       <div className="flex items-center gap-1.5 mb-2">
         {icon && <span style={{ color: "#3a6080" }}>{icon}</span>}
-        <span className="font-exo text-[8px] tracking-[0.2em] uppercase" style={{ color: "#3a6080" }}>{label}</span>
+        <span className="font-exo text-xs tracking-[0.2em] uppercase" style={{ color: "#3a6080" }}>{label}</span>
         {tooltip && <InfoTip text={tooltip} />}
       </div>
       {loading ? (
@@ -1389,7 +1389,7 @@ function KpiCard({ label, value, sub, color, progress, loading, tooltip, onClick
             <div className="font-space text-[28px] font-bold leading-none" style={{ color }}>{value}</div>
             {unit && <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>{unit}</span>}
           </div>
-          <div className="font-exo text-[10px] mt-1.5" style={{ color: "#3a6080" }}>{sub}</div>
+          <div className="font-exo text-xs mt-1.5" style={{ color: "#3a6080" }}>{sub}</div>
           {progress != null && (
             <div className="mt-2 h-1.5 overflow-hidden rounded" style={{ background: "#0d2035" }}>
               <div className="h-full transition-all duration-1000 rounded" style={{ width: `${progress}%`, background: color }} />

@@ -448,7 +448,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
       const limiteKmh = parseFloat(params.find(p => p.clave === "vel_max_kmh")?.valor || "90");
       for (const v of fleet) {
         const speed = (v as any).wheelBasedSpeed ?? (v as any).gps?.speed ?? 0;
-        if (speed > 120) {
+        if (speed > 105) {
           const cam = camiones.find(c => c.vin === (v as any).vin);
           if (cam) {
             const faena = faenaMap.get(cam.faenaId ?? 0) || "Sin faena";
@@ -739,6 +739,7 @@ Sin formato adicional. Solo las 4 lineas.`;
         FROM viajes_aprendizaje va
         JOIN camiones c ON va.camion_id = c.id
         WHERE va.km_ecu > 0
+          AND c.vin IS NOT NULL AND c.vin != ''
       `;
       const params: any[] = [];
 
@@ -1018,6 +1019,212 @@ Sin formato adicional. Solo las 4 lineas.`;
       });
     } catch (error: any) {
       console.error("[contratos/cuadratura-camion] Error:", error.message);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ── Dashboard maestro por contrato ──
+  app.get("/api/contratos/dashboard/:contrato", async (req: Request, res: Response) => {
+    try {
+      const { contrato } = req.params;
+      const hoy = new Date();
+      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      const diasMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+      const diaActual = hoy.getDate();
+      const diasRestantes = diasMes - diaActual;
+
+      // Camiones válidos del contrato
+      const camR = await pool.query(`
+        SELECT DISTINCT c.patente, c.vin, c.modelo
+        FROM camiones c
+        JOIN faenas f ON c.faena_id = f.id
+        WHERE f.nombre = $1 AND c.vin IS NOT NULL AND c.vin != ''
+          AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at::timestamp >= NOW() - INTERVAL '30 days')
+        ORDER BY c.patente
+      `, [contrato]);
+
+      const patentes = camR.rows.map((c: any) => c.patente);
+      if (!patentes.length) {
+        return res.json({ contrato, sin_datos: true, mensaje: "Sin camiones válidos" });
+      }
+
+      // KPIs por camión este mes
+      const kpisR = await pool.query(`
+        SELECT c.patente,
+          COALESCE(SUM(va.km_ecu::float), 0) as km_total,
+          COALESCE(SUM(va.litros_consumidos_ecu::float), 0) as litros_total,
+          COUNT(*)::int as viajes
+        FROM viajes_aprendizaje va
+        JOIN camiones c ON va.camion_id = c.id
+        WHERE va.contrato = $1 AND va.fecha_inicio >= $2 AND va.km_ecu::float > 0
+          AND c.vin IS NOT NULL AND c.vin != ''
+        GROUP BY c.patente
+      `, [contrato, inicioMes]);
+
+      const kmTotal = kpisR.rows.reduce((s: number, r: any) => s + parseFloat(r.km_total), 0);
+      const litrosTotal = kpisR.rows.reduce((s: number, r: any) => s + parseFloat(r.litros_total), 0);
+      const rendPromedio = litrosTotal > 0 ? Math.round(kmTotal / litrosTotal * 100) / 100 : null;
+      const totalViajes = kpisR.rows.reduce((s: number, r: any) => s + r.viajes, 0);
+
+      // Meta
+      const META: Record<string, number> = {}; // Sin metas km hardcodeadas por ahora
+      const metaPorCamion = META[contrato] || null;
+      const metaTotal = metaPorCamion ? metaPorCamion * patentes.length : null;
+      const proyeccion = metaTotal && diaActual > 0 ? Math.round(kmTotal + (kmTotal / diaActual * diasRestantes)) : null;
+      let estadoMeta = "SIN_META";
+      if (proyeccion && metaTotal) {
+        if (proyeccion >= metaTotal * 0.98) estadoMeta = "CUMPLIRA";
+        else if (proyeccion >= metaTotal * 0.85) estadoMeta = "EN_RIESGO";
+        else estadoMeta = "NO_CUMPLIRA";
+      }
+
+      // Corredores
+      const corrR = await pool.query(`
+        SELECT id, nombre, origen_nombre, destino_nombre, origen_lat, origen_lng, destino_lat, destino_lng,
+          total_viajes, rendimiento_promedio, rendimiento_mejor, rendimiento_peor, km_total
+        FROM corredores_operacionales WHERE contrato = $1 AND activo = true ORDER BY total_viajes DESC LIMIT 20
+      `, [contrato]);
+
+      // KPIs por camión
+      const camiones = kpisR.rows.map((k: any) => {
+        const km = parseFloat(k.km_total);
+        const lit = parseFloat(k.litros_total);
+        const rend = lit > 0 ? Math.round(km / lit * 100) / 100 : null;
+        const metaPct = metaPorCamion ? Math.round(km / metaPorCamion * 100) : null;
+        const proy = metaPorCamion && diaActual > 0 ? Math.round(km + (km / diaActual * diasRestantes)) : null;
+        return {
+          patente: k.patente, km_mes: Math.round(km), litros_mes: Math.round(lit),
+          rendimiento: rend, viajes: k.viajes, meta_pct: metaPct, proyeccion: proy,
+          estado_meta: metaPorCamion ? (proy! >= metaPorCamion * 0.98 ? "CUMPLIRA" : proy! >= metaPorCamion * 0.85 ? "EN_RIESGO" : "NO_CUMPLIRA") : "SIN_META",
+        };
+      }).sort((a: any, b: any) => b.km_mes - a.km_mes);
+
+      // Anomalías
+      const anomCombR = await pool.query(`
+        SELECT COUNT(*)::int as total FROM operaciones_cerradas
+        WHERE contrato = $1 AND nivel_anomalia IN ('CRITICO','SOSPECHOSO') AND km_ecu >= 200 AND snap_count >= 15 AND horas_periodo >= 24 AND revisado = false AND carga_a_fecha >= $2
+      `, [contrato, inicioMes]);
+      const anomVelR = await pool.query(`
+        SELECT COUNT(DISTINCT gp.patente)::int as camiones, COUNT(*)::int as excesos
+        FROM geo_puntos gp JOIN camiones c ON gp.camion_id = c.id
+        WHERE gp.velocidad_kmh::float > 105 AND c.vin IS NOT NULL
+          AND gp.timestamp_punto >= $1 AND c.patente = ANY($2)
+      `, [inicioMes, patentes]);
+      const bajoMeta = camiones.filter((c: any) => c.estado_meta === "NO_CUMPLIRA").length;
+
+      res.json({
+        contrato,
+        periodo: { desde: inicioMes.toISOString().slice(0, 10), hasta: hoy.toISOString().slice(0, 10), dia_actual: diaActual, dias_mes: diasMes },
+        kpis: {
+          km_total: Math.round(kmTotal), litros_total: Math.round(litrosTotal), rendimiento_promedio: rendPromedio,
+          total_camiones: patentes.length, total_viajes: totalViajes,
+          meta_km_total: metaTotal, proyeccion_km: proyeccion, estado_meta: estadoMeta,
+          km_diarios_necesarios: metaTotal && diasRestantes > 0 ? Math.ceil((metaTotal - kmTotal) / diasRestantes) : null,
+        },
+        corredores: corrR.rows,
+        camiones,
+        anomalias: {
+          combustible_critico: anomCombR.rows[0]?.total || 0,
+          velocidad_camiones: anomVelR.rows[0]?.camiones || 0,
+          velocidad_excesos: anomVelR.rows[0]?.excesos || 0,
+          rendimiento_bajo_meta: bajoMeta,
+        },
+      });
+    } catch (error: any) {
+      console.error("[contratos/dashboard] Error:", error.message);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Análisis de operaciones similares
+  app.get("/api/contratos/analisis-operaciones/:contrato", async (req: Request, res: Response) => {
+    try {
+      const { contrato } = req.params;
+      const dias = parseInt(req.query.dias as string || "30");
+      const desde = new Date(); desde.setDate(desde.getDate() - dias);
+
+      const viajesR = await pool.query(`
+        SELECT va.id, c.patente, va.conductor, va.contrato, va.origen_nombre, va.destino_nombre,
+          va.destino_lat::float as destino_lat, va.destino_lng::float as destino_lng,
+          va.km_ecu::float as km_ecu, va.litros_consumidos_ecu::float as litros_ecu,
+          va.rendimiento_real::float as rendimiento_ecu, va.duracion_minutos::float / 60.0 as duracion_horas,
+          va.fecha_inicio
+        FROM viajes_aprendizaje va
+        JOIN camiones c ON va.camion_id = c.id
+        WHERE va.contrato = $1 AND va.fecha_inicio >= $2 AND va.km_ecu::float > 50
+          AND va.rendimiento_real::float > 0 AND va.destino_lat IS NOT NULL
+          AND c.vin IS NOT NULL AND c.vin != ''
+        ORDER BY va.fecha_inicio DESC
+      `, [contrato, desde]);
+
+      if (!viajesR.rows.length) return res.json({ grupos: [], total_viajes: 0, contrato });
+
+      // Agrupación por similitud operacional
+      const grupos: any[] = [];
+      for (const v of viajesR.rows) {
+        const km = v.km_ecu || 0;
+        const dLat = v.destino_lat || 0;
+        const dLng = v.destino_lng || 0;
+        let matched = false;
+
+        for (const g of grupos) {
+          const distDest = Math.sqrt(Math.pow(dLat - g.cLat, 2) + Math.pow(dLng - g.cLng, 2)) * 111;
+          if (distDest > 30) continue;
+          const diffKm = Math.abs(km - g.kmProm) / (g.kmProm || 1);
+          if (diffKm > 0.15) continue;
+          g.viajes.push(v);
+          const n = g.viajes.length;
+          g.cLat = g.viajes.reduce((s: number, v: any) => s + (v.destino_lat || 0), 0) / n;
+          g.cLng = g.viajes.reduce((s: number, v: any) => s + (v.destino_lng || 0), 0) / n;
+          g.kmProm = g.viajes.reduce((s: number, v: any) => s + (v.km_ecu || 0), 0) / n;
+          matched = true;
+          break;
+        }
+        if (!matched) {
+          grupos.push({ id: grupos.length + 1, nombre: v.destino_nombre || "?", cLat: dLat, cLng: dLng, kmProm: km, viajes: [v] });
+        }
+      }
+
+      const result = grupos.filter(g => g.viajes.length >= 2).map(g => {
+        const rends = g.viajes.map((v: any) => v.rendimiento_ecu).filter((r: number) => r > 0);
+        const rendProm = rends.length ? rends.reduce((s: number, r: number) => s + r, 0) / rends.length : 0;
+        const rendMejor = rends.length ? Math.max(...rends) : 0;
+        const rendPeor = rends.length ? Math.min(...rends) : 0;
+        const brecha = rendPeor > 0 ? Math.round((rendMejor - rendPeor) / rendPeor * 100) : 0;
+
+        const porCamion: Record<string, any> = {};
+        for (const v of g.viajes) {
+          if (!porCamion[v.patente]) porCamion[v.patente] = { patente: v.patente, conductor: v.conductor, viajes: 0, rends: [], km: 0 };
+          porCamion[v.patente].viajes++;
+          if (v.rendimiento_ecu > 0) porCamion[v.patente].rends.push(v.rendimiento_ecu);
+          porCamion[v.patente].km += v.km_ecu || 0;
+        }
+        const camiones = Object.values(porCamion).map((c: any) => ({
+          patente: c.patente, conductor: c.conductor, viajes: c.viajes, km_total: Math.round(c.km),
+          rend_promedio: c.rends.length ? Math.round(c.rends.reduce((s: number, r: number) => s + r, 0) / c.rends.length * 100) / 100 : null,
+        })).sort((a: any, b: any) => (b.rend_promedio || 0) - (a.rend_promedio || 0));
+
+        const mitad = Math.floor(g.viajes.length / 2);
+        const recientes = g.viajes.slice(0, mitad);
+        const anteriores = g.viajes.slice(mitad);
+        const rendRec = recientes.length ? recientes.reduce((s: number, v: any) => s + (v.rendimiento_ecu || 0), 0) / recientes.length : 0;
+        const rendAnt = anteriores.length ? anteriores.reduce((s: number, v: any) => s + (v.rendimiento_ecu || 0), 0) / anteriores.length : 0;
+        const tendencia = rendAnt > 0 ? Math.round((rendRec - rendAnt) / rendAnt * 100) : 0;
+
+        const kms = g.viajes.map((v: any) => v.km_ecu || 0);
+        return {
+          id: g.id, destino_nombre: g.nombre, km_promedio: Math.round(g.kmProm),
+          km_min: Math.round(Math.min(...kms)), km_max: Math.round(Math.max(...kms)),
+          total_viajes: g.viajes.length, total_camiones: camiones.length,
+          rend_promedio: Math.round(rendProm * 100) / 100, rend_mejor: Math.round(rendMejor * 100) / 100,
+          rend_peor: Math.round(rendPeor * 100) / 100, brecha_pct: brecha, tendencia_pct: tendencia,
+          camiones, ultimo_viaje: g.viajes[0]?.fecha_inicio,
+        };
+      }).sort((a, b) => b.total_viajes - a.total_viajes);
+
+      res.json({ contrato, periodo_dias: dias, total_viajes: viajesR.rows.length, total_grupos: result.length, grupos: result });
+    } catch (error: any) {
+      console.error("[analisis-ops] Error:", error.message);
       res.status(500).json({ message: error.message });
     }
   });

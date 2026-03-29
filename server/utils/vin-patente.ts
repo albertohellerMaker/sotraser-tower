@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { camiones } from "../../shared/schema";
-import { isNotNull } from "drizzle-orm";
+import { isNotNull, and, ne, sql } from "drizzle-orm";
 
 let _vinAPatente: Map<string, string> | null = null;
 let _patenteAVin: Map<string, string> | null = null;
@@ -20,7 +20,10 @@ export async function getPatenteVin(): Promise<Map<string, string>> {
 async function refreshCacheIfNeeded() {
   if (_vinAPatente && Date.now() - _cacheTime < CACHE_TTL) return;
 
-  const todos = await db.select().from(camiones).where(isNotNull(camiones.vin));
+  // Solo camiones con patente numérica + VIN
+  const todos = await db.select().from(camiones).where(
+    and(isNotNull(camiones.vin), ne(camiones.vin, ""))
+  );
 
   const porVin: Record<string, typeof todos> = {};
   for (const c of todos) {
@@ -33,11 +36,11 @@ async function refreshCacheIfNeeded() {
   const patenteAVinMap = new Map<string, string>();
 
   for (const [vin, registros] of Object.entries(porVin)) {
-    const alfanumerica = registros.find(r => /^[A-Z]{4}[0-9]{2}$/.test(r.patente || ""));
-    const conLetras = registros.find(r => /[A-Z]/.test(r.patente || ""));
+    // Priorizar patentes numéricas (ej: "1951", "2034")
+    const numerica = registros.find(r => /^\d+$/.test(r.patente || ""));
     const cualquiera = registros[0];
 
-    const elegida = alfanumerica || conLetras || cualquiera;
+    const elegida = numerica || cualquiera;
 
     if (elegida?.patente) {
       vinAPatenteMap.set(vin, elegida.patente);
@@ -73,7 +76,10 @@ export async function resolverPatenteAVin(patente: string): Promise<string | nul
 export async function diagnosticoVinPatente() {
   const map = await getVinPatente();
   const pMap = await getPatenteVin();
-  const todos = await db.select().from(camiones).where(isNotNull(camiones.vin));
+  // Solo camiones con patente numérica + VIN
+  const todos = await db.select().from(camiones).where(
+    and(isNotNull(camiones.vin), ne(camiones.vin, ""))
+  );
 
   const totalVins = new Set(todos.map(c => c.vin)).size;
   const resueltos = map.size;

@@ -206,7 +206,7 @@ export default function MapaEnVivo() {
         ].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
             data-testid={`geo-filter-${f.id}`}
-            className="font-exo text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer transition-all"
+            className="font-exo text-xs font-bold px-3 py-1.5 rounded cursor-pointer transition-all"
             style={{
               background: filter === f.id ? (f.color || "#00d4ff") + "30" : "#020508cc",
               border: `1px solid ${filter === f.id ? (f.color || "#00d4ff") : "#0d2035"}`,
@@ -217,14 +217,14 @@ export default function MapaEnVivo() {
         ))}
         <button onClick={() => ingestMutation.mutate()} disabled={ingestMutation.isPending}
           data-testid="btn-ingest-volvo"
-          className="font-exo text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer"
+          className="font-exo text-xs font-bold px-3 py-1.5 rounded cursor-pointer"
           style={{ background: "#00d4ff20", border: "1px solid #00d4ff", color: "#00d4ff" }}>
           <RefreshCw className={`w-3 h-3 inline mr-1 ${ingestMutation.isPending ? "animate-spin" : ""}`} />
           Ingest GPS
         </button>
         <button onClick={() => setShowFuelStations(!showFuelStations)}
           data-testid="btn-toggle-fuel"
-          className="font-exo text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer"
+          className="font-exo text-xs font-bold px-3 py-1.5 rounded cursor-pointer"
           style={{
             background: showFuelStations ? "#ff660030" : "#020508cc",
             border: `1px solid ${showFuelStations ? "#ff6600" : "#0d2035"}`,
@@ -264,7 +264,7 @@ export default function MapaEnVivo() {
                 <CamionStatusDot estado={c.estado} />
                 <div className="flex-1 min-w-0">
                   <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</div>
-                  <div className="font-exo text-[9px] truncate" style={{ color: "#3a6080" }}>
+                  <div className="font-exo text-[11px] truncate" style={{ color: "#3a6080" }}>
                     {c.velocidad > 0 ? `${c.velocidad} km/h` : c.estado === "SIN_SEÑAL" ? `Sin senal ${c.ageMinutes}min` : `Detenido ${c.ageMinutes}min`}
                     {c.conductor ? ` · ${c.conductor}` : ""}
                   </div>
@@ -276,7 +276,7 @@ export default function MapaEnVivo() {
       )}
 
       <button onClick={() => setPanelOpen(!panelOpen)}
-        className="absolute top-3 z-10 font-exo text-[10px] px-2 py-1 rounded cursor-pointer"
+        className="absolute top-3 z-10 font-exo text-xs px-2 py-1 rounded cursor-pointer"
         style={{
           right: panelOpen ? "19rem" : "0.75rem",
           background: "#020508cc",
@@ -299,7 +299,7 @@ export default function MapaEnVivo() {
               <div className="font-space text-[12px] font-bold tracking-wider" style={{ color: "#ff6600" }}>
                 {estacionDetail.nombre}
               </div>
-              <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+              <div className="font-exo text-xs" style={{ color: "#3a6080" }}>
                 {estacionDetail.ciudad} -- {estacionDetail.totalCargas} cargas -- {Math.round(estacionDetail.totalLitros).toLocaleString("es-CL")} L -- {estacionDetail.trucks.length} camiones
               </div>
             </div>
@@ -322,12 +322,12 @@ export default function MapaEnVivo() {
                   <Truck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#ff6600" }} />
                   <div className="flex-1 text-left min-w-0">
                     <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{truck.patente}</span>
-                    <span className="font-exo text-[10px] ml-2" style={{ color: "#3a6080" }}>{truck.conductor}</span>
+                    <span className="font-exo text-xs ml-2" style={{ color: "#3a6080" }}>{truck.conductor}</span>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <span className="font-space text-[11px] font-bold" style={{ color: "#ff6600" }}>{truck.cargas.length}</span>
-                    <span className="font-exo text-[9px] ml-1" style={{ color: "#3a6080" }}>cargas</span>
-                    <span className="font-space text-[10px] ml-2" style={{ color: "#c8e8ff" }}>{Math.round(truck.totalLitros).toLocaleString("es-CL")} L</span>
+                    <span className="font-exo text-[11px] ml-1" style={{ color: "#3a6080" }}>cargas</span>
+                    <span className="font-space text-xs ml-2" style={{ color: "#c8e8ff" }}>{Math.round(truck.totalLitros).toLocaleString("es-CL")} L</span>
                   </div>
                   {expandedTruck === truck.patente ? <ChevronUp className="w-3 h-3 flex-shrink-0" style={{ color: "#3a6080" }} /> : <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: "#3a6080" }} />}
                 </button>
@@ -339,48 +339,48 @@ export default function MapaEnVivo() {
                       const diffColor = Math.abs(cm.diferencia) <= 50 ? "#00c97a" : cm.diferencia > 0 ? "#ffcc00" : "#ff2244";
                       return (
                         <div className="p-2.5 rounded mb-2" style={{ background: "#00d4ff08", border: "1px solid #00d4ff30" }} data-testid={`cruce-mensual-${truck.patente}`}>
-                          <div className="font-space text-[10px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>CRUCE MENSUAL ACUMULADO</div>
+                          <div className="font-space text-xs font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>CRUCE MENSUAL ACUMULADO</div>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                             {/* Sigetra oculto - solo Volvo */}
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Consumo ECU Volvo</span>
-                              <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{cm.litrosEcu.toLocaleString("es-CL")} L</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Consumo ECU Volvo</span>
+                              <span className="font-space text-xs font-bold" style={{ color: "#00d4ff" }}>{cm.litrosEcu.toLocaleString("es-CL")} L</span>
                             </div>
                             {/* N cargas Sigetra oculto */}
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>N viajes ECU</span>
-                              <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{cm.viajesEcu}</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>N viajes ECU</span>
+                              <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>{cm.viajesEcu}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Km odometro</span>
-                              <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{cm.kmOdometro > 0 ? cm.kmOdometro.toLocaleString("es-CL") : "--"} km</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Km odometro</span>
+                              <span className="font-space text-xs font-bold" style={{ color: "#c8e8ff" }}>{cm.kmOdometro > 0 ? cm.kmOdometro.toLocaleString("es-CL") : "--"} km</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Km viajes ECU</span>
-                              <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{cm.kmEcu > 0 ? cm.kmEcu.toLocaleString("es-CL") : "--"} km</span>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Km viajes ECU</span>
+                              <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>{cm.kmEcu > 0 ? cm.kmEcu.toLocaleString("es-CL") : "--"} km</span>
                             </div>
                             {cm.odoInicio > 0 && (
                               <div className="col-span-2 flex justify-between">
-                                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Odo inicio / fin</span>
-                                <span className="font-space text-[10px]" style={{ color: "#3a6080" }}>{cm.odoInicio.toLocaleString("es-CL")} / {cm.odoFin.toLocaleString("es-CL")}</span>
+                                <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Odo inicio / fin</span>
+                                <span className="font-space text-xs" style={{ color: "#3a6080" }}>{cm.odoInicio.toLocaleString("es-CL")} / {cm.odoFin.toLocaleString("es-CL")}</span>
                               </div>
                             )}
                             {/* Rend Sigetra oculto */}
                             <div className="flex justify-between">
-                              <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Rend ECU Volvo</span>
-                              <span className="font-space text-[10px] font-bold" style={{ color: cm.rendimientoEcu >= 3.5 ? "#00c97a" : cm.rendimientoEcu > 0 ? "#ff2244" : "#3a6080" }}>
+                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Rend ECU Volvo</span>
+                              <span className="font-space text-xs font-bold" style={{ color: cm.rendimientoEcu >= 3.5 ? "#00c97a" : cm.rendimientoEcu > 0 ? "#ff2244" : "#3a6080" }}>
                                 {cm.rendimientoEcu > 0 ? `${cm.rendimientoEcu.toFixed(2)} km/L` : "--"}
                               </span>
                             </div>
                           </div>
                           <div className="mt-2 pt-2 flex justify-between items-center" style={{ borderTop: "1px solid #0d2035", display: 'none' }}>
-                            <span className="font-exo text-[9px] font-bold" style={{ color: "#3a6080" }}>DIFERENCIA</span>
+                            <span className="font-exo text-[11px] font-bold" style={{ color: "#3a6080" }}>DIFERENCIA</span>
                             <div className="text-right">
                               <span className="font-space text-[11px] font-bold" style={{ color: diffColor }}>
                                 {cm.diferencia > 0 ? "+" : ""}{cm.diferencia.toLocaleString("es-CL")} L
                               </span>
                               {cm.diferenciaPct !== 0 && (
-                                <span className="font-exo text-[9px] ml-1" style={{ color: diffColor }}>
+                                <span className="font-exo text-[11px] ml-1" style={{ color: diffColor }}>
                                   ({cm.diferenciaPct > 0 ? "+" : ""}{cm.diferenciaPct}%)
                                 </span>
                               )}
@@ -392,15 +392,15 @@ export default function MapaEnVivo() {
                     {truck.cargas.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).map((c: any, i: number) => (
                       <div key={i} className="p-2 rounded" style={{ background: "#0d203530", border: "1px solid #0d2035" }}>
                         <div className="flex justify-between items-center">
-                          <span className="font-exo text-[10px] font-bold" style={{ color: "#c8e8ff" }}>
+                          <span className="font-exo text-xs font-bold" style={{ color: "#c8e8ff" }}>
                             {new Date(c.fecha).toLocaleDateString("es-CL")} {new Date(c.fecha).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                           <span className="font-space text-[11px] font-bold" style={{ color: "#ff6600" }}>{c.litros.toFixed(1)} L</span>
                         </div>
                         <div className="flex gap-3 mt-1">
-                          <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Odo: {c.odometro?.toLocaleString("es-CL") || "--"} km</span>
-                          <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Km rec: {c.kmRecorrido?.toLocaleString("es-CL") || "--"}</span>
-                          <span className="font-exo text-[9px]" style={{ color: c.rendimiento >= 3.5 ? "#00c97a" : c.rendimiento > 0 ? "#ff2244" : "#3a6080" }}>
+                          <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Odo: {c.odometro?.toLocaleString("es-CL") || "--"} km</span>
+                          <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Km rec: {c.kmRecorrido?.toLocaleString("es-CL") || "--"}</span>
+                          <span className="font-exo text-[11px]" style={{ color: c.rendimiento >= 3.5 ? "#00c97a" : c.rendimiento > 0 ? "#ff2244" : "#3a6080" }}>
                             Rend: {c.rendimiento > 0 ? `${c.rendimiento.toFixed(2)} km/L` : "--"}
                           </span>
                         </div>

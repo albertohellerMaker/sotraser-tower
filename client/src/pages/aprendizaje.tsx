@@ -106,7 +106,7 @@ export default function Aprendizaje() {
         </div>
         <div className="flex items-center gap-3">
           {progress?.status === "running" && (
-            <div className="flex items-center gap-2 font-exo text-[10px]" style={{ color: "#ffcc00" }}>
+            <div className="flex items-center gap-2 font-exo text-xs" style={{ color: "#ffcc00" }}>
               <RefreshCw className="w-3 h-3 animate-spin" />
               SYNC {progress.procesados}/{progress.totalCamiones}
             </div>
@@ -115,7 +115,7 @@ export default function Aprendizaje() {
             onClick={() => autoSyncMutation.mutate(!autoSyncStatus?.active)}
             disabled={autoSyncMutation.isPending}
             data-testid="button-auto-sync"
-            className="flex items-center gap-2 px-3 py-2 font-exo text-[10px] font-bold tracking-wider cursor-pointer transition-all"
+            className="flex items-center gap-2 px-3 py-2 font-exo text-xs font-bold tracking-wider cursor-pointer transition-all"
             style={{
               background: autoSyncStatus?.active ? "rgba(0,201,122,0.12)" : "rgba(58,96,128,0.1)",
               border: `1px solid ${autoSyncStatus?.active ? "#00c97a" : "#3a6080"}`,
@@ -149,7 +149,7 @@ export default function Aprendizaje() {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5">
         {kpis.map((k, i) => (
           <div key={i} className="dash-card px-3 py-3" data-testid={`kpi-aprendizaje-${i}`}>
-            <div className="font-exo text-[10px] font-bold tracking-[0.15em] mb-1.5" style={{ color: "#4a7090" }}>
+            <div className="font-exo text-xs font-bold tracking-[0.15em] mb-1.5" style={{ color: "#4a7090" }}>
               {k.label}
             </div>
             <div className="font-space text-[18px] font-bold" style={{ color: k.color }}>
@@ -163,10 +163,10 @@ export default function Aprendizaje() {
         <div className="dash-card px-0 py-0 mb-4">
           <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid #0d2035" }}>
             <Gauge className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />
-            <span className="font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
+            <span className="font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
               RENDIMIENTO POR CONTRATO
             </span>
-            <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>km/L promedio ECU</span>
+            <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>km/L promedio ECU</span>
           </div>
           <div className="px-4 py-3 space-y-3">
             {stats.porContrato.map((c: any, i: number) => {
@@ -183,8 +183,8 @@ export default function Aprendizaje() {
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="font-space text-[12px] font-bold" style={{ color: rendColor }}>{c.rendimientoAvg ?? "--"} km/L</span>
-                      <span className="font-space text-[10px]" style={{ color: "#3a6080" }}>{c.kmAvg} km avg</span>
-                      <span className="font-space text-[10px]" style={{ color: "#3a6080" }}>{c.count} viajes</span>
+                      <span className="font-space text-xs" style={{ color: "#3a6080" }}>{c.kmAvg} km avg</span>
+                      <span className="font-space text-xs" style={{ color: "#3a6080" }}>{c.count} viajes</span>
                     </div>
                   </div>
                   <div className="w-full h-2 overflow-hidden" style={{ background: "#0d2035" }}>
@@ -202,14 +202,14 @@ export default function Aprendizaje() {
 
       <div className="dash-card px-0 py-0">
         <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid #0d2035" }}>
-          <span className="font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
+          <span className="font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#c8e8ff" }}>
             VIAJES CON ANOMALIAS DETECTADAS
           </span>
           <div className="flex gap-1">
             {["todos", "REVISAR", "ANOMALIA"].map(est => (
               <button key={est} onClick={() => setFiltroEstado(est)}
                 data-testid={`filter-estado-${est}`}
-                className="px-3 py-1 font-exo text-[10px] font-bold tracking-wider cursor-pointer transition-all"
+                className="px-3 py-1 font-exo text-xs font-bold tracking-wider cursor-pointer transition-all"
                 style={{
                   background: filtroEstado === est ? (estadoColors[est] || "#00d4ff") + "20" : "transparent",
                   border: `1px solid ${filtroEstado === est ? (estadoColors[est] || "#00d4ff") : "#0d2035"}`,
@@ -227,12 +227,12 @@ export default function Aprendizaje() {
               <thead>
                 <tr style={{ borderBottom: "1px solid #0d2035" }}>
                   <AnomaHeader label="PATENTE" col="patente" current={anomaSort} dir={anomaDir} onClick={handleAnomaSort} align="left" />
-                  <th className="text-left px-3 py-2 font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#4a7090" }}>CONTRATO</th>
+                  <th className="text-left px-3 py-2 font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#4a7090" }}>CONTRATO</th>
                   <AnomaHeader label="FECHA" col="fecha" current={anomaSort} dir={anomaDir} onClick={handleAnomaSort} />
                   <AnomaHeader label="KM ECU" col="km" current={anomaSort} dir={anomaDir} onClick={handleAnomaSort} />
-                  <th className="text-right px-3 py-2 font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#4a7090" }}>L ECU</th>
+                  <th className="text-right px-3 py-2 font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#4a7090" }}>L ECU</th>
                   <AnomaHeader label="REND" col="rend" current={anomaSort} dir={anomaDir} onClick={handleAnomaSort} />
-                  <th className="text-right px-3 py-2 font-exo text-[10px] font-bold tracking-[0.15em]" style={{ color: "#4a7090" }}>CUADRATURA</th>
+                  <th className="text-right px-3 py-2 font-exo text-xs font-bold tracking-[0.15em]" style={{ color: "#4a7090" }}>CUADRATURA</th>
                   <AnomaHeader label="SCORE" col="score" current={anomaSort} dir={anomaDir} onClick={handleAnomaSort} />
                 </tr>
               </thead>
@@ -255,10 +255,10 @@ export default function Aprendizaje() {
                         <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</span>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="font-exo text-[10px]" style={{ color: CONTRATO_COLORS[a.contrato] || "#3a6080" }}>{a.contrato}</span>
+                        <span className="font-exo text-xs" style={{ color: CONTRATO_COLORS[a.contrato] || "#3a6080" }}>{a.contrato}</span>
                       </td>
                       <td className="text-right px-3 py-2.5">
-                        <span className="font-space text-[10px]" style={{ color: "#6a90aa" }}>
+                        <span className="font-space text-xs" style={{ color: "#6a90aa" }}>
                           {a.fecha_inicio ? new Date(a.fecha_inicio).toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : "--"}
                         </span>
                       </td>
@@ -274,19 +274,19 @@ export default function Aprendizaje() {
                       <td className="text-right px-3 py-2.5">
                         {a.sigetra_cruzado ? (
                           parseFloat(a.litros_cargados_sigetra || 0) === 0 && a.delta_cuadratura == null ? (
-                            <span className="font-exo text-[9px]" style={{ color: "#4a7090" }}>SIN MATCH</span>
+                            <span className="font-exo text-[11px]" style={{ color: "#4a7090" }}>SIN MATCH</span>
                           ) : <div>
-                            <span className="font-space text-[10px]" style={{ color: "#ff6b35" }}>
+                            <span className="font-space text-xs" style={{ color: "#ff6b35" }}>
                               {parseFloat(a.litros_cargados_sigetra || 0).toFixed(0)}L surt
                             </span>
                             {a.delta_cuadratura != null && (
-                              <span className="font-space text-[10px] ml-1" style={{ color: parseFloat(a.delta_cuadratura) > 15 ? "#ff2244" : "#00c97a" }}>
+                              <span className="font-space text-xs ml-1" style={{ color: parseFloat(a.delta_cuadratura) > 15 ? "#ff2244" : "#00c97a" }}>
                                 {parseFloat(a.delta_cuadratura) >= 0 ? "+" : ""}{parseFloat(a.delta_cuadratura).toFixed(0)}L
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="font-exo text-[9px]" style={{ color: "#4a7090" }}>PENDIENTE</span>
+                          <span className="font-exo text-[11px]" style={{ color: "#4a7090" }}>PENDIENTE</span>
                         )}
                       </td>
                       <td className="text-right px-3 py-2.5">
@@ -328,7 +328,7 @@ function AnomaHeader({ label, col, current, dir, onClick, align }: {
   const active = current === col;
   return (
     <th className={`${align === "left" ? "text-left" : "text-right"} px-3 py-2 cursor-pointer select-none`} onClick={() => onClick(col)}>
-      <span className="font-exo text-[10px] font-bold tracking-[0.15em] inline-flex items-center gap-1"
+      <span className="font-exo text-xs font-bold tracking-[0.15em] inline-flex items-center gap-1"
         style={{ color: active ? "#00d4ff" : "#4a7090" }}>
         {label}
         {active && (dir === "desc" ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />)}
