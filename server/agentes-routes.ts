@@ -6,7 +6,7 @@ const router = Router();
 router.get("/estado", async (_req, res) => {
   try {
     const [agentes, sistema, msgs] = await Promise.all([
-      pool.query("SELECT id, nombre, tipo, estado, ultimo_ciclo::text, ciclos_completados, errores_consecutivos FROM agentes ORDER BY CASE tipo WHEN 'CEO' THEN 1 WHEN 'MONITOR' THEN 2 WHEN 'ANALISTA' THEN 3 WHEN 'PREDICTOR' THEN 4 WHEN 'GESTOR' THEN 5 WHEN 'REPORTERO' THEN 6 END"),
+      pool.query("SELECT id, nombre, tipo, estado, ultimo_ciclo::text, ciclos_completados, errores_consecutivos FROM agentes WHERE estado = 'ACTIVO' ORDER BY nombre"),
       pool.query("SELECT * FROM agente_estado_sistema WHERE id = 1"),
       pool.query("SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE prioridad = 'CRITICA')::int as criticos, COUNT(*) FILTER (WHERE prioridad = 'ALTA')::int as altos FROM agente_mensajes WHERE para_agente = 'agente-gerente-general' AND leido = false AND created_at >= NOW() - INTERVAL '24 hours'"),
     ]);
@@ -116,7 +116,7 @@ router.post("/arquitecto/chat", async (req, res) => {
 
     // Get system context
     const [agentes, flota, viajes] = await Promise.all([
-      pool.query("SELECT id, nombre, tipo, ultimo_ciclo::text, ciclos_completados FROM agentes"),
+      pool.query("SELECT id, nombre, tipo, ultimo_ciclo::text, ciclos_completados FROM agentes WHERE estado = 'ACTIVO'"),
       pool.query("SELECT camiones_activos, total_camiones, km_hoy, rendimiento_promedio FROM (SELECT COUNT(DISTINCT patente) FILTER (WHERE minutos_desde_ultimo < 60) as camiones_activos, COUNT(DISTINCT patente) as total_camiones, 0 as km_hoy, 0 as rendimiento_promedio FROM ultima_posicion_camion) sub"),
       pool.query("SELECT COUNT(*)::int as viajes_hoy FROM viajes_aprendizaje WHERE DATE(fecha_inicio) = CURRENT_DATE"),
     ]);
@@ -129,7 +129,12 @@ router.post("/arquitecto/chat", async (req, res) => {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 300,
-      system: `Eres el Agente Arquitecto de Sotraser Tower. Jefe técnico del sistema. Conoces toda la arquitectura: Volvo Connect, WiseTrack GPS, Sigetra, GPS Unificado (581 cam), geocercas inteligentes (5 niveles), sistema multi-agente (7 agentes). Respondes en español, directo y técnico. Max 100 palabras.\n\nCONTEXTO: ${ctx}`,
+      system: `Eres el Agente Arquitecto de Sotraser Tower. Jefe técnico del sistema.
+Arquitectura: Volvo Connect + WiseTrack GPS + Sigetra combustible → GPS Unificado (581 cam) → geocercas inteligentes (5 niveles).
+Sistema multi-agente v2 (8 activos): Operaciones (15min, detecta+analiza+actúa), Predictor (15min), Gerente General (15min, decide), Gerente Ops (1h, memoria+geocercas), Agente Contrato (1h, fichas), Admin Contrato Cencosud (1h, georef+tarifas), Reportero, Arquitecto (tú, chat).
+Super Agente TMS Cencosud (independiente, 30min): geocercas propias con Google Maps, análisis financiero, chat IA.
+3 áreas: TOWER (GPS/flota), BRAIN (agentes), TMS CENCOSUD (contrato dedicado).
+Español, directo, técnico. Max 100 palabras.\n\nCONTEXTO ACTUAL: ${ctx}`,
       messages: [...hist.rows.reverse().map((h: any) => ({ role: h.rol === "CEO" ? "user" as const : "assistant" as const, content: h.mensaje })), { role: "user" as const, content: mensaje }],
     });
 
