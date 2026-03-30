@@ -119,7 +119,7 @@ export const agenteContrato = {
     const graves = anomalias.filter(a => a.severidad === "ALTA");
     if (graves.length > 0) {
       await enviarMensaje({
-        de: this.id, para: "agente-ceo", tipo: "CONTRATO_ALERTA",
+        de: this.id, para: "agente-gerente-general", tipo: "CONTRATO_ALERTA",
         prioridad: "ALTA",
         titulo: `${contrato}: ${graves.length} anomalía(s) grave(s)`,
         contenido: graves.map(a => `• ${a.desc}`).join("\n"),

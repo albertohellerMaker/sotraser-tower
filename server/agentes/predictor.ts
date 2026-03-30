@@ -38,7 +38,7 @@ export const agentePredictor = {
       }
 
       for (const p of predicciones) {
-        await enviarMensaje({ de: "agente-predictor", para: "agente-ceo", tipo: "PREDICCION", prioridad: "NORMAL", titulo: p.titulo, contenido: JSON.stringify(p.datos).slice(0, 500), datos: p });
+        await enviarMensaje({ de: "agente-predictor", para: "agente-gerente-general", tipo: "PREDICCION", prioridad: "NORMAL", titulo: p.titulo, contenido: JSON.stringify(p.datos).slice(0, 500), datos: p });
       }
 
       await pool.query("UPDATE agentes SET ultimo_ciclo = NOW(), ciclos_completados = ciclos_completados + 1 WHERE id = $1", ["agente-predictor"]);

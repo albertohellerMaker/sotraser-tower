@@ -16,7 +16,7 @@ export const agenteReportero = {
       const f = flota.rows[0];
       const resumen = `📊 REPORTE ${fecha}\n${f.cam} camiones · ${f.viajes} viajes · ${Math.round(f.km || 0).toLocaleString()}km · ${f.rend || "--"}km/L\n\nPor contrato:\n${contratos.rows.map((c: any) => `${c.contrato}: ${c.cam}cam ${Math.round(c.km || 0).toLocaleString()}km ${c.rend}km/L`).join("\n")}`;
 
-      await enviarMensaje({ de: "agente-reportero", para: "agente-ceo", tipo: "REPORTE", prioridad: "NORMAL", titulo: `📊 Reporte Diario ${fecha}`, contenido: resumen, datos: { fecha, flota: f, contratos: contratos.rows } });
+      await enviarMensaje({ de: "agente-reportero", para: "agente-gerente-general", tipo: "REPORTE", prioridad: "NORMAL", titulo: `📊 Reporte Diario ${fecha}`, contenido: resumen, datos: { fecha, flota: f, contratos: contratos.rows } });
       await pool.query("UPDATE agente_estado_sistema SET ultimo_reporte = NOW() WHERE id = 1");
       await pool.query("UPDATE agentes SET ultimo_ciclo = NOW(), ciclos_completados = ciclos_completados + 1 WHERE id = $1", ["agente-reportero"]);
       console.log("[REPORTERO] Reporte generado");

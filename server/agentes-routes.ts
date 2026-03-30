@@ -8,7 +8,7 @@ router.get("/estado", async (_req, res) => {
     const [agentes, sistema, msgs] = await Promise.all([
       pool.query("SELECT id, nombre, tipo, estado, ultimo_ciclo::text, ciclos_completados, errores_consecutivos FROM agentes ORDER BY CASE tipo WHEN 'CEO' THEN 1 WHEN 'MONITOR' THEN 2 WHEN 'ANALISTA' THEN 3 WHEN 'PREDICTOR' THEN 4 WHEN 'GESTOR' THEN 5 WHEN 'REPORTERO' THEN 6 END"),
       pool.query("SELECT * FROM agente_estado_sistema WHERE id = 1"),
-      pool.query("SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE prioridad = 'CRITICA')::int as criticos, COUNT(*) FILTER (WHERE prioridad = 'ALTA')::int as altos FROM agente_mensajes WHERE para_agente = 'agente-ceo' AND leido = false AND created_at >= NOW() - INTERVAL '24 hours'"),
+      pool.query("SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE prioridad = 'CRITICA')::int as criticos, COUNT(*) FILTER (WHERE prioridad = 'ALTA')::int as altos FROM agente_mensajes WHERE para_agente = 'agente-gerente-general' AND leido = false AND created_at >= NOW() - INTERVAL '24 hours'"),
     ]);
     res.json({ agentes: agentes.rows, sistema: sistema.rows[0], mensajes_pendientes: msgs.rows[0] });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -29,7 +29,7 @@ router.get("/mensajes", async (req, res) => {
 
     if (de) { where += ` AND m.de_agente = $${paramIdx++}`; params.push(de); }
     if (para) { where += ` AND m.para_agente = $${paramIdx++}`; params.push(para); }
-    else { where += " AND m.para_agente = 'agente-ceo'"; } // default: al CEO
+    else { where += " AND m.para_agente = 'agente-gerente-general'"; } // default: al CEO
     if (noLeidos) { where += " AND m.leido = false"; }
     if (prioridad) { where += ` AND m.prioridad = $${paramIdx++}`; params.push(prioridad); }
     if (buscar) { where += ` AND (m.titulo ILIKE $${paramIdx} OR m.contenido ILIKE $${paramIdx})`; params.push(`%${buscar}%`); paramIdx++; }
@@ -81,7 +81,7 @@ router.post("/mensajes/:id/leer", async (req, res) => {
 });
 
 router.post("/mensajes/leer-todos", async (_req, res) => {
-  await pool.query("UPDATE agente_mensajes SET leido = true WHERE para_agente = 'agente-ceo' AND leido = false");
+  await pool.query("UPDATE agente_mensajes SET leido = true WHERE para_agente = 'agente-gerente-general' AND leido = false");
   res.json({ ok: true });
 });
 
@@ -89,13 +89,13 @@ router.post("/forzar/:agente", async (req, res) => {
   const { agente } = req.params;
   try {
     const mods: Record<string, () => Promise<void>> = {
-      monitor: async () => { const { agenteMonitor } = await import("./agentes/monitor"); await agenteMonitor.ejecutar(); },
-      analista: async () => { const { agenteAnalista } = await import("./agentes/analista"); await agenteAnalista.ejecutar(); },
+      operaciones: async () => { const { agenteOperaciones } = await import("./agentes/operaciones"); await agenteOperaciones.ejecutar(); },
       predictor: async () => { const { agentePredictor } = await import("./agentes/predictor"); await agentePredictor.ejecutar(); },
       reportero: async () => { const { agenteReportero } = await import("./agentes/reportero"); await agenteReportero.ejecutar(); },
-      gestor: async () => { const { agenteGestor } = await import("./agentes/gestor"); await agenteGestor.ejecutar(); },
       contrato: async () => { const { agenteContrato } = await import("./agentes/contrato"); await agenteContrato.ejecutar(); },
       cencosud: async () => { const { agenteCencosud } = await import("./agentes/cencosud"); await agenteCencosud.ejecutar(); },
+      "gerente-general": async () => { const { agenteGerenteGeneral } = await import("./agentes/gerente-general"); await agenteGerenteGeneral.ejecutar(); },
+      "gerente-ops": async () => { const { agenteGerenteOps } = await import("./agentes/gerente-ops"); await agenteGerenteOps.ejecutar(); },
     };
     if (mods[agente]) { await mods[agente](); res.json({ ok: true }); }
     else res.status(404).json({ error: "Agente no encontrado" });

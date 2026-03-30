@@ -276,7 +276,7 @@ export const agenteCencosud = {
     // Al CEO: solo si hay algo relevante
     if (prod.camiones < 58 && new Date().getDate() > 5) {
       await enviarMensaje({
-        de: this.id, para: "agente-ceo", tipo: "CENCOSUD_FLOTA_BAJA",
+        de: this.id, para: "agente-gerente-general", tipo: "CENCOSUD_FLOTA_BAJA",
         prioridad: "ALTA",
         titulo: `Cencosud: ${prod.camiones}/83 camiones — riesgo incumplimiento`,
         contenido: `Solo ${prod.camiones} de 83 camiones contratados operaron este mes. Meta productividad comprometida.`,
@@ -286,7 +286,7 @@ export const agenteCencosud = {
 
     if (cruce.pct >= 50 && cruce.ingreso > 0) {
       await enviarMensaje({
-        de: this.id, para: "agente-ceo", tipo: "CENCOSUD_INGRESO",
+        de: this.id, para: "agente-gerente-general", tipo: "CENCOSUD_INGRESO",
         prioridad: "NORMAL",
         titulo: `Cencosud ${fecha}: ingreso estimado $${Math.round(cruce.ingreso).toLocaleString()}`,
         contenido: `${cruce.matcheados} viajes cruzados con tarifa. ${prod.camiones} camiones activos.`,

@@ -80,7 +80,7 @@ export const agenteGerenteOps = {
         problemas.push(`Solo ${viajes.rows[0].hoy} viajes detectados hoy`); salud -= 20;
       }
 
-      const agentesConCiclo = ["agente-monitor", "agente-analista", "agente-predictor", "agente-gestor", "agente-ceo", "agente-gerente-ops"];
+      const agentesConCiclo = ["agente-operaciones", "agente-predictor", "agente-gerente-general", "agente-gerente-ops", "agente-contrato", "agente-admin-contrato"];
       for (const a of agentes.rows) {
         if (!agentesConCiclo.includes(a.id)) continue; // Skip chat-only agents like arquitecto
         if (a.errores_consecutivos > 3) { problemas.push(`Agente ${a.id} con ${a.errores_consecutivos} errores consecutivos`); salud -= 10; }
@@ -97,7 +97,7 @@ export const agenteGerenteOps = {
       // Si salud crítica, enviar alerta al CEO
       if (salud < 50) {
         await enviarMensaje({
-          de: this.id, para: "agente-ceo", tipo: "ALERTA_SISTEMA",
+          de: this.id, para: "agente-gerente-general", tipo: "ALERTA_SISTEMA",
           prioridad: "ALTA", titulo: `Salud sistema: ${salud}%`,
           contenido: `Problemas detectados: ${problemas.join("; ")}`,
           datos: { salud, problemas }
@@ -139,7 +139,7 @@ export const agenteGerenteOps = {
         `);
         const msg = porContrato.rows.map((r: any) => `${r.contrato}: ${r.desc}`).join(", ");
         await enviarMensaje({
-          de: this.id, para: "agente-ceo", tipo: "INSIGHT",
+          de: this.id, para: "agente-gerente-general", tipo: "INSIGHT",
           prioridad: "NORMAL", titulo: "Contratos con puntos desconocidos",
           contenido: `${ptsDesc.rows[0].total} viajes con origen/destino desconocido en 3 días. Concentración: ${msg}. Revisar geocercas de estos contratos.`,
           datos: { total: ptsDesc.rows[0].total, por_contrato: porContrato.rows }
@@ -237,7 +237,7 @@ export const agenteGerenteOps = {
         const val = existe.rows[0].valor || {};
         if ((val.count || 0) >= 5) {
           await enviarMensaje({
-            de: this.id, para: "agente-ceo", tipo: "ERROR_RECURRENTE",
+            de: this.id, para: "agente-gerente-general", tipo: "ERROR_RECURRENTE",
             prioridad: "ALTA", titulo: `Error recurrente en ${funcion}`,
             contenido: `El error "${error}" se ha repetido ${val.count + 1} veces. Requiere intervención humana.`,
             datos: { funcion, error, count: val.count + 1 }
