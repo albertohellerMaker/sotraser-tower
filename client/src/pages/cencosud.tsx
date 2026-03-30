@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings } from "lucide-react";
+import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "AGENTE" | "TARIFAS";
+type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "AGENTE" | "TARIFAS" | "MAPA";
 
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
@@ -57,7 +58,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
         <div className="flex gap-0">
-          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "BOT", "AGENTE", "TARIFAS"] as Tab[]).map(t => (
+          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "BOT", "AGENTE", "TARIFAS", "MAPA"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
               style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
           ))}
@@ -622,6 +623,20 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
             </div>
           </>
         )}
+
+        {/* ═══ MAPA — GEOCERCAS KML OFICIAL ═══ */}
+        {tab === "MAPA" && (
+          <div style={{ margin: "-16px" }}>
+            <div style={{ padding: "8px 16px", borderBottom: "1px solid #0d2035", display: "flex", alignItems: "center", gap: 8 }}>
+              <MapPin size={12} color="#00d4ff" />
+              <span className="font-exo text-[9px] tracking-wider uppercase" style={{ color: "#00d4ff" }}>
+                Geocercas Oficiales · Regla Absoluta · Fuente KML
+              </span>
+            </div>
+            <MapaGeocercasCencosud />
+          </div>
+        )}
+
       </div>
     </div>
   );

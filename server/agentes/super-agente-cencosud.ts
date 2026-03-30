@@ -50,11 +50,20 @@ export const superAgenteCencosud = {
   // CONSTRUIR GEOCERCAS PROPIAS (usa Google Maps)
   // ═══════════════════════════════════════════════════
   async construirGeoReferencias() {
-    // Cargar geocercas existentes del TMS
-    const geos = await pool.query("SELECT * FROM cencosud_geocercas WHERE activa = true");
-    const geocercas = geos.rows;
+    // ── REGLA ABSOLUTA: cargar geocercas KML primero ──
+    // Las geocercas importadas desde KML NO se modifican ni se duplican.
+    let geocercasKml: any[] = [];
+    try {
+      const kmlRes = await pool.query("SELECT lat::float, lng::float, radio_m FROM cencosud_geocercas_kml WHERE activa = true");
+      geocercasKml = kmlRes.rows;
+    } catch { /* tabla aún no existe */ }
 
-    // Buscar puntos de viajes Cencosud que NO caen en ninguna geocerca propia
+    // Cargar geocercas auto-aprendidas del TMS
+    const geos = await pool.query("SELECT * FROM cencosud_geocercas WHERE activa = true");
+    // Combinar ambas para evitar duplicados
+    const geocercas = [...geos.rows, ...geocercasKml];
+
+    // Buscar puntos de viajes Cencosud que NO caen en ninguna geocerca (KML o auto)
     const puntos = await pool.query(`
       SELECT DISTINCT ROUND(lat::numeric, 4) as lat, ROUND(lng::numeric, 4) as lng, COUNT(*)::int as viajes FROM (
         SELECT va.origen_lat::float as lat, va.origen_lng::float as lng
@@ -158,11 +167,22 @@ export const superAgenteCencosud = {
   },
 
   // ═══════════════════════════════════════════════════
-  // CLASIFICAR VIAJES con geocercas propias del TMS
+  // CLASIFICAR VIAJES — KML primero (regla absoluta)
   // ═══════════════════════════════════════════════════
   async clasificarViajes() {
-    const geos = await pool.query("SELECT * FROM cencosud_geocercas WHERE activa = true");
-    const geocercas = geos.rows;
+    // 1. Geocercas KML oficiales (prioridad absoluta)
+    let geocercasKml: any[] = [];
+    try {
+      const kmlRes = await pool.query("SELECT id, nombre, lat::float, lng::float, radio_m FROM cencosud_geocercas_kml WHERE activa = true");
+      geocercasKml = kmlRes.rows.map((g: any) => ({ ...g, fuente: "KML" }));
+    } catch { /* tabla no existe aún */ }
+
+    // 2. Geocercas auto-aprendidas (solo si KML no resuelve)
+    const geos = await pool.query("SELECT id, nombre, nombre_contrato, lat::float, lng::float, radio_m FROM cencosud_geocercas WHERE activa = true");
+    const geocercasAuto = geos.rows.map((g: any) => ({ ...g, fuente: "AUTO" }));
+
+    // KML siempre primero
+    const todasGeo = [...geocercasKml, ...geocercasAuto];
 
     // Viajes sin clasificar (origen o destino sin nombre de contrato)
     const viajes = await pool.query(`
@@ -178,28 +198,32 @@ export const superAgenteCencosud = {
 
     let clasificados = 0;
     for (const v of viajes.rows) {
-      // Clasificar origen
+      // Clasificar origen — KML tiene prioridad
       if ((!v.origen_nombre || v.origen_nombre === "Punto desconocido") && v.olat) {
-        const match = geocercas.find((g: any) => distKm(v.olat, v.olng, g.lat, g.lng) * 1000 < g.radio_m);
+        const match = todasGeo.find((g: any) => distKm(v.olat, v.olng, g.lat, g.lng) * 1000 < g.radio_m);
         if (match) {
           await pool.query("UPDATE viajes_aprendizaje SET origen_nombre = $1 WHERE id = $2", [`[TMS] ${match.nombre}`, v.id]);
-          await pool.query("UPDATE cencosud_geocercas SET viajes_detectados = viajes_detectados + 1 WHERE id = $1", [match.id]);
+          if (match.fuente === "AUTO") {
+            await pool.query("UPDATE cencosud_geocercas SET viajes_detectados = viajes_detectados + 1 WHERE id = $1", [match.id]);
+          }
           clasificados++;
         }
       }
-      // Clasificar destino
+      // Clasificar destino — KML tiene prioridad
       if ((!v.destino_nombre || v.destino_nombre === "Punto desconocido") && v.dlat) {
-        const match = geocercas.find((g: any) => distKm(v.dlat, v.dlng, g.lat, g.lng) * 1000 < g.radio_m);
+        const match = todasGeo.find((g: any) => distKm(v.dlat, v.dlng, g.lat, g.lng) * 1000 < g.radio_m);
         if (match) {
           await pool.query("UPDATE viajes_aprendizaje SET destino_nombre = $1 WHERE id = $2", [`[TMS] ${match.nombre}`, v.id]);
-          await pool.query("UPDATE cencosud_geocercas SET viajes_detectados = viajes_detectados + 1 WHERE id = $1", [match.id]);
+          if (match.fuente === "AUTO") {
+            await pool.query("UPDATE cencosud_geocercas SET viajes_detectados = viajes_detectados + 1 WHERE id = $1", [match.id]);
+          }
           clasificados++;
         }
       }
     }
 
-    // Auto-crear alias para geocercas TMS nuevas
-    for (const g of geocercas) {
+    // Auto-crear alias para geocercas TMS nuevas (solo AUTO, las KML ya tienen alias)
+    for (const g of geocercasAuto) {
       try {
         await pool.query(
           "INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por) VALUES ($1,$2,'CENCOSUD',true,'TMS_AUTO') ON CONFLICT DO NOTHING",

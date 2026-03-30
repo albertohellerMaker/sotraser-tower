@@ -354,11 +354,45 @@ router.get("/err", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ═══ GEOCERCAS TMS PROPIAS ═══
+// ═══ GEOCERCAS TMS PROPIAS (auto-aprendidas) ═══
 router.get("/geocercas-tms", async (_req, res) => {
   try {
     const r = await pool.query("SELECT * FROM cencosud_geocercas WHERE activa = true ORDER BY tipo, viajes_detectados DESC");
     res.json({ geocercas: r.rows, total: r.rows.length });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ GEOCERCAS KML — REGLA ABSOLUTA ═══
+// Devuelve los polígonos exactos importados desde el KML oficial.
+// Incluye centroide, radio y coordenadas del polígono para renderizado en mapa.
+router.get("/geocercas-mapa", async (_req, res) => {
+  try {
+    // Verificar que la tabla existe
+    const existe = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'cencosud_geocercas_kml'
+      ) as ok
+    `);
+    if (!existe.rows[0].ok) {
+      return res.json({ geocercas: [], total: 0, mensaje: "Tabla no creada. Ejecuta el script de importación KML." });
+    }
+
+    const r = await pool.query(`
+      SELECT id, kml_id, nombre, tipo, lat::float, lng::float, radio_m,
+             poligono, nombre_contrato, activa, importado_at
+      FROM cencosud_geocercas_kml
+      WHERE activa = true
+      ORDER BY tipo, nombre
+    `);
+
+    // Estadísticas por tipo
+    const porTipo: Record<string, number> = {};
+    for (const row of r.rows) {
+      porTipo[row.tipo] = (porTipo[row.tipo] || 0) + 1;
+    }
+
+    res.json({ geocercas: r.rows, total: r.rows.length, por_tipo: porTipo });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
