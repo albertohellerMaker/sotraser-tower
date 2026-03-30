@@ -354,6 +354,14 @@ router.get("/err", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ GEOCERCAS TMS PROPIAS ═══
+router.get("/geocercas-tms", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM cencosud_geocercas WHERE activa = true ORDER BY tipo, viajes_detectados DESC");
+    res.json({ geocercas: r.rows, total: r.rows.length });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ PARÁMETROS EDITABLES ═══
 router.get("/parametros", async (_req, res) => {
   try {
