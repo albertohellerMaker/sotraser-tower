@@ -354,4 +354,63 @@ router.get("/err", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ PARÁMETROS EDITABLES ═══
+router.get("/parametros", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM cencosud_parametros ORDER BY categoria, nombre");
+    res.json({ parametros: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.put("/parametros/:clave", async (req, res) => {
+  const { valor } = req.body;
+  if (valor === undefined) return res.status(400).json({ error: "valor requerido" });
+  await pool.query("UPDATE cencosud_parametros SET valor = $1, modificado_por = 'USUARIO', updated_at = NOW() WHERE clave = $2", [valor, req.params.clave]);
+  res.json({ ok: true });
+});
+
+// ═══ SUPER AGENTE ═══
+router.get("/agente/estado", async (_req, res) => {
+  try {
+    const [estado, msgs] = await Promise.all([
+      pool.query("SELECT * FROM cencosud_agente_estado WHERE id = 1"),
+      pool.query("SELECT tipo, prioridad, COUNT(*)::int as total, COUNT(*) FILTER (WHERE leido = false)::int as no_leidos FROM cencosud_agente_mensajes WHERE created_at >= NOW() - INTERVAL '24 hours' GROUP BY tipo, prioridad ORDER BY total DESC"),
+    ]);
+    res.json({ estado: estado.rows[0], mensajes_resumen: msgs.rows, total_no_leidos: msgs.rows.reduce((s: number, m: any) => s + parseInt(m.no_leidos), 0) });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/agente/mensajes", async (_req, res) => {
+  const r = await pool.query("SELECT * FROM cencosud_agente_mensajes WHERE created_at >= NOW() - INTERVAL '48 hours' ORDER BY CASE prioridad WHEN 'CRITICA' THEN 1 WHEN 'ALTA' THEN 2 ELSE 3 END, created_at DESC LIMIT 30");
+  res.json({ mensajes: r.rows });
+});
+
+router.post("/agente/mensajes/leer", async (_req, res) => {
+  await pool.query("UPDATE cencosud_agente_mensajes SET leido = true WHERE leido = false");
+  res.json({ ok: true });
+});
+
+router.post("/agente/ejecutar", async (_req, res) => {
+  try {
+    const { superAgenteCencosud } = await import("./agentes/super-agente-cencosud");
+    await superAgenteCencosud.ejecutarCiclo();
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/agente/chat", async (req, res) => {
+  const { mensaje } = req.body;
+  if (!mensaje) return res.status(400).json({ error: "mensaje requerido" });
+  try {
+    const { superAgenteCencosud } = await import("./agentes/super-agente-cencosud");
+    const respuesta = await superAgenteCencosud.chat(mensaje);
+    res.json({ respuesta });
+  } catch (e: any) { res.json({ respuesta: "Error: " + e.message }); }
+});
+
+router.get("/agente/chat-historial", async (_req, res) => {
+  const r = await pool.query("SELECT * FROM cencosud_agente_chat ORDER BY created_at DESC LIMIT 20");
+  res.json({ historial: r.rows.reverse() });
+});
+
 export default router;

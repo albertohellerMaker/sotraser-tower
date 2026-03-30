@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw } from "lucide-react";
+import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings } from "lucide-react";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "TARIFAS";
+type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "AGENTE" | "TARIFAS";
 
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
@@ -21,6 +21,10 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   const { data: aliasData } = useQuery<any>({ queryKey: ["/api/cencosud/alias"], queryFn: () => fetch("/api/cencosud/alias").then(r => r.json()), staleTime: 300000, enabled: tab === "BOT" });
   const { data: botStatus } = useQuery<any>({ queryKey: ["/api/agentes/estado"], queryFn: () => fetch("/api/agentes/estado").then(r => r.json()), staleTime: 60000, enabled: tab === "BOT" });
   const { data: botMsgs } = useQuery<any>({ queryKey: ["/api/agentes/mensajes?limite=20"], queryFn: () => fetch("/api/agentes/mensajes?limite=20").then(r => r.json()), staleTime: 30000, enabled: tab === "BOT" });
+  // Super Agente
+  const { data: saEstado } = useQuery<any>({ queryKey: ["/api/cencosud/agente/estado"], queryFn: () => fetch("/api/cencosud/agente/estado").then(r => r.json()), refetchInterval: 60000, enabled: tab === "AGENTE" });
+  const { data: saMsgs, refetch: refetchSaMsgs } = useQuery<any>({ queryKey: ["/api/cencosud/agente/mensajes"], queryFn: () => fetch("/api/cencosud/agente/mensajes").then(r => r.json()), refetchInterval: 30000, enabled: tab === "AGENTE" });
+  const { data: paramData, refetch: refetchParams } = useQuery<any>({ queryKey: ["/api/cencosud/parametros"], queryFn: () => fetch("/api/cencosud/parametros").then(r => r.json()), staleTime: 300000, enabled: tab === "AGENTE" });
 
   const f = mes?.flota || {};
   const fi = mes?.financiero || {};
@@ -53,7 +57,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
         <div className="flex gap-0">
-          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "BOT", "TARIFAS"] as Tab[]).map(t => (
+          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "BOT", "AGENTE", "TARIFAS"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
               style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
           ))}
@@ -585,6 +589,9 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           );
         })()}
 
+        {/* ═══ SUPER AGENTE + PARÁMETROS ═══ */}
+        {tab === "AGENTE" && <SuperAgentePanel saEstado={saEstado} saMsgs={saMsgs} refetchSaMsgs={refetchSaMsgs} paramData={paramData} refetchParams={refetchParams} />}
+
         {/* ═══ TARIFAS ═══ */}
         {tab === "TARIFAS" && tarifasData && (
           <>
@@ -615,6 +622,174 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// SUPER AGENTE + PARÁMETROS
+// ═══════════════════════════════════════════════════
+function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchParams }: any) {
+  const [msg, setMsg] = useState("");
+  const [hist, setHist] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editParam, setEditParam] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/cencosud/agente/chat-historial").then(r => r.json()).then(d => {
+      setHist((d.historial || []).map((h: any) => ({ rol: h.rol, texto: h.mensaje })));
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { chatRef.current?.scrollIntoView({ behavior: "smooth" }); }, [hist]);
+
+  const enviar = async () => {
+    if (!msg.trim()) return;
+    const texto = msg; setMsg(""); setLoading(true);
+    setHist(h => [...h, { rol: "CEO", texto }]);
+    try {
+      const r = await fetch("/api/cencosud/agente/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensaje: texto }) });
+      const d = await r.json();
+      setHist(h => [...h, { rol: "AGENTE", texto: d.respuesta }]);
+    } catch { setHist(h => [...h, { rol: "AGENTE", texto: "Error de conexión" }]); }
+    setLoading(false);
+  };
+
+  const guardarParam = async (clave: string) => {
+    await fetch(`/api/cencosud/parametros/${clave}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valor: parseFloat(editVal) }) });
+    setEditParam(null); refetchParams();
+  };
+
+  const mensajes = saMsgs?.mensajes || [];
+  const noLeidos = saEstado?.total_no_leidos || 0;
+  const params = paramData?.parametros || [];
+  const categorias = ["FINANCIERO", "OPERACIONAL", "ALERTAS"];
+  const colorTipo = (t: string): string => ({ OPERACION: "#00d4ff", FINANCIERO: "#00ff88", ANOMALIA: "#ff2244", META: "#ffcc00", CONDUCTOR: "#a78bfa", INACTIVIDAD: "#ff6b35" }[t] || "#3a6080");
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {/* IZQUIERDA: Mensajes + Parámetros */}
+      <div className="space-y-3">
+        {/* Super Agente status + mensajes */}
+        <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #00d4ff30", borderTop: "2px solid #00d4ff" }}>
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4" style={{ color: "#00d4ff" }} />
+              <span className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>SUPER AGENTE CENCOSUD</span>
+              {noLeidos > 0 && <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#ff224420", color: "#ff2244" }}>{noLeidos}</span>}
+            </div>
+            <div className="flex gap-1">
+              <button onClick={() => { fetch("/api/cencosud/agente/ejecutar", { method: "POST" }).then(() => refetchSaMsgs()); }} className="font-exo text-[7px] px-2 py-1 cursor-pointer rounded" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>Ejecutar</button>
+              <button onClick={() => { fetch("/api/cencosud/agente/mensajes/leer", { method: "POST" }).then(() => refetchSaMsgs()); }} className="font-exo text-[7px] px-2 py-1 cursor-pointer rounded" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>Leer</button>
+            </div>
+          </div>
+          {saEstado?.estado && (
+            <div className="px-4 py-1.5 flex items-center gap-3" style={{ borderBottom: "1px solid #0d2035" }}>
+              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#00ff88" }} />
+              <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>
+                {saEstado.estado.ciclos_hoy} ciclos hoy · Último: {saEstado.estado.ultimo_ciclo ? new Date(saEstado.estado.ultimo_ciclo).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "--"}
+              </span>
+            </div>
+          )}
+          <div className="overflow-auto" style={{ maxHeight: 250 }}>
+            {mensajes.map((m: any) => (
+              <div key={m.id} className="px-4 py-2 border-b" style={{ borderColor: "#0a1520", borderLeft: `3px solid ${!m.leido ? colorTipo(m.tipo) : "transparent"}`, background: !m.leido ? `${colorTipo(m.tipo)}03` : "transparent" }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ color: colorTipo(m.tipo), border: `1px solid ${colorTipo(m.tipo)}30` }}>{m.tipo}</span>
+                    {m.prioridad === "CRITICA" && <span className="font-exo text-[6px] font-bold" style={{ color: "#ff2244" }}>CRIT</span>}
+                  </div>
+                  <span className="font-exo text-[6px]" style={{ color: "#3a6080" }}>{new Date(m.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <div className="font-exo text-[9px] font-bold mt-0.5" style={{ color: "#c8e8ff" }}>{m.titulo}</div>
+                <div className="font-exo text-[8px] mt-0.5 line-clamp-2" style={{ color: "#3a6080" }}>{m.contenido}</div>
+              </div>
+            ))}
+            {mensajes.length === 0 && <div className="text-center py-6 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin alertas en 48h</div>}
+          </div>
+        </div>
+
+        {/* Parámetros editables */}
+        <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #fbbf2430", borderTop: "2px solid #fbbf24" }}>
+          <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+            <Settings className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} />
+            <span className="font-space text-[10px] font-bold" style={{ color: "#fbbf24" }}>PARÁMETROS TMS</span>
+          </div>
+          <div className="overflow-auto" style={{ maxHeight: 300 }}>
+            {categorias.map(cat => {
+              const catParams = params.filter((p: any) => p.categoria === cat);
+              if (catParams.length === 0) return null;
+              return (
+                <div key={cat}>
+                  <div className="px-4 py-1.5" style={{ background: "#0a1520" }}>
+                    <span className="font-exo text-[7px] tracking-wider uppercase font-bold" style={{ color: cat === "FINANCIERO" ? "#00ff88" : cat === "OPERACIONAL" ? "#00d4ff" : "#ffcc00" }}>{cat}</span>
+                  </div>
+                  {catParams.map((p: any) => (
+                    <div key={p.clave} className="flex items-center justify-between px-4 py-1.5 hover:bg-[rgba(255,255,255,0.02)]" style={{ borderBottom: "1px solid #0d203520" }}>
+                      <div>
+                        <div className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{p.nombre}</div>
+                        <div className="font-exo text-[6px]" style={{ color: "#3a6080" }}>{p.descripcion?.substring(0, 40)}</div>
+                      </div>
+                      {editParam === p.clave ? (
+                        <div className="flex items-center gap-1">
+                          <input value={editVal} onChange={e => setEditVal(e.target.value)} autoFocus className="w-20 px-2 py-0.5 font-space text-[10px] outline-none rounded" style={{ background: "#0a1520", border: "1px solid #fbbf2430", color: "#fbbf24" }} onKeyDown={e => e.key === "Enter" && guardarParam(p.clave)} />
+                          <button onClick={() => guardarParam(p.clave)} className="font-exo text-[7px] px-1.5 cursor-pointer" style={{ color: "#00ff88" }}>OK</button>
+                          <button onClick={() => setEditParam(null)} className="font-exo text-[7px] px-1 cursor-pointer" style={{ color: "#3a6080" }}>X</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setEditParam(p.clave); setEditVal(String(p.valor)); }} className="flex items-center gap-1 cursor-pointer" title="Click para editar">
+                          <span className="font-space text-[11px] font-bold" style={{ color: "#fbbf24" }}>{Number(p.valor).toLocaleString()}</span>
+                          <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{p.unidad}</span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* DERECHA: Chat con el agente */}
+      <div className="rounded-lg flex flex-col" style={{ background: "#060d14", border: "1px solid #a855f730", borderTop: "2px solid #a855f7" }}>
+        <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+          <span className="font-space text-[11px] font-bold" style={{ color: "#a855f7" }}>CHAT SUPER AGENTE</span>
+          <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>Pregunta sobre el contrato Cencosud con datos reales</div>
+        </div>
+        <div className="flex-1 overflow-auto px-4 py-3 space-y-2" style={{ maxHeight: 380 }}>
+          {hist.length === 0 && (
+            <div className="text-center py-4">
+              <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Pregunta lo que necesites</div>
+              <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+                {["Como vamos hoy?", "Cual es el margen?", "Que camion revisar?", "Vamos a llegar a la meta?"].map(s => (
+                  <button key={s} onClick={() => setMsg(s)} className="font-exo text-[7px] px-2 py-1 cursor-pointer rounded" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {hist.map((h, i) => (
+            <div key={i} className={`flex ${h.rol === "CEO" ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[85%] px-3 py-2 rounded-lg" style={{ background: h.rol === "CEO" ? "#a855f710" : "#0a1520", border: `1px solid ${h.rol === "CEO" ? "#a855f730" : "#0d2035"}` }}>
+                <div className="font-exo text-[7px] uppercase mb-0.5" style={{ color: h.rol === "CEO" ? "#a855f7" : "#00d4ff" }}>{h.rol === "CEO" ? "TU" : "AGENTE"}</div>
+                <div className="font-exo text-[10px] leading-relaxed whitespace-pre-wrap" style={{ color: "#c8e8ff" }}>{h.texto}</div>
+              </div>
+            </div>
+          ))}
+          {loading && <div className="flex justify-start"><div className="px-3 py-2 rounded-lg" style={{ background: "#0a1520" }}><Loader2 className="w-4 h-4 animate-spin" style={{ color: "#a855f7" }} /></div></div>}
+          <div ref={chatRef} />
+        </div>
+        <div className="px-4 pb-3 flex gap-2" style={{ borderTop: "1px solid #0d2035", paddingTop: 10 }}>
+          <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && enviar()} placeholder="Pregunta al agente..."
+            className="flex-1 px-3 py-2 font-exo text-[10px] outline-none rounded" style={{ background: "#0a1520", border: "1px solid #a855f730", color: "#c8e8ff" }} />
+          <button onClick={enviar} disabled={loading || !msg.trim()} className="px-4 py-2 font-space text-[9px] font-bold cursor-pointer rounded disabled:opacity-30"
+            style={{ background: "#a855f710", border: "1px solid #a855f730", color: "#a855f7" }}>
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
