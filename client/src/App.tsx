@@ -1222,7 +1222,7 @@ function CamionesUnificado() {
 
 // ── Main App Shell ──
 // Welcome screen
-function WelcomeScreen({ onTower, onMando }: { onTower: () => void; onMando: () => void }) {
+function WelcomeScreen({ onTower, onMando, onTMS }: { onTower: () => void; onMando: () => void; onTMS: () => void }) {
   const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
   useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
   const { data: stats } = useQuery<any>({ queryKey: ["/api/welcome/stats"], queryFn: () => fetch("/api/welcome/stats").then(r => r.json()), refetchInterval: 60000 });
@@ -1242,26 +1242,36 @@ function WelcomeScreen({ onTower, onMando }: { onTower: () => void; onMando: () 
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-6 w-full max-w-3xl px-8">
-        <button onClick={onTower} className="group p-8 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+      <div className="grid grid-cols-3 gap-5 w-full max-w-5xl px-8">
+        <button onClick={onTower} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #00d4ff20", borderTop: "3px solid #00d4ff", borderRadius: 12 }}>
-          <div className="text-[36px] mb-4">🗼</div>
-          <div className="font-space text-[20px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>TOWER</div>
-          <div className="font-exo text-[10px] uppercase tracking-wider mb-4" style={{ color: "#3a6080" }}>Control Operacional</div>
-          {["GPS en tiempo real · 581 vehículos", "Viajes, contratos y rendimiento", "Alertas y control de flota", "Combustible y conductores"].map(item => (
-            <div key={item} className="flex items-center gap-2 font-exo text-[9px] mb-1" style={{ color: "#5a8090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#00d4ff" }} />{item}</div>
+          <div className="text-[32px] mb-3">🗼</div>
+          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>TOWER</div>
+          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Control Operacional</div>
+          {["GPS en tiempo real · 581 vehículos", "Viajes, contratos y rendimiento", "Alertas y control de flota"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#5a8090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#00d4ff" }} />{item}</div>
           ))}
-          <div className="mt-6 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
         </button>
-        <button onClick={onMando} className="group p-8 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+        <button onClick={onMando} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #a855f720", borderTop: "3px solid #a855f7", borderRadius: 12 }}>
-          <div className="text-[36px] mb-4">🤖</div>
-          <div className="font-space text-[20px] font-bold tracking-wider mb-2" style={{ color: "#a855f7" }}>CENTRO DE MANDO</div>
-          <div className="font-exo text-[10px] uppercase tracking-wider mb-4" style={{ color: "#3a6080" }}>Inteligencia Operacional</div>
-          {["8 agentes trabajando 24/7", "Gerente de Operaciones Bot", "Arquitecto · Jefe técnico IA", "Parámetros auto-adaptativos"].map(item => (
-            <div key={item} className="flex items-center gap-2 font-exo text-[9px] mb-1" style={{ color: "#7a5090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#a855f7" }} />{item}</div>
+          <div className="text-[32px] mb-3">🤖</div>
+          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#a855f7" }}>BRAIN</div>
+          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Centro de Inteligencia</div>
+          {["8 agentes autónomos 24/7", "Gerente General + Operaciones", "Reportero PDF · Arquitecto IA"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#7a5090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#a855f7" }} />{item}</div>
           ))}
-          <div className="mt-6 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#a855f7" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#a855f7" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+        </button>
+        <button onClick={onTMS} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+          style={{ background: "#060d14", border: "1px solid #00ff8820", borderTop: "3px solid #00ff88", borderRadius: 12 }}>
+          <div className="text-[32px] mb-3">📊</div>
+          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#00ff88" }}>TMS CENCOSUD</div>
+          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Gestión de Contrato</div>
+          {["ERR · Facturación por ruta", "Super Agente IA dedicado", "83 rutas tarifadas · 15 parámetros"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#4a9060" }}><div className="w-1 h-1 rounded-full" style={{ background: "#00ff88" }} />{item}</div>
+          ))}
+          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
         </button>
       </div>
       <div className="mt-12 font-exo text-[8px] tracking-wider" style={{ color: "#1a3040" }}>SOTRASER TOWER · Sistema de Gestión de Flota · v2.0</div>
@@ -1270,7 +1280,7 @@ function WelcomeScreen({ onTower, onMando }: { onTower: () => void; onMando: () 
 }
 
 function AppShell() {
-  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO">("WELCOME");
+  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS">("WELCOME");
   const [tab, setTab] = useState<MainTab>("flota");
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -1291,7 +1301,9 @@ function AppShell() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} />;
+  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} />;
+
+  if (modo === "TMS") return <CencosudView onBack={() => setModo("WELCOME")} />;
 
   if (modo === "MANDO") return (
     <div className="min-h-screen" style={{ background: "#020508" }}>
