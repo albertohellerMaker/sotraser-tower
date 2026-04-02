@@ -15,6 +15,7 @@ interface GeoResult {
   distancia_metros: number;
   confianza: "EXACTO" | "CONFIRMADO" | "ASOCIADO" | "NUEVO" | "DOBLE_VALIDADO" | "KML_POLIGONO";
   descripcion: string;
+  fuente?: "KML" | "OPERACIONAL";
 }
 
 let _cache: any[] = [];
@@ -31,6 +32,13 @@ async function getGeocercas(): Promise<any[]> {
 let _kmlCache: any[] = [];
 let _kmlCacheTs = 0;
 const DWELL_MINUTOS_CENCOSUD = 10;
+
+const CONTRATOS_CENCOSUD = ["CENCOSUD", "cencosud", "Cencosud"];
+
+function esCencosud(contrato?: string): boolean {
+  if (!contrato) return false;
+  return CONTRATOS_CENCOSUD.some(c => contrato.toUpperCase().includes(c.toUpperCase()));
+}
 
 async function getGeocercasKml(): Promise<any[]> {
   if (Date.now() - _kmlCacheTs < 5 * 60 * 1000 && _kmlCache.length > 0) return _kmlCache;
@@ -57,37 +65,46 @@ function pointInPolygon(lat: number, lng: number, polygon: [number, number][]): 
   return inside;
 }
 
+function resolverMejorKml(
+  lat: number, lng: number, kmlGeocercas: any[]
+): { geo: any; dist: number; dentroPoligono: boolean } | null {
+  let best: { geo: any; dist: number; dentroPoligono: boolean } | null = null;
+
+  for (const g of kmlGeocercas) {
+    const poly: [number, number][] = g.poligono;
+    if (!poly || poly.length < 3) continue;
+
+    const dentroPoligono = pointInPolygon(lat, lng, poly);
+    const dist = haversineM(lat, lng, g.lat, g.lng);
+
+    if (dentroPoligono) {
+      if (!best || !best.dentroPoligono || dist < best.dist) {
+        best = { geo: g, dist, dentroPoligono: true };
+      }
+    }
+  }
+
+  return best;
+}
+
 export async function resolverGeocerca(
   lat: number, lng: number, minutosDetenido: number = 0, contrato?: string
 ): Promise<GeoResult> {
-  const kmlGeocercas = await getGeocercasKml();
-  if (kmlGeocercas.length > 0) {
-    for (const g of kmlGeocercas) {
-      const poly: [number, number][] = g.poligono;
-      if (!poly || poly.length < 3) continue;
+  if (esCencosud(contrato)) {
+    const kmlGeocercas = await getGeocercasKml();
+    if (kmlGeocercas.length > 0) {
+      const mejor = resolverMejorKml(lat, lng, kmlGeocercas);
 
-      const dentro = pointInPolygon(lat, lng, poly);
-      if (!dentro) {
-        const dist = haversineM(lat, lng, g.lat, g.lng);
-        if (dist > g.radio_m) continue;
-      }
-
-      if (minutosDetenido >= DWELL_MINUTOS_CENCOSUD) {
-        const dist = haversineM(lat, lng, g.lat, g.lng);
-        return {
-          nivel: 5, nombre: g.nombre, geocerca_id: g.id,
-          distancia_metros: Math.round(dist),
-          confianza: "KML_POLIGONO",
-          descripcion: `KML Cencosud: ${g.nombre} (${g.tipo}). Dentro del polígono, ${minutosDetenido}min detenido (≥${DWELL_MINUTOS_CENCOSUD}min requerido).`,
-        };
-      } else {
-        const dist = haversineM(lat, lng, g.lat, g.lng);
-        return {
-          nivel: 3, nombre: g.nombre + " (dwell insuficiente)", geocerca_id: g.id,
-          distancia_metros: Math.round(dist),
-          confianza: "ASOCIADO",
-          descripcion: `KML Cencosud: ${g.nombre}. Dentro del polígono pero solo ${minutosDetenido}min (mínimo ${DWELL_MINUTOS_CENCOSUD}min para activar).`,
-        };
+      if (mejor && mejor.dentroPoligono) {
+        if (minutosDetenido >= DWELL_MINUTOS_CENCOSUD) {
+          return {
+            nivel: 5, nombre: mejor.geo.nombre, geocerca_id: mejor.geo.id,
+            distancia_metros: Math.round(mejor.dist),
+            confianza: "KML_POLIGONO",
+            descripcion: `KML Cencosud: ${mejor.geo.nombre} (${mejor.geo.tipo}). Dentro del polígono exacto, ${minutosDetenido}min detenido (≥${DWELL_MINUTOS_CENCOSUD}min requerido).`,
+            fuente: "KML",
+          };
+        }
       }
     }
   }
@@ -108,6 +125,7 @@ export async function resolverGeocerca(
         nivel: 5, nombre: g.nombre, geocerca_id: g.id, distancia_metros: Math.round(dist),
         confianza: "DOBLE_VALIDADO",
         descripcion: `Match exacto a ${Math.round(dist)}m de ${g.nombre}. Doble validación confirmada.`,
+        fuente: "OPERACIONAL",
       };
     }
 
@@ -116,6 +134,7 @@ export async function resolverGeocerca(
         nivel: 1, nombre: g.nombre, geocerca_id: g.id, distancia_metros: Math.round(dist),
         confianza: "CONFIRMADO",
         descripcion: `Dentro de ${g.nombre} (${Math.round(dist)}m del centro, radio ${g.radio_metros}m)`,
+        fuente: "OPERACIONAL",
       };
     }
 
@@ -124,6 +143,7 @@ export async function resolverGeocerca(
         nivel: 2, nombre: g.nombre, geocerca_id: g.id, distancia_metros: Math.round(dist),
         confianza: "EXACTO",
         descripcion: `Punto exacto ${g.nombre} (${Math.round(dist)}m)`,
+        fuente: "OPERACIONAL",
       };
     }
   }
@@ -134,6 +154,7 @@ export async function resolverGeocerca(
       distancia_metros: Math.round(closest.dist),
       confianza: "ASOCIADO",
       descripcion: `Asociado a ${closest.geo.nombre} (${Math.round(closest.dist)}m, detenido ${minutosDetenido}min). No tocó geocerca pero es el punto conocido más cercano.`,
+      fuente: "OPERACIONAL",
     };
   }
 
@@ -143,6 +164,7 @@ export async function resolverGeocerca(
       distancia_metros: Math.round(closest.dist),
       confianza: "ASOCIADO",
       descripcion: `Probable ${closest.geo.nombre} (${Math.round(closest.dist)}m). Sin tiempo de detención confirmado.`,
+      fuente: "OPERACIONAL",
     };
   }
 
