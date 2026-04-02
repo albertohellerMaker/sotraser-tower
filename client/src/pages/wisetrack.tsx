@@ -4,7 +4,7 @@ import { APIProvider, Map as GMap, AdvancedMarker, InfoWindow, useMap } from "@v
 import Supercluster from "supercluster";
 import { ArrowLeft, Truck, Fuel, Search, RefreshCw, Gauge, Radio, Calendar, X, Route, Users, MapPin, ChevronLeft, ChevronRight, Activity, BarChart3 } from "lucide-react";
 
-const GMAPS_KEY = "AIzaSyC2Sq4RSutNYqwnAyykQau4meFMnmucTlc";
+const GMAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || "";
 
 // ── COLORS ──
 function getEstadoColor(e: string) { return e === "Conduccion" ? "#00ff88" : e === "Ralenti" ? "#ffcc00" : "#ff2244"; }

@@ -289,7 +289,7 @@ function MiniMapaGoogle({ lat, lng, titulo, velocidad }: { lat?: number; lng?: n
   if (!lat || !lng) return <div className="flex items-center justify-center" style={{ height: 200, background: "#0a1520", borderRadius: 6 }}><span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin ubicación GPS</span></div>;
   return (
     <div style={{ height: 220, borderRadius: 6, overflow: "hidden", border: "1px solid #0d2035" }}>
-      <APIProvider apiKey="AIzaSyC2Sq4RSutNYqwnAyykQau4meFMnmucTlc">
+      <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY || ""}>
         <GMap defaultCenter={{ lat, lng }} defaultZoom={13} mapId="sotraser-alert" style={{ height: "100%", width: "100%" }} disableDefaultUI gestureHandling="greedy">
           <AdvancedMarker position={{ lat, lng }}>
             <div style={{ width: 24, height: 24, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", boxShadow: "0 0 12px #ff2244", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: "bold" }}>!</div>
@@ -1402,7 +1402,7 @@ function AppShell() {
 
                 {/* Mapa full screen */}
                 <div style={{ flex: 1 }}>
-                  <APIProvider apiKey="AIzaSyC2Sq4RSutNYqwnAyykQau4meFMnmucTlc">
+                  <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY || ""}>
                     <GMap defaultCenter={{ lat: focoAlerta.lat || -33.45, lng: focoAlerta.lng || -70.65 }} defaultZoom={focoAlerta.lat ? 15 : 6} mapId="sotraser-foco"
                       style={{ width: "100%", height: "100%" }} gestureHandling="greedy" mapTypeControl streetViewControl zoomControl>
                       {focoAlerta.lat && focoAlerta.lng && (

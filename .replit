@@ -12,6 +12,9 @@ SIGETRA_URL = "http://sigetraweb.sotraser.cl"
 SIGETRA_USER = "cristian.rojas"
 VOLVO_CONNECT_USER = "1615691745"
 PORT = "5000"
+VITE_GOOGLE_MAPS_KEY = "AIzaSyC2Sq4RSutNYqwnAyykQau4meFMnmucTlc"
+WISETRACK_USER = "Rcaceres"
+WISETRACK_COMPANY = "Sotraser"
 
 [workflows]
 runButton = "Project"

@@ -1,5 +1,11 @@
 node_modules/
 dist/
 .env
+.env 2
+.env.*
 *.backup
+*.pdf
+*.tar.gz
 .DS_Store
+sotraser-*.txt
+push-to-github.sh

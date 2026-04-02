@@ -30,9 +30,12 @@ function wtFetch(url: string, opts: { method?: string; headers?: Record<string, 
 export async function wisetrackLogin(): Promise<string> {
   if (cachedCookies && Date.now() < cookieExpiry) return cachedCookies;
 
-  const user = process.env.WISETRACK_USER || "Rcaceres";
-  const pass = process.env.WISETRACK_PASS || "$$123Abc.,";
-  const company = process.env.WISETRACK_COMPANY || "Sotraser";
+  const user = process.env.WISETRACK_USER || "";
+  const pass = process.env.WISETRACK_PASS || "";
+  const company = process.env.WISETRACK_COMPANY || "";
+  if (!user || !pass || !company) {
+    throw new Error("WISETRACK_USER, WISETRACK_PASS y WISETRACK_COMPANY deben estar configurados como variables de entorno");
+  }
 
   // GET login page for tokens
   const page = await wtFetch(`${WT_BASE}/`);
