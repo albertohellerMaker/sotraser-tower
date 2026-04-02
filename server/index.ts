@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { iniciarJobs } from "./jobs";
+import { iniciarGitSync } from "./github-sync";
 import { db } from "./db";
 import { geoBases } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -109,6 +110,7 @@ app.use((req, res, next) => {
 
       inicializarContratos();
       iniciarJobs();
+      iniciarGitSync();
 
       // Multi-agent system
       import("./agentes/index").then(m => m.iniciarAgentes()).catch(e => console.error("[AGENTES] Init error:", e.message));
