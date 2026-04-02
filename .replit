@@ -1,0 +1,13 @@
+modules = ["nodejs-20", "web"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+SIGETRA_URL = "http://sigetraweb.sotraser.cl"
+SIGETRA_USER = "cristian.rojas"
+VOLVO_CONNECT_USER = "1615691745"
