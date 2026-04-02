@@ -70,7 +70,7 @@ export const ESTACIONES_COMBUSTIBLE: Record<string, { lat: number; lng: number; 
 
 export function registerGeoRoutes(app: Express) {
 
-  // Unified live fleet from gps_unificado (Volvo + WiseTrack)
+  // Unified live fleet from gps_unificado (Volvo Connect)
   app.get("/api/geo/camiones-live", async (_req: Request, res: Response) => {
     try {
       const r = await pool.query(`

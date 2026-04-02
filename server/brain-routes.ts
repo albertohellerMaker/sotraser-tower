@@ -343,33 +343,8 @@ Si no tienes la info, dilo. No inventes.`;
     }
   });
 
-  // GET /api/brain/comparacion-fuentes — precisión Volvo vs WiseTrack vs Sigetra
   app.get("/api/brain/comparacion-fuentes", async (_req: Request, res: Response) => {
     try {
-      // Camiones en 3 sistemas
-      const r1 = await pool.query(`
-        SELECT ci.id_display as patente, ci.vin, ci.ids_validos
-        FROM camion_identidades ci
-        WHERE ci.vin IS NOT NULL
-      `);
-
-      // Para cada camión con ambos GPS, comparar posiciones
-      const r2 = await pool.query(`
-        SELECT g1.patente,
-          AVG(ABS(g1.lat - g2.lat) * 111000 + ABS(g1.lng - g2.lng) * 85000) as diff_metros_prom,
-          COUNT(*) as comparaciones
-        FROM gps_unificado g1
-        JOIN gps_unificado g2 ON g2.patente = g1.patente
-          AND g2.fuente != g1.fuente
-          AND ABS(EXTRACT(EPOCH FROM (g2.timestamp_gps - g1.timestamp_gps))) < 300
-        WHERE g1.fuente = 'VOLVO' AND g2.fuente = 'WISETRACK'
-          AND g1.timestamp_gps >= NOW() - INTERVAL '3 days'
-        GROUP BY g1.patente
-        HAVING COUNT(*) >= 5
-        ORDER BY diff_metros_prom ASC
-        LIMIT 30
-      `);
-
       // Comparar km Volvo ECU vs km Sigetra
       const r3 = await pool.query(`
         SELECT cam.patente,
@@ -402,11 +377,6 @@ Si no tienes la info, dilo. No inventes.`;
       `);
 
       res.json({
-        gps_comparacion: r2.rows.map((r: any) => ({
-          patente: r.patente, diff_metros: Math.round(parseFloat(r.diff_metros_prom)),
-          comparaciones: parseInt(r.comparaciones),
-          precision: parseFloat(r.diff_metros_prom) < 50 ? "EXCELENTE" : parseFloat(r.diff_metros_prom) < 200 ? "BUENA" : parseFloat(r.diff_metros_prom) < 500 ? "ACEPTABLE" : "MALA",
-        })),
         km_comparacion: r3.rows.filter((r: any) => r.km_sigetra).map((r: any) => ({
           patente: r.patente, km_volvo: parseInt(r.km_volvo), km_sigetra: parseInt(r.km_sigetra),
           diff_pct: r.km_sigetra > 0 ? Math.round((parseInt(r.km_volvo) - parseInt(r.km_sigetra)) / parseInt(r.km_sigetra) * 100) : null,

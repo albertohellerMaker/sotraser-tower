@@ -17,8 +17,6 @@ import { registerEstacionesRoutes } from "./estaciones-routes";
 import { registerDriversRoutes } from "./drivers-routes";
 import { registerSupervisionRoutes } from "./supervision-engine";
 import { registerBrainRoutes } from "./brain-routes";
-import { registerWisetrackRoutes } from "./wisetrack-routes";
-import { registerWtEngineRoutes, initWisetrackTables } from "./wisetrack-engine";
 import { registerValidadorCruzadoRoutes } from "./validador-cruzado";
 import viajesTmsRoutes from "./viajes-tms-routes";
 import combustibleRoutes from "./combustible-routes";
@@ -1282,9 +1280,6 @@ export async function registerRoutes(
   registerProductividadRoutes(app);
   registerSupervisionRoutes(app);
   registerBrainRoutes(app);
-  registerWisetrackRoutes(app);
-  registerWtEngineRoutes(app);
-  initWisetrackTables().catch(e => console.error("[WT-ENGINE] Init error:", e.message));
   registerValidadorCruzadoRoutes(app);
   app.use("/api/viajes-tms", viajesTmsRoutes);
   app.use("/api/combustible", combustibleRoutes);

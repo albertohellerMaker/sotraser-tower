@@ -61,7 +61,7 @@ export const agenteOperaciones = {
           tipo: "GPS", severidad: gpsPerdidos > 300 ? "ALTA" : "NORMAL",
           titulo: `${gpsPerdidos} camiones sin señal GPS >2h`,
           detalle: `Posible: horario nocturno, zona sin cobertura, o falla de antena`,
-          accion: gpsPerdidos > 300 ? "Verificar conectividad WiseTrack/Volvo" : "Monitorear",
+          accion: gpsPerdidos > 300 ? "Verificar conectividad Volvo Connect" : "Monitorear",
           datos: { sin_gps: gpsPerdidos }
         });
       }

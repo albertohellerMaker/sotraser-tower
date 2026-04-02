@@ -1,6 +1,4 @@
 import { syncSigetraToCargas } from "./sigetra-api";
-import { syncWisetrackToDB } from "./wisetrack-api";
-import { procesarViajesWisetrack, procesarProductividadWt } from "./wisetrack-engine";
 import { calcularExpectativasDiarias, compararRealVsEsperado } from "./supervision-engine";
 import { procesarViajesNuevos, calcularParametros, detectarCambiosPatron, cruzarConSigetra, procesarCierreAutomatico } from "./aprendizaje-engine";
 import { syncViajesHistorico } from "./viajes-historico";
@@ -26,20 +24,7 @@ const JOBS: Record<string, JobDef> = {
       await procesarViajesNuevos();
       await procesarCierreAutomatico(7, 50);
       await procesarProductividadDiaria();
-      // Cross-validate: conductor from WT/Sigetra + doble validacion Volvo+WT
       try {
-        await pool.query(`
-          UPDATE viajes_aprendizaje va SET conductor = wt.conductor
-          FROM (SELECT DISTINCT ON (va2.id) va2.id, ws.conductor FROM viajes_aprendizaje va2
-            JOIN camion_identidades ci ON va2.vin = ci.vin
-            JOIN wisetrack_snapshots ws ON ws.patente_norm = ANY(ci.ids_validos)
-            AND ws.conductor IS NOT NULL AND ws.conductor != '-' AND ws.conductor != ''
-            AND ws.captured_at >= va2.fecha_inicio - INTERVAL '30 min'
-            AND ws.captured_at <= COALESCE(va2.fecha_fin, va2.fecha_inicio + INTERVAL '12 hours')
-            WHERE va2.fecha_inicio >= NOW() - INTERVAL '3 days' AND (va2.conductor IS NULL OR va2.conductor = '')
-            ORDER BY va2.id, ABS(EXTRACT(EPOCH FROM (ws.captured_at - va2.fecha_inicio)))
-          ) wt WHERE va.id = wt.id
-        `);
         await pool.query(`
           UPDATE viajes_aprendizaje va SET conductor = sig.conductor
           FROM (SELECT DISTINCT ON (va2.id) va2.id, c.conductor FROM viajes_aprendizaje va2
@@ -50,13 +35,6 @@ const JOBS: Record<string, JobDef> = {
             WHERE va2.fecha_inicio >= NOW() - INTERVAL '3 days' AND (va2.conductor IS NULL OR va2.conductor = '')
             ORDER BY va2.id, ABS(EXTRACT(EPOCH FROM (c.fecha::timestamp - va2.fecha_inicio)))
           ) sig WHERE va.id = sig.id
-        `);
-        await pool.query(`
-          UPDATE viajes_aprendizaje va SET validado_volvo = true, validado_wt = true, validacion_doble = true
-          FROM wt_viajes wt JOIN camion_identidades ci ON wt.patente_norm = ANY(ci.ids_validos)
-          WHERE va.vin = ci.vin AND va.fecha_inicio >= NOW() - INTERVAL '3 days' AND wt.estado = 'CERRADO'
-            AND ABS(EXTRACT(EPOCH FROM (wt.fecha_inicio - va.fecha_inicio))) < 3600
-            AND va.validacion_doble = false
         `);
       } catch (e: any) { console.error("[VIAJES] Cross-validate error:", e.message); }
     },
@@ -313,34 +291,6 @@ function programarSigetra() {
     }
   }, INTERVALO_MS);
 
-  // WiseTrack sync every 90 seconds (same as Volvo)
-  console.log("[JOBS] WiseTrack sync cada 90 seg (igual que Volvo)");
-  setTimeout(async () => {
-    try {
-      const r = await syncWisetrackToDB();
-      console.log(`[WISETRACK-JOB] Initial sync: ${r.vehicles} vehicles, ${r.saved} saved`);
-    } catch (e: any) {
-      console.error("[WISETRACK-JOB] Initial sync error:", e.message);
-    }
-  }, 30 * 1000); // 30s after startup
-
-  setInterval(async () => {
-    try {
-      await syncWisetrackToDB();
-      await procesarViajesWisetrack();
-    } catch (e: any) {
-      console.error("[WISETRACK-JOB] Sync error:", e.message);
-    }
-  }, 90 * 1000); // every 90 seconds — same as Volvo
-
-  // WT productivity every hour
-  setInterval(async () => {
-    try {
-      await procesarProductividadWt();
-    } catch (e: any) {
-      console.error("[WT-PROD] Error:", e.message);
-    }
-  }, 60 * 60 * 1000);
 }
 
 function programarReporteDiario() {

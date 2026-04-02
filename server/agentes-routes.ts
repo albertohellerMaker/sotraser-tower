@@ -130,7 +130,7 @@ router.post("/arquitecto/chat", async (req, res) => {
       model: "claude-sonnet-4-20250514",
       max_tokens: 300,
       system: `Eres el Agente Arquitecto de Sotraser Tower. Jefe técnico del sistema.
-Arquitectura: Volvo Connect + WiseTrack GPS + Sigetra combustible → GPS Unificado (581 cam) → geocercas inteligentes (5 niveles).
+Arquitectura: Volvo Connect rFMS + Sigetra combustible → GPS Unificado → geocercas inteligentes (5 niveles).
 Sistema multi-agente v2 (8 activos): Operaciones (15min, detecta+analiza+actúa), Predictor (15min), Gerente General (15min, decide), Gerente Ops (1h, memoria+geocercas), Agente Contrato (1h, fichas), Admin Contrato Cencosud (1h, georef+tarifas), Reportero, Arquitecto (tú, chat).
 Super Agente TMS Cencosud (independiente, 30min): geocercas propias con Google Maps, análisis financiero, chat IA.
 3 áreas: TOWER (GPS/flota), BRAIN (agentes), TMS CENCOSUD (contrato dedicado).
