@@ -440,6 +440,46 @@ router.post("/agente/ejecutar", async (_req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+router.get("/trayectos", async (req, res) => {
+  try {
+    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
+    const dias = parseInt(req.query.dias as string) || 7;
+
+    const r = await pool.query(`
+      SELECT t.id, t.patente, t.origen_nombre, t.destino_nombre,
+             t.km_total, t.litros_total, t.rendimiento_real,
+             t.fecha_inicio, t.fecha_fin, t.duracion_minutos,
+             t.paradas_intermedias, t.segmentos_count,
+             t.origen_confianza, t.destino_confianza,
+             t.tarifa_aplicada, t.facturado,
+             ao.nombre_contrato as origen_contrato,
+             ad.nombre_contrato as destino_contrato,
+             crt.tarifa, crt.lote
+      FROM cencosud_trayectos t
+      LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = t.origen_nombre AND ao.contrato = 'CENCOSUD'
+      LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = t.destino_nombre AND ad.contrato = 'CENCOSUD'
+      LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+      WHERE t.fecha_inicio >= $1::date - ($2 || ' days')::interval
+        AND t.fecha_inicio <= $1::date + INTERVAL '1 day'
+      ORDER BY t.fecha_inicio DESC
+      LIMIT 500
+    `, [fecha, dias]);
+
+    const trayectos = r.rows;
+    const conTarifa = trayectos.filter((t: any) => t.tarifa).length;
+    const sinTarifa = trayectos.length - conTarifa;
+    const ingresoTotal = trayectos.reduce((s: number, t: any) => s + (parseFloat(t.tarifa) || 0), 0);
+
+    res.json({
+      total: trayectos.length,
+      con_tarifa: conTarifa,
+      sin_tarifa: sinTarifa,
+      ingreso_total: ingresoTotal,
+      trayectos,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 router.post("/agente/chat", async (req, res) => {
   const { mensaje } = req.body;
   if (!mensaje) return res.status(400).json({ error: "mensaje requerido" });

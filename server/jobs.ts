@@ -6,6 +6,7 @@ import { procesarProductividadDiaria } from "./productividad";
 import { getSistemaEstado } from "./sistema-estado";
 import { aprenderUmbralesScore } from "./score-conduccion";
 import { promoverPuntosNuevos } from "./geocerca-inteligente";
+import { consolidarTrayectosCencosud, crearTablaTrayectos } from "./cencosud-trayectos";
 import { pool, db, getDefaultDesde } from "./db";
 import { cargas, camiones, patronesCargaCombustible } from "@shared/schema";
 import { and, isNotNull, sql, eq } from "drizzle-orm";
@@ -37,6 +38,15 @@ const JOBS: Record<string, JobDef> = {
           ) sig WHERE va.id = sig.id
         `);
       } catch (e: any) { console.error("[VIAJES] Cross-validate error:", e.message); }
+    },
+  },
+
+  TRAYECTOS_CENCOSUD: {
+    intervalo: 15 * 60 * 1000,
+    nombre: "TRAYECTOS_CENCOSUD",
+    fn: async () => {
+      await crearTablaTrayectos();
+      await consolidarTrayectosCencosud();
     },
   },
 
