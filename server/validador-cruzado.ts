@@ -320,7 +320,12 @@ export function registerValidadorCruzadoRoutes(app: Express) {
         .filter(f => f.camiones > 0)
         .sort((a, b) => b.camiones - a.camiones);
 
-      res.json({ faenas, total_faenas: faenas.length, total_camiones: matchedVehicles.size / 2 });
+      const uniqueCamiones = new Set<string>();
+      for (const c of ci.rows) {
+        const ids = (c.ids_validos || []).map((i: string) => i.replace(/-/g, "").toUpperCase());
+        if (ids.some((i: string) => matchedVehicles.has(i))) uniqueCamiones.add(c.id_display);
+      }
+      res.json({ faenas, total_faenas: faenas.length, total_camiones: uniqueCamiones.size });
     } catch (e: any) {
       console.error("[CRUZADO-FAENAS]", e.message);
       res.status(500).json({ error: e.message });

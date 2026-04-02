@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Shield, Truck, Fuel, Search, RefreshCw, ChevronLeft, ChevronRight, X, Users, Activity, BarChart3 } from "lucide-react";
 
 // ── COLORS ──
-function getEstadoColor(e: string) { return e === "Conduccion" ? "#00ff88" : e === "Ralenti" ? "#ffcc00" : "#ff2244"; }
 function getRendColor(r: number) { return r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : "#ff2244"; }
 function getContratoColor(c: string) {
   if (!c) return "#3a6080";
@@ -17,13 +16,11 @@ function getContratoColor(c: string) {
 }
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 
-// Triple-verified badge component
-function TripleBadge({ size = "sm" }: { size?: "sm" | "md" }) {
+function CruzadoBadge({ size = "sm" }: { size?: "sm" | "md" }) {
   const s = size === "md" ? "w-2 h-2" : "w-1.5 h-1.5";
   return (
     <div className="flex items-center gap-0.5">
       <div className={`${s} rounded-full`} style={{ background: "#00ff88" }} />
-      <div className={`${s} rounded-full`} style={{ background: "#10b981" }} />
       <div className={`${s} rounded-full`} style={{ background: "#ff6b35" }} />
     </div>
   );
@@ -113,17 +110,15 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
   const vehiculos = data?.camiones || [];
   const filtered = useMemo(() => {
     if (filter === "todos") return vehiculos;
-    if (filter === "conduccion") return vehiculos.filter((v: any) => v.velocidad > 0 || v.estado === "Conduccion");
-    if (filter === "ralenti") return vehiculos.filter((v: any) => v.estado === "Ralenti" && v.velocidad === 0);
-    if (filter === "detenido") return vehiculos.filter((v: any) => v.estado !== "Conduccion" && v.estado !== "Ralenti" && v.velocidad === 0);
+    if (filter === "conduccion") return vehiculos.filter((v: any) => v.velocidad > 0);
+    if (filter === "detenido") return vehiculos.filter((v: any) => v.velocidad === 0);
     return vehiculos;
   }, [vehiculos, filter]);
 
   const counts = useMemo(() => ({
     total: vehiculos.length,
     conduccion: vehiculos.filter((v: any) => v.velocidad > 0).length,
-    ralenti: vehiculos.filter((v: any) => v.estado === "Ralenti" && v.velocidad === 0).length,
-    detenido: vehiculos.filter((v: any) => v.estado !== "Conduccion" && v.estado !== "Ralenti").length,
+    detenido: vehiculos.filter((v: any) => v.velocidad === 0).length,
   }), [vehiculos]);
 
   // Init Leaflet map (dynamic loading, NOT react-leaflet)
@@ -162,13 +157,9 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
-    const statusColors: Record<string, string> = {
-      "Conduccion": "#00c97a", "Ralenti": "#ffcc00", "Detenido": "#ff2244", "Motor apagado": "#3a6080",
-    };
-
     for (const v of filtered) {
       if (!v.lat || !v.lng) continue;
-      const color = statusColors[v.estado] || "#3a6080";
+      const color = v.velocidad > 0 ? "#00c97a" : "#3a6080";
       const icon = L.divIcon({
         html: `<div style="width:24px;height:24px;background:${color};border:2px solid #020508;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">&#9650;</div>`,
         className: "",
@@ -263,7 +254,6 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
         {[
           { id: "todos", label: `Todos (${counts.total})` },
           { id: "conduccion", label: `Mov (${counts.conduccion})`, color: "#00c97a" },
-          { id: "ralenti", label: `Ralenti (${counts.ralenti})`, color: "#ffcc00" },
           { id: "detenido", label: `Det (${counts.detenido})`, color: "#ff2244" },
         ].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
@@ -308,7 +298,7 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
           style={{ background: "#060d14ee", border: "1px solid #0d2035", backdropFilter: "blur(10px)" }}>
           <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
             <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: "#ffd700" }}>
-              {filtered.length} CAMIONES TRIPLE VERIFICADOS
+              {filtered.length} CAMIONES CRUZADOS
             </span>
             <button onClick={() => setPanelOpen(false)} className="cursor-pointer"><X className="w-3.5 h-3.5" style={{ color: "#3a6080" }} /></button>
           </div>
@@ -321,20 +311,19 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
                 style={{ borderBottom: "1px solid #0a1520", background: selectedMovil === v.id_display ? "rgba(255,215,0,0.04)" : "transparent" }}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ background: getEstadoColor(v.estado) }} />
+                    <div className="w-2 h-2 rounded-full" style={{ background: v.velocidad > 0 ? "#00ff88" : "#3a6080" }} />
                     <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{v.id_display}</span>
                     <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{v.patentes?.filter((p: string) => p !== v.id_display).join("/")}</span>
                   </div>
                   <span className="font-space text-[10px] font-bold" style={{ color: v.velocidad > 0 ? "#00ff88" : "#3a6080" }}>{v.velocidad} km/h</span>
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="font-exo text-[8px]" style={{ color: getContratoColor(v.sig_contrato || v.sig_contrato) }}>{(v.sig_contrato || v.sig_contrato || "").substring(0, 20)}</span>
-                  <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>T:{v.nivel_estanque}% {v.rpm}rpm</span>
+                  <span className="font-exo text-[8px]" style={{ color: getContratoColor(v.sig_contrato) }}>{(v.sig_contrato || "").substring(0, 20)}</span>
                   <span className="font-exo text-[7px]" style={{ color: "#ff6b35" }}>{v.sig_cargas}c</span>
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <TripleBadge />
-                  <span className="font-exo text-[6px] ml-1" style={{ color: "#3a6080" }}>triple verificado</span>
+                  <CruzadoBadge />
+                  <span className="font-exo text-[6px] ml-1" style={{ color: "#3a6080" }}>cruzado V+S</span>
                 </div>
               </button>
             ))}
@@ -347,12 +336,11 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
                 <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{selectedVehicle.id_display}</span>
                 <button onClick={() => onSelectCamion(selectedVehicle.id_display)} className="px-2 py-1 font-space text-[8px] font-bold cursor-pointer" style={{ background: "#ffd70015", border: "1px solid #ffd70040", color: "#ffd700", borderRadius: 4 }}>VER DETALLE</button>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { l: "VEL", v: `${selectedVehicle.velocidad}km/h`, c: selectedVehicle.velocidad > 0 ? "#00ff88" : "#3a6080" },
-                  { l: "TANQUE", v: `${selectedVehicle.nivel_estanque}%`, c: selectedVehicle.nivel_estanque < 20 ? "#ff2244" : "#00d4ff" },
-                  { l: "RPM", v: `${selectedVehicle.rpm}`, c: "#ffcc00" },
                   { l: "CARGAS", v: `${selectedVehicle.sig_cargas}`, c: "#ff6b35" },
+                  { l: "CONTRATO", v: `${(selectedVehicle.sig_contrato || "--").substring(0, 10)}`, c: "#00d4ff" },
                 ].map(k => (
                   <div key={k.l} className="text-center p-1.5" style={{ background: "#060d14", borderRadius: 4 }}>
                     <div className="font-space text-[11px] font-bold" style={{ color: k.c }}>{k.v}</div>
@@ -374,13 +362,13 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
 
 function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string) => void }) {
   const [fecha, setFecha] = useState(new Date(Date.now() - 86400000).toISOString().slice(0, 10));
-  const [solo3, setSolo3] = useState(true);
+  const [soloCruzados, setSoloCruzados] = useState(true);
   const [filtroContrato, setFiltroContrato] = useState("TODOS");
   const [selectedCamion, setSelectedCamion] = useState<string | null>(null);
 
   const { data } = useQuery<any>({
-    queryKey: ["/api/cruzado/viajes-dia", fecha, solo3],
-    queryFn: () => fetch(`/api/cruzado/viajes-dia?fecha=${fecha}&solo3=${solo3}`).then(r => r.json()),
+    queryKey: ["/api/cruzado/viajes-dia", fecha],
+    queryFn: () => fetch(`/api/cruzado/viajes-dia?fecha=${fecha}`).then(r => r.json()),
   });
 
   const { data: camionDetail } = useQuery<any>({
@@ -419,8 +407,8 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
       {/* KPIs */}
       <div className="grid grid-cols-6 gap-3 mb-4">
         {[
-          { l: "VIAJES MES", v: resumenMes?.totales?.viajes_combinado || 0, c: "#ffd700" },
-          { l: "CAMIONES 3S", v: resumenMes?.camiones_3s || 0, c: "#00d4ff" },
+          { l: "VIAJES MES", v: resumenMes?.totales?.viajes_total || 0, c: "#ffd700" },
+          { l: "CAMIONES CRUZADOS", v: resumenMes?.camiones_cruzados || 0, c: "#00d4ff" },
           { l: "KM VOLVO", v: fN(resumenMes?.volvo?.km || 0), c: "#00ff88" },
           { l: "LITROS SIG", v: fN(resumenMes?.sigetra?.litros || 0), c: "#ff6b35" },
           { l: "DIAS ACTIVOS", v: resumenMes?.totales?.dias_activos || 0, c: "#a855f7" },
@@ -444,9 +432,9 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
           <span className="font-space text-[11px]" style={{ color: "#3a6080" }}>{data?.total_camiones || 0} camiones</span>
         </div>
         <div className="flex gap-1 items-center">
-          <button onClick={() => setSolo3(!solo3)} className="px-3 py-1.5 font-space text-[9px] font-bold cursor-pointer mr-2"
-            style={{ background: solo3 ? "#ffd70015" : "transparent", border: `1px solid ${solo3 ? "#ffd70040" : "#0d2035"}`, color: solo3 ? "#ffd700" : "#3a6080", borderRadius: 4 }}>
-            {solo3 ? "SOLO 3 SISTEMAS" : "TODOS LOS VIAJES"}
+          <button onClick={() => setSoloCruzados(!soloCruzados)} className="px-3 py-1.5 font-space text-[9px] font-bold cursor-pointer mr-2"
+            style={{ background: soloCruzados ? "#ffd70015" : "transparent", border: `1px solid ${soloCruzados ? "#ffd70040" : "#0d2035"}`, color: soloCruzados ? "#ffd700" : "#3a6080", borderRadius: 4 }}>
+            {soloCruzados ? "CRUZADOS V+S" : "TODOS LOS VIAJES"}
           </button>
           <button onClick={() => setFiltroContrato("TODOS")} className="px-2 py-1 font-space text-[8px] font-bold cursor-pointer"
             style={{ background: filtroContrato === "TODOS" ? "#ffd70015" : "transparent", border: `1px solid ${filtroContrato === "TODOS" ? "#ffd70040" : "#0d2035"}`, color: filtroContrato === "TODOS" ? "#ffd700" : "#3a6080", borderRadius: 4 }}>TODOS</button>
@@ -465,7 +453,7 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
           return (
             <button key={c.id_display} onClick={() => { setSelectedCamion(c.id_display); }}
               className="p-2 rounded cursor-pointer transition-all hover:scale-[1.02]"
-              style={{ background: selectedCamion === c.id_display ? "rgba(255,215,0,0.08)" : "#060d14", border: `1px solid ${selectedCamion === c.id_display ? "#ffd70040" : c.en_3_sistemas ? "#ffd70015" : "#0d2035"}`, borderTop: `2px solid ${rendColor}` }}>
+              style={{ background: selectedCamion === c.id_display ? "rgba(255,215,0,0.08)" : "#060d14", border: `1px solid ${selectedCamion === c.id_display ? "#ffd70040" : c.sig_cargas > 0 ? "#ffd70015" : "#0d2035"}`, borderTop: `2px solid ${rendColor}` }}>
               <div className="font-space text-[13px] font-bold text-center" style={{ color: "#c8e8ff" }}>{c.id_display}</div>
               <div className="font-exo text-[7px] text-center truncate" style={{ color: getContratoColor(c.contrato) }}>{c.contrato?.substring(0, 12)}</div>
               <div className="font-space text-[11px] font-bold text-center mt-1" style={{ color: rendColor }}>
@@ -474,9 +462,9 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
               <div className="flex items-center justify-center gap-0.5 mt-0.5">
                 <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{Math.round(c.km_total)}km {c.viajes}v</span>
               </div>
-              {c.en_3_sistemas && (
+              {c.sig_cargas > 0 && (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                  <TripleBadge />
+                  <CruzadoBadge />
                 </div>
               )}
             </button>
@@ -489,7 +477,7 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
         <div className="p-4 mb-4" style={{ background: "#060d14", border: "1px solid #ffd70030", borderTop: "2px solid #ffd700", borderRadius: 8 }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <TripleBadge size="md" />
+              <CruzadoBadge size="md" />
               <span className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{camionDetail.id_display}</span>
               <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{camionDetail.patentes?.join(" / ")}</span>
               <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Detalle mes completo</span>
@@ -561,7 +549,7 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
               )}
             </div>
 
-            {/* Right: 3-source KPIs + viajes */}
+            {/* Right: KPIs + viajes */}
             <div>
               <div className="grid grid-cols-6 gap-2 mb-3">
                 {[
@@ -608,9 +596,9 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
           <div className="space-y-1">
             {filteredViajes.slice(0, 60).map((v: any) => (
               <div key={v.id} onClick={() => onSelectCamion(v.id_display)} className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/5"
-                style={{ background: "#060d14", border: `1px solid ${v.en_3_sistemas ? "#ffd70015" : "#0d2035"}`, borderRadius: 4 }}>
+                style={{ background: "#060d14", border: `1px solid ${v.sig_cargas > 0 ? "#ffd70015" : "#0d2035"}`, borderRadius: 4 }}>
                 <div className="flex items-center gap-3">
-                  {v.en_3_sistemas && <TripleBadge />}
+                  {v.sig_cargas > 0 && <CruzadoBadge />}
                   <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{v.id_display}</span>
                   <span className="font-exo text-[8px]" style={{ color: getContratoColor(v.contrato) }}>{v.contrato?.substring(0, 12)}</span>
                   <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{v.origen_nombre?.substring(0, 15)} → {v.destino_nombre?.substring(0, 15)}</span>
@@ -618,7 +606,7 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
                 <div className="flex items-center gap-3">
                   <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{Math.round(v.km_ecu)} km</span>
                   {v.rendimiento > 0 && <span className="font-space text-[10px] font-bold" style={{ color: getRendColor(v.rendimiento) }}>{v.rendimiento.toFixed(2)} km/L</span>}
-                  {v.nivel_estanque != null && <span className="font-exo text-[8px]" style={{ color: "#10b981" }}>T:{v.nivel_estanque}%</span>}
+                  {v.cargas_dia > 0 && <span className="font-exo text-[8px]" style={{ color: "#10b981" }}>{v.cargas_dia} carga(s)</span>}
                   {v.cargas_dia > 0 && <span className="font-exo text-[8px]" style={{ color: "#ff6b35" }}>{v.litros_dia.toFixed(0)}lt</span>}
                   <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{v.fecha_inicio?.substring(11, 16)}</span>
                 </div>
@@ -661,7 +649,7 @@ function CruzadoFaenas() {
       <div className="grid grid-cols-6 gap-3 mb-4">
         {[
           { l: "FAENAS ACTIVAS", v: faenas.length, c: "#ffd700" },
-          { l: "CAMIONES 3S", v: totals.camiones, c: "#00d4ff" },
+          { l: "CAMIONES CRUZADOS", v: totals.camiones, c: "#00d4ff" },
           { l: "KM VOLVO", v: fN(totals.km_volvo), c: "#00ff88" },
           { l: "VIAJES VOLVO", v: totals.viajes_volvo, c: "#00d4ff" },
           { l: "CARGAS SIGETRA", v: fN(totals.cargas), c: "#ff6b35" },
@@ -681,7 +669,7 @@ function CruzadoFaenas() {
         </div>
       ) : (
         <>
-          <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: "#3a6080" }}>CONTRATOS CON DATOS EN 3 SISTEMAS ({faenas.length})</div>
+          <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: "#3a6080" }}>CONTRATOS CON DATOS CRUZADOS ({faenas.length})</div>
           <div className="grid grid-cols-4 gap-3 mb-4">
             {faenas.map((f: any) => {
               const color = getContratoColor(f.contrato);
@@ -692,7 +680,7 @@ function CruzadoFaenas() {
                   style={{ background: isSelected ? `${color}08` : "#060d14", border: `1px solid ${isSelected ? `${color}40` : "#0d2035"}`, borderTop: `3px solid ${color}` }}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-space text-[13px] font-bold truncate" style={{ color }}>{f.contrato || "SIN CONTRATO"}</div>
-                    <TripleBadge size="md" />
+                    <CruzadoBadge size="md" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -727,7 +715,7 @@ function CruzadoFaenas() {
               <div className="p-4 mb-4" style={{ background: "#060d14", border: `1px solid ${color}30`, borderTop: `3px solid ${color}`, borderRadius: 8 }}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <TripleBadge size="md" />
+                    <CruzadoBadge size="md" />
                     <span className="font-space text-[16px] font-bold" style={{ color }}>{selectedFaena}</span>
                     <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Detalle cruzado del mes</span>
                   </div>
@@ -759,7 +747,7 @@ function CruzadoFaenas() {
 }
 
 // ======================================================
-// TAB: CAMIONES (130-vehicle grid with triple-verified badge)
+// TAB: CAMIONES (vehicle grid with cruzado badge)
 // ======================================================
 
 function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) {
@@ -785,8 +773,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
     return fleetData.camiones.filter((v: any) => {
       if (filtroContrato !== "TODOS" && v.sig_contrato !== filtroContrato && v.sig_contrato !== filtroContrato) return false;
       if (filtroEstado === "CONDUCCION" && v.velocidad === 0) return false;
-      if (filtroEstado === "RALENTI" && v.estado !== "Ralenti") return false;
-      if (filtroEstado === "DETENIDO" && (v.estado === "Conduccion" || v.estado === "Ralenti")) return false;
+      if (filtroEstado === "DETENIDO" && v.velocidad > 0) return false;
       if (busqueda) {
         const q = busqueda.toUpperCase();
         return v.id_display?.toUpperCase().includes(q) || v.patentes?.some((p: string) => p.toUpperCase().includes(q)) || v.conductor?.toUpperCase().includes(q);
@@ -800,11 +787,10 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
   return (
     <div className="px-5 pb-8">
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-4 gap-3 mb-4">
         {[
-          { l: "TOTAL 3 SISTEMAS", v: fleetData?.total || 0, c: "#ffd700" },
-          { l: "EN CONDUCCION", v: fleetData?.conduccion || 0, c: "#00ff88" },
-          { l: "RALENTI", v: fleetData?.ralenti || 0, c: "#ffcc00" },
+          { l: "TOTAL FLOTA", v: fleetData?.total || 0, c: "#ffd700" },
+          { l: "EN MOVIMIENTO", v: fleetData?.conduccion || 0, c: "#00ff88" },
           { l: "DETENIDO", v: fleetData?.detenido || 0, c: "#ff2244" },
           { l: "CONTRATOS", v: contratos.length, c: "#00d4ff" },
         ].map(k => (
@@ -822,7 +808,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar patente, movil o conductor..." className="flex-1 bg-transparent font-exo text-[11px] outline-none" style={{ color: "#c8e8ff" }} />
         </div>
         <div className="flex gap-1">
-          {["TODOS", "CONDUCCION", "RALENTI", "DETENIDO"].map(e => (
+          {["TODOS", "CONDUCCION", "DETENIDO"].map(e => (
             <button key={e} onClick={() => setFiltroEstado(e)} className="px-3 py-1.5 font-space text-[9px] font-bold cursor-pointer"
               style={{ background: filtroEstado === e ? "#ffd70015" : "transparent", border: `1px solid ${filtroEstado === e ? "#ffd70040" : "#0d2035"}`, color: filtroEstado === e ? "#ffd700" : "#3a6080", borderRadius: 4 }}>{e}</button>
           ))}
@@ -839,7 +825,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
         ))}
       </div>
 
-      <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: "#3a6080" }}>{vehiculos.length} VEHICULOS TRIPLE VERIFICADOS</div>
+      <div className="font-space text-[9px] font-bold tracking-wider mb-2" style={{ color: "#3a6080" }}>{vehiculos.length} VEHICULOS FLOTA CRUZADA</div>
 
       {isLoading ? (
         <div className="text-center py-12">
@@ -851,8 +837,8 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
           {/* Vehicle grid */}
           <div className="grid grid-cols-8 gap-2 mb-4">
             {vehiculos.map((v: any, i: number) => {
-              const estadoColor = getEstadoColor(v.estado);
-              const contratoCol = getContratoColor(v.sig_contrato || v.sig_contrato);
+              const estadoColor = v.velocidad > 0 ? "#00ff88" : "#3a6080";
+              const contratoCol = getContratoColor(v.sig_contrato);
               const isSelected = selectedPatente === v.id_display;
               return (
                 <button key={i} onClick={() => setSelectedPatente(isSelected ? null : v.id_display)}
@@ -863,14 +849,14 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
                     <span className="font-space text-[12px] font-bold truncate" style={{ color: "#c8e8ff" }}>{v.id_display}</span>
                   </div>
                   <div className="font-exo text-[8px] truncate" style={{ color: "#3a6080" }}>{v.patentes?.filter((p: string) => p !== v.id_display).join("/")}</div>
-                  <div className="font-exo text-[7px] truncate" style={{ color: contratoCol }}>{(v.sig_contrato || v.sig_contrato || "").substring(0, 14)}</div>
+                  <div className="font-exo text-[7px] truncate" style={{ color: contratoCol }}>{(v.sig_contrato || "").substring(0, 14)}</div>
                   <div className="flex items-center justify-between mt-1">
                     <span className="font-space text-[9px]" style={{ color: v.velocidad > 0 ? "#00ff88" : "#3a6080" }}>{v.velocidad}km/h</span>
-                    <span className="font-exo text-[7px]" style={{ color: v.nivel_estanque < 20 ? "#ff2244" : "#3a6080" }}>{v.nivel_estanque}%</span>
+                    <span className="font-exo text-[7px]" style={{ color: v.sig_conductor ? "#06b6d4" : "#3a6080" }}>{v.sig_conductor?.split(",")[0]?.substring(0, 10) || "--"}</span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
                     <span className="font-exo text-[7px]" style={{ color: "#ff6b35" }}>{v.sig_cargas}c</span>
-                    <TripleBadge />
+                    <CruzadoBadge />
                   </div>
                 </button>
               );
@@ -882,7 +868,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
             <div className="p-4 mb-4" style={{ background: "#060d14", border: "1px solid #ffd70030", borderTop: "3px solid #ffd700", borderRadius: 8 }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <TripleBadge size="md" />
+                  <CruzadoBadge size="md" />
                   <span className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{detalle.id_display}</span>
                   <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{detalle.patentes?.join(" / ")}</span>
                   {detalle.vin && <span className="font-exo text-[8px] px-2 py-0.5" style={{ color: "#3a6080", background: "#0d2035", borderRadius: 4 }}>VIN: {detalle.vin?.substring(0, 12)}...</span>}
@@ -890,8 +876,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
                 <button onClick={() => setSelectedPatente(null)} className="cursor-pointer"><X className="w-4 h-4" style={{ color: "#3a6080" }} /></button>
               </div>
 
-              {/* 3 source cards */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 {/* VOLVO */}
                 <div className="p-4" style={{ background: "#0a1520", border: `1px solid ${detalle.volvo?.activo ? "#00ff8830" : "#0d2035"}`, borderTop: "3px solid #00ff88", borderRadius: 8 }}>
                   <div className="flex items-center justify-between mb-3">
@@ -995,7 +980,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
 
 function CruzadoConductores() {
   const [busqueda, setBusqueda] = useState("");
-  const [sortBy, setSortBy] = useState<"camiones" | "cargas" | "litros" | "snapshots">("camiones");
+  const [sortBy, setSortBy] = useState<"camiones" | "cargas" | "litros">("camiones");
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/cruzado/conductores"],
@@ -1013,24 +998,22 @@ function CruzadoConductores() {
       camiones: (a, b) => (b.total_camiones || 0) - (a.total_camiones || 0),
       cargas: (a, b) => (b.cargas || 0) - (a.cargas || 0),
       litros: (a, b) => (b.litros || 0) - (a.litros || 0),
-      snapshots: (a, b) => (b.snapshots || 0) - (a.snapshots || 0),
     };
     return [...list].sort(sortFns[sortBy] || sortFns.camiones);
   }, [data, busqueda, sortBy]);
 
   const totals = useMemo(() => {
-    const t = { total: conductores.length, enAmbas: 0, cargas: 0, litros: 0 };
-    for (const c of conductores) { if (c.en_ambas) t.enAmbas++; t.cargas += c.cargas || 0; t.litros += c.litros || 0; }
+    const t = { total: conductores.length, cargas: 0, litros: 0 };
+    for (const c of conductores) { t.cargas += c.cargas || 0; t.litros += c.litros || 0; }
     return t;
   }, [conductores]);
 
   return (
     <div className="px-5 pb-8">
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         {[
           { l: "CONDUCTORES", v: totals.total, c: "#ffd700" },
-          { l: "EN AMBAS FUENTES", v: totals.enAmbas, c: "#00ff88" },
           { l: "CARGAS SIGETRA", v: fN(totals.cargas), c: "#ff6b35" },
           { l: "LITROS TOTAL", v: fN(totals.litros), c: "#a855f7" },
         ].map(k => (
@@ -1052,7 +1035,6 @@ function CruzadoConductores() {
             { id: "camiones" as const, l: "CAMIONES" },
             { id: "cargas" as const, l: "CARGAS" },
             { id: "litros" as const, l: "LITROS" },
-            { id: "snapshots" as const, l: "ACTIVIDAD" },
           ].map(s => (
             <button key={s.id} onClick={() => setSortBy(s.id)} className="px-3 py-1.5 font-space text-[9px] font-bold cursor-pointer"
               style={{ background: sortBy === s.id ? "#ffd70015" : "transparent", border: `1px solid ${sortBy === s.id ? "#ffd70040" : "#0d2035"}`, color: sortBy === s.id ? "#ffd700" : "#3a6080", borderRadius: 4 }}>{s.l}</button>
@@ -1073,12 +1055,10 @@ function CruzadoConductores() {
                 <tr style={{ background: "#0a1520", position: "sticky", top: 0, zIndex: 1 }}>
                   {[
                     { key: "nombre", label: "CONDUCTOR" },
-                    { key: "fuentes", label: "FUENTES" },
                     { key: "camiones", label: "CAMIONES" },
                     { key: "contrato", label: "CONTRATO" },
                     { key: "cargas", label: "CARGAS SIG" },
                     { key: "litros", label: "LITROS" },
-                    { key: "ultima", label: "ULTIMA VEZ" },
                   ].map(col => (
                     <th key={col.key} className="font-exo text-[10px] tracking-[0.12em] text-left px-3 py-2.5" style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>{col.label}</th>
                   ))}
@@ -1093,21 +1073,14 @@ function CruzadoConductores() {
                         <span className="font-exo text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{c.nombre}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1">
-                        {c.fuente_sig && <div className="w-2 h-2 rounded-full" style={{ background: "#ff6b35" }} />}
-                      </div>
-                    </td>
                     <td className="font-space text-[11px] px-3 py-2.5" style={{ color: "#00d4ff" }}>{c.total_camiones}</td>
                     <td className="px-3 py-2.5">
                       {c.contrato && (
                         <span className="font-exo text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${getContratoColor(c.contrato)}15`, color: getContratoColor(c.contrato) }}>{c.contrato?.substring(0, 18)}</span>
                       )}
                     </td>
-                    <td className="font-space text-[11px] px-3 py-2.5" style={{ color: "#10b981" }}>{c.snapshots}</td>
                     <td className="font-space text-[11px] px-3 py-2.5" style={{ color: "#ff6b35" }}>{c.cargas}</td>
                     <td className="font-space text-[11px] px-3 py-2.5" style={{ color: "#a855f7" }}>{fN(c.litros)}</td>
-                    <td className="font-exo text-[9px] px-3 py-2.5" style={{ color: "#3a6080" }}>{c.ultima_vez?.substring(0, 16) || "--"}</td>
                   </tr>
                 ))}
               </tbody>

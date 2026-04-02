@@ -748,7 +748,7 @@ function SistemaTab() {
                 { tab: "VIAJES", desc: "Viajes por dia/mes, ranking km/L, alertas rendimiento" },
                 { tab: "CONTRATOS", desc: "KPIs por faena, tendencias, top/bottom camiones" },
                 { tab: "COMBUSTIBLE", desc: "Estaciones, cargas, irregularidades, gestion fraude" },
-                { tab: "CAMIONES", desc: "Ficha completa: calendario, cargas, conductores, 3 fuentes" },
+                { tab: "CAMIONES", desc: "Ficha completa: calendario, cargas, conductores, Volvo+Sigetra" },
                 { tab: "CONTROL", desc: "Alertas velocidad, desviaciones combustible, rutas anomalas" },
                 { tab: "BRAIN", desc: "Chat IA con datos reales, predicciones, anomalias macro" },
                 { tab: "SISTEMA", desc: "Esta pagina - estado syncs, matching, motor aprendizaje" },
