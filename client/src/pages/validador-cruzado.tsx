@@ -362,7 +362,6 @@ function CruzadoMapaEnVivo({ onSelectCamion }: { onSelectCamion: (p: string) => 
 
 function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string) => void }) {
   const [fecha, setFecha] = useState(new Date(Date.now() - 86400000).toISOString().slice(0, 10));
-  const [soloCruzados, setSoloCruzados] = useState(true);
   const [filtroContrato, setFiltroContrato] = useState("TODOS");
   const [selectedCamion, setSelectedCamion] = useState<string | null>(null);
 
@@ -432,10 +431,6 @@ function CruzadoViajesCerrados({ onSelectCamion }: { onSelectCamion: (p: string)
           <span className="font-space text-[11px]" style={{ color: "#3a6080" }}>{data?.total_camiones || 0} camiones</span>
         </div>
         <div className="flex gap-1 items-center">
-          <button onClick={() => setSoloCruzados(!soloCruzados)} className="px-3 py-1.5 font-space text-[9px] font-bold cursor-pointer mr-2"
-            style={{ background: soloCruzados ? "#ffd70015" : "transparent", border: `1px solid ${soloCruzados ? "#ffd70040" : "#0d2035"}`, color: soloCruzados ? "#ffd700" : "#3a6080", borderRadius: 4 }}>
-            {soloCruzados ? "CRUZADOS V+S" : "TODOS LOS VIAJES"}
-          </button>
           <button onClick={() => setFiltroContrato("TODOS")} className="px-2 py-1 font-space text-[8px] font-bold cursor-pointer"
             style={{ background: filtroContrato === "TODOS" ? "#ffd70015" : "transparent", border: `1px solid ${filtroContrato === "TODOS" ? "#ffd70040" : "#0d2035"}`, color: filtroContrato === "TODOS" ? "#ffd700" : "#3a6080", borderRadius: 4 }}>TODOS</button>
           {contratos.slice(0, 10).map((c: any) => (
@@ -776,7 +771,7 @@ function CruzadoCamiones({ initialPatente }: { initialPatente: string | null }) 
       if (filtroEstado === "DETENIDO" && v.velocidad > 0) return false;
       if (busqueda) {
         const q = busqueda.toUpperCase();
-        return v.id_display?.toUpperCase().includes(q) || v.patentes?.some((p: string) => p.toUpperCase().includes(q)) || v.conductor?.toUpperCase().includes(q);
+        return v.id_display?.toUpperCase().includes(q) || v.patentes?.some((p: string) => p.toUpperCase().includes(q)) || v.sig_conductor?.toUpperCase().includes(q);
       }
       return true;
     });
