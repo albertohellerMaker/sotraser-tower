@@ -9,6 +9,7 @@ import EstacionesTab from "@/pages/geo-tabs/estaciones-tab";
 import CombustibleTMS from "@/pages/combustible-tms";
 import GeoValidator from "@/pages/geovalidator";
 import CencosudView from "@/pages/cencosud";
+import Flota from "@/pages/flota";
 import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X } from "lucide-react";
 import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 
@@ -1324,7 +1325,7 @@ function AppShell() {
         {/* ── CONTENT ── */}
         <div style={{ paddingTop: "72px" }}>
           <div className="p-4 max-w-[1600px] mx-auto">
-            {tab === "flota" && <WisetrackPage onBack={() => {}} initialTab="mapa" embedded key="flota" />}
+            {tab === "flota" && <Flota />}
             {tab === "viajes" && <ViajesTMS />}
             {tab === "contratos" && <ContratosUnificado />}
             {tab === "combustible" && <EstacionesTab />}
