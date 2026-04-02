@@ -1,6 +1,5 @@
 import { pool } from "./db";
 
-// Haversine en metros
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -14,11 +13,10 @@ interface GeoResult {
   nombre: string;
   geocerca_id: number | null;
   distancia_metros: number;
-  confianza: "EXACTO" | "CONFIRMADO" | "ASOCIADO" | "NUEVO" | "DOBLE_VALIDADO";
+  confianza: "EXACTO" | "CONFIRMADO" | "ASOCIADO" | "NUEVO" | "DOBLE_VALIDADO" | "KML_POLIGONO";
   descripcion: string;
 }
 
-// Cache geocercas
 let _cache: any[] = [];
 let _cacheTs = 0;
 
@@ -30,18 +28,70 @@ async function getGeocercas(): Promise<any[]> {
   return _cache;
 }
 
-/**
- * Sistema de 5 niveles para resolver geocerca de un punto GPS
- *
- * NIVEL 5 — DOBLE VALIDACIÓN (≤5m): Match exacto. 100% seguro es ese punto.
- * NIVEL 1 — BASE (≤radio base): Está dentro de una base Sotraser (3-5km).
- * NIVEL 2 — PUNTO EXACTO (≤50m): Tocó una geocerca de destino conocida.
- * NIVEL 3 — ASOCIACIÓN (≤10km): No tocó ninguna pero la más cercana está a <10km y estuvo detenido >10min.
- * NIVEL 4 — PUNTO NUEVO (>10km): No hay geocerca cercana. Si se repite 3+ veces se crea una nueva.
- */
+let _kmlCache: any[] = [];
+let _kmlCacheTs = 0;
+const DWELL_MINUTOS_CENCOSUD = 10;
+
+async function getGeocercasKml(): Promise<any[]> {
+  if (Date.now() - _kmlCacheTs < 5 * 60 * 1000 && _kmlCache.length > 0) return _kmlCache;
+  try {
+    const r = await pool.query(`
+      SELECT id, kml_id, nombre, tipo, lat::float, lng::float, radio_m, poligono, nombre_contrato
+      FROM cencosud_geocercas_kml WHERE activa = true
+    `);
+    _kmlCache = r.rows;
+    _kmlCacheTs = Date.now();
+  } catch { _kmlCache = []; }
+  return _kmlCache;
+}
+
+function pointInPolygon(lat: number, lng: number, polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [yi, xi] = polygon[i];
+    const [yj, xj] = polygon[j];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
 export async function resolverGeocerca(
   lat: number, lng: number, minutosDetenido: number = 0, contrato?: string
 ): Promise<GeoResult> {
+  const kmlGeocercas = await getGeocercasKml();
+  if (kmlGeocercas.length > 0) {
+    for (const g of kmlGeocercas) {
+      const poly: [number, number][] = g.poligono;
+      if (!poly || poly.length < 3) continue;
+
+      const dentro = pointInPolygon(lat, lng, poly);
+      if (!dentro) {
+        const dist = haversineM(lat, lng, g.lat, g.lng);
+        if (dist > g.radio_m) continue;
+      }
+
+      if (minutosDetenido >= DWELL_MINUTOS_CENCOSUD) {
+        const dist = haversineM(lat, lng, g.lat, g.lng);
+        return {
+          nivel: 5, nombre: g.nombre, geocerca_id: g.id,
+          distancia_metros: Math.round(dist),
+          confianza: "KML_POLIGONO",
+          descripcion: `KML Cencosud: ${g.nombre} (${g.tipo}). Dentro del polígono, ${minutosDetenido}min detenido (≥${DWELL_MINUTOS_CENCOSUD}min requerido).`,
+        };
+      } else {
+        const dist = haversineM(lat, lng, g.lat, g.lng);
+        return {
+          nivel: 3, nombre: g.nombre + " (dwell insuficiente)", geocerca_id: g.id,
+          distancia_metros: Math.round(dist),
+          confianza: "ASOCIADO",
+          descripcion: `KML Cencosud: ${g.nombre}. Dentro del polígono pero solo ${minutosDetenido}min (mínimo ${DWELL_MINUTOS_CENCOSUD}min para activar).`,
+        };
+      }
+    }
+  }
+
   const geocercas = await getGeocercas();
 
   let closest: { geo: any; dist: number } | null = null;
@@ -49,12 +99,10 @@ export async function resolverGeocerca(
   for (const g of geocercas) {
     const dist = haversineM(lat, lng, g.lat, g.lng);
 
-    // Track closest overall
     if (!closest || dist < closest.dist) {
       closest = { geo: g, dist };
     }
 
-    // NIVEL 5 — DOBLE VALIDACIÓN: ≤5 metros = match perfecto
     if (dist <= 5) {
       return {
         nivel: 5, nombre: g.nombre, geocerca_id: g.id, distancia_metros: Math.round(dist),
@@ -63,7 +111,6 @@ export async function resolverGeocerca(
       };
     }
 
-    // NIVEL 1 — BASE: dentro del radio de una base
     if (g.nivel === 1 && dist <= g.radio_metros) {
       return {
         nivel: 1, nombre: g.nombre, geocerca_id: g.id, distancia_metros: Math.round(dist),
@@ -72,7 +119,6 @@ export async function resolverGeocerca(
       };
     }
 
-    // NIVEL 2 — PUNTO EXACTO: dentro de 50m de una geocerca destino
     if (g.nivel === 2 && dist <= g.radio_metros) {
       return {
         nivel: 2, nombre: g.nombre, geocerca_id: g.id, distancia_metros: Math.round(dist),
@@ -82,7 +128,6 @@ export async function resolverGeocerca(
     }
   }
 
-  // NIVEL 3 — ASOCIACIÓN: la geocerca más cercana está a <10km y estuvo detenido >10min
   if (closest && closest.dist <= 10000 && minutosDetenido >= 10) {
     return {
       nivel: 3, nombre: closest.geo.nombre, geocerca_id: closest.geo.id,
@@ -92,7 +137,6 @@ export async function resolverGeocerca(
     };
   }
 
-  // NIVEL 3b — ASOCIACIÓN sin tiempo: la geocerca más cercana está a <5km (probablemente es ese punto)
   if (closest && closest.dist <= 5000) {
     return {
       nivel: 3, nombre: closest.geo.nombre + " (probable)", geocerca_id: closest.geo.id,
@@ -102,8 +146,6 @@ export async function resolverGeocerca(
     };
   }
 
-  // NIVEL 4 — PUNTO NUEVO: no hay nada cerca
-  // Registrar para auto-detección futura
   await registrarPuntoNuevo(lat, lng, contrato || null);
 
   return {
@@ -116,7 +158,6 @@ export async function resolverGeocerca(
   };
 }
 
-// Tabla para auto-crear puntos nuevos
 async function registrarPuntoNuevo(lat: number, lng: number, contrato: string | null) {
   try {
     await pool.query(`
@@ -147,10 +188,6 @@ async function registrarPuntoNuevo(lat: number, lng: number, contrato: string | 
   } catch (e) { /* silent */ }
 }
 
-/**
- * Job: promover puntos nuevos que se repiten 3+ veces a geocercas de 50m
- * Correr cada 6 horas
- */
 export async function promoverPuntosNuevos(): Promise<number> {
   try {
     await pool.query(`
@@ -182,7 +219,7 @@ export async function promoverPuntosNuevos(): Promise<number> {
     }
 
     if (promovidos > 0) {
-      _cacheTs = 0; // Invalidate cache
+      _cacheTs = 0;
       console.log(`[GEOCERCA] ${promovidos} puntos nuevos promovidos a geocercas de 50m`);
     }
 
@@ -190,13 +227,14 @@ export async function promoverPuntosNuevos(): Promise<number> {
   } catch (e) { return 0; }
 }
 
-/**
- * Resolver nombre para viaje (usa el sistema de 5 niveles)
- * Reemplaza buscarLugarCercano para viajes
- */
 export async function resolverNombreViaje(
   lat: number, lng: number, minutosDetenido: number = 0, contrato?: string
 ): Promise<string> {
   const result = await resolverGeocerca(lat, lng, minutosDetenido, contrato);
   return result.nombre;
+}
+
+export function invalidarCacheKml() {
+  _kmlCacheTs = 0;
+  _kmlCache = [];
 }
