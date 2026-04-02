@@ -73,8 +73,18 @@ migrations/                # SQL migration files
 | BRAIN | `OperativeBrain` | AI chat with fleet data, PDF reports, autonomous agents |
 | SISTEMA | Inline `SistemaTab` | Sync status, Volvo+Sigetra matching, geocercas |
 
+## Cencosud TMS — Trip Detection & Billing
+- **96 KML geocercas** imported to `cencosud_geocercas_kml` (30 Santa Isabel, 17 Jumbo, 10 Clientes, 8 CDs, 8 Copec, 6 Zonas, 6 Bases, 5 Peajes, 4 Descanso)
+- **Point-in-polygon** (ray-casting) detection in `geocerca-inteligente.ts` — exact KML coordinates, no modifications
+- **10-minute dwell time** required to activate a geocerca as trip origin/destination
+- **Copec/Shell/Servicentro** = fuel stops (`es_combustible: true`), NOT trip destinations
+- **KML priority**: Only evaluated for contrato=CENCOSUD; non-Cencosud trips skip KML entirely
+- **Billing flow**: GPS → KML polygon → geocerca name → alias (`geocerca_alias_contrato`) → tarifa (`contrato_rutas_tarifas`) → facturación
+- **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min, auto-creates aliases, detects trips without tariffs (CRITICA alerts), tracks % facturable, maximizes billing
+
 ## Background Processes
 - Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
+- Super Agente Cencosud (every 30 min) — billing intelligence + auto-alias
 - Sigetra fuel sync (every 1 hour)
 - Daily report at 06:00
 - Overnight reconciliation at 03:00
