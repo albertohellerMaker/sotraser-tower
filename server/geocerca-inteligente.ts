@@ -13,9 +13,10 @@ interface GeoResult {
   nombre: string;
   geocerca_id: number | null;
   distancia_metros: number;
-  confianza: "EXACTO" | "CONFIRMADO" | "ASOCIADO" | "NUEVO" | "DOBLE_VALIDADO" | "KML_POLIGONO";
+  confianza: "EXACTO" | "CONFIRMADO" | "ASOCIADO" | "NUEVO" | "DOBLE_VALIDADO" | "KML_POLIGONO" | "CARGA_COMBUSTIBLE";
   descripcion: string;
   fuente?: "KML" | "OPERACIONAL";
+  es_combustible?: boolean;
 }
 
 let _cache: any[] = [];
@@ -38,6 +39,17 @@ const CONTRATOS_CENCOSUD = ["CENCOSUD", "cencosud", "Cencosud"];
 function esCencosud(contrato?: string): boolean {
   if (!contrato) return false;
   return CONTRATOS_CENCOSUD.some(c => contrato.toUpperCase().includes(c.toUpperCase()));
+}
+
+const TIPOS_COMBUSTIBLE = ["COPEC", "SHELL", "SERVICENTRO", "ESTACION", "GASOLINERA", "BENCINERA"];
+
+function esEstacionCombustible(tipo: string, nombre: string): boolean {
+  const tipoUp = (tipo || "").toUpperCase();
+  const nombreUp = (nombre || "").toUpperCase();
+  if (TIPOS_COMBUSTIBLE.some(t => tipoUp.includes(t))) return true;
+  if (TIPOS_COMBUSTIBLE.some(t => nombreUp.includes(t))) return true;
+  if (nombreUp.includes("SHELL") || nombreUp.includes("PETROBRAS") || nombreUp.includes("TERPEL")) return true;
+  return false;
 }
 
 async function getGeocercasKml(): Promise<any[]> {
@@ -96,6 +108,17 @@ export async function resolverGeocerca(
       const mejor = resolverMejorKml(lat, lng, kmlGeocercas);
 
       if (mejor && mejor.dentroPoligono) {
+        if (esEstacionCombustible(mejor.geo.tipo, mejor.geo.nombre)) {
+          return {
+            nivel: 5, nombre: mejor.geo.nombre, geocerca_id: mejor.geo.id,
+            distancia_metros: Math.round(mejor.dist),
+            confianza: "CARGA_COMBUSTIBLE",
+            descripcion: `Parada de carga combustible: ${mejor.geo.nombre} (${mejor.geo.tipo}). ${minutosDetenido}min detenido.`,
+            fuente: "KML",
+            es_combustible: true,
+          };
+        }
+
         if (minutosDetenido >= DWELL_MINUTOS_CENCOSUD) {
           return {
             nivel: 5, nombre: mejor.geo.nombre, geocerca_id: mejor.geo.id,
@@ -103,6 +126,7 @@ export async function resolverGeocerca(
             confianza: "KML_POLIGONO",
             descripcion: `KML Cencosud: ${mejor.geo.nombre} (${mejor.geo.tipo}). Dentro del polígono exacto, ${minutosDetenido}min detenido (≥${DWELL_MINUTOS_CENCOSUD}min requerido).`,
             fuente: "KML",
+            es_combustible: false,
           };
         }
       }
