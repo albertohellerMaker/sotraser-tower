@@ -219,6 +219,11 @@ export function iniciarJobs() {
     setInterval(() => runJob(JOBS.VIN_PATENTE_REFRESH), JOBS.VIN_PATENTE_REFRESH.intervalo!);
   }, 10 * 1000);
 
+  setTimeout(() => {
+    runJob(JOBS.TRAYECTOS_CENCOSUD);
+    setInterval(() => runJob(JOBS.TRAYECTOS_CENCOSUD), JOBS.TRAYECTOS_CENCOSUD.intervalo!);
+  }, 3 * 60 * 1000);
+
   // Supervisión predictiva: expectativas a las 00:01, comparar cada hora
   setTimeout(async () => {
     try {

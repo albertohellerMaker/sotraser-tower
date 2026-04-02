@@ -159,8 +159,11 @@ export async function consolidarTrayectosCencosud(): Promise<{ consolidados: num
         const origenNombreFinal = origenGeo.nombre || cadena[0].origen_nombre || "Origen";
         const destinoNombreFinal = destinoGeo.nombre || ultimo.destino_nombre || "Destino";
 
+        const client = await pool.connect();
         try {
-          const trayectoR = await pool.query(`
+          await client.query("BEGIN");
+
+          const trayectoR = await client.query(`
             INSERT INTO cencosud_trayectos (
               camion_id, patente,
               origen_lat, origen_lng, origen_nombre,
@@ -189,20 +192,20 @@ export async function consolidarTrayectosCencosud(): Promise<{ consolidados: num
           const trayectoId = trayectoR.rows[0].id;
 
           const idsSegmentos = cadena.map((v: any) => v.id);
-          await pool.query(`
+          await client.query(`
             UPDATE viajes_aprendizaje
             SET trayecto_consolidado_id = $1,
                 es_segmento_intermedio = true
             WHERE id = ANY($2)
           `, [trayectoId, idsSegmentos]);
 
-          await pool.query(`
+          await client.query(`
             UPDATE viajes_aprendizaje
             SET es_segmento_intermedio = false
             WHERE id = $1
           `, [idsSegmentos[0]]);
 
-          await pool.query(`
+          await client.query(`
             UPDATE viajes_aprendizaje
             SET origen_nombre = $1, destino_nombre = $2,
                 km_ecu = $3, litros_consumidos_ecu = $4,
@@ -220,12 +223,17 @@ export async function consolidarTrayectosCencosud(): Promise<{ consolidados: num
             idsSegmentos[0],
           ]);
 
+          await client.query("COMMIT");
+
           consolidados++;
           segmentosFusionados += cadena.length;
 
           console.log(`[TRAYECTOS] ${cadena[0].patente}: ${origenNombreFinal} → ${destinoNombreFinal} (${Math.round(kmTotal)}km, ${cadena.length} segmentos, ${paradasIntermedias.filter(p => p.tipo === "COMBUSTIBLE").length} paradas combustible)`);
         } catch (err: any) {
+          await client.query("ROLLBACK").catch(() => {});
           console.error(`[TRAYECTOS] Error consolidando: ${err.message}`);
+        } finally {
+          client.release();
         }
       }
 
