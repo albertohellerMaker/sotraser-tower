@@ -1,7 +1,7 @@
 # SOTRASER - Fleet Intelligence Dashboard
 
 ## Overview
-A comprehensive fleet management system for a Chilean trucking company (~800 trucks). Integrates real-time GPS tracking and telemetry from Volvo Connect (rFMS) with fuel transaction data from the Sigetra portal to optimize fleet operations, detect fuel anomalies, and provide AI-driven insights.
+A comprehensive fleet management system for a Chilean trucking company (~968 trucks). Integrates real-time GPS tracking and telemetry from Volvo Connect (rFMS) with fuel transaction data from the Sigetra portal to optimize fleet operations, detect fuel anomalies, and provide AI-driven insights.
 
 ## Data Sources (2 active)
 - **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s)
@@ -23,31 +23,63 @@ A comprehensive fleet management system for a Chilean trucking company (~800 tru
 
 ## Project Structure
 ```
-client/          # React frontend (Vite)
+client/                    # React frontend (Vite)
   src/
-    components/  # UI components including shadcn/ui primitives
-    pages/       # App views (dashboard, geovalidator, operative-brain, validador-cruzado, etc.)
-    lib/         # Frontend utilities, API clients, fuel calculation logic
-server/          # Express backend
-  agentes/       # AI agent logic (CEO, Operations Manager, etc.)
-  utils/         # GPS filtering, VIN mapping, truck matching (gps-unificado.ts)
-  *-routes.ts    # Domain-specific API routes
-  aprendizaje-engine.ts  # Adaptive learning background engine
-  github-sync.ts # Auto-push to GitHub every 10 min
-  validador-cruzado.ts   # Cross-validation Volvo + Sigetra
-shared/          # Shared code
-  schema.ts      # Drizzle DB schema + TypeScript types
-migrations/      # SQL migration files
+    components/            # UI components including shadcn/ui primitives
+    pages/                 # 21 page files (cleaned from 48)
+      flota.tsx            # Fleet overview (P90/P75/P50 tables, rankings)
+      viajes-tms.tsx       # Trip analysis (executive summary, daily/monthly)
+      combustible-tms.tsx  # Fuel management
+      operative-brain.tsx  # AI brain with multi-agent chat
+      cencosud.tsx         # Dedicated Cencosud TMS
+      geovalidator.tsx     # Route validation and geofence management
+      validador-cruzado.tsx # Cross-validation Volvo + Sigetra (6 sub-tabs)
+      volvo.tsx            # Volvo Connect truck status and map
+      camiones.tsx         # Individual truck view with faena filter
+      ranking-conductores.tsx # Driver performance ranking
+      sigetra-fusion.tsx   # Sigetra data fusion analysis
+      micro-cargas.tsx     # Suspicious micro-fuel-load detection
+      errores.tsx          # Data quality errors (physically impossible values)
+      not-found.tsx        # 404 page
+      geo-tabs/            # 6 geo sub-tab components
+        mapa-en-vivo.tsx   # Live fleet map
+        viajes-cerrados.tsx # Completed trips
+        rutas-operacionales.tsx # Operational routes
+        acumulacion-tab.tsx # Accumulation analysis
+        analisis-ia-tab.tsx # AI route analysis
+        estaciones-tab.tsx  # Fuel station monitoring
+        shared-components.tsx # Shared UI (status dots, badges)
+    lib/                   # Frontend utilities, API clients, fuel calculation logic
+server/                    # Express backend
+  agentes/                 # AI agent logic (Operations, Contracts, General Manager)
+  utils/                   # GPS filtering, VIN mapping, truck matching (gps-unificado.ts)
+  *-routes.ts              # Domain-specific API routes
+  validador-cruzado.ts     # Cross-validation Volvo + Sigetra
+  github-sync.ts           # Auto-push to GitHub every 10 min
+shared/                    # Shared code
+  schema.ts                # Drizzle DB schema + TypeScript types
+migrations/                # SQL migration files
 ```
 
-## Key Features
-- **Tower/Cerebro**: Fleet-wide analytical hub
-- **Operative Brain**: Real-time GPS tracking, daily reports, driver evaluation
-- **Cuadratura System**: ECU vs Sigetra fuel reconciliation
-- **Validador Cruzado**: Cross-validation between Volvo Connect + Sigetra data sources
-- **Sistema Inteligente**: CEO-level interface with AI natural language queries
-- **GeoValidator**: Station detection and route reconstruction
-- **Multi-agent system**: Autonomous background agents (Operations, Contracts, General Manager)
+## App Navigation (Tower mode)
+| Tab | Component | Purpose |
+|-----|-----------|---------|
+| FLOTA | `Flota` (flota.tsx) | Fleet-wide performance, P90/P75/P50 tables, ranking, errors |
+| VIAJES | `ViajesTMS` (viajes-tms.tsx) | Trip analysis: executive summary, daily detail, rankings |
+| CONTRATOS | Inline `ContratosUnificado` | Per-contract KPIs, routes, top/bottom trucks |
+| COMBUSTIBLE | `EstacionesTab` | Fuel stations, irregular loads, fraud detection |
+| CAMIONES | Inline `CamionesUnificado` | Individual truck search, monthly calendar, Sigetra cargas |
+| CONTROL | Inline `ControlCenter` | Speed alerts, fuel deviations, route anomalies |
+| BRAIN | `OperativeBrain` | AI chat with fleet data, PDF reports, autonomous agents |
+| SISTEMA | Inline `SistemaTab` | Sync status, Volvo+Sigetra matching, geocercas |
+
+## Background Processes
+- Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
+- Sigetra fuel sync (every 1 hour)
+- Daily report at 06:00
+- Overnight reconciliation at 03:00
+- GitHub auto-push every 10 minutes
+- VIN-patente refresh on boot
 
 ## Development Setup
 - Run: `npm run dev` (starts Express + Vite dev server on port 5000)
@@ -71,7 +103,15 @@ Set via Replit Secrets/Env Vars:
 - Build: `npm run build`
 - Run: `node dist/index.cjs`
 
-## Notes
-- WiseTrack GPS was fully removed from the codebase (April 2026). Only Volvo Connect + Sigetra remain as data sources.
+## Database Stats
+- 968 trucks (323 with Volvo VIN, 645 Sigetra-only)
+- 1754 geocercas operacionales
+- 11 active contracts
+- 176 VINs mapped via camion_identidades
+
+## Cleanup History
+- WiseTrack GPS fully removed (April 2026). Code, DB tables (wisetrack_snapshots, wt_productividad_diaria, wt_viajes), and all "triple verificado" / "3 sistemas" DNA eliminated.
+- 27 orphaned frontend pages deleted (reduced from 48 to 21 active pages).
+- 37 dead trucks removed (no VIN, no recent Sigetra cargas).
+- Duplicate `client 2/` directory removed.
 - Volvo API currently returns 401 — credentials may be expired or IP not whitelisted.
-- Database has real data: 819 trucks, 1754 geocercas, 11 contracts, 176 VINs mapped.
