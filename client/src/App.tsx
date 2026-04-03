@@ -1174,7 +1174,7 @@ function CamionesUnificado() {
 
 // ── Main App Shell ──
 // Welcome screen
-function WelcomeScreen({ onTower, onMando, onTMS, onAnglo }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAnglo: () => void }) {
+function WelcomeScreen({ onTower, onMando, onTMS, onAnglo, onAppConductor }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAnglo: () => void; onAppConductor: () => void }) {
   const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
   useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
   const { data: stats } = useQuery<any>({ queryKey: ["/api/welcome/stats"], queryFn: () => fetch("/api/welcome/stats").then(r => r.json()), refetchInterval: 60000 });
@@ -1194,7 +1194,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAnglo }: { onTower: () => vo
           </div>
         )}
       </div>
-      <div className="grid grid-cols-4 gap-5 w-full max-w-5xl px-8">
+      <div className="grid grid-cols-5 gap-4 w-full max-w-6xl px-8">
         <button onClick={onTower} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #00d4ff20", borderTop: "3px solid #00d4ff", borderRadius: 12 }}>
           <div className="text-[32px] mb-3">🗼</div>
@@ -1235,6 +1235,16 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAnglo }: { onTower: () => vo
           ))}
           <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#22c55e" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
         </button>
+        <button onClick={onAppConductor} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+          style={{ background: "#060d14", border: "1px solid #a855f720", borderTop: "3px solid #ff6b35", borderRadius: 12 }}>
+          <div className="text-[32px] mb-3">📱</div>
+          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#ff6b35" }}>APP CONDUCTOR</div>
+          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Vista Conductor</div>
+          {["App en terreno · GPS + Cámara", "Confirmación de paradas", "Reporte de novedades en vivo"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#9a5040" }}><div className="w-1 h-1 rounded-full" style={{ background: "#ff6b35" }} />{item}</div>
+          ))}
+          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#ff6b35" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+        </button>
       </div>
       <div className="mt-12 font-exo text-[8px] tracking-wider" style={{ color: "#1a3040" }}>SOTRASER TOWER · Sistema de Gestión de Flota · v2.0</div>
     </div>
@@ -1242,7 +1252,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAnglo }: { onTower: () => vo
 }
 
 function AppShell() {
-  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "ANGLO">("WELCOME");
+  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "ANGLO" | "APP_CONDUCTOR">("WELCOME");
   const [tab, setTab] = useState<MainTab>("flota");
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -1263,11 +1273,28 @@ function AppShell() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAnglo={() => setModo("ANGLO")} />;
+  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAnglo={() => setModo("ANGLO")} onAppConductor={() => setModo("APP_CONDUCTOR")} />;
 
   if (modo === "TMS") return <CencosudView onBack={() => setModo("WELCOME")} />;
 
   if (modo === "ANGLO") return <AngloView onBack={() => setModo("WELCOME")} />;
+
+  if (modo === "APP_CONDUCTOR") return (
+    <div className="min-h-screen" style={{ background: "#020508" }}>
+      <div className="flex items-center gap-3 px-6 py-3" style={{ background: "#060d14", borderBottom: "1px solid #0d2035" }}>
+        <button onClick={() => setModo("WELCOME")} className="font-exo text-[10px] font-bold px-3 py-1.5 cursor-pointer"
+          style={{ color: "#ff6b35", background: "#ff6b3515", border: "1px solid #ff6b3530", borderRadius: 6 }}>
+          ← VOLVER
+        </button>
+        <div className="text-[20px]">📱</div>
+        <span className="font-space text-[16px] font-bold tracking-wider" style={{ color: "#ff6b35" }}>APP CONDUCTOR</span>
+        <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Vista previa de la app del conductor en terreno</span>
+      </div>
+      <div className="p-4">
+        <AppConductorIframe />
+      </div>
+    </div>
+  );
 
   if (modo === "MANDO") return (
     <div className="min-h-screen" style={{ background: "#020508" }}>
