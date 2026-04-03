@@ -158,9 +158,10 @@ export async function runBackfill(
         const chunkEnd = new Date(Math.min(chunkStart.getTime() + chunkMs, dayEnd.getTime(), to.getTime()));
 
         try {
-          const positions = await getVehiclePositionsRange(chunkStart.toISOString(), chunkEnd.toISOString());
+          const maxPagesPerChunk = 15;
+          const positions = await getVehiclePositionsRange(chunkStart.toISOString(), chunkEnd.toISOString(), maxPagesPerChunk);
           await new Promise(r => setTimeout(r, 1200));
-          const statuses = await getVehicleStatusesRange(chunkStart.toISOString(), chunkEnd.toISOString());
+          const statuses = await getVehicleStatusesRange(chunkStart.toISOString(), chunkEnd.toISOString(), maxPagesPerChunk);
 
           const posIns = await storePositions(positions, vinMap);
           const snapIns = await storeSnapshots(statuses);

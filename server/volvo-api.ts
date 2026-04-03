@@ -184,15 +184,14 @@ export async function getVehiclePositions(vin?: string, latestOnly = true): Prom
 }
 
 export async function getVehicleStatusesRange(
-  startTime: string, stopTime: string
+  startTime: string, stopTime: string, maxPages: number = 50
 ): Promise<RfmsVehicleStatus[]> {
   const all: RfmsVehicleStatus[] = [];
   let hasMore = true;
   let pages = 0;
-  const MAX_PAGES = 200;
   let cursor = startTime;
 
-  while (hasMore && pages < MAX_PAGES) {
+  while (hasMore && pages < maxPages) {
     if (new Date(cursor) >= new Date(stopTime)) break;
 
     const data = await rfmsGet<RfmsVehicleStatusesResponse>(
@@ -222,15 +221,14 @@ export async function getVehicleStatusesRange(
 }
 
 export async function getVehiclePositionsRange(
-  startTime: string, stopTime: string
+  startTime: string, stopTime: string, maxPages: number = 50
 ): Promise<RfmsVehiclePosition[]> {
   const all: RfmsVehiclePosition[] = [];
   let hasMore = true;
   let pages = 0;
-  const MAX_PAGES = 200;
   let cursor = startTime;
 
-  while (hasMore && pages < MAX_PAGES) {
+  while (hasMore && pages < maxPages) {
     if (new Date(cursor) >= new Date(stopTime)) break;
 
     const data = await rfmsGet<RfmsVehiclePositionsResponse>(
