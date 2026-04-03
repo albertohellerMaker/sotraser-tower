@@ -78,13 +78,14 @@ export const BrainResumenEjecutivoResponse = z.object({
 });
 
 export const BrainChatRequest = z.object({
-  message: z.string().min(1).max(5000),
-  context: z.string().optional(),
+  mensaje: z.string().min(1).max(5000),
+  contrato: z.string().default("TODOS"),
+  historial: z.array(z.object({ role: z.string(), content: z.string() })).default([]),
 });
 
 export const BrainChatResponse = z.object({
-  reply: z.string(),
-  timestamp: z.string(),
+  respuesta: z.string(),
+  contexto_usado: z.record(z.unknown()),
 });
 
 export const BrainAnomaliasMacroQuery = z.object({
@@ -163,21 +164,24 @@ export const GpsPunto = z.object({
 export const ViajeGpsResponse = z.object({
   viaje: z.object({
     id: z.number(),
+    camion_id: z.number(),
     patente: z.string(),
     contrato: z.string().nullable(),
     origen: z.string().nullable(),
     destino: z.string().nullable(),
+    olat: z.number().nullable(),
+    olng: z.number().nullable(),
+    dlat: z.number().nullable(),
+    dlng: z.number().nullable(),
     km_ecu: z.number().nullable(),
     fecha_inicio: z.string(),
     fecha_fin: z.string().nullable(),
+    duracion: z.number().nullable(),
+    vel_prom: z.number().nullable(),
+    vel_max: z.number().nullable(),
   }),
   puntos: z.array(GpsPunto),
-  stats: z.object({
-    total_puntos: z.number(),
-    vel_max: z.number(),
-    vel_prom: z.number(),
-    duracion_min: z.number(),
-  }),
+  total_puntos: z.number(),
 });
 
 export const GeocercaToggleRequest = z.object({
@@ -201,8 +205,11 @@ export const GeocercaCrearRequest = z.object({
 });
 
 export const GeoreferenciarRequest = z.object({
-  geocerca_id: z.number().int().positive(),
-  nombre_destino: z.string().min(1),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  nombre: z.string().min(1),
+  contrato: z.string().nullable().optional(),
+  radio_metros: z.number().positive().default(50),
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -223,7 +230,7 @@ export type TBrainTotales = z.infer<typeof BrainTotales>;
 export type TBrainTendenciaDia = z.infer<typeof BrainTendenciaDia>;
 export type TBrainChatRequest = z.infer<typeof BrainChatRequest>;
 export type TBrainChatResponse = z.infer<typeof BrainChatResponse>;
-export type TBrainAnomalia = z.infer<typeof BrainAnomaliasMacroQuery>;
+export type TBrainAnomaliasMacroQuery = z.infer<typeof BrainAnomaliasMacroQuery>;
 
 export type TViajesResumenDia = z.infer<typeof ViajesResumenDiaResponse>;
 export type TViajesKpis = z.infer<typeof ViajesKpis>;

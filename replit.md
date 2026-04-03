@@ -21,7 +21,7 @@ A comprehensive fleet management system for a Chilean trucking company (~825 tru
 
 ## Tech Stack
 - **Frontend**: React 18, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Google Maps (`@vis.gl/react-google-maps`)
-- **Backend**: Node.js, Express 5, TypeScript (ESM)
+- **Backend**: Node.js, Express 5, TypeScript (ESM), Zod request validation middleware
 - **Database**: PostgreSQL with Drizzle ORM
 - **AI**: Anthropic Claude (fleet diagnostics and conversational assistant)
 - **Build**: Vite (frontend), esbuild (backend production bundle)
@@ -67,6 +67,8 @@ client/                    # React frontend (Vite)
 server/                    # Express backend
   agentes/                 # AI agent logic (Operations, Contracts, General Manager)
   utils/                   # GPS filtering, VIN mapping, truck matching
+  middleware/              # Express middleware
+    validate.ts            # Zod request validation (params, query, body)
   *-routes.ts              # Domain-specific API routes (22 route files, all mounted)
   t1-reconstructor.ts      # T-1 billing reconstruction
   github-sync.ts           # Auto-push to GitHub every 10 min
