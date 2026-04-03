@@ -632,7 +632,7 @@
     "baseline": 71,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.624Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.808Z"
   },
   "9BVRG30C4ME898628": {
     "nombre": "Sin asignar",
@@ -659,7 +659,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.608Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.793Z"
   },
   "9BVRG30C6TE631945": {
     "nombre": "Sin asignar",
@@ -952,7 +952,7 @@
     "baseline": 65,
     "variabilidad": 4,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.591Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.778Z"
   },
   "9BVRG30D4ME898582": {
     "nombre": "Sin asignar",
@@ -973,13 +973,13 @@
         "anticipacion": 73,
         "velocidad": 75,
         "motor": 60,
-        "combustible": 69
+        "combustible": 68
       }
     ],
     "baseline": 69,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.575Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.763Z"
   },
   "9BVRG30D5LE873957": {
     "nombre": "Sin asignar",
@@ -1006,7 +1006,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.557Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.748Z"
   },
   "9BVRG30D6LE870501": {
     "nombre": "Sin asignar",
@@ -1033,7 +1033,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.541Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.733Z"
   },
   "9BVRG30D6LE873799": {
     "nombre": "Sin asignar",
@@ -1060,7 +1060,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.525Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.718Z"
   },
   "9BVRG30D9PE917357": {
     "nombre": "Sin asignar",
@@ -1106,7 +1106,7 @@
     "baseline": 68,
     "variabilidad": 0.5,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.509Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.703Z"
   },
   "9BVRG40C9PE928211": {
     "nombre": "Sin asignar",
@@ -1190,7 +1190,7 @@
     "baseline": 66,
     "variabilidad": 0.5,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.492Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.688Z"
   },
   "9BVX1F1D0KE856336": {
     "nombre": "Sin asignar",
@@ -1217,7 +1217,7 @@
     "baseline": 62,
     "variabilidad": 3,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.473Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.672Z"
   },
   "9BVX1F1D1KE856405": {
     "nombre": "Sin asignar",
@@ -1377,7 +1377,7 @@
     "baseline": 70,
     "variabilidad": 1,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.457Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.657Z"
   },
   "9BVXG20D2TE622135": {
     "nombre": "Sin asignar",
@@ -1423,7 +1423,7 @@
     "baseline": 69,
     "variabilidad": 1,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.440Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.642Z"
   },
   "9BVXG20D3TE632298": {
     "nombre": "Sin asignar",
@@ -1450,7 +1450,7 @@
     "baseline": 56,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.421Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.627Z"
   },
   "9BVXG20D6SE603455": {
     "nombre": "Sin asignar",
@@ -1553,7 +1553,7 @@
     "baseline": 63,
     "variabilidad": 4,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.385Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.596Z"
   },
   "9BVXG40D7TE624995": {
     "nombre": "Sin asignar",
@@ -1637,7 +1637,7 @@
     "baseline": 63,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.369Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.580Z"
   },
   "YV2XB40C0RA339865": {
     "nombre": "Sin asignar",
@@ -1664,7 +1664,7 @@
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.352Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.565Z"
   },
   "YV2XG10C2NA893175": {
     "nombre": "Sin asignar",
@@ -1691,7 +1691,7 @@
     "baseline": 65,
     "variabilidad": 6,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.335Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.550Z"
   },
   "YV2XG10C4NB372131": {
     "nombre": "Sin asignar",
@@ -1794,7 +1794,7 @@
     "baseline": 60,
     "variabilidad": 1,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.318Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.535Z"
   },
   "9BVRG30D4LE870342": {
     "nombre": "Sin asignar",
@@ -1935,7 +1935,7 @@
     "baseline": 65,
     "variabilidad": 6,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-04-03T19:06:44.401Z"
+    "ultimaActualizacion": "2026-04-03T19:08:32.611Z"
   },
   "9BVXG20C1TE628448": {
     "nombre": "Sin asignar",
