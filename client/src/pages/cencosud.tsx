@@ -19,9 +19,9 @@ function MapeoInteractivo() {
   const [showDropO, setShowDropO] = useState(false);
   const [showDropD, setShowDropD] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapObjRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
-  const polylinesRef = useRef<google.maps.Polyline[]>([]);
+  const mapObjRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const polylinesRef = useRef<any[]>([]);
 
   const { data, refetch } = useQuery<any>({
     queryKey: ["/api/cencosud/viajes-sin-tarifa-mapa"],
@@ -40,8 +40,9 @@ function MapeoInteractivo() {
 
   const initMap = useCallback(() => {
     if (!mapRef.current || mapObjRef.current) return;
-    if (!(window as any).google) return;
-    mapObjRef.current = new google.maps.Map(mapRef.current, {
+    const g = (window as any).google;
+    if (!g?.maps) return;
+    mapObjRef.current = new g.maps.Map(mapRef.current, {
       center: { lat: -33.45, lng: -70.65 },
       zoom: 6,
       mapTypeId: "roadmap",
@@ -67,42 +68,42 @@ function MapeoInteractivo() {
   }, [initMap]);
 
   useEffect(() => {
-    if (!mapObjRef.current || !selected) return;
-    markersRef.current.forEach(m => m.setMap(null));
+    const g = (window as any).google;
+    if (!mapObjRef.current || !selected || !g?.maps) return;
+    markersRef.current.forEach((m: any) => m.setMap(null));
     markersRef.current = [];
-    polylinesRef.current.forEach(p => p.setMap(null));
+    polylinesRef.current.forEach((p: any) => p.setMap(null));
     polylinesRef.current = [];
-    const bounds = new google.maps.LatLngBounds();
+    const esc = (s: string) => s.replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c] || c));
+    const bounds = new g.maps.LatLngBounds();
     if (selected.origen_lat && selected.origen_lng) {
-      const m = new google.maps.Marker({
+      const m = new g.maps.Marker({
         position: { lat: selected.origen_lat, lng: selected.origen_lng },
         map: mapObjRef.current,
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+        icon: { path: g.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
         title: `ORIGEN: ${selected.origen_nombre || "?"}`,
       });
-      const esc = (s: string) => s.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c));
-      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">ORIGEN<br/>${esc(selected.origen_nombre || "Sin nombre")}<br/><small>${selected.origen_lat?.toFixed(4)}, ${selected.origen_lng?.toFixed(4)}</small></div>` });
-      m.addListener("click", () => iw.open(mapObjRef.current!, m));
-      iw.open(mapObjRef.current!, m);
+      const iw = new g.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">ORIGEN<br/>${esc(selected.origen_nombre || "Sin nombre")}<br/><small>${selected.origen_lat?.toFixed(4)}, ${selected.origen_lng?.toFixed(4)}</small></div>` });
+      m.addListener("click", () => iw.open(mapObjRef.current, m));
+      iw.open(mapObjRef.current, m);
       markersRef.current.push(m);
-      bounds.extend(m.getPosition()!);
+      bounds.extend(m.getPosition());
     }
     if (selected.destino_lat && selected.destino_lng) {
-      const m = new google.maps.Marker({
+      const m = new g.maps.Marker({
         position: { lat: selected.destino_lat, lng: selected.destino_lng },
         map: mapObjRef.current,
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+        icon: { path: g.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
         title: `DESTINO: ${selected.destino_nombre || "?"}`,
       });
-      const esc2 = (s: string) => s.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c));
-      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">DESTINO<br/>${esc2(selected.destino_nombre || "Sin nombre")}<br/><small>${selected.destino_lat?.toFixed(4)}, ${selected.destino_lng?.toFixed(4)}</small></div>` });
-      m.addListener("click", () => iw.open(mapObjRef.current!, m));
-      iw.open(mapObjRef.current!, m);
+      const iw = new g.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">DESTINO<br/>${esc(selected.destino_nombre || "Sin nombre")}<br/><small>${selected.destino_lat?.toFixed(4)}, ${selected.destino_lng?.toFixed(4)}</small></div>` });
+      m.addListener("click", () => iw.open(mapObjRef.current, m));
+      iw.open(mapObjRef.current, m);
       markersRef.current.push(m);
-      bounds.extend(m.getPosition()!);
+      bounds.extend(m.getPosition());
     }
     if (selected.origen_lat && selected.destino_lat) {
-      const pl = new google.maps.Polyline({
+      const pl = new g.maps.Polyline({
         path: [
           { lat: selected.origen_lat, lng: selected.origen_lng },
           { lat: selected.destino_lat, lng: selected.destino_lng },
