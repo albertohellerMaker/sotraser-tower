@@ -181,6 +181,80 @@ export async function getVehiclePositions(vin?: string, latestOnly = true): Prom
   return data.VehiclePosition || [];
 }
 
+export async function getVehicleStatusesRange(
+  startTime: string, stopTime: string
+): Promise<RfmsVehicleStatus[]> {
+  const all: RfmsVehicleStatus[] = [];
+  let hasMore = true;
+  let pages = 0;
+  const MAX_PAGES = 200;
+  let cursor = startTime;
+
+  while (hasMore && pages < MAX_PAGES) {
+    if (new Date(cursor) >= new Date(stopTime)) break;
+
+    const data = await rfmsGet<RfmsVehicleStatusesResponse>(
+      "/vehiclestatuses",
+      "application/vnd.fmsstandard.com.Vehiclestatuses.v2.1+json",
+      { starttime: cursor, stoptime: stopTime }
+    );
+
+    const batch = data.VehicleStatus || [];
+    if (batch.length === 0) break;
+    all.push(...batch);
+    hasMore = data.MoreDataAvailable === true;
+    if (hasMore) {
+      const lastTs = batch[batch.length - 1].ReceivedDateTime || batch[batch.length - 1].CreatedDateTime;
+      if (!lastTs || lastTs <= cursor) break;
+      cursor = lastTs;
+    }
+    pages++;
+    if (pages % 10 === 0) {
+      console.log(`[volvo-api] statusesRange page ${pages}, ${all.length} records so far`);
+    }
+  }
+
+  console.log(`[volvo-api] statusesRange: ${all.length} records in ${pages} pages (${startTime} → ${stopTime})`);
+  return all;
+}
+
+export async function getVehiclePositionsRange(
+  startTime: string, stopTime: string
+): Promise<RfmsVehiclePosition[]> {
+  const all: RfmsVehiclePosition[] = [];
+  let hasMore = true;
+  let pages = 0;
+  const MAX_PAGES = 200;
+  let cursor = startTime;
+
+  while (hasMore && pages < MAX_PAGES) {
+    if (new Date(cursor) >= new Date(stopTime)) break;
+
+    const data = await rfmsGet<RfmsVehiclePositionsResponse>(
+      "/vehiclepositions",
+      "application/vnd.fmsstandard.com.Vehiclepositions.v2.1+json",
+      { starttime: cursor, stoptime: stopTime }
+    );
+
+    const batch = data.VehiclePosition || [];
+    if (batch.length === 0) break;
+    all.push(...batch);
+    hasMore = data.MoreDataAvailable === true;
+    if (hasMore) {
+      const lastTs = batch[batch.length - 1].ReceivedDateTime || batch[batch.length - 1].CreatedDateTime;
+      if (!lastTs || lastTs <= cursor) break;
+      cursor = lastTs;
+    }
+    pages++;
+    if (pages % 10 === 0) {
+      console.log(`[volvo-api] positionsRange page ${pages}, ${all.length} records so far`);
+    }
+  }
+
+  console.log(`[volvo-api] positionsRange: ${all.length} records in ${pages} pages (${startTime} → ${stopTime})`);
+  return all;
+}
+
 export interface UnifiedVehicleStatus {
   vin: string;
   createdDateTime: string | null;

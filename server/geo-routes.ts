@@ -4,6 +4,7 @@ import { db, pool, DATA_START, getDefaultDesde } from "./db";
 import { geoPuntos, geoViajes, geoBases, geoTrayectorias, geoGeocache, camiones, geoLugares, geoVisitas, geoAnalisisIa, viajesAprendizaje, cargas } from "@shared/schema";
 import { eq, desc, and, gte, lte, sql, inArray, asc, or, isNull, isNotNull } from "drizzle-orm";
 import { getFleetStatus } from "./volvo-api";
+import { runBackfill, getBackfillProgress } from "./volvo-backfill";
 import { getCachedFuelData } from "./sigetra-api";
 import { getContractConfig, getContractPatentes, getContractCamiones, CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
 import { detectarLugar, registrarVisita, analizarHistoricoCompleto, generarAnalisisIA } from "./geo-lugares-service";
@@ -574,6 +575,22 @@ export function registerGeoRoutes(app: Express) {
       console.error("[geo] ingest-volvo error:", error.message);
       res.status(500).json({ message: error.message });
     }
+  });
+
+  app.post("/api/geo/backfill", async (req: Request, res: Response) => {
+    try {
+      const { from, to, chunkHours } = req.body || {};
+      const fromDate = from || "2026-03-01";
+      const toDate = to || "2026-03-18";
+      runBackfill(fromDate, toDate, chunkHours || 6);
+      res.json({ message: `Backfill started: ${fromDate} → ${toDate}`, progress: getBackfillProgress() });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/geo/backfill/progress", async (_req: Request, res: Response) => {
+    res.json(getBackfillProgress());
   });
 
   app.post("/api/geo/detectar-viajes", async (_req: Request, res: Response) => {
