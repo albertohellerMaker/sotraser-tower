@@ -542,4 +542,122 @@ router.get("/agente/inteligencia", async (_req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ VIAJES SIN TARIFA — INTERACTIVO CON MAPA ═══
+router.get("/viajes-sin-tarifa-mapa", async (req, res) => {
+  try {
+    const dias = parseInt(req.query.dias as string) || 30;
+    const [viajesR, rutasR, nombresR] = await Promise.all([
+      pool.query(`
+        SELECT va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
+          va.km_ecu::float as km, va.rendimiento_real::float as rend,
+          va.duracion_minutos::int as min, va.velocidad_maxima::float as vel_max,
+          va.origen_lat::float, va.origen_lng::float, va.destino_lat::float, va.destino_lng::float,
+          va.fecha_inicio::text as fecha, DATE(va.fecha_inicio)::text as dia,
+          ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato
+        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = COALESCE(ao.nombre_contrato, va.origen_nombre)
+          AND crt.destino = COALESCE(ad.nombre_contrato, va.destino_nombre) AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - ($1 || ' days')::interval
+          AND va.km_ecu > 5 AND crt.id IS NULL
+        ORDER BY va.fecha_inicio DESC
+        LIMIT 200
+      `, [dias]),
+      pool.query(`SELECT DISTINCT origen, destino, tarifa, lote, clase FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true ORDER BY origen, destino`),
+      pool.query(`
+        SELECT DISTINCT nombre FROM (
+          SELECT DISTINCT origen as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+          UNION SELECT DISTINCT destino FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+        ) x ORDER BY nombre
+      `),
+    ]);
+
+    const viajes = viajesR.rows.map((v: any) => {
+      const sugerencias: any[] = [];
+      const oNom = (v.origen_nombre || "").toLowerCase();
+      const dNom = (v.destino_nombre || "").toLowerCase();
+      for (const r of rutasR.rows) {
+        let score = 0;
+        const rO = r.origen.toLowerCase();
+        const rD = r.destino.toLowerCase();
+        if (oNom.includes(rO.replace("cd ", "").replace("ct ", "")) || rO.includes(oNom.split(" ")[0])) score += 40;
+        if (dNom.includes(rD.replace("cd ", "").replace("ct ", "")) || rD.includes(dNom.split(" ")[0])) score += 40;
+        if (v.origen_contrato && v.origen_contrato === r.origen) score += 50;
+        if (v.destino_contrato && v.destino_contrato === r.destino) score += 50;
+        const kmDiff = Math.abs(v.km - (r.tarifa / 150));
+        if (kmDiff < 100) score += 10;
+        if (score >= 30) sugerencias.push({ origen: r.origen, destino: r.destino, tarifa: r.tarifa, lote: r.lote, clase: r.clase, score });
+      }
+      sugerencias.sort((a: any, b: any) => b.score - a.score);
+      return { ...v, sugerencias: sugerencias.slice(0, 5) };
+    });
+
+    res.json({
+      total: viajes.length,
+      viajes,
+      rutas_disponibles: rutasR.rows,
+      nombres_contrato: nombresR.rows.map((r: any) => r.nombre),
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ MAPEAR VIAJE: crear alias y aprendizaje ═══
+router.post("/mapear-viaje", async (req, res) => {
+  try {
+    const { viaje_id, origen_nombre, destino_nombre, origen_contrato, destino_contrato } = req.body;
+    if (!origen_contrato || !destino_contrato) return res.status(400).json({ error: "origen_contrato y destino_contrato requeridos" });
+
+    const creados: string[] = [];
+    if (origen_nombre && origen_contrato) {
+      await pool.query(
+        `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+         VALUES ($1, $2, 'CENCOSUD', true, 'MAPEO_INTERACTIVO')
+         ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO UPDATE SET confirmado = true`,
+        [origen_nombre, origen_contrato]
+      );
+      creados.push(`${origen_nombre} → ${origen_contrato}`);
+    }
+    if (destino_nombre && destino_contrato) {
+      await pool.query(
+        `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+         VALUES ($1, $2, 'CENCOSUD', true, 'MAPEO_INTERACTIVO')
+         ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO UPDATE SET confirmado = true`,
+        [destino_nombre, destino_contrato]
+      );
+      creados.push(`${destino_nombre} → ${destino_contrato}`);
+    }
+
+    const matchR = await pool.query(
+      `SELECT tarifa, lote, clase FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true AND origen = $1 AND destino = $2 LIMIT 1`,
+      [origen_contrato, destino_contrato]
+    );
+
+    const viajesAfectados = await pool.query(
+      `SELECT COUNT(*)::int as total FROM viajes_aprendizaje va
+       WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '60 days'
+         AND (va.origen_nombre = $1 OR va.destino_nombre = $2)`,
+      [origen_nombre || '', destino_nombre || '']
+    );
+
+    res.json({
+      ok: true,
+      alias_creados: creados,
+      tarifa_match: matchR.rows[0] || null,
+      viajes_afectados: viajesAfectados.rows[0].total,
+      ruta: `${origen_contrato} → ${destino_contrato}`,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ DESCARTAR VIAJE: marcar como no-Cencosud ═══
+router.post("/descartar-viaje", async (req, res) => {
+  try {
+    const { viaje_id, motivo } = req.body;
+    if (!viaje_id) return res.status(400).json({ error: "viaje_id requerido" });
+    await pool.query(`UPDATE viajes_aprendizaje SET contrato = 'DESCARTADO' WHERE id = $1`, [viaje_id]);
+    res.json({ ok: true, viaje_id, motivo });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

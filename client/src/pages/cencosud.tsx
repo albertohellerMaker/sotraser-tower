@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
@@ -217,39 +217,8 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
 
-              {/* Viajes SIN tarifa */}
-              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ffcc0030" }}>
-                <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
-                  <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#ffcc00" }}>
-                    VIAJES SIN TARIFA ({sinT.length}) · Pendientes de cruce
-                  </span>
-                </div>
-                <div className="overflow-auto" style={{ maxHeight: 250 }}>
-                  <table className="w-full">
-                    <thead><tr style={{ background: "#0a1520" }}>
-                      {["FECHA", "PATENTE", "CONDUCTOR", "ORIGEN GPS", "DESTINO GPS", "ALIAS", "KM", "KM/L"].map(h => (
-                        <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#ffcc00" }}>{h}</th>
-                      ))}
-                    </tr></thead>
-                    <tbody>
-                      {sinT.slice(0, 100).map((v: any, i: number) => (
-                        <tr key={v.id} style={{ background: i % 2 === 0 ? "transparent" : "#0a152030" }}>
-                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{v.fecha?.slice(5)}</td>
-                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#c8e8ff" }}>{v.patente}</td>
-                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{(v.conductor || "").substring(0, 15)}</td>
-                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{(v.origen_nombre || "?").substring(0, 22)}</td>
-                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{(v.destino_nombre || "?").substring(0, 22)}</td>
-                          <td className="font-exo text-[7px] px-3 py-1" style={{ color: v.origen_contrato || v.destino_contrato ? "#00d4ff" : "#3a6080" }}>
-                            {v.origen_contrato || "?"} → {v.destino_contrato || "?"}
-                          </td>
-                          <td className="font-space text-[9px] px-3 py-1" style={{ color: "#c8e8ff" }}>{Math.round(v.km || 0)}</td>
-                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: RC(v.rend || 0) }}>{v.rend?.toFixed(2) || "--"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              {/* VIAJES SIN TARIFA — SISTEMA INTERACTIVO */}
+              <MapeoInteractivo />
             </>
           );
         })()}
