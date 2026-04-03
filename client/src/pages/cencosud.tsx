@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings } from "lucide-react";
+import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "BOT" | "AGENTE" | "TARIFAS" | "MAPA";
+type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
 
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
@@ -19,13 +19,10 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
   const { data: tarifasData } = useQuery<any>({ queryKey: ["/api/cencosud/tarifas"], queryFn: () => fetch("/api/cencosud/tarifas").then(r => r.json()), staleTime: 600000, enabled: tab === "TARIFAS" });
   const { data: sinMapear } = useQuery<any>({ queryKey: ["/api/cencosud/sin-mapear"], queryFn: () => fetch("/api/cencosud/sin-mapear").then(r => r.json()), staleTime: 300000 });
-  const { data: aliasData } = useQuery<any>({ queryKey: ["/api/cencosud/alias"], queryFn: () => fetch("/api/cencosud/alias").then(r => r.json()), staleTime: 300000, enabled: tab === "BOT" });
-  const { data: botStatus } = useQuery<any>({ queryKey: ["/api/agentes/estado"], queryFn: () => fetch("/api/agentes/estado").then(r => r.json()), staleTime: 60000, enabled: tab === "BOT" });
-  const { data: botMsgs } = useQuery<any>({ queryKey: ["/api/agentes/mensajes?limite=20"], queryFn: () => fetch("/api/agentes/mensajes?limite=20").then(r => r.json()), staleTime: 30000, enabled: tab === "BOT" });
-  // Super Agente
   const { data: saEstado } = useQuery<any>({ queryKey: ["/api/cencosud/agente/estado"], queryFn: () => fetch("/api/cencosud/agente/estado").then(r => r.json()), refetchInterval: 60000, enabled: tab === "AGENTE" });
   const { data: saMsgs, refetch: refetchSaMsgs } = useQuery<any>({ queryKey: ["/api/cencosud/agente/mensajes"], queryFn: () => fetch("/api/cencosud/agente/mensajes").then(r => r.json()), refetchInterval: 30000, enabled: tab === "AGENTE" });
   const { data: paramData, refetch: refetchParams } = useQuery<any>({ queryKey: ["/api/cencosud/parametros"], queryFn: () => fetch("/api/cencosud/parametros").then(r => r.json()), staleTime: 300000, enabled: tab === "AGENTE" });
+  const { data: intelData, refetch: refetchIntel } = useQuery<any>({ queryKey: ["/api/cencosud/agente/inteligencia"], queryFn: () => fetch("/api/cencosud/agente/inteligencia").then(r => r.json()), refetchInterval: 120000, enabled: tab === "AGENTE" });
 
   const f = mes?.flota || {};
   const fi = mes?.financiero || {};
@@ -58,7 +55,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
         <div className="flex gap-0">
-          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "BOT", "AGENTE", "TARIFAS", "MAPA"] as Tab[]).map(t => (
+          {(["RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "AGENTE", "TARIFAS", "MAPA"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
               style={{ color: tab === t ? "#00d4ff" : "#3a6080", borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>{t}</button>
           ))}
@@ -85,7 +82,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                 { l: "INGRESO MES", v: fP(fi.ingreso_acumulado || 0), c: "#00ff88", icon: DollarSign, go: "ERR" as Tab },
                 { l: "% CRUZADOS", v: `${fi.pct_cruzados || 0}%`, c: (fi.pct_cruzados || 0) > 50 ? "#00ff88" : "#ffcc00", icon: Target, go: "VIAJES" as Tab },
                 { l: "KM/CAM PROY", v: fN(p.km_proyectado_camion || 0), c: (p.km_proyectado_camion || 0) >= 11000 ? "#00ff88" : "#ff6b35", icon: MapPin },
-                { l: "SIN MAPEAR", v: (sinMapear?.sin_mapear || []).length, c: (sinMapear?.sin_mapear || []).length > 20 ? "#ffcc00" : "#3a6080", icon: AlertTriangle, go: "BOT" as Tab },
+                { l: "SIN MAPEAR", v: (sinMapear?.sin_mapear || []).length, c: (sinMapear?.sin_mapear || []).length > 20 ? "#ffcc00" : "#3a6080", icon: AlertTriangle, go: "AGENTE" as Tab },
               ].map(k => {
                 const Icon = k.icon;
                 return (
@@ -472,126 +469,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           </>
         )}
 
-        {/* ═══ BOT: Admin Contrato ═══ */}
-        {tab === "BOT" && (() => {
-          const bot = (botStatus?.agentes || []).find((a: any) => a.id === "agente-admin-contrato");
-          const msgs = (botMsgs?.mensajes || []).filter((m: any) => m.de_agente === "agente-admin-contrato" || m.contenido?.includes("Cencosud") || m.contenido?.includes("cencosud"));
-          const alias = aliasData?.alias || [];
-          const porFuente = alias.reduce((acc: any, a: any) => { acc[a.creado_por] = (acc[a.creado_por] || 0) + 1; return acc; }, {});
-          const confirmados = alias.filter((a: any) => a.confirmado).length;
-          const sinMap = sinMapear?.sin_mapear || [];
-
-          return (
-            <>
-              {/* Bot header */}
-              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #fbbf2430", borderTop: "3px solid #fbbf24" }}>
-                <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-                  <div className="flex items-center gap-3">
-                    <Bot className="w-5 h-5" style={{ color: "#fbbf24" }} />
-                    <div>
-                      <div className="font-space text-[12px] font-bold tracking-wider" style={{ color: "#fbbf24" }}>ADMIN CONTRATO CENCOSUD</div>
-                      <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Autonomía: georeferencias · cruce tarifas · validación · reportería</div>
-                    </div>
-                    {bot && (
-                      <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#00ff8815", color: "#00ff88", border: "1px solid #00ff8830" }}>
-                        {bot.ciclos_completados} ciclos · {bot.ultimo_ciclo ? Math.round((Date.now() - new Date(bot.ultimo_ciclo).getTime()) / 60000) + "m" : "--"}
-                      </span>
-                    )}
-                  </div>
-                  <button onClick={() => fetch("/api/agentes/forzar/cencosud", { method: "POST" })} className="flex items-center gap-1.5 px-3 py-1.5 font-exo text-[8px] cursor-pointer rounded"
-                    style={{ color: "#fbbf24", border: "1px solid #fbbf2430" }}>
-                    <RefreshCw className="w-3 h-3" /> Ejecutar ahora
-                  </button>
-                </div>
-
-                {/* KPIs del bot */}
-                <div className="grid grid-cols-5 gap-2 p-3">
-                  {[
-                    { l: "ALIAS TOTAL", v: alias.length, c: "#fbbf24" },
-                    { l: "CONFIRMADOS", v: confirmados, c: "#00ff88" },
-                    { l: "AUTO (GEO)", v: porFuente["ADMIN_CONTRATO"] || porFuente["AGENTE_GEO"] || 0, c: "#00d4ff" },
-                    { l: "MANUALES", v: porFuente["MANUAL"] || 0, c: "#a855f7" },
-                    { l: "SIN MAPEAR", v: sinMap.length, c: sinMap.length > 20 ? "#ff2244" : "#3a6080" },
-                  ].map(k => (
-                    <div key={k.l} className="text-center p-2 rounded" style={{ background: "#0a1520", borderTop: `2px solid ${k.c}` }}>
-                      <div className="font-space text-[18px] font-bold" style={{ color: k.c }}>{k.v}</div>
-                      <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Mensajes del bot */}
-              {msgs.length > 0 && (
-                <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
-                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
-                    <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#fbbf24" }}>REPORTES DEL BOT</span>
-                  </div>
-                  <div className="max-h-[200px] overflow-y-auto">
-                    {msgs.slice(0, 8).map((m: any) => (
-                      <div key={m.id} className="px-4 py-2" style={{ borderBottom: "1px solid #0a1520" }}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-exo text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{m.titulo}</span>
-                          <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{new Date(m.created_at).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                        </div>
-                        <div className="font-exo text-[8px] mt-0.5 whitespace-pre-wrap" style={{ color: "#3a6080" }}>{m.contenido?.substring(0, 200)}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Alias recientes */}
-              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
-                <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
-                  <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#00d4ff" }}>ALIAS GEOCERCAS ({alias.length})</span>
-                </div>
-                <div className="max-h-[250px] overflow-y-auto">
-                  <table className="w-full">
-                    <thead><tr style={{ background: "#0a1520" }}>
-                      {["GEOCERCA", "→ CONTRATO", "FUENTE", "ESTADO"].map(h => (
-                        <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#3a6080" }}>{h}</th>
-                      ))}
-                    </tr></thead>
-                    <tbody>
-                      {alias.slice(0, 50).map((a: any) => (
-                        <tr key={a.id} style={{ borderBottom: "1px solid #0d203520" }}>
-                          <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{a.geocerca_nombre.substring(0, 35)}</td>
-                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00d4ff" }}>{a.nombre_contrato}</td>
-                          <td className="font-exo text-[7px] px-3 py-1" style={{ color: a.creado_por.includes("ADMIN") || a.creado_por.includes("AGENTE") ? "#fbbf24" : "#3a6080" }}>{a.creado_por}</td>
-                          <td className="px-3 py-1"><span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: a.confirmado ? "#00ff88" : "#ffcc00", border: `1px solid ${a.confirmado ? "#00ff8830" : "#ffcc0030"}` }}>{a.confirmado ? "OK" : "PENDIENTE"}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Sin mapear */}
-              {sinMap.length > 0 && (
-                <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ff224420" }}>
-                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
-                    <span className="font-exo text-[8px] tracking-wider uppercase font-bold" style={{ color: "#ff2244" }}>SIN MAPEAR ({sinMap.length})</span>
-                  </div>
-                  <div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
-                    {sinMap.slice(0, 20).map((s: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between px-3 py-1 rounded" style={{ background: "#0a1520" }}>
-                        <span className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{s.nombre?.substring(0, 40)}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{s.tipo}</span>
-                          <span className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>{s.viajes}v</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-
-        {/* ═══ SUPER AGENTE + PARÁMETROS ═══ */}
-        {tab === "AGENTE" && <SuperAgentePanel saEstado={saEstado} saMsgs={saMsgs} refetchSaMsgs={refetchSaMsgs} paramData={paramData} refetchParams={refetchParams} />}
+        {tab === "AGENTE" && <SuperAgentePanel saEstado={saEstado} saMsgs={saMsgs} refetchSaMsgs={refetchSaMsgs} paramData={paramData} refetchParams={refetchParams} intelData={intelData} refetchIntel={refetchIntel} sinMapear={sinMapear?.sin_mapear || []} />}
 
         {/* ═══ TARIFAS ═══ */}
         {tab === "TARIFAS" && tarifasData && (
@@ -642,15 +520,13 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// SUPER AGENTE + PARÁMETROS
-// ═══════════════════════════════════════════════════
-function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchParams }: any) {
+function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchParams, intelData, refetchIntel, sinMapear }: any) {
   const [msg, setMsg] = useState("");
   const [hist, setHist] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [editParam, setEditParam] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
+  const [subTab, setSubTab] = useState<"INTEL" | "ALIAS" | "ALERTAS" | "PARAMS" | "CHAT">("INTEL");
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -678,62 +554,225 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
     setEditParam(null); refetchParams();
   };
 
+  const ejecutarAgente = async () => {
+    await fetch("/api/cencosud/agente/ejecutar", { method: "POST" });
+    refetchSaMsgs(); refetchIntel();
+  };
+
   const mensajes = saMsgs?.mensajes || [];
   const noLeidos = saEstado?.total_no_leidos || 0;
   const params = paramData?.parametros || [];
   const categorias = ["FINANCIERO", "OPERACIONAL", "ALERTAS"];
   const colorTipo = (t: string): string => ({ OPERACION: "#00d4ff", FINANCIERO: "#00ff88", ANOMALIA: "#ff2244", META: "#ffcc00", CONDUCTOR: "#a78bfa", INACTIVIDAD: "#ff6b35" }[t] || "#3a6080");
 
+  const intel = intelData || {};
+  const al = intel.alias || {};
+  const tr = intel.trayectos || {};
+  const bl = intel.billing || {};
+  const lotes = bl.por_lote || [];
+  const aliasRecientes = al.recientes || [];
+  const sinMap = sinMapear || [];
+
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* IZQUIERDA: Mensajes + Parámetros */}
-      <div className="space-y-3">
-        {/* Super Agente status + mensajes */}
-        <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #00d4ff30", borderTop: "2px solid #00d4ff" }}>
-          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-            <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4" style={{ color: "#00d4ff" }} />
-              <span className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>SUPER AGENTE CENCOSUD</span>
-              {noLeidos > 0 && <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#ff224420", color: "#ff2244" }}>{noLeidos}</span>}
+    <div className="space-y-3">
+      <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #00d4ff30", borderTop: "3px solid #00d4ff" }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+          <div className="flex items-center gap-3">
+            <Brain className="w-5 h-5" style={{ color: "#00d4ff" }} />
+            <div>
+              <div className="font-space text-[12px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>SUPER AGENTE CENCOSUD</div>
+              <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>GPS-Proximity · Consolidación Trayectos · Billing Intelligence · Auto cada 30m</div>
             </div>
-            <div className="flex gap-1">
-              <button onClick={() => { fetch("/api/cencosud/agente/ejecutar", { method: "POST" }).then(() => refetchSaMsgs()); }} className="font-exo text-[7px] px-2 py-1 cursor-pointer rounded" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>Ejecutar</button>
-              <button onClick={() => { fetch("/api/cencosud/agente/mensajes/leer", { method: "POST" }).then(() => refetchSaMsgs()); }} className="font-exo text-[7px] px-2 py-1 cursor-pointer rounded" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>Leer</button>
-            </div>
-          </div>
-          {saEstado?.estado && (
-            <div className="px-4 py-1.5 flex items-center gap-3" style={{ borderBottom: "1px solid #0d2035" }}>
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#00ff88" }} />
-              <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>
-                {saEstado.estado.ciclos_hoy} ciclos hoy · Último: {saEstado.estado.ultimo_ciclo ? new Date(saEstado.estado.ultimo_ciclo).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "--"}
+            {saEstado?.estado && (
+              <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#00ff8815", color: "#00ff88", border: "1px solid #00ff8830" }}>
+                {saEstado.estado.ciclos_hoy || 0} ciclos · {saEstado.estado.ultimo_ciclo ? new Date(saEstado.estado.ultimo_ciclo).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "--"}
               </span>
-            </div>
-          )}
-          <div className="overflow-auto" style={{ maxHeight: 250 }}>
-            {mensajes.map((m: any) => (
-              <div key={m.id} className="px-4 py-2 border-b" style={{ borderColor: "#0a1520", borderLeft: `3px solid ${!m.leido ? colorTipo(m.tipo) : "transparent"}`, background: !m.leido ? `${colorTipo(m.tipo)}03` : "transparent" }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ color: colorTipo(m.tipo), border: `1px solid ${colorTipo(m.tipo)}30` }}>{m.tipo}</span>
-                    {m.prioridad === "CRITICA" && <span className="font-exo text-[6px] font-bold" style={{ color: "#ff2244" }}>CRIT</span>}
-                  </div>
-                  <span className="font-exo text-[6px]" style={{ color: "#3a6080" }}>{new Date(m.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
-                </div>
-                <div className="font-exo text-[9px] font-bold mt-0.5" style={{ color: "#c8e8ff" }}>{m.titulo}</div>
-                <div className="font-exo text-[8px] mt-0.5 line-clamp-2" style={{ color: "#3a6080" }}>{m.contenido}</div>
-              </div>
-            ))}
-            {mensajes.length === 0 && <div className="text-center py-6 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin alertas en 48h</div>}
+            )}
+            {noLeidos > 0 && <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#ff224420", color: "#ff2244" }}>{noLeidos} nuevas</span>}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={ejecutarAgente} className="flex items-center gap-1.5 px-3 py-1.5 font-exo text-[8px] cursor-pointer rounded" style={{ color: "#00d4ff", border: "1px solid #00d4ff30" }}>
+              <Zap className="w-3 h-3" /> Ejecutar ahora
+            </button>
+            <button onClick={() => { fetch("/api/cencosud/agente/mensajes/leer", { method: "POST" }).then(() => refetchSaMsgs()); }} className="font-exo text-[7px] px-2 py-1.5 cursor-pointer rounded" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>Marcar leído</button>
           </div>
         </div>
 
-        {/* Parámetros editables */}
+        <div className="grid grid-cols-7 gap-2 p-3">
+          {[
+            { l: "REVENUE MES", v: fP(bl.revenue || 0), c: "#00ff88" },
+            { l: "CON TARIFA", v: `${bl.con_tarifa || 0}/${bl.total || 0}`, c: "#00d4ff" },
+            { l: "% BILLING", v: `${bl.pct || 0}%`, c: (bl.pct || 0) > 20 ? "#00ff88" : "#ffcc00" },
+            { l: "CONSOLIDADOS", v: tr.consolidados || 0, c: "#a855f7" },
+            { l: "ALIAS GPS", v: `${al.auto_gps || 0}/${al.total || 0}`, c: "#fbbf24" },
+            { l: "CONFIRMADOS", v: al.confirmados || 0, c: "#00ff88" },
+            { l: "SIN MAPEAR", v: sinMap.length, c: sinMap.length > 15 ? "#ff2244" : "#3a6080" },
+          ].map(k => (
+            <div key={k.l} className="text-center p-2 rounded" style={{ background: "#0a1520", borderTop: `2px solid ${k.c}` }}>
+              <div className="font-space text-[15px] font-bold" style={{ color: k.c }}>{k.v}</div>
+              <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-0" style={{ borderBottom: "1px solid #0d2035" }}>
+        {(["INTEL", "ALIAS", "ALERTAS", "PARAMS", "CHAT"] as const).map(t => (
+          <button key={t} onClick={() => setSubTab(t)} className="px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
+            style={{ color: subTab === t ? "#00d4ff" : "#3a6080", borderBottom: subTab === t ? "2px solid #00d4ff" : "2px solid transparent" }}>
+            {t === "INTEL" ? "INTELIGENCIA" : t === "ALIAS" ? "ALIAS GPS" : t === "ALERTAS" ? `ALERTAS${noLeidos > 0 ? ` (${noLeidos})` : ""}` : t === "PARAMS" ? "PARÁMETROS" : "CHAT"}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "INTEL" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #00ff8830", borderTop: "2px solid #00ff88" }}>
+            <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+              <DollarSign className="w-3.5 h-3.5" style={{ color: "#00ff88" }} />
+              <span className="font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>BILLING POR LOTE</span>
+            </div>
+            <div className="p-3 space-y-1.5">
+              {lotes.length === 0 && <div className="font-exo text-[9px] text-center py-4" style={{ color: "#3a6080" }}>Sin datos billing este mes</div>}
+              {lotes.map((l: any) => {
+                const maxRev = Math.max(...lotes.map((x: any) => Number(x.rev) || 0), 1);
+                const pct = Math.round(((Number(l.rev) || 0) / maxRev) * 100);
+                return (
+                  <div key={l.lote} className="px-3 py-2 rounded" style={{ background: "#0a1520" }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>LOTE {l.lote}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{l.trips} viajes</span>
+                        <span className="font-space text-[11px] font-bold" style={{ color: "#00ff88" }}>{fP(Number(l.rev))}</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full" style={{ background: "#0d2035" }}>
+                      <div className="h-1.5 rounded-full" style={{ background: "#00ff88", width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between px-3 pt-2 mt-1" style={{ borderTop: "1px solid #0d2035" }}>
+                <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>TOTAL</span>
+                <span className="font-space text-[13px] font-bold" style={{ color: "#00ff88" }}>{fP(bl.revenue || 0)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #a855f730", borderTop: "2px solid #a855f7" }}>
+              <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                <Route className="w-3.5 h-3.5" style={{ color: "#a855f7" }} />
+                <span className="font-space text-[10px] font-bold" style={{ color: "#a855f7" }}>TRAYECTOS CONSOLIDADOS</span>
+              </div>
+              <div className="p-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center p-2 rounded" style={{ background: "#0a1520" }}>
+                    <div className="font-space text-[18px] font-bold" style={{ color: "#a855f7" }}>{tr.consolidados || 0}</div>
+                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>CREADOS</div>
+                  </div>
+                  <div className="text-center p-2 rounded" style={{ background: "#0a1520" }}>
+                    <div className="font-space text-[18px] font-bold" style={{ color: "#00d4ff" }}>{tr.total || 0}</div>
+                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>VIAJES 30D</div>
+                  </div>
+                  <div className="text-center p-2 rounded" style={{ background: "#0a1520" }}>
+                    <div className="font-space text-[18px] font-bold" style={{ color: tr.consolidados > 0 ? "#00ff88" : "#3a6080" }}>{tr.total > 0 ? Math.round(tr.consolidados / tr.total * 100) : 0}%</div>
+                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>RATIO</div>
+                  </div>
+                </div>
+                <div className="font-exo text-[8px] mt-2 px-1" style={{ color: "#3a6080" }}>
+                  El agente detecta cadenas CD→A→B→C y las consolida en un trayecto facturable CD→C cuando existe tarifa en el contrato
+                </div>
+              </div>
+            </div>
+
+            {sinMap.length > 0 && (
+              <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ff224430", borderTop: "2px solid #ff2244" }}>
+                <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+                  <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#ff2244" }} />
+                  <span className="font-space text-[10px] font-bold" style={{ color: "#ff2244" }}>SIN MAPEAR ({sinMap.length})</span>
+                </div>
+                <div className="max-h-[180px] overflow-y-auto p-2 space-y-1">
+                  {sinMap.slice(0, 15).map((s: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-1 rounded" style={{ background: "#0a1520" }}>
+                      <span className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{s.nombre?.substring(0, 40)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{s.tipo}</span>
+                        <span className="font-space text-[9px] font-bold" style={{ color: "#ff2244" }}>{s.viajes}v</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {subTab === "ALIAS" && (
+        <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #fbbf2430" }}>
+          <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} />
+              <span className="font-space text-[10px] font-bold" style={{ color: "#fbbf24" }}>ALIAS GEOCERCAS ({al.total || 0})</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="font-exo text-[8px]" style={{ color: "#00ff88" }}>{al.auto_gps || 0} auto-GPS</span>
+              <span className="font-exo text-[8px]" style={{ color: "#a855f7" }}>{al.manuales || 0} manuales</span>
+              <span className="font-exo text-[8px]" style={{ color: "#00ff88" }}>{al.confirmados || 0} confirmados</span>
+            </div>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto">
+            <table className="w-full">
+              <thead><tr style={{ background: "#0a1520" }}>
+                {["GEOCERCA", "→ CONTRATO", "FUENTE", "ESTADO", "FECHA"].map(h => (
+                  <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#3a6080" }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {aliasRecientes.map((a: any) => (
+                  <tr key={a.id} style={{ borderBottom: "1px solid #0d203520" }}>
+                    <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{a.geocerca_nombre?.substring(0, 40)}</td>
+                    <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00d4ff" }}>{a.nombre_contrato}</td>
+                    <td className="font-exo text-[7px] px-3 py-1" style={{ color: a.creado_por?.includes("GPS") || a.creado_por?.includes("AGENTE") || a.creado_por?.includes("SUPER") ? "#fbbf24" : "#a855f7" }}>{a.creado_por}</td>
+                    <td className="px-3 py-1"><span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: a.confirmado ? "#00ff88" : "#ffcc00", border: `1px solid ${a.confirmado ? "#00ff8830" : "#ffcc0030"}` }}>{a.confirmado ? "OK" : "PENDIENTE"}</span></td>
+                    <td className="font-exo text-[7px] px-3 py-1" style={{ color: "#3a6080" }}>{a.created_at ? new Date(a.created_at).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" }) : "--"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {subTab === "ALERTAS" && (
+        <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #00d4ff30" }}>
+          <div className="overflow-auto" style={{ maxHeight: 450 }}>
+            {mensajes.map((m: any) => (
+              <div key={m.id} className="px-4 py-2 border-b" style={{ borderColor: "#0a1520", borderLeft: `3px solid ${!m.leido ? colorTipo(m.tipo) : "transparent"}`, background: !m.leido ? `${colorTipo(m.tipo)}05` : "transparent" }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ color: colorTipo(m.tipo), border: `1px solid ${colorTipo(m.tipo)}30` }}>{m.tipo}</span>
+                    {m.prioridad === "CRITICA" && <span className="font-exo text-[6px] font-bold px-1 rounded" style={{ color: "#ff2244", background: "#ff224410" }}>CRIT</span>}
+                  </div>
+                  <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{new Date(m.created_at).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <div className="font-exo text-[9px] font-bold mt-0.5" style={{ color: "#c8e8ff" }}>{m.titulo}</div>
+                <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>{m.contenido}</div>
+              </div>
+            ))}
+            {mensajes.length === 0 && <div className="text-center py-8 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin alertas en 48h</div>}
+          </div>
+        </div>
+      )}
+
+      {subTab === "PARAMS" && (
         <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #fbbf2430", borderTop: "2px solid #fbbf24" }}>
           <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
             <Settings className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} />
             <span className="font-space text-[10px] font-bold" style={{ color: "#fbbf24" }}>PARÁMETROS TMS</span>
           </div>
-          <div className="overflow-auto" style={{ maxHeight: 300 }}>
+          <div className="overflow-auto" style={{ maxHeight: 400 }}>
             {categorias.map(cat => {
               const catParams = params.filter((p: any) => p.categoria === cat);
               if (catParams.length === 0) return null;
@@ -767,45 +806,46 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
             })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* DERECHA: Chat con el agente */}
-      <div className="rounded-lg flex flex-col" style={{ background: "#060d14", border: "1px solid #a855f730", borderTop: "2px solid #a855f7" }}>
-        <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-          <span className="font-space text-[11px] font-bold" style={{ color: "#a855f7" }}>CHAT SUPER AGENTE</span>
-          <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>Pregunta sobre el contrato Cencosud con datos reales</div>
-        </div>
-        <div className="flex-1 overflow-auto px-4 py-3 space-y-2" style={{ maxHeight: 380 }}>
-          {hist.length === 0 && (
-            <div className="text-center py-4">
-              <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Pregunta lo que necesites</div>
-              <div className="flex flex-wrap gap-1.5 justify-center mt-3">
-                {["Como vamos hoy?", "Cual es el margen?", "Que camion revisar?", "Vamos a llegar a la meta?"].map(s => (
-                  <button key={s} onClick={() => setMsg(s)} className="font-exo text-[7px] px-2 py-1 cursor-pointer rounded" style={{ color: "#3a6080", border: "1px solid #0d2035" }}>{s}</button>
-                ))}
+      {subTab === "CHAT" && (
+        <div className="rounded-lg flex flex-col" style={{ background: "#060d14", border: "1px solid #a855f730", borderTop: "2px solid #a855f7", minHeight: 400 }}>
+          <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+            <span className="font-space text-[11px] font-bold" style={{ color: "#a855f7" }}>CHAT CON EL AGENTE</span>
+            <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>Pregunta sobre facturación, rutas, rendimiento, camiones o cualquier dato del contrato</div>
+          </div>
+          <div className="flex-1 overflow-auto px-4 py-3 space-y-2" style={{ maxHeight: 350 }}>
+            {hist.length === 0 && (
+              <div className="text-center py-4">
+                <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Pregunta lo que necesites sobre el contrato Cencosud</div>
+                <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+                  {["¿Cómo vamos de billing?", "¿Qué lote factura más?", "¿Cuántos trayectos consolidó?", "¿Qué rutas faltan por mapear?", "¿Camión más rentable?", "¿Vamos a llegar a la meta?"].map(s => (
+                    <button key={s} onClick={() => setMsg(s)} className="font-exo text-[8px] px-2.5 py-1.5 cursor-pointer rounded" style={{ color: "#a855f7", border: "1px solid #a855f730" }}>{s}</button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          {hist.map((h, i) => (
-            <div key={i} className={`flex ${h.rol === "CEO" ? "justify-end" : "justify-start"}`}>
-              <div className="max-w-[85%] px-3 py-2 rounded-lg" style={{ background: h.rol === "CEO" ? "#a855f710" : "#0a1520", border: `1px solid ${h.rol === "CEO" ? "#a855f730" : "#0d2035"}` }}>
-                <div className="font-exo text-[7px] uppercase mb-0.5" style={{ color: h.rol === "CEO" ? "#a855f7" : "#00d4ff" }}>{h.rol === "CEO" ? "TU" : "AGENTE"}</div>
-                <div className="font-exo text-[10px] leading-relaxed whitespace-pre-wrap" style={{ color: "#c8e8ff" }}>{h.texto}</div>
+            )}
+            {hist.map((h, i) => (
+              <div key={i} className={`flex ${h.rol === "CEO" ? "justify-end" : "justify-start"}`}>
+                <div className="max-w-[80%] px-3 py-2 rounded-lg" style={{ background: h.rol === "CEO" ? "#a855f710" : "#0a1520", border: `1px solid ${h.rol === "CEO" ? "#a855f730" : "#0d2035"}` }}>
+                  <div className="font-exo text-[7px] uppercase mb-0.5" style={{ color: h.rol === "CEO" ? "#a855f7" : "#00d4ff" }}>{h.rol === "CEO" ? "TÚ" : "AGENTE"}</div>
+                  <div className="font-exo text-[10px] leading-relaxed whitespace-pre-wrap" style={{ color: "#c8e8ff" }}>{h.texto}</div>
+                </div>
               </div>
-            </div>
-          ))}
-          {loading && <div className="flex justify-start"><div className="px-3 py-2 rounded-lg" style={{ background: "#0a1520" }}><Loader2 className="w-4 h-4 animate-spin" style={{ color: "#a855f7" }} /></div></div>}
-          <div ref={chatRef} />
+            ))}
+            {loading && <div className="flex justify-start"><div className="px-3 py-2 rounded-lg" style={{ background: "#0a1520" }}><Loader2 className="w-4 h-4 animate-spin" style={{ color: "#a855f7" }} /></div></div>}
+            <div ref={chatRef} />
+          </div>
+          <div className="px-4 pb-3 flex gap-2" style={{ borderTop: "1px solid #0d2035", paddingTop: 10 }}>
+            <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && enviar()} placeholder="Pregunta al agente..."
+              className="flex-1 px-3 py-2 font-exo text-[10px] outline-none rounded" style={{ background: "#0a1520", border: "1px solid #a855f730", color: "#c8e8ff" }} />
+            <button onClick={enviar} disabled={loading || !msg.trim()} className="px-4 py-2 font-space text-[9px] font-bold cursor-pointer rounded disabled:opacity-30"
+              style={{ background: "#a855f710", border: "1px solid #a855f730", color: "#a855f7" }}>
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        <div className="px-4 pb-3 flex gap-2" style={{ borderTop: "1px solid #0d2035", paddingTop: 10 }}>
-          <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && enviar()} placeholder="Pregunta al agente..."
-            className="flex-1 px-3 py-2 font-exo text-[10px] outline-none rounded" style={{ background: "#0a1520", border: "1px solid #a855f730", color: "#c8e8ff" }} />
-          <button onClick={enviar} disabled={loading || !msg.trim()} className="px-4 py-2 font-space text-[9px] font-bold cursor-pointer rounded disabled:opacity-30"
-            style={{ background: "#a855f710", border: "1px solid #a855f730", color: "#a855f7" }}>
-            <Send className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -495,4 +495,51 @@ router.get("/agente/chat-historial", async (_req, res) => {
   res.json({ historial: r.rows.reverse() });
 });
 
+router.get("/agente/inteligencia", async (_req, res) => {
+  try {
+    const [aliasR, trayR, billR, loteR, sinMapR, recentAliasR] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE confirmado)::int as confirmados, COUNT(*) FILTER (WHERE creado_por IN ('SUPER_AGENTE','AGENTE_GEO','GPS_PROXIMITY'))::int as auto_gps, COUNT(*) FILTER (WHERE creado_por = 'MANUAL')::int as manuales FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD'`),
+      pool.query(`SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE trayecto_consolidado = true)::int as consolidados FROM viajes_aprendizaje WHERE contrato = 'CENCOSUD' AND fecha_inicio >= NOW() - INTERVAL '30 days'`),
+      pool.query(`
+        WITH trip_tarifa AS (
+          SELECT DISTINCT ON (v.id) v.id, t.tarifa, t.lote
+          FROM viajes_aprendizaje v
+          LEFT JOIN geocerca_alias_contrato a1 ON a1.geocerca_nombre = v.origen_nombre AND a1.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato a2 ON a2.geocerca_nombre = v.destino_nombre AND a2.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas t ON t.contrato = 'CENCOSUD' AND t.activo = true
+            AND t.origen = COALESCE(a1.nombre_contrato, v.origen_nombre)
+            AND t.destino = COALESCE(a2.nombre_contrato, v.destino_nombre)
+          WHERE v.contrato = 'CENCOSUD' AND v.fecha_inicio >= DATE_TRUNC('month', NOW())
+          ORDER BY v.id, CASE t.clase WHEN 'FLF' THEN 1 WHEN 'S2P' THEN 2 WHEN 'CON' THEN 3 ELSE 4 END
+        )
+        SELECT COUNT(*)::int as total, COUNT(CASE WHEN tarifa IS NOT NULL THEN 1 END)::int as con_tarifa, COALESCE(ROUND(SUM(CASE WHEN tarifa IS NOT NULL THEN tarifa ELSE 0 END)::numeric),0)::bigint as revenue, ROUND(COUNT(CASE WHEN tarifa IS NOT NULL THEN 1 END)::numeric / NULLIF(COUNT(*),0) * 100, 1) as pct FROM trip_tarifa
+      `),
+      pool.query(`
+        WITH trip_tarifa AS (
+          SELECT DISTINCT ON (v.id) v.id, t.tarifa, t.lote
+          FROM viajes_aprendizaje v
+          LEFT JOIN geocerca_alias_contrato a1 ON a1.geocerca_nombre = v.origen_nombre AND a1.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato a2 ON a2.geocerca_nombre = v.destino_nombre AND a2.contrato = 'CENCOSUD'
+          JOIN contrato_rutas_tarifas t ON t.contrato = 'CENCOSUD' AND t.activo = true
+            AND t.origen = COALESCE(a1.nombre_contrato, v.origen_nombre)
+            AND t.destino = COALESCE(a2.nombre_contrato, v.destino_nombre)
+          WHERE v.contrato = 'CENCOSUD' AND v.fecha_inicio >= DATE_TRUNC('month', NOW())
+          ORDER BY v.id, CASE t.clase WHEN 'FLF' THEN 1 WHEN 'S2P' THEN 2 WHEN 'CON' THEN 3 ELSE 4 END
+        )
+        SELECT lote, COUNT(*)::int as trips, COALESCE(ROUND(SUM(tarifa)::numeric),0)::bigint as rev FROM trip_tarifa GROUP BY lote ORDER BY lote
+      `),
+      pool.query(`SELECT nombre, tipo, viajes FROM (SELECT origen_nombre as nombre, 'ORIGEN' as tipo, COUNT(*)::int as viajes FROM viajes_aprendizaje WHERE contrato = 'CENCOSUD' AND fecha_inicio >= NOW() - INTERVAL '30 days' AND origen_nombre NOT IN (SELECT geocerca_nombre FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD') GROUP BY origen_nombre UNION ALL SELECT destino_nombre, 'DESTINO', COUNT(*)::int FROM viajes_aprendizaje WHERE contrato = 'CENCOSUD' AND fecha_inicio >= NOW() - INTERVAL '30 days' AND destino_nombre NOT IN (SELECT geocerca_nombre FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD') GROUP BY destino_nombre) sub ORDER BY viajes DESC LIMIT 30`),
+      pool.query(`SELECT id, geocerca_nombre, nombre_contrato, creado_por, confirmado, created_at FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD' ORDER BY created_at DESC LIMIT 60`),
+    ]);
+    const al = aliasR.rows[0];
+    const bl = billR.rows[0];
+    res.json({
+      alias: { total: al.total, confirmados: al.confirmados, auto_gps: al.auto_gps, manuales: al.manuales, recientes: recentAliasR.rows },
+      trayectos: { total: trayR.rows[0].total, consolidados: trayR.rows[0].consolidados },
+      billing: { total: bl.total, con_tarifa: bl.con_tarifa, revenue: Number(bl.revenue), pct: Number(bl.pct) || 0, por_lote: loteR.rows },
+      sin_mapear: sinMapR.rows,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
