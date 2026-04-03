@@ -1,19 +1,15 @@
-import { parentPort, isMainThread } from "node:worker_threads";
-
-if (isMainThread) {
-  throw new Error("This file must be run as a worker thread");
+function send(msg: any) {
+  if (process.send) process.send(msg);
 }
 
 function log(msg: string) {
   const line = `[WORKER:AGENTS] ${msg}`;
   console.log(line);
-  parentPort?.postMessage({ type: "log", message: line });
 }
 
 function logError(msg: string) {
   const line = `[WORKER:AGENTS] ${msg}`;
   console.error(line);
-  parentPort?.postMessage({ type: "error", message: line });
 }
 
 async function main() {
@@ -37,10 +33,10 @@ async function main() {
       await agentePredictor.ejecutar();
       await agenteGerenteGeneral.ejecutar();
       await pool.query("UPDATE agente_estado_sistema SET ultimo_ciclo_monitor = NOW(), updated_at = NOW() WHERE id = 1");
-      parentPort?.postMessage({ type: "status", cycle: "fast", status: "done" });
+      send({ type: "status", cycle: "fast", status: "done" });
     } catch (e: any) {
       logError("Error ciclo rápido: " + e.message);
-      parentPort?.postMessage({ type: "status", cycle: "fast", status: "error", error: e.message });
+      send({ type: "status", cycle: "fast", status: "error", error: e.message });
     }
   }, 15 * 60 * 1000);
 
@@ -49,10 +45,10 @@ async function main() {
       await agenteContrato.ejecutar();
       await agenteCencosud.ejecutar();
       await agenteGerenteOps.ejecutar();
-      parentPort?.postMessage({ type: "status", cycle: "deep", status: "done" });
+      send({ type: "status", cycle: "deep", status: "done" });
     } catch (e: any) {
       logError("Error ciclo profundo: " + e.message);
-      parentPort?.postMessage({ type: "status", cycle: "deep", status: "error", error: e.message });
+      send({ type: "status", cycle: "deep", status: "error", error: e.message });
     }
   }, 60 * 60 * 1000);
 
@@ -82,11 +78,11 @@ async function main() {
   }
 
   log("v2 iniciado — Operaciones(15m) + Contratos(1h) + Gerente General(15m)");
-  parentPort?.postMessage({ type: "ready" });
+  send({ type: "ready" });
 }
 
 main().catch(err => {
   console.error("[WORKER:AGENTS] Fatal error:", err);
-  parentPort?.postMessage({ type: "fatal", error: err.message });
+  send({ type: "fatal", error: err.message });
   process.exit(1);
 });

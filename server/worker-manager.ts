@@ -1,10 +1,10 @@
-import { Worker } from "node:worker_threads";
+import { fork, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 interface WorkerInfo {
   name: string;
-  worker: Worker | null;
+  process: ChildProcess | null;
   file: string;
   restarts: number;
   lastRestart: number;
@@ -19,44 +19,41 @@ function resolveWorkerPath(filename: string): string {
   return path.join(dirname, "workers", filename);
 }
 
-function spawnWorker(info: WorkerInfo): Worker {
-  const workerCode = `
-    const { register } = require('node:module');
-    const { pathToFileURL } = require('node:url');
-    register('tsx/esm', pathToFileURL('./'));
-    require('tsx/cjs');
-    require(${JSON.stringify(info.file)});
-  `;
-  const worker = new Worker(workerCode, {
-    eval: true,
+function spawnWorker(info: WorkerInfo): ChildProcess {
+  const child = fork(info.file, [], {
+    execArgv: ["--import", "tsx"],
     env: {
       ...process.env,
-    } as Record<string, string>,
+    },
+    stdio: ["inherit", "inherit", "inherit", "ipc"],
   });
 
-  worker.on("message", (msg: any) => {
+  child.on("message", (msg: any) => {
     if (msg.type === "ready") {
-      console.log(`[MANAGER] Worker '${info.name}' listo`);
+      console.log(`[MANAGER] Worker '${info.name}' listo (pid: ${child.pid})`);
     } else if (msg.type === "fatal") {
       console.error(`[MANAGER] Worker '${info.name}' error fatal: ${msg.error}`);
     }
   });
 
-  worker.on("error", (err) => {
+  child.on("error", (err) => {
     console.error(`[MANAGER] Worker '${info.name}' error:`, err.message);
   });
 
-  worker.on("exit", (code) => {
-    if (code !== 0) {
+  child.on("exit", (code) => {
+    if (code !== 0 && code !== null) {
       console.warn(`[MANAGER] Worker '${info.name}' terminó con código ${code}`);
+      attemptRestart(info);
+    } else if (code === null) {
+      console.warn(`[MANAGER] Worker '${info.name}' killed por señal`);
       attemptRestart(info);
     } else {
       console.log(`[MANAGER] Worker '${info.name}' terminó limpiamente`);
     }
   });
 
-  info.worker = worker;
-  return worker;
+  info.process = child;
+  return child;
 }
 
 function attemptRestart(info: WorkerInfo) {
@@ -81,11 +78,11 @@ function attemptRestart(info: WorkerInfo) {
 }
 
 export function iniciarWorkers() {
-  console.log("[MANAGER] Iniciando workers en threads separados...");
+  console.log("[MANAGER] Iniciando workers en procesos separados...");
 
   const jobsInfo: WorkerInfo = {
     name: "jobs",
-    worker: null,
+    process: null,
     file: resolveWorkerPath("jobs-worker.ts"),
     restarts: 0,
     lastRestart: 0,
@@ -95,7 +92,7 @@ export function iniciarWorkers() {
 
   const agentsInfo: WorkerInfo = {
     name: "agents",
-    worker: null,
+    process: null,
     file: resolveWorkerPath("agents-worker.ts"),
     restarts: 0,
     lastRestart: 0,
@@ -112,14 +109,14 @@ export function iniciarWorkers() {
   console.log("[MANAGER] Workers spawned: jobs, agents");
 }
 
-export function getWorkerStatus(): Array<{ name: string; active: boolean; restarts: number; threadId: number | null }> {
-  const result: Array<{ name: string; active: boolean; restarts: number; threadId: number | null }> = [];
+export function getWorkerStatus(): Array<{ name: string; active: boolean; restarts: number; pid: number | null }> {
+  const result: Array<{ name: string; active: boolean; restarts: number; pid: number | null }> = [];
   for (const [name, info] of workers) {
     result.push({
       name,
-      active: info.worker !== null && info.worker.threadId > 0,
+      active: info.process !== null && !info.process.killed,
       restarts: info.restarts,
-      threadId: info.worker?.threadId ?? null,
+      pid: info.process?.pid ?? null,
     });
   }
   return result;
@@ -128,9 +125,9 @@ export function getWorkerStatus(): Array<{ name: string; active: boolean; restar
 export function terminateWorkers() {
   console.log("[MANAGER] Terminando todos los workers...");
   for (const [name, info] of workers) {
-    if (info.worker) {
+    if (info.process) {
       info.maxRestarts = 0;
-      info.worker.terminate();
+      info.process.kill("SIGTERM");
       console.log(`[MANAGER] Worker '${name}' terminado`);
     }
   }

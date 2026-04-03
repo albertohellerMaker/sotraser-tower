@@ -1,19 +1,15 @@
-import { parentPort, isMainThread } from "node:worker_threads";
-
-if (isMainThread) {
-  throw new Error("This file must be run as a worker thread");
+function send(msg: any) {
+  if (process.send) process.send(msg);
 }
 
 function log(msg: string) {
   const line = `[WORKER:JOBS] ${msg}`;
   console.log(line);
-  parentPort?.postMessage({ type: "log", message: line });
 }
 
 function logError(msg: string) {
   const line = `[WORKER:JOBS] ${msg}`;
   console.error(line);
-  parentPort?.postMessage({ type: "error", message: line });
 }
 
 async function main() {
@@ -195,14 +191,14 @@ async function main() {
     const inicio = Date.now();
     try {
       log(`Iniciando ${job.nombre}`);
-      parentPort?.postMessage({ type: "status", job: job.nombre, status: "running" });
+      send({ type: "status", job: job.nombre, status: "running" });
       await job.fn();
       const ms = Date.now() - inicio;
       log(`${job.nombre} completado en ${ms}ms`);
-      parentPort?.postMessage({ type: "status", job: job.nombre, status: "done", ms });
+      send({ type: "status", job: job.nombre, status: "done", ms });
     } catch (error: any) {
       logError(`${job.nombre} fallo: ${error.message}`);
-      parentPort?.postMessage({ type: "status", job: job.nombre, status: "error", error: error.message });
+      send({ type: "status", job: job.nombre, status: "error", error: error.message });
     } finally {
       jobsEnCurso.delete(job.nombre);
     }
@@ -507,11 +503,11 @@ async function main() {
   }, 20 * 60 * 1000);
 
   log("Todos los jobs programados");
-  parentPort?.postMessage({ type: "ready" });
+  send({ type: "ready" });
 }
 
 main().catch(err => {
   console.error("[WORKER:JOBS] Fatal error:", err);
-  parentPort?.postMessage({ type: "fatal", error: err.message });
+  send({ type: "fatal", error: err.message });
   process.exit(1);
 });
