@@ -669,7 +669,7 @@ router.post("/t1-reconstruir", async (req, res) => {
       return res.json({ ok: true, resultados });
     }
     const { reconstruirDiaT1 } = await import("./t1-reconstructor");
-    const f = fecha || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+    const f = fecha || new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
     const result = await reconstruirDiaT1(f);
     res.json({ ok: true, fecha: f, ...result });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -677,7 +677,7 @@ router.post("/t1-reconstruir", async (req, res) => {
 
 router.get("/t1-resultado", async (req, res) => {
   try {
-    const fecha = (req.query.fecha as string) || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+    const fecha = (req.query.fecha as string) || new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
     const viajes = await pool.query(`
       SELECT va.id, c.patente, va.origen_nombre, va.destino_nombre,
              va.km_ecu as km, va.duracion_minutos as duracion,
@@ -690,7 +690,8 @@ router.get("/t1-resultado", async (req, res) => {
     `, [fecha]);
     const total = viajes.rows.length;
     const rt = viajes.rows.filter((v: any) => {
-      try { const p = JSON.parse(v.paradas || "{}"); return p.tipo === "ROUND_TRIP"; } catch { return false; }
+      const p = typeof v.paradas === "object" ? v.paradas : (() => { try { return JSON.parse(v.paradas || "{}"); } catch { return {}; } })();
+      return p?.tipo === "ROUND_TRIP";
     }).length;
     const facturados = viajes.rows.filter((v: any) => v.estado === "FACTURADO").length;
     res.json({ fecha, total, round_trip: rt, ida: total - rt, facturados, viajes: viajes.rows });

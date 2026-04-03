@@ -1,8 +1,18 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import { sql } from "drizzle-orm";
 
 const MIN_DWELL_MINUTES = 30;
 const MIN_TRIP_KM = 40;
+
+function fechaChile(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+}
+
+function ayerChile(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+}
 
 interface GpsPoint {
   lat: number;
@@ -360,13 +370,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   let camionesDescanso = 0;
   const errores: string[] = [];
 
-  await db.execute(sql`
-    DELETE FROM viajes_aprendizaje 
-    WHERE contrato = 'CENCOSUD' 
-      AND fuente_viaje = 'T1_RECONSTRUCTOR'
-      AND fecha_inicio >= ${fecha}::date 
-      AND fecha_inicio < (${fecha}::date + interval '1 day')
-  `);
+  const allInserts: any[] = [];
 
   for (const cam of camiones) {
     if (!cam.camion_id) continue;
@@ -407,28 +411,22 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 
       for (const v of viajes) {
         const tarifa = tarifas.get(`${v.origen}→${v.destino}`);
+        const tarifaRev = !tarifa ? tarifas.get(`${v.destino}→${v.origen}`) : null;
+        const tarifaFinal = tarifa || tarifaRev || null;
 
-        await db.execute(sql`
-          INSERT INTO viajes_aprendizaje (
-            camion_id, contrato, fecha_inicio, fecha_fin,
-            origen_lat, origen_lng, origen_nombre,
-            destino_lat, destino_lng, destino_nombre,
-            km_ecu, duracion_minutos, conductor, paradas,
-            fuente_viaje, estado, procesado_aprendizaje
-          ) VALUES (
-            ${cam.camion_id}, 'CENCOSUD', ${v.fecha_inicio}, ${v.fecha_fin},
-            ${0}, ${0}, ${v.es_round_trip ? `[RT] ${v.origen} → ${v.destino}` : v.origen},
-            ${0}, ${0}, ${v.es_round_trip ? `[RT] ${v.destino} → ${v.origen}` : v.destino},
-            ${v.km_estimado}, ${v.duracion_min}, ${null},
-            ${JSON.stringify({
-              tipo: v.es_round_trip ? "ROUND_TRIP" : "IDA",
-              paradas: v.paradas_intermedias,
-              secuencia: v.visitas_secuencia,
-              tarifa_encontrada: tarifa || null,
-            })},
-            'T1_RECONSTRUCTOR', ${tarifa ? 'FACTURADO' : 'PENDIENTE'}, ${true}
-          )
-        `);
+        allInserts.push({
+          camion_id: cam.camion_id,
+          fecha_inicio: v.fecha_inicio,
+          fecha_fin: v.fecha_fin,
+          origen: v.origen,
+          destino: v.destino,
+          km: v.km_estimado,
+          duracion: v.duracion_min,
+          es_round_trip: v.es_round_trip,
+          paradas_intermedias: v.paradas_intermedias,
+          visitas_secuencia: v.visitas_secuencia,
+          tarifa: tarifaFinal,
+        });
 
         totalViajes++;
         if (v.es_round_trip) totalRoundTrip++;
@@ -437,6 +435,48 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
     } catch (err: any) {
       errores.push(`${cam.patente}: ${err.message}`);
     }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`
+      DELETE FROM viajes_aprendizaje 
+      WHERE contrato = 'CENCOSUD' 
+        AND fuente_viaje = 'T1_RECONSTRUCTOR'
+        AND fecha_inicio >= $1::date 
+        AND fecha_inicio < ($1::date + interval '1 day')
+    `, [fecha]);
+
+    for (const v of allInserts) {
+      await client.query(`
+        INSERT INTO viajes_aprendizaje (
+          camion_id, contrato, fecha_inicio, fecha_fin,
+          origen_lat, origen_lng, origen_nombre,
+          destino_lat, destino_lng, destino_nombre,
+          km_ecu, duracion_minutos, conductor, paradas,
+          fuente_viaje, estado, procesado_aprendizaje
+        ) VALUES ($1, 'CENCOSUD', $2, $3, 0, 0, $4, 0, 0, $5, $6, $7, NULL, $8, 'T1_RECONSTRUCTOR', $9, true)
+      `, [
+        v.camion_id, v.fecha_inicio, v.fecha_fin,
+        v.origen, v.destino,
+        v.km, v.duracion,
+        JSON.stringify({
+          tipo: v.es_round_trip ? "ROUND_TRIP" : "IDA",
+          paradas: v.paradas_intermedias,
+          secuencia: v.visitas_secuencia,
+          tarifa_encontrada: v.tarifa,
+        }),
+        v.tarifa ? 'FACTURADO' : 'PENDIENTE',
+      ]);
+    }
+
+    await client.query("COMMIT");
+  } catch (txErr: any) {
+    await client.query("ROLLBACK");
+    throw new Error(`T1 transaction failed: ${txErr.message}`);
+  } finally {
+    client.release();
   }
 
   const durSeg = Math.round((Date.now() - inicio) / 1000);
@@ -453,10 +493,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 }
 
 export async function reconstruirAyer(): Promise<any> {
-  const ayer = new Date();
-  ayer.setDate(ayer.getDate() - 1);
-  const fecha = ayer.toISOString().split("T")[0];
-  return reconstruirDiaT1(fecha);
+  return reconstruirDiaT1(ayerChile());
 }
 
 export async function reconstruirRango(desde: string, hasta: string): Promise<any[]> {

@@ -128,9 +128,7 @@ export const superAgenteCencosud = {
     try {
       if (!this._t1Ejecutado) {
         try {
-          const ayer = new Date();
-          ayer.setDate(ayer.getDate() - 1);
-          const fecha = ayer.toISOString().split("T")[0];
+          const fecha = new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
           const result = await reconstruirDiaT1(fecha);
           console.log(`[SUPER-CENCOSUD] T-1 inicial (${fecha}): ${result.viajes_creados} viajes`);
           this._t1Ejecutado = true;
