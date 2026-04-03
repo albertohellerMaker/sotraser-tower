@@ -377,6 +377,44 @@ function estimarKm(puntos: GpsPoint[], desde: Date, hasta: Date): number {
   return Math.round(km);
 }
 
+const EQUIVALENCIAS: Record<string, string[]> = {
+  "Chillán": ["CD Chillán", "CD LTS CHILLAN camino Nahueltoro 230"],
+  "CD Chillán": ["Chillán"],
+  "CD LTS CHILLAN camino Nahueltoro 230": ["CD Chillán", "Chillán"],
+  "CT Concepción": ["Concepción", "CENTRO DE TRANSFERENCIA CENCOSUD CONCEPCIÓN"],
+  "Concepción": ["CT Concepción"],
+  "CENTRO DE TRANSFERENCIA CENCOSUD CONCEPCIÓN": ["CT Concepción", "Concepción"],
+  "Coquimbo": ["CT Coquimbo"],
+  "CT Coquimbo": ["Coquimbo"],
+};
+
+function buscarTarifaFlexible(origen: string, destino: string, tarifas: Map<string, number>): number | null {
+  const directa = tarifas.get(`${origen}→${destino}`);
+  if (directa) return directa;
+
+  const reversa = tarifas.get(`${destino}→${origen}`);
+  if (reversa) return reversa;
+
+  const origenAlts = [origen, ...(EQUIVALENCIAS[origen] || [])];
+  const destinoAlts = [destino, ...(EQUIVALENCIAS[destino] || [])];
+
+  for (const o of origenAlts) {
+    for (const d of destinoAlts) {
+      const t = tarifas.get(`${o}→${d}`);
+      if (t) return t;
+    }
+  }
+
+  for (const o of origenAlts) {
+    for (const d of destinoAlts) {
+      const t = tarifas.get(`${d}→${o}`);
+      if (t) return t;
+    }
+  }
+
+  return null;
+}
+
 export async function reconstruirDiaT1(fecha: string): Promise<{
   camiones_procesados: number;
   viajes_creados: number;
@@ -459,9 +497,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           continue;
         }
 
-        const tarifa = tarifas.get(`${v.origen}→${v.destino}`);
-        const tarifaRev = !tarifa ? tarifas.get(`${v.destino}→${v.origen}`) : null;
-        const tarifaFinal = tarifa || tarifaRev || null;
+        const tarifaFinal = buscarTarifaFlexible(v.origen, v.destino, tarifas);
 
         allInserts.push({
           camion_id: cam.camion_id,
