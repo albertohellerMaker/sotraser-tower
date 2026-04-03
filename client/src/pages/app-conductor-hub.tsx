@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Smartphone, Settings, MessageCircle, Truck, Users, AlertTriangle,
   Send, CheckCircle, ExternalLink, Radio, Loader2, Megaphone,
-  X, Plus
+  X, Plus, MapPin, Activity, Clock, Navigation
 } from "lucide-react";
+import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 
 type HubMode = "vista-app" | "gestion";
-type GestionTab = "viajes" | "conductores" | "comunicaciones" | "novedades";
+type GestionTab = "envivo" | "viajes" | "conductores" | "comunicaciones" | "novedades";
+
+async function fetchJson(url: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
 
 const DRIVER_APP_URL = "https://driver-route-planner-albertoheller.replit.app";
 
@@ -41,12 +48,12 @@ const MENSAJES_RAPIDOS = [
 
 export default function AppConductorHub({ onBack }: { onBack: () => void }) {
   const [mode, setMode] = useState<HubMode>("gestion");
-  const [gestionTab, setGestionTab] = useState<GestionTab>("viajes");
+  const [gestionTab, setGestionTab] = useState<GestionTab>("envivo");
 
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/conductor-panel/stats-conductor"],
-    queryFn: () => fetch("/api/conductor-panel/stats-conductor").then(r => r.json()),
-    refetchInterval: 30000,
+    queryFn: () => fetchJson("/api/conductor-panel/stats-conductor"),
+    refetchInterval: 15000,
   });
 
   return (
@@ -65,6 +72,7 @@ export default function AppConductorHub({ onBack }: { onBack: () => void }) {
               { l: "EN RUTA", v: stats.en_ruta || 0, c: "#00ff88" },
               { l: "PROGRAMADOS", v: stats.programados || 0, c: "#ffcc00" },
               { l: "HOY", v: stats.viajes_hoy || 0, c: "#06b6d4" },
+              { l: "ACTIVOS", v: stats.conductores_activos || 0, c: "#a855f7" },
               { l: "NOVEDADES", v: stats.novedades_abiertas || 0, c: (stats.novedades_abiertas || 0) > 0 ? "#ff2244" : "#3a6080" },
               { l: "MENSAJES", v: stats.mensajes_sin_leer || 0, c: (stats.mensajes_sin_leer || 0) > 0 ? "#a855f7" : "#3a6080" },
             ].map(s => (
@@ -107,9 +115,10 @@ export default function AppConductorHub({ onBack }: { onBack: () => void }) {
         <div className="flex" style={{ height: "calc(100vh - 52px)" }}>
           <div className="w-[180px] p-3 space-y-1 flex-shrink-0" style={{ background: "#040a10", borderRight: "1px solid #0d2035" }}>
             {([
-              { id: "viajes" as GestionTab, label: "VIAJES", icon: Truck, color: "#00ff88", badge: stats?.viajes_hoy },
-              { id: "conductores" as GestionTab, label: "CONDUCTORES", icon: Users, color: "#06b6d4" },
-              { id: "comunicaciones" as GestionTab, label: "COMUNICACIONES", icon: MessageCircle, color: "#a855f7", badge: stats?.mensajes_sin_leer },
+              { id: "envivo" as GestionTab, label: "EN VIVO", icon: Activity, color: "#00ff88" },
+              { id: "viajes" as GestionTab, label: "VIAJES", icon: Truck, color: "#06b6d4", badge: stats?.viajes_hoy },
+              { id: "conductores" as GestionTab, label: "CONDUCTORES", icon: Users, color: "#a855f7" },
+              { id: "comunicaciones" as GestionTab, label: "COMUNICACIONES", icon: MessageCircle, color: "#ffcc00", badge: stats?.mensajes_sin_leer },
               { id: "novedades" as GestionTab, label: "NOVEDADES", icon: AlertTriangle, color: "#ff6b35", badge: stats?.novedades_abiertas },
             ]).map(t => (
               <button key={t.id} onClick={() => setGestionTab(t.id)}
@@ -122,7 +131,7 @@ export default function AppConductorHub({ onBack }: { onBack: () => void }) {
                 }}>
                 <t.icon size={12} />
                 {t.label}
-                {t.badge > 0 && (
+                {(t.badge ?? 0) > 0 && (
                   <span className="ml-auto font-space text-[8px] px-1.5 py-0.5" style={{ background: `${t.color}20`, color: t.color, borderRadius: 10 }}>
                     {t.badge}
                   </span>
@@ -132,6 +141,7 @@ export default function AppConductorHub({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
+            {gestionTab === "envivo" && <PanelEnVivo />}
             {gestionTab === "viajes" && <GestionViajes />}
             {gestionTab === "conductores" && <GestionConductores />}
             {gestionTab === "comunicaciones" && <Comunicaciones />}
@@ -143,6 +153,269 @@ export default function AppConductorHub({ onBack }: { onBack: () => void }) {
   );
 }
 
+function PanelEnVivo() {
+  const [selectedViaje, setSelectedViaje] = useState<any>(null);
+
+  const { data: viajesVivo } = useQuery<any>({
+    queryKey: ["/api/conductor-panel/viajes-vivo"],
+    queryFn: () => fetchJson("/api/conductor-panel/viajes-vivo"),
+    refetchInterval: 10000,
+  });
+
+  const { data: activos } = useQuery<any>({
+    queryKey: ["/api/conductor-panel/activos"],
+    queryFn: () => fetchJson("/api/conductor-panel/activos"),
+    refetchInterval: 15000,
+  });
+
+  const { data: paradasRecientes } = useQuery<any>({
+    queryKey: ["/api/conductor-panel/paradas-recientes"],
+    queryFn: () => fetchJson("/api/conductor-panel/paradas-recientes"),
+    refetchInterval: 20000,
+  });
+
+  const viajes = viajesVivo?.viajes || [];
+  const conductoresActivos = activos?.conductores || [];
+  const paradas = paradasRecientes?.paradas || [];
+
+  const viajesConGps = viajes.filter((v: any) => v.gps?.lat && v.gps?.lng);
+
+  const mapCenter = useMemo(() => {
+    if (viajesConGps.length > 0) {
+      const avgLat = viajesConGps.reduce((s: number, v: any) => s + parseFloat(v.gps.lat), 0) / viajesConGps.length;
+      const avgLng = viajesConGps.reduce((s: number, v: any) => s + parseFloat(v.gps.lng), 0) / viajesConGps.length;
+      return { lat: avgLat, lng: avgLng };
+    }
+    return { lat: -33.45, lng: -70.65 };
+  }, [viajesConGps]);
+
+  const enRuta = viajes.filter((v: any) => v.estado === "EN_RUTA").length;
+  const programados = viajes.filter((v: any) => v.estado === "PROGRAMADO").length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity size={16} style={{ color: "#00ff88" }} />
+          <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>PANEL EN VIVO</span>
+          <span className="font-exo text-[9px] px-2 py-0.5" style={{ color: "#00ff88", background: "#00ff8815", borderRadius: 10 }}>
+            {enRuta} en ruta · {programados} programados
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 px-2 py-1" style={{ background: "#0a1628", borderRadius: 4 }}>
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#00ff88" }} />
+            <span className="font-exo text-[8px]" style={{ color: "#00ff88" }}>GPS ACTIVO</span>
+          </div>
+          <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
+            {conductoresActivos.length} conductores conectados
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-3" style={{ height: "calc(100vh - 140px)" }}>
+        <div className="col-span-8" style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #0d2035" }}>
+          <GMap
+            mapId="envivo-map"
+            defaultCenter={mapCenter}
+            defaultZoom={viajesConGps.length > 0 ? 7 : 6}
+            gestureHandling="greedy"
+            disableDefaultUI={false}
+            style={{ width: "100%", height: "100%" }}
+            colorScheme="DARK"
+          >
+            {viajesConGps.map((v: any) => (
+              <AdvancedMarker
+                key={v.id}
+                position={{ lat: parseFloat(v.gps.lat), lng: parseFloat(v.gps.lng) }}
+                onClick={() => setSelectedViaje(v)}
+              >
+                <div style={{
+                  background: v.estado === "EN_RUTA" ? "#00ff88" : "#ffcc00",
+                  color: "#060d14",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  fontFamily: "Exo 2",
+                  whiteSpace: "nowrap",
+                  boxShadow: `0 0 8px ${v.estado === "EN_RUTA" ? "#00ff8880" : "#ffcc0080"}`,
+                  border: `1px solid ${v.estado === "EN_RUTA" ? "#00ff88" : "#ffcc00"}`,
+                  cursor: "pointer",
+                }}>
+                  🚛 {v.patente || v.codigo}
+                  {v.gps.velocidad_kmh > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>{Math.round(v.gps.velocidad_kmh)} km/h</span>}
+                </div>
+              </AdvancedMarker>
+            ))}
+
+            {viajes.filter((v: any) => v.origen_lat && v.origen_lng).map((v: any) => (
+              <AdvancedMarker
+                key={`orig-${v.id}`}
+                position={{ lat: parseFloat(v.origen_lat), lng: parseFloat(v.origen_lng) }}
+              >
+                <div style={{
+                  background: "#06b6d4",
+                  color: "#fff",
+                  width: 16, height: 16,
+                  borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 8, fontWeight: 800,
+                  border: "1px solid #06b6d4",
+                }}>O</div>
+              </AdvancedMarker>
+            ))}
+          </GMap>
+        </div>
+
+        <div className="col-span-4 space-y-3 overflow-y-auto">
+          {selectedViaje && (
+            <div className="p-3" style={{ background: "#060d14", border: "1px solid #00ff8840", borderRadius: 8 }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{selectedViaje.codigo}</span>
+                <button onClick={() => setSelectedViaje(null)} className="cursor-pointer" style={{ color: "#3a6080" }}><X size={12} /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="p-1.5" style={{ background: "#0a1628", borderRadius: 4 }}>
+                  <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>CONDUCTOR</div>
+                  <div className="font-exo text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{selectedViaje.conductor}</div>
+                </div>
+                <div className="p-1.5" style={{ background: "#0a1628", borderRadius: 4 }}>
+                  <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>PATENTE</div>
+                  <div className="font-exo text-[9px] font-bold" style={{ color: "#ffcc00" }}>{selectedViaje.patente}</div>
+                </div>
+                <div className="p-1.5" style={{ background: "#0a1628", borderRadius: 4 }}>
+                  <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>ESTADO</div>
+                  <div className="font-exo text-[9px] font-bold" style={{ color: ESTADO_COLORS[selectedViaje.estado] }}>{selectedViaje.estado}</div>
+                </div>
+                <div className="p-1.5" style={{ background: "#0a1628", borderRadius: 4 }}>
+                  <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>VELOCIDAD</div>
+                  <div className="font-exo text-[9px] font-bold" style={{ color: "#00ff88" }}>
+                    {selectedViaje.gps ? `${Math.round(selectedViaje.gps.velocidad_kmh || 0)} km/h` : "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
+                {selectedViaje.origen_nombre} · {selectedViaje.cliente || "Sin cliente"}
+              </div>
+              {selectedViaje.paradas && (
+                <div className="mt-2 space-y-1">
+                  {selectedViaje.paradas.map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-2 px-2 py-1" style={{ background: "#0a1628", borderRadius: 3 }}>
+                      <div className="w-3 h-3 rounded-full flex items-center justify-center" style={{ background: `${ESTADO_COLORS[p.estado]}20`, fontSize: 6, color: ESTADO_COLORS[p.estado] }}>
+                        {p.estado === "COMPLETADA" ? "✓" : p.orden}
+                      </div>
+                      <span className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{p.nombre}</span>
+                      <span className="font-exo text-[7px] ml-auto" style={{ color: ESTADO_COLORS[p.estado] }}>{p.estado}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <div className="font-exo text-[9px] font-bold mb-2 flex items-center gap-1.5" style={{ color: "#00ff88" }}>
+              <Navigation size={10} /> VIAJES ACTIVOS ({viajes.length})
+            </div>
+            <div className="space-y-1.5" style={{ maxHeight: selectedViaje ? "200px" : "350px", overflowY: "auto" }}>
+              {viajes.map((v: any) => (
+                <div key={v.id} onClick={() => setSelectedViaje(v)}
+                  className="p-2.5 cursor-pointer transition-all"
+                  style={{
+                    background: selectedViaje?.id === v.id ? "#0d2035" : "#060d14",
+                    border: `1px solid ${selectedViaje?.id === v.id ? ESTADO_COLORS[v.estado] + "60" : "#0d2035"}`,
+                    borderLeft: `3px solid ${ESTADO_COLORS[v.estado]}`,
+                    borderRadius: 6,
+                  }}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-space text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{v.codigo}</span>
+                    <div className="flex items-center gap-1">
+                      {v.gps && <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#00ff88" }} />}
+                      <span className="font-exo text-[7px] px-1.5 py-0.5" style={{ color: ESTADO_COLORS[v.estado], background: `${ESTADO_COLORS[v.estado]}15`, borderRadius: 3 }}>
+                        {v.estado}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="font-exo text-[8px] mt-0.5" style={{ color: "#5a8090" }}>{v.conductor}</div>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{v.patente} · {v.cliente || "—"}</span>
+                    {v.gps && (
+                      <span className="font-exo text-[7px]" style={{ color: "#00ff88" }}>{Math.round(v.gps.velocidad_kmh || 0)} km/h</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {viajes.length === 0 && (
+                <div className="text-center py-6 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin viajes activos</div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="font-exo text-[9px] font-bold mb-2 flex items-center gap-1.5" style={{ color: "#06b6d4" }}>
+              <Users size={10} /> CONDUCTORES ACTIVOS ({conductoresActivos.length})
+            </div>
+            <div className="space-y-1" style={{ maxHeight: "200px", overflowY: "auto" }}>
+              {conductoresActivos.slice(0, 15).map((c: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-2" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 4 }}>
+                  <div>
+                    <div className="font-exo text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{c.nombre}</div>
+                    <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{c.patente} · {c.contrato || "—"}</div>
+                  </div>
+                  <div className="text-right">
+                    {c.velocidad > 0 && (
+                      <div className="font-exo text-[8px] font-bold" style={{ color: "#00ff88" }}>{Math.round(c.velocidad)} km/h</div>
+                    )}
+                    <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{c.viajes_hoy} viajes</div>
+                  </div>
+                </div>
+              ))}
+              {conductoresActivos.length === 0 && (
+                <div className="text-center py-4 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin conductores activos</div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="font-exo text-[9px] font-bold mb-2 flex items-center gap-1.5" style={{ color: "#a855f7" }}>
+              <Clock size={10} /> PARADAS RECIENTES
+            </div>
+            <div className="space-y-1" style={{ maxHeight: "180px", overflowY: "auto" }}>
+              {paradas.slice(0, 10).map((p: any) => (
+                <div key={p.id} className="flex items-center gap-2 p-2" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 4 }}>
+                  <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{
+                    background: `${ESTADO_COLORS[p.estado] || "#3a6080"}20`,
+                    color: ESTADO_COLORS[p.estado] || "#3a6080",
+                    fontSize: 8, fontWeight: 800,
+                  }}>
+                    {p.estado === "COMPLETADA" ? "✓" : p.estado === "SALTADA" ? "✗" : "•"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-exo text-[8px] font-bold truncate" style={{ color: "#c8e8ff" }}>{p.nombre}</div>
+                    <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{p.conductor} · {p.patente}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-exo text-[7px]" style={{ color: ESTADO_COLORS[p.estado] }}>{p.estado}</div>
+                    {p.hora_real && (
+                      <div className="font-exo text-[6px]" style={{ color: "#3a6080" }}>
+                        {new Date(p.hora_real).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {paradas.length === 0 && (
+                <div className="text-center py-4 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin paradas recientes</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VistaApp() {
   const [patente, setPatente] = useState("DEMO01");
   const [searchCamion, setSearchCamion] = useState("");
@@ -150,7 +423,7 @@ function VistaApp() {
 
   const { data: camionesData } = useQuery<any>({
     queryKey: ["/api/conductor-panel/camiones-disponibles"],
-    queryFn: () => fetch("/api/conductor-panel/camiones-disponibles").then(r => r.json()),
+    queryFn: () => fetchJson("/api/conductor-panel/camiones-disponibles"),
   });
 
   const camiones = camionesData?.camiones || [];
@@ -212,14 +485,14 @@ function GestionViajes() {
       const params = new URLSearchParams();
       if (filtroEstado) params.set("estado", filtroEstado);
       if (filtroConductor) params.set("conductor", filtroConductor);
-      return fetch(`/api/conductor-panel/viajes-todos?${params}`).then(r => r.json()).then(d => d.viajes || []);
+      return fetchJson(`/api/conductor-panel/viajes-todos?${params}`).then(d => d.viajes || []);
     },
     refetchInterval: 15000,
   });
 
   const { data: tracking } = useQuery<any>({
     queryKey: ["/api/conductor-panel/viaje", selectedViaje, "tracking"],
-    queryFn: () => fetch(`/api/conductor-panel/viaje/${selectedViaje}/tracking`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/viaje/${selectedViaje}/tracking`),
     enabled: !!selectedViaje,
     refetchInterval: selectedViaje ? 10000 : false,
   });
@@ -228,7 +501,7 @@ function GestionViajes() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Truck size={16} style={{ color: "#00ff88" }} />
+          <Truck size={16} style={{ color: "#06b6d4" }} />
           <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>GESTIÓN DE VIAJES</span>
         </div>
         <div className="flex items-center gap-2">
@@ -297,7 +570,9 @@ function GestionViajes() {
             <ViajeDetalle tracking={tracking} onCambiarEstado={(estado: string) => {
               fetch(`/api/conductor-panel/viaje/${selectedViaje}/estado`, {
                 method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ estado })
-              }).then(() => qc.invalidateQueries({ queryKey: ["/api/conductor-panel/viajes-todos"] }));
+              }).then(res => {
+                if (res.ok) qc.invalidateQueries({ queryKey: ["/api/conductor-panel/viajes-todos"] });
+              });
             }} />
           ) : (
             <div className="flex items-center justify-center h-full font-exo text-[11px]" style={{ color: "#3a6080" }}>
@@ -314,12 +589,14 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
   const v = tracking.viaje;
   const paradas = tracking.paradas || [];
   const novedades = tracking.novedades || [];
+  const trayectoria = tracking.trayectoria || [];
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   const { data: mensajesData, refetch: refetchMsgs } = useQuery<any>({
     queryKey: ["/api/conductor-panel/mensajes", v.id],
-    queryFn: () => fetch(`/api/conductor-panel/mensajes/${v.id}`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/mensajes/${v.id}`),
     refetchInterval: 10000,
   });
   const mensajes = mensajesData?.mensajes || [];
@@ -341,6 +618,19 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
     setSending(false);
   };
 
+  const mapCenter = useMemo(() => {
+    if (trayectoria.length > 0) {
+      const last = trayectoria[trayectoria.length - 1];
+      return { lat: parseFloat(last.lat), lng: parseFloat(last.lng) };
+    }
+    if (v.origen_lat && v.origen_lng) {
+      return { lat: parseFloat(v.origen_lat), lng: parseFloat(v.origen_lng) };
+    }
+    return { lat: -33.45, lng: -70.65 };
+  }, [trayectoria, v.origen_lat, v.origen_lng]);
+
+  const hasGeoData = trayectoria.length > 0 || (v.origen_lat && v.origen_lng) || paradas.some((p: any) => p.lat && p.lng);
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -356,6 +646,12 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
           </div>
         </div>
         <div className="flex gap-1">
+          {hasGeoData && (
+            <button onClick={() => setShowMap(!showMap)} className="px-3 py-1.5 font-exo text-[9px] font-bold cursor-pointer flex items-center gap-1"
+              style={{ color: showMap ? "#ff6b35" : "#06b6d4", background: showMap ? "#ff6b3515" : "#06b6d415", border: `1px solid ${showMap ? "#ff6b3530" : "#06b6d430"}`, borderRadius: 4 }}>
+              {showMap ? <><X size={9} /> CERRAR MAPA</> : <><MapPin size={9} /> VER MAPA</>}
+            </button>
+          )}
           {v.estado === "PROGRAMADO" && (
             <button onClick={() => onCambiarEstado("EN_RUTA")} className="px-3 py-1.5 font-exo text-[9px] font-bold cursor-pointer"
               style={{ color: "#00ff88", background: "#00ff8815", border: "1px solid #00ff8830", borderRadius: 4 }}>
@@ -382,7 +678,7 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
           { l: "ORIGEN", v: v.origen_nombre || "—", c: "#06b6d4" },
           { l: "CARGA", v: v.carga_descripcion || "—", c: "#ffcc00" },
           { l: "SALIDA", v: v.fecha_salida ? new Date(v.fecha_salida).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—", c: "#00ff88" },
-          { l: "KM", v: v.km_recorridos ? `${v.km_recorridos} km` : "—", c: "#a855f7" },
+          { l: "TRAYECTORIA", v: trayectoria.length > 0 ? `${trayectoria.length} puntos GPS` : "Sin datos", c: "#a855f7" },
         ].map(s => (
           <div key={s.l} className="p-2" style={{ background: "#0a1628", borderRadius: 4 }}>
             <div className="font-exo text-[7px] uppercase tracking-wider mb-0.5" style={{ color: "#3a6080" }}>{s.l}</div>
@@ -390,6 +686,62 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
           </div>
         ))}
       </div>
+
+      {showMap && (
+        <div style={{ height: 280, borderRadius: 8, overflow: "hidden", border: "1px solid #0d2035" }}>
+          <GMap
+            mapId="viaje-detail-map"
+            defaultCenter={mapCenter}
+            defaultZoom={10}
+            gestureHandling="greedy"
+            disableDefaultUI={false}
+            style={{ width: "100%", height: "100%" }}
+            colorScheme="DARK"
+          >
+            {v.origen_lat && v.origen_lng && (
+              <AdvancedMarker position={{ lat: parseFloat(v.origen_lat), lng: parseFloat(v.origen_lng) }}>
+                <div style={{ background: "#06b6d4", color: "#fff", width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, border: "2px solid #fff" }}>O</div>
+              </AdvancedMarker>
+            )}
+
+            {paradas.filter((p: any) => p.lat && p.lng).map((p: any) => (
+              <AdvancedMarker key={p.id} position={{ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }}>
+                <div style={{
+                  background: ESTADO_COLORS[p.estado] || "#3a6080",
+                  color: "#fff",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontSize: 8,
+                  fontWeight: 800,
+                  fontFamily: "Exo 2",
+                  whiteSpace: "nowrap",
+                  border: "1px solid #fff",
+                }}>
+                  {p.orden}. {p.nombre}
+                </div>
+              </AdvancedMarker>
+            ))}
+
+            {trayectoria.length > 0 && (
+              <AdvancedMarker position={{ lat: parseFloat(trayectoria[trayectoria.length - 1].lat), lng: parseFloat(trayectoria[trayectoria.length - 1].lng) }}>
+                <div style={{
+                  background: "#00ff88",
+                  color: "#060d14",
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  fontFamily: "Exo 2",
+                  boxShadow: "0 0 10px #00ff8880",
+                  border: "1px solid #00ff88",
+                }}>
+                  🚛 {v.patente} (última pos.)
+                </div>
+              </AdvancedMarker>
+            )}
+          </GMap>
+        </div>
+      )}
 
       <div>
         <div className="font-exo text-[9px] font-bold mb-2" style={{ color: "#c8e8ff" }}>TIMELINE DE PARADAS</div>
@@ -487,14 +839,14 @@ function CrearViajeInline({ onClose }: { onClose: () => void }) {
 
   const { data: conductoresData } = useQuery<any>({
     queryKey: ["/api/conductor-panel/conductores", searchConductor],
-    queryFn: () => fetch(`/api/conductor-panel/conductores?q=${encodeURIComponent(searchConductor)}`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/conductores?q=${encodeURIComponent(searchConductor)}`),
     enabled: searchConductor.length >= 2 && !form.conductor,
   });
   const conductores = conductoresData?.conductores || [];
 
   const { data: camionesData } = useQuery<any>({
     queryKey: ["/api/conductor-panel/camiones-disponibles"],
-    queryFn: () => fetch("/api/conductor-panel/camiones-disponibles").then(r => r.json()),
+    queryFn: () => fetchJson("/api/conductor-panel/camiones-disponibles"),
   });
   const camiones = camionesData?.camiones || [];
   const camionesFilt = searchCamion ? camiones.filter((c: any) => c.patente.toLowerCase().includes(searchCamion.toLowerCase())) : [];
@@ -613,13 +965,13 @@ function GestionConductores() {
 
   const { data: conductoresData } = useQuery<any>({
     queryKey: ["/api/conductor-panel/conductores", search],
-    queryFn: () => fetch(`/api/conductor-panel/conductores?q=${encodeURIComponent(search)}`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/conductores?q=${encodeURIComponent(search)}`),
   });
   const conductores = conductoresData?.conductores || [];
 
   const { data: ficha } = useQuery<any>({
     queryKey: ["/api/conductor-panel/conductor-ficha", selectedConductor],
-    queryFn: () => fetch(`/api/conductor-panel/conductor-ficha/${encodeURIComponent(selectedConductor!)}`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/conductor-ficha/${encodeURIComponent(selectedConductor!)}`),
     enabled: !!selectedConductor,
   });
 
@@ -627,7 +979,7 @@ function GestionConductores() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Users size={16} style={{ color: "#06b6d4" }} />
+          <Users size={16} style={{ color: "#a855f7" }} />
           <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>GESTIÓN DE CONDUCTORES</span>
           <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{conductores.length} registrados</span>
         </div>
@@ -643,7 +995,7 @@ function GestionConductores() {
               className="p-2.5 cursor-pointer transition-all"
               style={{
                 background: selectedConductor === c.nombre ? "#0d2035" : "#060d14",
-                border: `1px solid ${selectedConductor === c.nombre ? "#06b6d440" : "#0d2035"}`,
+                border: `1px solid ${selectedConductor === c.nombre ? "#a855f740" : "#0d2035"}`,
                 borderRadius: 6,
               }}>
               <div className="font-exo text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.nombre}</div>
@@ -770,13 +1122,13 @@ function Comunicaciones() {
 
   const { data: conductoresData } = useQuery<any>({
     queryKey: ["/api/conductor-panel/conductores", searchConductor],
-    queryFn: () => fetch(`/api/conductor-panel/conductores?q=${encodeURIComponent(searchConductor)}`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/conductores?q=${encodeURIComponent(searchConductor)}`),
     enabled: searchConductor.length >= 2,
   });
 
   const { data: mensajesData, refetch } = useQuery<any>({
     queryKey: ["/api/conductor-panel/mensajes-conductor", selectedConductor],
-    queryFn: () => fetch(`/api/conductor-panel/mensajes-conductor/${encodeURIComponent(selectedConductor!)}`).then(r => r.json()),
+    queryFn: () => fetchJson(`/api/conductor-panel/mensajes-conductor/${encodeURIComponent(selectedConductor!)}`),
     enabled: !!selectedConductor,
     refetchInterval: 10000,
   });
@@ -820,7 +1172,7 @@ function Comunicaciones() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 mb-2">
-        <MessageCircle size={16} style={{ color: "#a855f7" }} />
+        <MessageCircle size={16} style={{ color: "#ffcc00" }} />
         <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>COMUNICACIONES</span>
       </div>
 
@@ -939,7 +1291,7 @@ function GestionNovedades() {
   const qc = useQueryClient();
   const { data: novedadesData } = useQuery<any>({
     queryKey: ["/api/conductor-panel/novedades"],
-    queryFn: () => fetch("/api/conductor-panel/novedades").then(r => r.json()),
+    queryFn: () => fetchJson("/api/conductor-panel/novedades"),
     refetchInterval: 15000,
   });
   const novedades = novedadesData?.novedades || [];
