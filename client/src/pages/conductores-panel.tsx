@@ -699,7 +699,7 @@ function NovedadesPanel() {
 
 const DRIVER_APP_URL = "https://driver-route-planner-albertoheller.replit.app";
 
-function AppConductorIframe() {
+export function AppConductorIframe() {
   const [patente, setPatente] = useState("DEMO01");
   const [searchCamion, setSearchCamion] = useState("");
   const [expanded, setExpanded] = useState(false);

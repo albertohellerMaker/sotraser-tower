@@ -11,12 +11,12 @@ import GeoValidator from "@/pages/geovalidator";
 import CencosudView from "@/pages/cencosud";
 import AngloView from "@/pages/anglo";
 import Flota from "@/pages/flota";
-import ConductoresPanel from "@/pages/conductores-panel";
-import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X, Users } from "lucide-react";
+import ConductoresPanel, { AppConductorIframe } from "@/pages/conductores-panel";
+import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X, Users, Smartphone } from "lucide-react";
 import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 
 // ── Navigation Context ──
-type MainTab = "flota" | "viajes" | "contratos" | "combustible" | "camiones" | "control" | "brain" | "conductores" | "sistema" | "foco";
+type MainTab = "flota" | "viajes" | "contratos" | "combustible" | "camiones" | "control" | "brain" | "conductores" | "app-conductor" | "sistema" | "foco";
 
 interface NavContext {
   tab: MainTab;
@@ -93,6 +93,7 @@ const MAIN_TABS: { id: MainTab; label: string; icon: typeof MapIcon; color: stri
   { id: "control", label: "CONTROL", icon: AlertTriangle, color: "#ff2244" },
   { id: "brain", label: "BRAIN", icon: Brain, color: "#a855f7" },
   { id: "conductores", label: "CONDUCTORES", icon: Users, color: "#06b6d4" },
+  { id: "app-conductor", label: "APP CONDUCTOR", icon: Smartphone, color: "#a855f7" },
   { id: "sistema", label: "SISTEMA", icon: Settings, color: "#3a6080" },
 ];
 
@@ -1348,6 +1349,7 @@ function AppShell() {
             {tab === "control" && <ControlCenter />}
             {tab === "brain" && <OperativeBrain />}
             {tab === "conductores" && <ConductoresPanel />}
+            {tab === "app-conductor" && <AppConductorIframe />}
             {tab === "sistema" && <SistemaTab />}
             {tab === "foco" && focoAlerta && (
               <div style={{ height: "calc(100vh - 80px)", display: "flex", flexDirection: "column" }}>
