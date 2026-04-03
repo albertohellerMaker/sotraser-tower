@@ -6,8 +6,7 @@ import type { Camion, Faena } from "@shared/schema";
 import { fN, fK } from "@/lib/fuel-utils";
 import { MapPin, Gauge, Fuel, User, Thermometer, Zap, Navigation, ChevronDown, ChevronUp } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { createDarkMap, addInfoWindow, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 interface UnifiedStatus {
   vin: string;
@@ -92,68 +91,79 @@ interface TruckLocationData {
   periodo: { from: string; to: string };
 }
 
-function LeafletMap({ latitude, longitude, speed, patente, locations }: {
+function GoogleMapView({ latitude, longitude, speed, patente }: {
   latitude: number;
   longitude: number;
   speed: number | null;
   patente: string;
-  locations?: { fecha: string; lugar: string | null; litros: number; lat?: number; lon?: number }[];
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | google.maps.Marker | null>(null);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !isGoogleMapsReady()) return;
 
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
+      if (markerRef.current) {
+        if ("setMap" in markerRef.current) (markerRef.current as any).setMap(null);
+        else if ("map" in markerRef.current) (markerRef.current as any).map = null;
+      }
+      markerRef.current = null;
     }
 
-    const map = L.map(mapRef.current, {
-      zoomControl: true,
-      attributionControl: false,
-    }).setView([latitude, longitude], 13);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-    }).addTo(map);
-
-    const truckIcon = L.divIcon({
-      className: "custom-truck-marker",
-      html: `<div style="
-        width: 32px; height: 32px; background: #1A8FFF; border: 2px solid #fff;
-        border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.4); position: relative;
-      ">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-        </svg>
-        <div style="position:absolute;top:-8px;right:-8px;width:12px;height:12px;background:${speed != null && speed > 0 ? '#00C87A' : '#6b7280'};border:2px solid #1a1a2e;border-radius:50%;"></div>
-      </div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+    const map = createDarkMap(mapRef.current, {
+      center: { lat: latitude, lng: longitude },
+      zoom: 13,
     });
-
-    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    L.marker([latitude, longitude], { icon: truckIcon })
-      .addTo(map)
-      .bindPopup(`<div style="font-family:monospace;font-size:11px;"><strong>${esc(patente)}</strong><br/>Lat: ${latitude.toFixed(5)}<br/>Lon: ${longitude.toFixed(5)}${speed != null ? `<br/>Vel: ${Math.round(speed)} km/h` : ""}</div>`);
-
     mapInstanceRef.current = map;
 
-    setTimeout(() => map.invalidateSize(), 200);
+    const truckHtml = `<div style="
+      width: 32px; height: 32px; background: #1A8FFF; border: 2px solid #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4); position: relative;
+    ">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+      </svg>
+      <div style="position:absolute;top:-8px;right:-8px;width:12px;height:12px;background:${speed != null && speed > 0 ? '#00C87A' : '#6b7280'};border:2px solid #1a1a2e;border-radius:50%;"></div>
+    </div>`;
+
+    const el = document.createElement("div");
+    el.innerHTML = truckHtml;
+
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const popupContent = `<div style="font-family:monospace;font-size:11px;"><strong>${esc(patente)}</strong><br/>Lat: ${latitude.toFixed(5)}<br/>Lon: ${longitude.toFixed(5)}${speed != null ? `<br/>Vel: ${Math.round(speed)} km/h` : ""}</div>`;
+
+    if (google.maps.marker?.AdvancedMarkerElement) {
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map,
+        position: { lat: latitude, lng: longitude },
+        content: el,
+      });
+      addInfoWindow(map, marker, popupContent);
+      markerRef.current = marker;
+    } else {
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: latitude, lng: longitude },
+      });
+      addInfoWindow(map, marker, popupContent);
+      markerRef.current = marker;
+    }
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+      if (markerRef.current) {
+        if ("setMap" in markerRef.current) (markerRef.current as any).setMap(null);
+        else if ("map" in markerRef.current) (markerRef.current as any).map = null;
       }
+      markerRef.current = null;
+      mapInstanceRef.current = null;
     };
   }, [latitude, longitude, speed, patente]);
 
   return (
-    <div ref={mapRef} className="w-full h-[260px] rounded-sm" data-testid="leaflet-map" />
+    <div ref={mapRef} className="w-full h-[260px] rounded-sm" data-testid="google-map" />
   );
 }
 
@@ -224,7 +234,7 @@ function TruckLocationSection({ patente, open }: { patente: string; open: boolea
               {gps.speed != null && gps.speed > 0 && <span className="ml-2 text-emerald-400">{Math.round(gps.speed)} km/h</span>}
             </span>
           </div>
-          <LeafletMap
+          <GoogleMapView
             latitude={gps.latitude!}
             longitude={gps.longitude!}
             speed={gps.speed}

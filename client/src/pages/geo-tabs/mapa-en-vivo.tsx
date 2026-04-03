@@ -4,10 +4,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { RefreshCw, Truck, Fuel, ChevronDown, ChevronUp, X } from "lucide-react";
 import { CamionLive, GeoBase } from "./types";
 import { CamionStatusDot } from "./shared-components";
+import { createDarkMap, addInfoWindow, fitBoundsToPoints, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 export default function MapaEnVivo() {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
+  const mapInstance = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<any[]>([]);
   const fuelMarkersRef = useRef<any[]>([]);
   const [filter, setFilter] = useState("todos");
@@ -29,7 +30,6 @@ export default function MapaEnVivo() {
     queryKey: ["/api/geo/cargas-combustible"],
   });
 
-
   const ingestMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/geo/ingest-volvo"),
     onSuccess: () => { refetch(); },
@@ -45,43 +45,18 @@ export default function MapaEnVivo() {
   }, [camiones, filter]);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
-
-    const loadLeaflet = async () => {
-      const L = (window as any).L;
-      if (!L) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        document.head.appendChild(link);
-
-        const script = document.createElement("script");
-        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-        script.onload = () => initMap();
-        document.body.appendChild(script);
-      } else {
-        initMap();
-      }
-    };
-
-    const initMap = () => {
-      const L = (window as any).L;
-      if (!L || !mapRef.current) return;
-      const map = L.map(mapRef.current).setView([-33.45, -70.65], 6);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap",
-      }).addTo(map);
-      mapInstance.current = map;
-    };
-
-    loadLeaflet();
+    if (!mapRef.current || mapInstance.current || !isGoogleMapsReady()) return;
+    mapInstance.current = createDarkMap(mapRef.current, {
+      center: { lat: -33.45, lng: -70.65 },
+      zoom: 6,
+    });
   }, []);
 
   useEffect(() => {
-    const L = (window as any).L;
-    if (!L || !mapInstance.current || !camiones) return;
+    if (!mapInstance.current || !isGoogleMapsReady() || !camiones) return;
+    const map = mapInstance.current;
 
-    markersRef.current.forEach(m => m.remove());
+    markersRef.current.forEach((m: any) => { if (m.setMap) m.setMap(null); else if (m.map !== undefined) m.map = null; });
     markersRef.current = [];
 
     const statusColors: Record<string, string> = {
@@ -94,73 +69,89 @@ export default function MapaEnVivo() {
     for (const c of filtered) {
       if (!c.lat || !c.lng) continue;
       const color = statusColors[c.estado] || "#3a6080";
-      const icon = L.divIcon({
-        html: `<div style="width:24px;height:24px;background:${color};border:2px solid #020508;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transform:rotate(${c.rumbo}deg)">&#9650;</div>`,
-        className: "",
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-      });
-      const marker = L.marker([c.lat, c.lng], { icon })
-        .addTo(mapInstance.current)
-        .bindPopup(`
-          <div style="font-family:monospace;font-size:12px;min-width:180px">
-            <b>${c.patente}</b> ${c.conductor || ""}<br/>
-            ${c.velocidad} km/h · ${c.estado.replace(/_/g, " ")}<br/>
-            ${c.timestamp ? new Date(c.timestamp).toLocaleString("es-CL") : "Sin senal"}
-          </div>
-        `);
-      marker.on("click", () => setSelectedCamion(c.camionId));
-      markersRef.current.push(marker);
+
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="width:24px;height:24px;background:${color};border:2px solid #020508;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transform:rotate(${c.rumbo}deg);cursor:pointer">&#9650;</div>`;
+
+      const popupContent = `
+        <div style="font-family:monospace;font-size:12px;min-width:180px">
+          <b>${c.patente}</b> ${c.conductor || ""}<br/>
+          ${c.velocidad} km/h · ${c.estado.replace(/_/g, " ")}<br/>
+          ${c.timestamp ? new Date(c.timestamp).toLocaleString("es-CL") : "Sin senal"}
+        </div>
+      `;
+
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: c.lat, lng: c.lng }, content: el });
+        addInfoWindow(map, marker, popupContent);
+        marker.addListener("click", () => setSelectedCamion(c.camionId));
+        markersRef.current.push(marker);
+      } else {
+        const marker = new google.maps.Marker({ map, position: { lat: c.lat, lng: c.lng } });
+        addInfoWindow(map, marker, popupContent);
+        marker.addListener("click", () => setSelectedCamion(c.camionId));
+        markersRef.current.push(marker);
+      }
     }
 
     if (bases) {
       for (const b of bases) {
         const bLat = parseFloat(b.lat);
         const bLng = parseFloat(b.lng);
-        const circle = L.circle([bLat, bLng], {
+        const circle = new google.maps.Circle({
+          map,
+          center: { lat: bLat, lng: bLng },
           radius: b.radioMetros,
-          color: "#00d4ff",
+          strokeColor: "#00d4ff",
+          strokeWeight: 1,
           fillColor: "#00d4ff",
           fillOpacity: 0.05,
-          weight: 1,
-        }).addTo(mapInstance.current);
+        });
         markersRef.current.push(circle);
-        const baseMarker = L.marker([bLat, bLng], {
-          icon: L.divIcon({
-            html: `<div style="width:8px;height:8px;background:#00d4ff;border-radius:2px;border:1px solid #020508"></div>`,
-            className: "",
-            iconSize: [8, 8],
-            iconAnchor: [4, 4],
-          }),
-        }).addTo(mapInstance.current).bindTooltip(b.nombre, { permanent: false });
-        markersRef.current.push(baseMarker);
+
+        const bEl = document.createElement("div");
+        bEl.innerHTML = `<div style="width:8px;height:8px;background:#00d4ff;border-radius:2px;border:1px solid #020508"></div>`;
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          const bMarker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: bLat, lng: bLng }, content: bEl });
+          addInfoWindow(map, bMarker, `<div style="font-family:monospace;font-size:11px">${b.nombre}</div>`);
+          markersRef.current.push(bMarker);
+        } else {
+          const bMarker = new google.maps.Marker({ map, position: { lat: bLat, lng: bLng } });
+          addInfoWindow(map, bMarker, `<div style="font-family:monospace;font-size:11px">${b.nombre}</div>`);
+          markersRef.current.push(bMarker);
+        }
       }
     }
 
-    fuelMarkersRef.current.forEach(m => m.remove());
+    fuelMarkersRef.current.forEach((m: any) => { if (m.setMap) m.setMap(null); else if (m.map !== undefined) m.map = null; });
     fuelMarkersRef.current = [];
     if (showFuelStations && fuelData?.estaciones) {
       for (const est of fuelData.estaciones) {
         if (!est.lat || !est.lng) continue;
-        const fuelIcon = L.divIcon({
-          html: `<div style="width:28px;height:28px;background:#ff6600;border:2px solid #020508;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:bold">&#9981;</div>`,
-          className: "",
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        });
-        const fuelMarker = L.marker([est.lat, est.lng], { icon: fuelIcon })
-          .addTo(mapInstance.current)
-          .bindPopup(`
-            <div style="font-family:monospace;font-size:12px;min-width:200px">
-              <b style="color:#ff6600">${est.nombre}</b><br/>
-              <span style="color:#666">${est.ciudad}</span><br/>
-              <hr style="border-color:#eee;margin:4px 0"/>
-              <b>${est.cargas}</b> cargas -- <b>${est.litros.toLocaleString("es-CL")}</b> L<br/>
-              ${est.camiones} camiones -- Ult: ${est.ultimaCarga ? new Date(est.ultimaCarga).toLocaleDateString("es-CL") : "--"}
-            </div>
-          `);
-        fuelMarker.on("click", () => setSelectedEstacion(est.nombre));
-        fuelMarkersRef.current.push(fuelMarker);
+        const fEl = document.createElement("div");
+        fEl.innerHTML = `<div style="width:28px;height:28px;background:#ff6600;border:2px solid #020508;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:bold;cursor:pointer">&#9981;</div>`;
+
+        const popupContent = `
+          <div style="font-family:monospace;font-size:12px;min-width:200px">
+            <b style="color:#ff6600">${est.nombre}</b><br/>
+            <span style="color:#666">${est.ciudad}</span><br/>
+            <hr style="border-color:#eee;margin:4px 0"/>
+            <b>${est.cargas}</b> cargas -- <b>${est.litros.toLocaleString("es-CL")}</b> L<br/>
+            ${est.camiones} camiones -- Ult: ${est.ultimaCarga ? new Date(est.ultimaCarga).toLocaleDateString("es-CL") : "--"}
+          </div>
+        `;
+
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          const fMarker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: est.lat, lng: est.lng }, content: fEl });
+          addInfoWindow(map, fMarker, popupContent);
+          fMarker.addListener("click", () => setSelectedEstacion(est.nombre));
+          fuelMarkersRef.current.push(fMarker);
+        } else {
+          const fMarker = new google.maps.Marker({ map, position: { lat: est.lat, lng: est.lng } });
+          addInfoWindow(map, fMarker, popupContent);
+          fMarker.addListener("click", () => setSelectedEstacion(est.nombre));
+          fuelMarkersRef.current.push(fMarker);
+        }
       }
     }
   }, [filtered, bases, fuelData, showFuelStations]);
@@ -252,7 +243,8 @@ export default function MapaEnVivo() {
                 onClick={() => {
                   setSelectedCamion(c.camionId);
                   if (c.lat && c.lng && mapInstance.current) {
-                    mapInstance.current.flyTo([c.lat, c.lng], 12, { duration: 0.5 });
+                    mapInstance.current.panTo({ lat: c.lat, lng: c.lng });
+                    mapInstance.current.setZoom(12);
                   }
                 }}
                 className="flex items-center gap-2 p-2 rounded cursor-pointer transition-all"
@@ -333,62 +325,6 @@ export default function MapaEnVivo() {
                 </button>
                 {expandedTruck === truck.patente && (
                   <div className="ml-6 mt-1 mb-2 space-y-1" data-testid={`fuel-detail-${truck.patente}`}>
-                    {(() => {
-                      const cm = null; // cruce-mensual query removed (duplicate)
-                      if (!cm) return null;
-                      const diffColor = Math.abs(cm.diferencia) <= 50 ? "#00c97a" : cm.diferencia > 0 ? "#ffcc00" : "#ff2244";
-                      return (
-                        <div className="p-2.5 rounded mb-2" style={{ background: "#00d4ff08", border: "1px solid #00d4ff30" }} data-testid={`cruce-mensual-${truck.patente}`}>
-                          <div className="font-space text-xs font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>CRUCE MENSUAL ACUMULADO</div>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                            {/* Sigetra oculto - solo Volvo */}
-                            <div className="flex justify-between">
-                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Consumo ECU Volvo</span>
-                              <span className="font-space text-xs font-bold" style={{ color: "#00d4ff" }}>{cm.litrosEcu.toLocaleString("es-CL")} L</span>
-                            </div>
-                            {/* N cargas Sigetra oculto */}
-                            <div className="flex justify-between">
-                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>N viajes ECU</span>
-                              <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>{cm.viajesEcu}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Km odometro</span>
-                              <span className="font-space text-xs font-bold" style={{ color: "#c8e8ff" }}>{cm.kmOdometro > 0 ? cm.kmOdometro.toLocaleString("es-CL") : "--"} km</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Km viajes ECU</span>
-                              <span className="font-space text-xs" style={{ color: "#c8e8ff" }}>{cm.kmEcu > 0 ? cm.kmEcu.toLocaleString("es-CL") : "--"} km</span>
-                            </div>
-                            {cm.odoInicio > 0 && (
-                              <div className="col-span-2 flex justify-between">
-                                <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Odo inicio / fin</span>
-                                <span className="font-space text-xs" style={{ color: "#3a6080" }}>{cm.odoInicio.toLocaleString("es-CL")} / {cm.odoFin.toLocaleString("es-CL")}</span>
-                              </div>
-                            )}
-                            {/* Rend Sigetra oculto */}
-                            <div className="flex justify-between">
-                              <span className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Rend ECU Volvo</span>
-                              <span className="font-space text-xs font-bold" style={{ color: cm.rendimientoEcu >= 3.5 ? "#00c97a" : cm.rendimientoEcu > 0 ? "#ff2244" : "#3a6080" }}>
-                                {cm.rendimientoEcu > 0 ? `${cm.rendimientoEcu.toFixed(2)} km/L` : "--"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="mt-2 pt-2 flex justify-between items-center" style={{ borderTop: "1px solid #0d2035", display: 'none' }}>
-                            <span className="font-exo text-[11px] font-bold" style={{ color: "#3a6080" }}>DIFERENCIA</span>
-                            <div className="text-right">
-                              <span className="font-space text-[11px] font-bold" style={{ color: diffColor }}>
-                                {cm.diferencia > 0 ? "+" : ""}{cm.diferencia.toLocaleString("es-CL")} L
-                              </span>
-                              {cm.diferenciaPct !== 0 && (
-                                <span className="font-exo text-[11px] ml-1" style={{ color: diffColor }}>
-                                  ({cm.diferenciaPct > 0 ? "+" : ""}{cm.diferenciaPct}%)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
                     {truck.cargas.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).map((c: any, i: number) => (
                       <div key={i} className="p-2 rounded" style={{ background: "#0d203530", border: "1px solid #0d2035" }}>
                         <div className="flex justify-between items-center">

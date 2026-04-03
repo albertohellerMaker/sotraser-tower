@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, MapPin, Clock, Truck, ChevronDown, ChevronUp, Eye, Check, X, AlertTriangle, Route, RotateCcw, Fuel, Calendar, TrendingUp, Activity } from "lucide-react";
 import { EstadoBadge } from "./shared-components";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Dot } from "recharts";
+import { createDarkMap, addInfoWindow, fitBoundsToPoints, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 // ═══════════════════════════════════════════════════
 // Types

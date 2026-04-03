@@ -8,6 +8,7 @@ import Errores from "@/pages/errores";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Info, RefreshCw, Fuel, Users, TrendingDown, Truck, MapPin } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { createDarkMap, addInfoWindow, fitBoundsToPoints, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 type FlotaSub = "envivo" | "conductores" | "combustible";
 
@@ -139,52 +140,19 @@ function AngloMapView({ camiones, conductores, subfaena }: { camiones: any[]; co
   const mapInstance = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const [selectedTruck, setSelectedTruck] = useState<any>(null);
-  const [leafletReady, setLeafletReady] = useState(false);
 
   useEffect(() => {
-    const existing = document.querySelector('link[href*="leaflet"]');
-    if (!existing) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-    }
-    const check = () => {
-      if ((window as any).L) setLeafletReady(true);
-      else setTimeout(check, 100);
-    };
-    check();
-  }, []);
+    if (!mapRef.current || !isGoogleMapsReady()) return;
+    if (mapInstance.current) return;
+    mapInstance.current = createDarkMap(mapRef.current, { center: { lat: -33.35, lng: -70.72 }, zoom: 10 });
+    return () => { mapInstance.current = null; };
+  }, [subfaena]);
 
   useEffect(() => {
-    if (!leafletReady || !mapRef.current) return;
-    const L = (window as any).L;
-    if (mapInstance.current) {
-      mapInstance.current.remove();
-      mapInstance.current = null;
-    }
-    const map = L.map(mapRef.current, {
-      zoomControl: true,
-      attributionControl: false,
-    }).setView([-33.35, -70.72], 10);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 18,
-    }).addTo(map);
-    mapInstance.current = map;
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-    };
-  }, [leafletReady, subfaena]);
-
-  useEffect(() => {
-    if (!mapInstance.current || !leafletReady) return;
-    const L = (window as any).L;
+    if (!mapInstance.current || !isGoogleMapsReady()) return;
     const map = mapInstance.current;
 
-    markersRef.current.forEach(m => m.remove());
+    markersRef.current.forEach((m: any) => { if (m.setMap) m.setMap(null); else if (m.map !== undefined) m.map = null; });
     markersRef.current = [];
 
     const stationAgg: Record<string, { cargas: number; litros: number; patentes: Set<string>; lat: number; lng: number; ciudad: string }> = {};
@@ -195,15 +163,10 @@ function AngloMapView({ camiones, conductores, subfaena }: { camiones: any[]; co
         const lugar = cg.lugar || "";
         const st = FUEL_STATIONS[lugar];
         if (!st) continue;
-        if (!stationAgg[lugar]) {
-          stationAgg[lugar] = { cargas: 0, litros: 0, patentes: new Set(), lat: st.lat, lng: st.lng, ciudad: st.ciudad };
-        }
+        if (!stationAgg[lugar]) stationAgg[lugar] = { cargas: 0, litros: 0, patentes: new Set(), lat: st.lat, lng: st.lng, ciudad: st.ciudad };
         stationAgg[lugar].cargas++;
         stationAgg[lugar].litros += cg.litros || 0;
-        if (cg.patente) {
-          stationAgg[lugar].patentes.add(cg.patente);
-          if (!truckLastStation[cg.patente]) truckLastStation[cg.patente] = lugar;
-        }
+        if (cg.patente) { stationAgg[lugar].patentes.add(cg.patente); if (!truckLastStation[cg.patente]) truckLastStation[cg.patente] = lugar; }
       }
     }
 
@@ -212,90 +175,56 @@ function AngloMapView({ camiones, conductores, subfaena }: { camiones: any[]; co
     const p25 = rendValues.length > 0 ? rendValues[Math.floor(rendValues.length * 0.25)] : 2.5;
     const p75 = rendValues.length > 0 ? rendValues[Math.floor(rendValues.length * 0.75)] : 3.5;
 
+    const allPoints: { lat: number; lng: number }[] = [];
+
     for (const [nombre, d] of Object.entries(stationAgg)) {
       const size = Math.min(30, Math.max(14, Math.sqrt(d.cargas) * 6));
-      const fuelIcon = L.divIcon({
-        className: "",
-        html: `<div style="
-          width:${size}px;height:${size}px;
-          background:radial-gradient(circle, #ff660080, #ff660020);
-          border:2px solid #ff6600;
-          border-radius:50%;
-          display:flex;align-items:center;justify-content:center;
-          box-shadow:0 0 8px #ff660040;
-        "><svg width="${size*0.5}" height="${size*0.5}" viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M3 22V6a2 2 0 012-2h8a2 2 0 012 2v16"/><path d="M15 22V10l4-2v10"/><path d="M7 10h4"/></svg></div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      });
-      const marker = L.marker([d.lat, d.lng], { icon: fuelIcon }).addTo(map);
-      marker.bindPopup(`
-        <div style="background:#0a1520;color:#c8e8ff;border:1px solid #ff6600;border-radius:4px;padding:10px;min-width:180px;font-family:'Exo 2',sans-serif;">
-          <div style="font-weight:bold;color:#ff6600;font-size:12px;margin-bottom:6px;">${nombre}</div>
-          <div style="font-size:10px;color:#3a6080;margin-bottom:4px;">${d.ciudad}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;">
-            <span style="color:#3a6080;">Cargas:</span><span style="color:#00d4ff;font-weight:bold;">${d.cargas}</span>
-            <span style="color:#3a6080;">Litros:</span><span style="color:#00d4ff;font-weight:bold;">${Math.round(d.litros).toLocaleString()}</span>
-            <span style="color:#3a6080;">Camiones:</span><span style="color:#FF6B35;font-weight:bold;">${d.patentes.size}</span>
-          </div>
-        </div>
-      `, { className: "dark-popup" });
-      markersRef.current.push(marker);
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="width:${size}px;height:${size}px;background:radial-gradient(circle, #ff660080, #ff660020);border:2px solid #ff6600;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px #ff660040;cursor:pointer;"><svg width="${size*0.5}" height="${size*0.5}" viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M3 22V6a2 2 0 012-2h8a2 2 0 012 2v16"/><path d="M15 22V10l4-2v10"/><path d="M7 10h4"/></svg></div>`;
+      const popupContent = `<div style="font-family:monospace;font-size:11px;min-width:180px;"><div style="font-weight:bold;color:#ff6600;font-size:12px;margin-bottom:6px;">${nombre}</div><div style="font-size:10px;color:#888;margin-bottom:4px;">${d.ciudad}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;"><span style="color:#888;">Cargas:</span><span style="font-weight:bold;">${d.cargas}</span><span style="color:#888;">Litros:</span><span style="font-weight:bold;">${Math.round(d.litros).toLocaleString()}</span><span style="color:#888;">Camiones:</span><span style="font-weight:bold;">${d.patentes.size}</span></div></div>`;
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: d.lat, lng: d.lng }, content: el });
+        addInfoWindow(map, marker, popupContent);
+        markersRef.current.push(marker);
+      } else {
+        const marker = new google.maps.Marker({ map, position: { lat: d.lat, lng: d.lng } });
+        addInfoWindow(map, marker, popupContent);
+        markersRef.current.push(marker);
+      }
+      allPoints.push({ lat: d.lat, lng: d.lng });
     }
 
-    const stationCoords = Object.values(stationAgg).map(s => [s.lat, s.lng] as [number, number]);
     const truckPositions: Array<{ patente: string; lat: number; lng: number; rend: number; litros: number }> = [];
-
     for (const c of trucksWithRend) {
       const lastStation = truckLastStation[c.patente];
       if (!lastStation) continue;
       const st = FUEL_STATIONS[lastStation];
       if (!st) continue;
       const jitter = () => (Math.random() - 0.5) * 0.015;
-      truckPositions.push({
-        patente: c.patente,
-        lat: st.lat + jitter(),
-        lng: st.lng + jitter(),
-        rend: c.rendimientoSigetra,
-        litros: c.litrosSigetra,
-      });
+      truckPositions.push({ patente: c.patente, lat: st.lat + jitter(), lng: st.lng + jitter(), rend: c.rendimientoSigetra, litros: c.litrosSigetra });
     }
 
     for (const t of truckPositions) {
       const color = t.rend >= p75 ? "#00c97a" : t.rend >= p25 ? "#ffcc00" : "#ff2244";
-      const truckIcon = L.divIcon({
-        className: "",
-        html: `<div style="
-          width:10px;height:10px;
-          background:${color};
-          border:1.5px solid ${color};
-          border-radius:2px;
-          box-shadow:0 0 4px ${color}60;
-          cursor:pointer;
-        " title="${t.patente}: ${t.rend.toFixed(2)} km/L"></div>`,
-        iconSize: [10, 10],
-        iconAnchor: [5, 5],
-      });
-      const marker = L.marker([t.lat, t.lng], { icon: truckIcon }).addTo(map);
-      marker.on("click", () => setSelectedTruck(t));
-      marker.bindPopup(`
-        <div style="background:#0a1520;color:#c8e8ff;border:1px solid ${color};border-radius:4px;padding:8px;min-width:140px;font-family:'Space Mono',monospace;">
-          <div style="font-weight:bold;color:${color};font-size:13px;margin-bottom:4px;">${t.patente}</div>
-          <div style="font-size:11px;">
-            <span style="color:#3a6080;">Rend:</span> <span style="color:${color};font-weight:bold;">${t.rend.toFixed(2)} km/L</span>
-          </div>
-          <div style="font-size:11px;">
-            <span style="color:#3a6080;">Litros:</span> <span style="color:#00d4ff;">${Math.round(t.litros).toLocaleString()} L</span>
-          </div>
-        </div>
-      `, { className: "dark-popup" });
-      markersRef.current.push(marker);
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="width:10px;height:10px;background:${color};border:1.5px solid ${color};border-radius:2px;box-shadow:0 0 4px ${color}60;cursor:pointer;" title="${t.patente}: ${t.rend.toFixed(2)} km/L"></div>`;
+      const popupContent = `<div style="font-family:monospace;font-size:11px;min-width:140px;"><div style="font-weight:bold;color:${color};font-size:13px;margin-bottom:4px;">${t.patente}</div><div style="font-size:11px;"><span style="color:#888;">Rend:</span> <span style="color:${color};font-weight:bold;">${t.rend.toFixed(2)} km/L</span></div><div style="font-size:11px;"><span style="color:#888;">Litros:</span> <span>${Math.round(t.litros).toLocaleString()} L</span></div></div>`;
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: t.lat, lng: t.lng }, content: el });
+        marker.addListener("click", () => setSelectedTruck(t));
+        addInfoWindow(map, marker, popupContent);
+        markersRef.current.push(marker);
+      } else {
+        const marker = new google.maps.Marker({ map, position: { lat: t.lat, lng: t.lng } });
+        marker.addListener("click", () => setSelectedTruck(t));
+        addInfoWindow(map, marker, popupContent);
+        markersRef.current.push(marker);
+      }
+      allPoints.push({ lat: t.lat, lng: t.lng });
     }
 
-    const allCoords = [...stationCoords, ...truckPositions.map(t => [t.lat, t.lng] as [number, number])];
-    if (allCoords.length > 1) {
-      map.fitBounds(L.latLngBounds(allCoords).pad(0.15));
-    }
-  }, [camiones, conductores, leafletReady, subfaena]);
+    fitBoundsToPoints(map, allPoints, 40);
+  }, [camiones, conductores, subfaena]);
 
   const stats = useMemo(() => {
     const withRend = camiones.filter(c => c.rendimientoSigetra > 0 && c.rendimientoSigetra < 100);

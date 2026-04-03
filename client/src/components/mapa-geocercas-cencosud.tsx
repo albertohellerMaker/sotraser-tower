@@ -1,16 +1,8 @@
-/**
- * MAPA DE GEOCERCAS CENCOSUD (KML Oficial)
- * Renderiza los polígonos exactos importados desde el KML.
- * Regla absoluta: estos son los únicos puntos de origen/destino válidos.
- */
-
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { MapPin, Layers, RefreshCw } from "lucide-react";
+import { createDarkMap, fitBoundsToPoints, addInfoWindow, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
-// ── Colores por tipo ──────────────────────────────────────────────
 const TIPO_CONFIG: Record<string, { color: string; label: string; emoji: string }> = {
   CD:           { color: "#ff4444", label: "Centro de Distribución", emoji: "🏭" },
   JUMBO:        { color: "#00d4ff", label: "Jumbo",                  emoji: "🛒" },
@@ -41,8 +33,8 @@ interface GeoKml {
 
 export default function MapaGeocercasCencosud() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const layersRef = useRef<Record<string, L.LayerGroup>>({});
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const overlaysRef = useRef<Record<string, (google.maps.Polygon | google.maps.marker.AdvancedMarkerElement | google.maps.Marker)[]>>({});
   const [tiposActivos, setTiposActivos] = useState<Set<string>>(new Set(TODOS_LOS_TIPOS));
   const [seleccionada, setSeleccionada] = useState<GeoKml | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -53,55 +45,45 @@ export default function MapaGeocercasCencosud() {
     staleTime: 300000,
   });
 
-  // ── Inicializar mapa ─────────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    mapRef.current = L.map(containerRef.current, {
-      center: [-35.5, -71.0],
+    if (!containerRef.current || mapRef.current || !isGoogleMapsReady()) return;
+    mapRef.current = createDarkMap(containerRef.current, {
+      center: { lat: -35.5, lng: -71.0 },
       zoom: 6,
-      zoomControl: true,
     });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap",
-      maxZoom: 18,
-    }).addTo(mapRef.current);
-
-    // Crear layer group por tipo
     for (const tipo of TODOS_LOS_TIPOS) {
-      layersRef.current[tipo] = L.layerGroup().addTo(mapRef.current);
+      overlaysRef.current[tipo] = [];
     }
-
-    return () => {
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
+    return () => { mapRef.current = null; };
   }, []);
 
-  // ── Renderizar polígonos cuando llegan datos ─────────────────
   useEffect(() => {
-    if (!mapRef.current || !data?.geocercas) return;
+    if (!mapRef.current || !data?.geocercas || !isGoogleMapsReady()) return;
+    const map = mapRef.current;
 
-    // Limpiar layers
-    for (const lg of Object.values(layersRef.current)) lg.clearLayers();
+    for (const arr of Object.values(overlaysRef.current)) {
+      arr.forEach((o: any) => { if (o.setMap) o.setMap(null); else if (o.map !== undefined) o.map = null; });
+      arr.length = 0;
+    }
 
-    const bounds: L.LatLngTuple[] = [];
+    const allPoints: { lat: number; lng: number }[] = [];
 
     for (const geo of data.geocercas) {
       const cfg = TIPO_CONFIG[geo.tipo] || TIPO_CONFIG.OTRO;
-      const coords: L.LatLngTuple[] = geo.poligono.map(([lat, lng]) => [lat, lng]);
+      const coords = geo.poligono.map(([lat, lng]) => ({ lat, lng }));
       if (coords.length < 3) continue;
 
-      // Polígono
-      const poly = L.polygon(coords, {
-        color: cfg.color,
+      const polygon = new google.maps.Polygon({
+        paths: coords,
+        strokeColor: cfg.color,
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
         fillColor: cfg.color,
         fillOpacity: 0.15,
-        weight: 2,
-        opacity: 0.8,
+        map: tiposActivos.has(geo.tipo) ? map : null,
       });
 
-      // Popup
-      poly.bindPopup(`
+      const popupContent = `
         <div style="font-family:monospace;min-width:200px">
           <div style="font-weight:bold;font-size:13px;margin-bottom:4px">${cfg.emoji} ${geo.nombre}</div>
           <div style="color:#888;font-size:11px;margin-bottom:6px">${cfg.label}</div>
@@ -110,56 +92,63 @@ export default function MapaGeocercasCencosud() {
           ${geo.nombre_contrato ? `<div style="font-size:10px;color:#aaa">Contrato: ${geo.nombre_contrato}</div>` : ""}
           <div style="font-size:10px;color:#aaa">Centroide: ${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}</div>
         </div>
-      `, { maxWidth: 280 });
+      `;
 
-      poly.on("click", () => setSeleccionada(geo));
-
-      // Etiqueta centroide
-      const label = L.divIcon({
-        className: "",
-        html: `<div style="
-          font-size:9px;font-family:monospace;font-weight:bold;
-          color:${cfg.color};text-shadow:0 0 3px #000;
-          white-space:nowrap;pointer-events:none;
-          text-align:center;line-height:1.2;
-        ">${cfg.emoji}</div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+      const infoWindow = new google.maps.InfoWindow({ content: popupContent, maxWidth: 280 });
+      polygon.addListener("click", (e: any) => {
+        infoWindow.setPosition(e.latLng);
+        infoWindow.open(map);
+        setSeleccionada(geo);
       });
-      const marker = L.marker([geo.lat, geo.lng], { icon: label });
 
-      const lg = layersRef.current[geo.tipo] || layersRef.current.OTRO;
-      poly.addTo(lg);
-      marker.addTo(lg);
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="font-size:9px;font-family:monospace;font-weight:bold;color:${cfg.color};text-shadow:0 0 3px #000;white-space:nowrap;pointer-events:none;text-align:center;line-height:1.2;">${cfg.emoji}</div>`;
+      el.style.width = "16px";
+      el.style.height = "16px";
 
-      for (const c of coords) bounds.push(c);
+      const tipoArr = overlaysRef.current[geo.tipo] || overlaysRef.current.OTRO;
+      tipoArr.push(polygon);
+
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        const marker = new google.maps.marker.AdvancedMarkerElement({
+          map: tiposActivos.has(geo.tipo) ? map : null,
+          position: { lat: geo.lat, lng: geo.lng },
+          content: el,
+        });
+        tipoArr.push(marker);
+      } else {
+        const marker = new google.maps.Marker({
+          map: tiposActivos.has(geo.tipo) ? map : null,
+          position: { lat: geo.lat, lng: geo.lng },
+        });
+        tipoArr.push(marker);
+      }
+
+      for (const c of coords) allPoints.push(c);
     }
 
-    // Ajustar vista
-    if (bounds.length > 0) {
-      mapRef.current.fitBounds(L.latLngBounds(bounds), { padding: [30, 30], maxZoom: 9 });
+    if (allPoints.length > 0) {
+      fitBoundsToPoints(map, allPoints, 30, 9);
     }
   }, [data]);
 
-  // ── Filtrar por tipo (toggle layer) ─────────────────────────
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !isGoogleMapsReady()) return;
+    const map = mapRef.current;
     for (const tipo of TODOS_LOS_TIPOS) {
-      const lg = layersRef.current[tipo];
-      if (!lg) continue;
-      if (tiposActivos.has(tipo)) {
-        if (!mapRef.current.hasLayer(lg)) mapRef.current.addLayer(lg);
-      } else {
-        if (mapRef.current.hasLayer(lg)) mapRef.current.removeLayer(lg);
-      }
+      const arr = overlaysRef.current[tipo] || [];
+      const visible = tiposActivos.has(tipo);
+      arr.forEach((o: any) => {
+        if (o.setMap) o.setMap(visible ? map : null);
+        else if (o.map !== undefined) o.map = visible ? map : null;
+      });
     }
   }, [tiposActivos]);
 
-  // ── Zoom a geocerca desde lista ──────────────────────────────
   function zoomA(geo: GeoKml) {
     if (!mapRef.current) return;
-    const coords: L.LatLngTuple[] = geo.poligono.map(([lat, lng]) => [lat, lng]);
-    mapRef.current.fitBounds(L.latLngBounds(coords), { padding: [40, 40], maxZoom: 16 });
+    const coords = geo.poligono.map(([lat, lng]) => ({ lat, lng }));
+    fitBoundsToPoints(mapRef.current, coords, 40, 16);
     setSeleccionada(geo);
   }
 
@@ -170,10 +159,8 @@ export default function MapaGeocercasCencosud() {
   return (
     <div style={{ display: "flex", height: "calc(100vh - 160px)", gap: 0 }}>
 
-      {/* ── PANEL LATERAL ── */}
       <div style={{ width: 280, background: "#060d14", borderRight: "1px solid #0d2035", display: "flex", flexDirection: "column", flexShrink: 0 }}>
 
-        {/* Header panel */}
         <div style={{ padding: "10px 12px", borderBottom: "1px solid #0d2035" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -201,7 +188,6 @@ export default function MapaGeocercasCencosud() {
           />
         </div>
 
-        {/* Filtros por tipo */}
         <div style={{ padding: "8px 12px", borderBottom: "1px solid #0d2035" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
             <Layers size={10} color="#3a6080" />
@@ -237,7 +223,6 @@ export default function MapaGeocercasCencosud() {
           </div>
         </div>
 
-        {/* Lista geocercas */}
         <div style={{ flex: 1, overflowY: "auto" }}>
           {isLoading && (
             <div style={{ padding: 20, textAlign: "center", fontFamily: "monospace", fontSize: 10, color: "#3a6080" }}>
@@ -276,7 +261,6 @@ export default function MapaGeocercasCencosud() {
           })}
         </div>
 
-        {/* Leyenda de colores */}
         <div style={{ padding: "8px 12px", borderTop: "1px solid #0d2035" }}>
           <div style={{ fontFamily: "monospace", fontSize: 8, color: "#1a3050", letterSpacing: "0.1em", marginBottom: 4 }}>LEYENDA</div>
           {TODOS_LOS_TIPOS.filter(t => (data?.por_tipo?.[t] || 0) > 0).map(tipo => {
@@ -291,11 +275,9 @@ export default function MapaGeocercasCencosud() {
         </div>
       </div>
 
-      {/* ── MAPA ── */}
       <div style={{ flex: 1, position: "relative" }}>
         <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
-        {/* Badge info selección */}
         {seleccionada && (
           <div style={{
             position: "absolute", bottom: 12, left: 12, zIndex: 1000,

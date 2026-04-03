@@ -13,8 +13,7 @@ import {
   AlertCircle, Link2Off, Shield
 } from "lucide-react";
 import type { Faena, Camion } from "@shared/schema";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { createDarkMap, addInfoWindow, fitBoundsToPoints, clearMarkers, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 interface UnifiedStatus {
   vin: string;
@@ -40,21 +39,11 @@ interface UnifiedStatus {
   grossWeight: number | null;
 }
 
-function createColorIcon(color: string): L.DivIcon {
-  return L.divIcon({
-    className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
-    html: `<div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14"/><path d="M5 17a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
-    </div>`,
-  });
+function createColorIconHtml(color: string): string {
+  return `<div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14"/><path d="M5 17a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
+  </div>`;
 }
-
-const greenIcon = createColorIcon("#22c55e");
-const yellowIcon = createColorIcon("#eab308");
-const greyIcon = createColorIcon("#6b7280");
 
 function TruckMap({ camiones, statusMap, faenas, onSelectVin }: {
   camiones: Camion[];
@@ -63,48 +52,37 @@ function TruckMap({ camiones, statusMap, faenas, onSelectVin }: {
   onSelectVin: (vin: string) => void;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<(google.maps.Marker | google.maps.marker.AdvancedMarkerElement)[]>([]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !isGoogleMapsReady()) return;
 
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
+    clearMarkers(markersRef.current as any);
 
-    const map = L.map(mapRef.current, {
-      center: [-33.45, -70.65],
+    const map = mapInstanceRef.current || createDarkMap(mapRef.current, {
+      center: { lat: -33.45, lng: -70.65 },
       zoom: 6,
-      zoomControl: true,
     });
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; OpenStreetMap',
-      maxZoom: 18,
-    }).addTo(map);
-
     mapInstanceRef.current = map;
 
-    const bounds: L.LatLngExpression[] = [];
+    const points: { lat: number; lng: number }[] = [];
+
+    (window as any).__volvoSelectVin__ = (vin: string) => onSelectVin(vin);
 
     camiones.forEach(cam => {
       if (!cam.vin) return;
       const vs = statusMap.get(cam.vin);
       const gps = vs?.gps;
-      const hasGps = gps && gps.latitude != null && gps.longitude != null;
+      if (!gps || gps.latitude == null || gps.longitude == null) return;
 
-      if (!hasGps) return;
-
-      const lat = gps!.latitude!;
-      const lng = gps!.longitude!;
-      bounds.push([lat, lng]);
+      const lat = gps.latitude!;
+      const lng = gps.longitude!;
+      points.push({ lat, lng });
 
       const isOnline = !!vs;
       const hasData = vs && (vs.fuelLevel != null || vs.totalDistance != null);
-      let icon = greyIcon;
-      if (isOnline && hasData) icon = greenIcon;
-      else if (isOnline) icon = yellowIcon;
+      const color = isOnline && hasData ? "#22c55e" : isOnline ? "#eab308" : "#6b7280";
 
       const faena = faenas.find(f => f.id === cam.faenaId);
       const distKm = vs?.totalDistance ? Math.round(vs.totalDistance / 1000) : cam.odometro;
@@ -124,24 +102,24 @@ function TruckMap({ camiones, statusMap, faenas, onSelectVin }: {
         </div>
       `;
 
-      L.marker([lat, lng], { icon })
-        .addTo(map)
-        .bindPopup(popupContent);
+      const el = document.createElement("div");
+      el.innerHTML = createColorIconHtml(color);
+      el.style.cursor = "pointer";
+
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat, lng }, content: el });
+        addInfoWindow(map, marker, popupContent);
+        markersRef.current.push(marker);
+      } else {
+        const marker = new google.maps.Marker({ map, position: { lat, lng } });
+        addInfoWindow(map, marker, popupContent);
+        markersRef.current.push(marker);
+      }
     });
 
-    if (bounds.length > 0) {
-      map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 12 });
-    }
-
-    (window as any).__volvoSelectVin__ = (vin: string) => {
-      onSelectVin(vin);
-    };
+    fitBoundsToPoints(map, points, 40, 12);
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
       delete (window as any).__volvoSelectVin__;
     };
   }, [camiones, statusMap, faenas, onSelectVin]);
