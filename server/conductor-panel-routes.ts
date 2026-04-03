@@ -54,41 +54,35 @@ router.get("/paradas-recientes", async (_req: Request, res: Response) => {
 router.get("/activos", async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT
-         cp.nombre,
-         c.patente,
-         cp.contrato,
-         gp.timestamp_punto as ultimo_punto,
-         gp.lat, gp.lng,
-         gp.velocidad_kmh as velocidad,
-         COALESCE(vj.viajes_hoy, 0) as viajes_hoy,
-         COALESCE(vj.paradas_completadas, 0) as paradas_completadas,
-         COALESCE(vj.paradas_total, 0) as paradas_total
-       FROM conductores_perfil cp
-       LEFT JOIN camiones c ON c.conductor = cp.nombre
-       LEFT JOIN LATERAL (
-         SELECT lat, lng, timestamp_punto, velocidad_kmh
-         FROM geo_puntos WHERE camion_id = c.id
-         ORDER BY timestamp_punto DESC LIMIT 1
-       ) gp ON true
-       LEFT JOIN LATERAL (
-         SELECT
-           COUNT(*) as viajes_hoy,
-           COALESCE(SUM(CASE WHEN vps.completadas IS NOT NULL THEN vps.completadas ELSE 0 END), 0) as paradas_completadas,
-           COALESCE(SUM(CASE WHEN vps.total IS NOT NULL THEN vps.total ELSE 0 END), 0) as paradas_total
-         FROM viajes v2
-         LEFT JOIN LATERAL (
-           SELECT
-             COUNT(*) FILTER (WHERE vp2.estado = 'COMPLETADA') as completadas,
-             COUNT(*) as total
-           FROM viaje_paradas vp2 WHERE vp2.viaje_id = v2.id
-         ) vps ON true
-         WHERE v2.conductor = cp.nombre
-           AND v2.fecha_salida::date = CURRENT_DATE
-       ) vj ON true
-       WHERE gp.timestamp_punto >= NOW() - INTERVAL '4 hours'
-          OR vj.viajes_hoy > 0
-       ORDER BY gp.timestamp_punto DESC NULLS LAST
+      `WITH conductor_camion AS (
+         SELECT cp.nombre, c.id as camion_id, c.patente, cp.contrato
+         FROM conductores_perfil cp
+         LEFT JOIN camiones c ON c.conductor = cp.nombre
+         WHERE c.id IS NOT NULL
+       ),
+       ultimo_gps AS (
+         SELECT DISTINCT ON (camion_id)
+           camion_id, lat, lng, timestamp_punto, velocidad_kmh
+         FROM geo_puntos
+         WHERE timestamp_punto >= NOW() - INTERVAL '4 hours'
+         ORDER BY camion_id, timestamp_punto DESC
+       ),
+       viajes_hoy AS (
+         SELECT conductor, COUNT(*) as viajes_hoy
+         FROM viajes
+         WHERE fecha_salida::date = CURRENT_DATE
+         GROUP BY conductor
+       )
+       SELECT cc.nombre, cc.patente, cc.contrato,
+              ug.timestamp_punto as ultimo_punto, ug.lat, ug.lng,
+              ug.velocidad_kmh as velocidad,
+              COALESCE(vh.viajes_hoy, 0) as viajes_hoy,
+              0 as paradas_completadas, 0 as paradas_total
+       FROM conductor_camion cc
+       LEFT JOIN ultimo_gps ug ON ug.camion_id = cc.camion_id
+       LEFT JOIN viajes_hoy vh ON vh.conductor = cc.nombre
+       WHERE ug.timestamp_punto IS NOT NULL OR vh.viajes_hoy > 0
+       ORDER BY ug.timestamp_punto DESC NULLS LAST
        LIMIT 50`
     );
     return res.json({ conductores: result.rows });
