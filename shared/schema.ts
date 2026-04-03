@@ -45,7 +45,7 @@ export type Camion = typeof camiones.$inferSelect;
 
 export const cargas = pgTable("cargas", {
   id: serial("id").primaryKey(),
-  camionId: integer("camion_id").notNull(),
+  camionId: integer("camion_id").notNull().references(() => camiones.id),
   fecha: text("fecha").notNull(),
   litrosSurtidor: real("litros_surtidor").notNull(),
   litrosEcu: real("litros_ecu").notNull(),
@@ -106,7 +106,7 @@ export type Parametro = typeof parametros.$inferSelect;
 
 export const puntosRuta = pgTable("puntos_ruta", {
   id: serial("id").primaryKey(),
-  camionId: integer("camion_id"),
+  camionId: integer("camion_id").references(() => camiones.id),
   lat: numeric("lat", { precision: 10, scale: 7 }).notNull(),
   lng: numeric("lng", { precision: 10, scale: 7 }).notNull(),
   tipo: varchar("tipo", { length: 20 }),
@@ -462,6 +462,23 @@ export const viajesAprendizaje = pgTable("viajes_aprendizaje", {
 export const insertViajeAprendizajeSchema = createInsertSchema(viajesAprendizaje).omit({ id: true, creadoAt: true });
 export type InsertViajeAprendizaje = z.infer<typeof insertViajeAprendizajeSchema>;
 export type ViajeAprendizaje = typeof viajesAprendizaje.$inferSelect;
+
+export const viajeParadas = pgTable("viaje_paradas", {
+  id: serial("id").primaryKey(),
+  viajeAprendizajeId: integer("viaje_aprendizaje_id").references(() => viajesAprendizaje.id).notNull(),
+  orden: integer("orden").notNull().default(0),
+  lat: numeric("lat", { precision: 10, scale: 7 }).notNull(),
+  lng: numeric("lng", { precision: 10, scale: 7 }).notNull(),
+  nombre: varchar("nombre", { length: 200 }),
+  tipo: varchar("tipo", { length: 30 }).default("PARADA"),
+  minutosDetenido: integer("minutos_detenido").default(0),
+  lugarId: integer("lugar_id").references(() => geoLugares.id),
+  creadoAt: timestamp("creado_at").defaultNow(),
+});
+
+export const insertViajeParadaSchema = createInsertSchema(viajeParadas).omit({ id: true, creadoAt: true });
+export type InsertViajeParada = z.infer<typeof insertViajeParadaSchema>;
+export type ViajeParada = typeof viajeParadas.$inferSelect;
 
 export const conductoresPerfil = pgTable("conductores_perfil", {
   id: serial("id").primaryKey(),
