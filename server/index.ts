@@ -3,7 +3,7 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { iniciarJobs } from "./jobs";
+import { iniciarWorkers } from "./worker-manager";
 import { iniciarGitSync } from "./github-sync";
 import { db } from "./db";
 import { geoBases } from "@shared/schema";
@@ -165,13 +165,9 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
 
       inicializarContratos();
-      iniciarJobs();
       iniciarGitSync();
 
-      // Multi-agent system
-      import("./agentes/index").then(m => m.iniciarAgentes()).catch(e => console.error("[AGENTES] Init error:", e.message));
-      import("./agentes/super-agente-cencosud").then(m => m.superAgenteCencosud.iniciar()).catch(e => console.error("[SUPER-CENCOSUD] Init error:", e.message));
-      import("./agentes/super-agente-anglo").then(m => m.superAgenteAnglo.iniciar()).catch(e => console.error("[SUPER-ANGLO] Init error:", e.message));
+      iniciarWorkers();
 
       setTimeout(async () => {
         try {
