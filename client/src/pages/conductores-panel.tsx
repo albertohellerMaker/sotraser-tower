@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 import {
   Users, AlertTriangle, MapPin, CheckCircle, Clock, Truck, Search,
-  Plus, Send, Eye, Radio, ChevronRight, X, Navigation, Loader2
+  Plus, Send, Eye, Radio, ChevronRight, X, Navigation, Loader2,
+  Smartphone, ExternalLink, Maximize2, Minimize2
 } from "lucide-react";
 
-type SubTab = "vivo" | "asignar" | "gestion" | "novedades";
+type SubTab = "vivo" | "asignar" | "gestion" | "novedades" | "app";
 
 const ESTADO_COLORS: Record<string, string> = {
   PROGRAMADO: "#ffcc00",
@@ -43,6 +44,7 @@ export default function ConductoresPanel() {
             { id: "asignar" as SubTab, label: "ASIGNAR VIAJE", icon: Send, color: "#ffcc00" },
             { id: "gestion" as SubTab, label: "GESTIÓN", icon: Users, color: "#06b6d4" },
             { id: "novedades" as SubTab, label: "NOVEDADES", icon: AlertTriangle, color: "#ff6b35" },
+            { id: "app" as SubTab, label: "APP CONDUCTOR", icon: Smartphone, color: "#a855f7" },
           ]).map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 font-exo text-[9px] font-bold cursor-pointer transition-all"
@@ -63,6 +65,7 @@ export default function ConductoresPanel() {
       {subTab === "asignar" && <AsignarViaje />}
       {subTab === "gestion" && <GestionConductores />}
       {subTab === "novedades" && <NovedadesPanel />}
+      {subTab === "app" && <AppConductorIframe />}
     </div>
   );
 }
@@ -689,6 +692,100 @@ function NovedadesPanel() {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+const DRIVER_APP_URL = "https://driver-route-planner-albertoheller.replit.app";
+
+function AppConductorIframe() {
+  const [patente, setPatente] = useState("DEMO01");
+  const [searchCamion, setSearchCamion] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
+
+  const { data: camionesData } = useQuery<any>({
+    queryKey: ["/api/conductor-panel/camiones-disponibles"],
+    queryFn: () => fetch("/api/conductor-panel/camiones-disponibles").then(r => r.json()),
+  });
+
+  const camiones = camionesData?.camiones || [];
+  const camionesFilt = searchCamion
+    ? camiones.filter((c: any) => c.patente.toLowerCase().includes(searchCamion.toLowerCase()))
+    : [];
+
+  const iframeSrc = `${DRIVER_APP_URL}/?patente=${patente}`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 p-3" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
+        <Smartphone size={16} style={{ color: "#a855f7" }} />
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-exo text-[11px] font-bold" style={{ color: "#c8e8ff" }}>VISTA PREVIA — APP DEL CONDUCTOR</span>
+            <a href={iframeSrc} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 font-exo text-[8px]" style={{ color: "#a855f7" }}>
+              <ExternalLink size={9} /> ABRIR EN NUEVA PESTAÑA
+            </a>
+          </div>
+          <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+            Selecciona un camión para ver la app como la ve el conductor en terreno
+          </span>
+        </div>
+
+        <div className="relative">
+          <input
+            value={searchCamion}
+            onChange={e => setSearchCamion(e.target.value)}
+            placeholder="Buscar patente..."
+            className="px-3 py-1.5 font-exo text-[10px] w-[160px]"
+            style={{ background: "#0a1628", border: "1px solid #0d2035", borderRadius: 4, color: "#c8e8ff", outline: "none" }}
+          />
+          {searchCamion && camionesFilt.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 max-h-40 overflow-y-auto z-50"
+              style={{ background: "#0a1628", border: "1px solid #0d2035", borderRadius: 4 }}>
+              {camionesFilt.slice(0, 12).map((c: any) => (
+                <div key={c.id}
+                  onClick={() => { setPatente(c.patente); setSearchCamion(""); setIframeKey(k => k + 1); }}
+                  className="px-3 py-1.5 cursor-pointer hover:bg-[#0d2035] flex items-center justify-between">
+                  <span className="font-space text-[10px] font-bold" style={{ color: "#ffcc00" }}>{c.patente}</span>
+                  <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{c.modelo}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="px-2 py-1" style={{ background: "#a855f720", borderRadius: 4, border: "1px solid #a855f740" }}>
+            <span className="font-space text-[11px] font-bold" style={{ color: "#a855f7" }}>{patente}</span>
+          </div>
+          <button onClick={() => setExpanded(!expanded)}
+            className="p-1.5 cursor-pointer" style={{ color: "#3a6080", background: "#0a1628", border: "1px solid #0d2035", borderRadius: 4 }}>
+            {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+          </button>
+        </div>
+      </div>
+
+      <div style={{
+        background: "#060d14",
+        border: "1px solid #0d2035",
+        borderRadius: 12,
+        overflow: "hidden",
+        height: expanded ? "calc(100vh - 160px)" : "700px",
+        transition: "height 0.3s ease",
+      }}>
+        <iframe
+          key={iframeKey}
+          src={iframeSrc}
+          width="100%"
+          height="100%"
+          frameBorder="0"
+          allow="geolocation; camera"
+          title="App del Conductor"
+          style={{ border: "none", borderRadius: 12 }}
+        />
       </div>
     </div>
   );
