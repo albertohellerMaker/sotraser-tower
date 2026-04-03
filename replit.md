@@ -26,7 +26,8 @@ A comprehensive fleet management system for a Chilean trucking company (~825 tru
 - **AI**: Anthropic Claude (fleet diagnostics and conversational assistant)
 - **Build**: Vite (frontend), esbuild (backend production bundle)
 - **Package manager**: npm
-- **Maps**: Google Maps ONLY (`@vis.gl/react-google-maps`). Key: `VITE_GOOGLE_MAPS_KEY`. Leaflet still present in some legacy pages pending migration.
+- **Maps**: Google Maps ONLY (`@vis.gl/react-google-maps`). Key: `VITE_GOOGLE_MAPS_KEY`. All Leaflet fully removed.
+- **Workers**: Background jobs and agents run in separate child processes via `server/worker-manager.ts` (uses `child_process.fork` + tsx). Workers: `server/workers/jobs-worker.ts` (data sync, scoring, geocercas), `server/workers/agents-worker.ts` (multi-agent AI system). Auto-restart with exponential backoff on crash.
 
 ## Project Structure
 ```
