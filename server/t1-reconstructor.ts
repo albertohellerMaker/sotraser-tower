@@ -252,14 +252,12 @@ async function cargarTarifas(): Promise<Map<string, number>> {
 }
 
 function filtrarParadas(visitas: Visita[]): Visita[] {
-  if (visitas.length <= 2) return visitas;
   const result: Visita[] = [];
   for (const v of visitas) {
     if (v.es_parada) continue;
     result.push(v);
   }
-  if (result.length < 2 && visitas.length >= 2) return visitas;
-  return result;
+  return result.length >= 2 ? result : result;
 }
 
 function construirViajes(
