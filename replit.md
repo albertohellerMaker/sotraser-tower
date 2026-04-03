@@ -8,7 +8,7 @@ A comprehensive fleet management system for a Chilean trucking company (~825 tru
 - **Sigetra**: Fuel loading transactions (litros, estacion, km, conductor) via API (sync every 1 hour)
 
 ## Architecture
-- **Full-stack monorepo**: Express backend serves both the API and the Vite-bundled React frontend
+- **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`. Root has devDependencies and scripts.
 - **Single port**: Both API and frontend run on port 5000 in development
 - **Database**: PostgreSQL (Neon/Railway production DB loaded via `.env` file, overrides Replit's managed DATABASE_URL)
 - **GitHub auto-sync**: `server/github-sync.ts` pushes to `github.com/albertohellerMaker/sotraser-tower` every 10 minutes using `GITHUB_TOKEN`

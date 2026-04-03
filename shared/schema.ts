@@ -465,18 +465,21 @@ export type ViajeAprendizaje = typeof viajesAprendizaje.$inferSelect;
 
 export const viajeParadas = pgTable("viaje_paradas", {
   id: serial("id").primaryKey(),
-  viajeAprendizajeId: integer("viaje_aprendizaje_id").references(() => viajesAprendizaje.id).notNull(),
-  orden: integer("orden").notNull().default(0),
-  lat: numeric("lat", { precision: 10, scale: 7 }).notNull(),
-  lng: numeric("lng", { precision: 10, scale: 7 }).notNull(),
-  nombre: varchar("nombre", { length: 200 }),
-  tipo: varchar("tipo", { length: 30 }).default("PARADA"),
-  minutosDetenido: integer("minutos_detenido").default(0),
-  lugarId: integer("lugar_id").references(() => geoLugares.id),
-  creadoAt: timestamp("creado_at").defaultNow(),
+  viajeId: integer("viaje_id").notNull(),
+  orden: integer("orden").notNull(),
+  nombre: varchar("nombre", { length: 200 }).notNull(),
+  direccion: varchar("direccion", { length: 300 }),
+  lat: numeric("lat", { precision: 10, scale: 7 }),
+  lng: numeric("lng", { precision: 10, scale: 7 }),
+  tipo: varchar("tipo", { length: 20 }).notNull().default("ENTREGA"),
+  estado: varchar("estado", { length: 20 }).notNull().default("PENDIENTE"),
+  horaEstimada: timestamp("hora_estimada"),
+  horaReal: timestamp("hora_real"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertViajeParadaSchema = createInsertSchema(viajeParadas).omit({ id: true, creadoAt: true });
+export const insertViajeParadaSchema = createInsertSchema(viajeParadas).omit({ id: true, createdAt: true });
 export type InsertViajeParada = z.infer<typeof insertViajeParadaSchema>;
 export type ViajeParada = typeof viajeParadas.$inferSelect;
 
