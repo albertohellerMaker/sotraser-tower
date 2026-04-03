@@ -1,0 +1,12 @@
+{
+  "name": "@sotraser/server",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "express": "^5.0.1",
+    "express-session": "^1.19.0",
+    "pg": "^8.16.3",
+    "@sotraser/shared": "*"
+  }
+}
