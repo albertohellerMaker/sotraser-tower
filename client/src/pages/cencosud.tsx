@@ -21,6 +21,7 @@ function MapeoInteractivo() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObjRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const polylinesRef = useRef<google.maps.Polyline[]>([]);
 
   const { data, refetch } = useQuery<any>({
     queryKey: ["/api/cencosud/viajes-sin-tarifa-mapa"],
@@ -59,7 +60,7 @@ function MapeoInteractivo() {
     const existing = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existing) { const iv = setInterval(() => { if ((window as any).google) { initMap(); clearInterval(iv); } }, 200); return () => clearInterval(iv); }
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBFOGhxmCNGCafGEl4wKVn9VLJXqZgavbo&libraries=places`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${(import.meta as any).env?.VITE_GOOGLE_MAPS_KEY || ""}&libraries=places`;
     s.async = true;
     s.onload = () => setTimeout(initMap, 100);
     document.head.appendChild(s);
@@ -69,6 +70,8 @@ function MapeoInteractivo() {
     if (!mapObjRef.current || !selected) return;
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
+    polylinesRef.current.forEach(p => p.setMap(null));
+    polylinesRef.current = [];
     const bounds = new google.maps.LatLngBounds();
     if (selected.origen_lat && selected.origen_lng) {
       const m = new google.maps.Marker({
@@ -77,7 +80,8 @@ function MapeoInteractivo() {
         icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
         title: `ORIGEN: ${selected.origen_nombre || "?"}`,
       });
-      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">ORIGEN<br/>${selected.origen_nombre || "Sin nombre"}<br/><small>${selected.origen_lat?.toFixed(4)}, ${selected.origen_lng?.toFixed(4)}</small></div>` });
+      const esc = (s: string) => s.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c));
+      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">ORIGEN<br/>${esc(selected.origen_nombre || "Sin nombre")}<br/><small>${selected.origen_lat?.toFixed(4)}, ${selected.origen_lng?.toFixed(4)}</small></div>` });
       m.addListener("click", () => iw.open(mapObjRef.current!, m));
       iw.open(mapObjRef.current!, m);
       markersRef.current.push(m);
@@ -90,20 +94,22 @@ function MapeoInteractivo() {
         icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
         title: `DESTINO: ${selected.destino_nombre || "?"}`,
       });
-      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">DESTINO<br/>${selected.destino_nombre || "Sin nombre"}<br/><small>${selected.destino_lat?.toFixed(4)}, ${selected.destino_lng?.toFixed(4)}</small></div>` });
+      const esc2 = (s: string) => s.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c));
+      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">DESTINO<br/>${esc2(selected.destino_nombre || "Sin nombre")}<br/><small>${selected.destino_lat?.toFixed(4)}, ${selected.destino_lng?.toFixed(4)}</small></div>` });
       m.addListener("click", () => iw.open(mapObjRef.current!, m));
       iw.open(mapObjRef.current!, m);
       markersRef.current.push(m);
       bounds.extend(m.getPosition()!);
     }
     if (selected.origen_lat && selected.destino_lat) {
-      new google.maps.Polyline({
+      const pl = new google.maps.Polyline({
         path: [
           { lat: selected.origen_lat, lng: selected.origen_lng },
           { lat: selected.destino_lat, lng: selected.destino_lng },
         ],
         map: mapObjRef.current, strokeColor: "#00d4ff", strokeWeight: 2, strokeOpacity: 0.6,
       });
+      polylinesRef.current.push(pl);
       mapObjRef.current.fitBounds(bounds, 60);
     }
   }, [selected]);
@@ -141,13 +147,23 @@ function MapeoInteractivo() {
   const handleDescartar = async () => {
     if (!selected) return;
     setSaving(true);
-    await fetch("/api/cencosud/descartar-viaje", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ viaje_id: selected.id, motivo: "No es Cencosud" }),
-    });
-    setFeedback({ msg: "Viaje descartado", ok: true });
-    setSelected(null);
-    refetch();
+    try {
+      const resp = await fetch("/api/cencosud/descartar-viaje", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viaje_id: selected.id, motivo: "No es Cencosud" }),
+      });
+      if (!resp.ok) throw new Error("Error al descartar");
+      const r = await resp.json();
+      if (r.ok) {
+        setFeedback({ msg: "Viaje descartado", ok: true });
+        setSelected(null);
+        refetch();
+      } else {
+        setFeedback({ msg: r.error || "Error al descartar", ok: false });
+      }
+    } catch (e: any) {
+      setFeedback({ msg: e.message || "Error de conexión", ok: false });
+    }
     setSaving(false);
   };
 

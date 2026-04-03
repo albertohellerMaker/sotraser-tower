@@ -545,7 +545,7 @@ router.get("/agente/inteligencia", async (_req, res) => {
 // ═══ VIAJES SIN TARIFA — INTERACTIVO CON MAPA ═══
 router.get("/viajes-sin-tarifa-mapa", async (req, res) => {
   try {
-    const dias = parseInt(req.query.dias as string) || 30;
+    const dias = Math.min(parseInt(req.query.dias as string) || 30, 90);
     const [viajesR, rutasR, nombresR] = await Promise.all([
       pool.query(`
         SELECT va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
