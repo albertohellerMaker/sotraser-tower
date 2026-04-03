@@ -20,392 +20,326 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number): number 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+const RADIO_ALIAS_KM = 30;
+const RADIO_ALIAS_CD_KM = 5;
+const MIN_VIAJES_PARA_ALIAS = 2;
+const VENTANA_CONSOLIDACION_HORAS = 4;
+const GPS_INVALIDO_LAT = -22.198;
+
+interface CiudadContrato {
+  nombre: string;
+  lat: number;
+  lng: number;
+  esCD: boolean;
+  esCT: boolean;
+}
+
+let _ciudadesCache: CiudadContrato[] = [];
+let _ciudadesCacheTs = 0;
+
+async function getCiudadesContrato(): Promise<CiudadContrato[]> {
+  if (Date.now() - _ciudadesCacheTs < 10 * 60 * 1000 && _ciudadesCache.length > 0) return _ciudadesCache;
+
+  const r = await pool.query(`
+    SELECT nc as nombre, ROUND(AVG(lat)::numeric, 4)::float as lat, ROUND(AVG(lng)::numeric, 4)::float as lng, COUNT(*)::int as refs
+    FROM (
+      SELECT a.nombre_contrato as nc, v.origen_lat::float as lat, v.origen_lng::float as lng
+      FROM geocerca_alias_contrato a
+      JOIN viajes_aprendizaje v ON v.origen_nombre = a.geocerca_nombre
+      WHERE a.contrato = 'CENCOSUD' AND v.origen_lat IS NOT NULL AND v.origen_lat BETWEEN -56 AND -17
+      UNION ALL
+      SELECT a.nombre_contrato, v.destino_lat::float, v.destino_lng::float
+      FROM geocerca_alias_contrato a
+      JOIN viajes_aprendizaje v ON v.destino_nombre = a.geocerca_nombre
+      WHERE a.contrato = 'CENCOSUD' AND v.destino_lat IS NOT NULL AND v.destino_lat BETWEEN -56 AND -17
+    ) sub
+    GROUP BY nc HAVING COUNT(*) >= 2
+  `);
+
+  _ciudadesCache = r.rows
+    .filter((c: any) => c.lat && c.lng && !c.nombre.startsWith("Geocerca Zona"))
+    .map((c: any) => ({
+      nombre: c.nombre,
+      lat: c.lat,
+      lng: c.lng,
+      esCD: c.nombre.startsWith("CD "),
+      esCT: c.nombre.startsWith("CT "),
+    }));
+  _ciudadesCacheTs = Date.now();
+  return _ciudadesCache;
+}
+
+function encontrarCiudadMasCercana(lat: number, lng: number, ciudades: CiudadContrato[]): { ciudad: CiudadContrato; distancia: number } | null {
+  if (Math.abs(lat - GPS_INVALIDO_LAT) < 0.1) return null;
+  if (lat < -56 || lat > -17 || lng < -76 || lng > -66) return null;
+
+  let mejor: { ciudad: CiudadContrato; distancia: number } | null = null;
+  for (const c of ciudades) {
+    const d = distKm(lat, lng, c.lat, c.lng);
+    const radio = (c.esCD || c.esCT) ? RADIO_ALIAS_CD_KM : RADIO_ALIAS_KM;
+    if (d <= radio && (!mejor || d < mejor.distancia)) {
+      mejor = { ciudad: c, distancia: d };
+    }
+  }
+  return mejor;
+}
+
 export const superAgenteCencosud = {
   id: "super-agente-cencosud",
 
   async iniciar() {
-    console.log("[SUPER-CENCOSUD] Iniciando...");
+    console.log("[SUPER-CENCOSUD] Iniciando agente con GPS-proximity + consolidación...");
     setInterval(async () => { try { await this.ejecutarCiclo(); } catch (e: any) { console.error("[SUPER-CENCOSUD]", e.message); } }, 30 * 60 * 1000);
     setTimeout(async () => { try { await this.ejecutarCiclo(); } catch (e: any) { console.error("[SUPER-CENCOSUD]", e.message); } }, 20000);
   },
 
   async ejecutarCiclo() {
-    console.log("[SUPER-CENCOSUD] Ciclo...");
+    console.log("[SUPER-CENCOSUD] ─── Ciclo inicio ───");
     try {
-      const geoResult = await this.construirGeoReferencias();
-      const clasResult = await this.clasificarViajes();
+      const aliasResult = await this.autoAliasGPS();
+      const consolResult = await this.consolidarTrayectos();
       const facResult = await this.inteligenciaFacturacion();
-      await this.analizarFinanciero();
       await this.verificarMetas();
       await this.detectarAnomalias();
 
       await pool.query("UPDATE cencosud_agente_estado SET ultimo_ciclo = NOW(), ciclos_hoy = ciclos_hoy + 1, updated_at = NOW() WHERE id = 1");
-      console.log(`[SUPER-CENCOSUD] OK: +${geoResult.nuevas} geocercas, ${clasResult.clasificados} viajes clasificados, facturación: ${facResult.conTarifa}/${facResult.totalViajes} con tarifa ($${facResult.ingresoTarifa.toLocaleString()})`);
-    } catch (e: any) { console.error("[SUPER-CENCOSUD] Error:", e.message); }
+      console.log(`[SUPER-CENCOSUD] OK: +${aliasResult.nuevos} alias GPS, ${consolResult.consolidados} trayectos, billing: ${facResult.conTarifa}/${facResult.totalViajes} (${facResult.pctFacturable}%) = $${facResult.ingresoTarifa.toLocaleString()}`);
+    } catch (e: any) { console.error("[SUPER-CENCOSUD] Error ciclo:", e.message); }
   },
 
-  async construirGeoReferencias() {
-    let geocercasKml: any[] = [];
-    try {
-      const kmlRes = await pool.query("SELECT lat::float, lng::float, radio_m FROM cencosud_geocercas_kml WHERE activa = true");
-      geocercasKml = kmlRes.rows;
-    } catch {}
+  async autoAliasGPS() {
+    const ciudades = await getCiudadesContrato();
+    if (ciudades.length === 0) return { nuevos: 0, evaluados: 0 };
 
-    const geos = await pool.query("SELECT * FROM cencosud_geocercas WHERE activa = true");
-    const geocercas = [...geos.rows, ...geocercasKml];
-
-    const puntos = await pool.query(`
-      SELECT DISTINCT ROUND(lat::numeric, 4) as lat, ROUND(lng::numeric, 4) as lng, COUNT(*)::int as viajes FROM (
-        SELECT va.origen_lat::float as lat, va.origen_lng::float as lng
-        FROM viajes_aprendizaje va
-        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '14 days' AND va.km_ecu > 0 AND va.origen_lat IS NOT NULL
+    const sinAlias = await pool.query(`
+      SELECT nombre, lat, lng, viajes FROM (
+        SELECT v.origen_nombre as nombre, v.origen_lat::float as lat, v.origen_lng::float as lng, COUNT(*)::int as viajes
+        FROM viajes_aprendizaje v
+        LEFT JOIN geocerca_alias_contrato a ON a.geocerca_nombre = v.origen_nombre AND a.contrato = 'CENCOSUD'
+        WHERE v.contrato = 'CENCOSUD' AND v.fecha_inicio >= NOW() - INTERVAL '30 days'
+          AND v.origen_lat IS NOT NULL AND a.id IS NULL
+          AND v.origen_nombre IS NOT NULL AND v.origen_nombre != 'Punto desconocido'
+        GROUP BY v.origen_nombre, v.origen_lat, v.origen_lng
         UNION ALL
-        SELECT va.destino_lat::float, va.destino_lng::float
-        FROM viajes_aprendizaje va
-        WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '14 days' AND va.km_ecu > 0 AND va.destino_lat IS NOT NULL
-      ) sub WHERE lat IS NOT NULL
-      GROUP BY ROUND(lat::numeric, 4), ROUND(lng::numeric, 4)
-      HAVING COUNT(*) >= 2
-      ORDER BY viajes DESC LIMIT 50
+        SELECT v.destino_nombre, v.destino_lat::float, v.destino_lng::float, COUNT(*)::int
+        FROM viajes_aprendizaje v
+        LEFT JOIN geocerca_alias_contrato a ON a.geocerca_nombre = v.destino_nombre AND a.contrato = 'CENCOSUD'
+        WHERE v.contrato = 'CENCOSUD' AND v.fecha_inicio >= NOW() - INTERVAL '30 days'
+          AND v.destino_lat IS NOT NULL AND a.id IS NULL
+          AND v.destino_nombre IS NOT NULL AND v.destino_nombre != 'Punto desconocido'
+        GROUP BY v.destino_nombre, v.destino_lat, v.destino_lng
+      ) sub
+      WHERE viajes >= ${MIN_VIAJES_PARA_ALIAS}
+      ORDER BY viajes DESC
+      LIMIT 200
     `);
 
-    let nuevas = 0;
-    for (const p of puntos.rows) {
-      const enGeo = geocercas.find((g: any) => distKm(p.lat, p.lng, g.lat, g.lng) * 1000 < g.radio_m);
-      if (enGeo) continue;
+    let nuevos = 0;
+    const aliasCreados: string[] = [];
 
-      const info = await this.reverseGeocode(p.lat, p.lng);
-      if (!info) continue;
+    for (const punto of sinAlias.rows) {
+      if (!punto.lat || !punto.lng) continue;
+      const match = encontrarCiudadMasCercana(punto.lat, punto.lng, ciudades);
+      if (!match) continue;
 
-      const { nombre, ciudad, esCD } = this.clasificarPunto(info, p.lat, p.lng);
-      if (!ciudad) continue;
-
-      const rutaMatch = await pool.query(
-        "SELECT DISTINCT destino FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND (destino ILIKE $1 OR origen ILIKE $1) LIMIT 1",
-        [`%${ciudad}%`]
-      );
-      const nombreContrato = rutaMatch.rows[0]?.destino || ciudad;
-
+      const confianza = match.distancia <= 5 ? true : match.distancia <= 15;
       try {
-        await pool.query(
-          `INSERT INTO cencosud_geocercas (nombre, nombre_contrato, tipo, lat, lng, radio_m, ciudad, viajes_detectados, creado_por)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'AGENTE_AUTO') ON CONFLICT DO NOTHING`,
-          [nombre, nombreContrato, esCD ? "CD" : "LOCAL", p.lat, p.lng, esCD ? 2000 : 1500, ciudad, p.viajes]
+        const res = await pool.query(
+          `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+           VALUES ($1, $2, 'CENCOSUD', $3, 'AGENTE_GPS')
+           ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO NOTHING`,
+          [punto.nombre, match.ciudad.nombre, confianza]
         );
-        nuevas++;
+        if (res.rowCount && res.rowCount > 0) {
+          nuevos++;
+          aliasCreados.push(`${punto.nombre} → ${match.ciudad.nombre} (${match.distancia.toFixed(1)}km, ${punto.viajes}v)`);
+        }
       } catch {}
     }
 
-    if (nuevas > 0) {
-      await guardarMensaje("GEOCERCA", "NORMAL",
-        `${nuevas} geocercas creadas automáticamente`,
-        `El agente identificó ${nuevas} puntos nuevos usando Google Maps y los asoció al contrato.`,
-        { nuevas });
+    if (nuevos > 0) {
+      console.log(`[SUPER-CENCOSUD] GPS-Alias: +${nuevos} nuevos`);
+      for (const a of aliasCreados.slice(0, 10)) console.log(`  → ${a}`);
+      _ciudadesCacheTs = 0;
+
+      await guardarMensaje("APRENDIZAJE", "NORMAL",
+        `Auto-alias GPS: +${nuevos} geocercas mapeadas`,
+        `El agente usó coordenadas GPS para mapear ${nuevos} geocercas a ciudades del contrato:\n${aliasCreados.slice(0, 8).join("\n")}${aliasCreados.length > 8 ? `\n... y ${aliasCreados.length - 8} más` : ""}`,
+        { nuevos, detalle: aliasCreados.slice(0, 20) });
     }
 
-    return { nuevas };
+    return { nuevos, evaluados: sinAlias.rows.length };
   },
 
-  async reverseGeocode(lat: number, lng: number): Promise<any | null> {
-    try {
-      const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-      if (!apiKey) return null;
-      const https = require("https");
-      const result: any = await new Promise((resolve) => {
-        https.get(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}&language=es&result_type=street_address|establishment|route|locality`, (res: any) => {
-          let data = ""; res.on("data", (c: string) => data += c);
-          res.on("end", () => { try { resolve(JSON.parse(data)); } catch { resolve(null); } });
-        }).on("error", () => resolve(null));
-      });
-      if (result?.status !== "OK" || !result.results?.[0]) return null;
-      return result.results[0];
-    } catch { return null; }
-  },
-
-  clasificarPunto(gmResult: any, lat: number, lng: number): { nombre: string; ciudad: string | null; esCD: boolean } {
-    const addr = gmResult.address_components || [];
-    const formatted = gmResult.formatted_address || "";
-
-    const locality = addr.find((c: any) => c.types.includes("locality"))?.long_name;
-    const route = addr.find((c: any) => c.types.includes("route"))?.long_name;
-    const sublocality = addr.find((c: any) => c.types.includes("sublocality"))?.long_name;
-    const premise = addr.find((c: any) => c.types.includes("premise"))?.long_name;
-
-    const esCDText = formatted.toLowerCase();
-    const esCD = esCDText.includes("centro de distribución") || esCDText.includes("bodega") || esCDText.includes("galpón") || esCDText.includes("warehouse");
-
-    let nombre = "";
-    if (premise) nombre = premise;
-    else if (route && locality) nombre = `${route}, ${locality}`;
-    else if (sublocality && locality) nombre = `${sublocality}, ${locality}`;
-    else if (locality) nombre = locality;
-    else nombre = formatted.split(",")[0];
-
-    if (formatted.toLowerCase().includes("jumbo")) nombre = `Jumbo ${locality || sublocality || ""}`.trim();
-    if (formatted.toLowerCase().includes("santa isabel")) nombre = `Santa Isabel ${locality || sublocality || ""}`.trim();
-
-    return { nombre: nombre.substring(0, 60), ciudad: locality || null, esCD };
-  },
-
-  async clasificarViajes() {
-    let geocercasKml: any[] = [];
-    try {
-      const kmlRes = await pool.query("SELECT id, nombre, lat::float, lng::float, radio_m FROM cencosud_geocercas_kml WHERE activa = true");
-      geocercasKml = kmlRes.rows.map((g: any) => ({ ...g, fuente: "KML" }));
-    } catch {}
-
-    const geos = await pool.query("SELECT id, nombre, nombre_contrato, lat::float, lng::float, radio_m FROM cencosud_geocercas WHERE activa = true");
-    const geocercasAuto = geos.rows.map((g: any) => ({ ...g, fuente: "AUTO" }));
-
-    const todasGeo = [...geocercasKml, ...geocercasAuto];
-
-    const viajes = await pool.query(`
-      SELECT va.id, va.origen_lat::float as olat, va.origen_lng::float as olng,
-        va.destino_lat::float as dlat, va.destino_lng::float as dlng,
-        va.origen_nombre, va.destino_nombre
-      FROM viajes_aprendizaje va
-      WHERE va.contrato = 'CENCOSUD' AND va.fecha_inicio >= NOW() - INTERVAL '14 days' AND va.km_ecu > 0
-        AND (va.origen_nombre IS NULL OR va.origen_nombre = 'Punto desconocido'
-          OR va.destino_nombre IS NULL OR va.destino_nombre = 'Punto desconocido')
-      LIMIT 100
+  async consolidarTrayectos() {
+    const camiones = await pool.query(`
+      SELECT DISTINCT camion_id FROM viajes_aprendizaje
+      WHERE contrato = 'CENCOSUD' AND fecha_inicio >= NOW() - INTERVAL '30 days' AND km_ecu > 5
     `);
 
-    let clasificados = 0;
-    for (const v of viajes.rows) {
-      if ((!v.origen_nombre || v.origen_nombre === "Punto desconocido") && v.olat) {
-        const match = todasGeo.find((g: any) => distKm(v.olat, v.olng, g.lat, g.lng) * 1000 < g.radio_m);
-        if (match) {
-          await pool.query("UPDATE viajes_aprendizaje SET origen_nombre = $1 WHERE id = $2", [`[TMS] ${match.nombre}`, v.id]);
-          if (match.fuente === "AUTO") {
-            await pool.query("UPDATE cencosud_geocercas SET viajes_detectados = viajes_detectados + 1 WHERE id = $1", [match.id]);
-          }
-          clasificados++;
+    let consolidados = 0;
+    let revenue = 0;
+
+    for (const cam of camiones.rows) {
+      const viajes = await pool.query(`
+        SELECT v.id, v.camion_id, v.fecha_inicio, v.fecha_fin,
+               COALESCE(a1.nombre_contrato, v.origen_nombre) as origen_c,
+               COALESCE(a2.nombre_contrato, v.destino_nombre) as destino_c,
+               v.origen_nombre, v.destino_nombre,
+               v.origen_lat::float as olat, v.origen_lng::float as olng,
+               v.destino_lat::float as dlat, v.destino_lng::float as dlng,
+               v.km_ecu
+        FROM viajes_aprendizaje v
+        LEFT JOIN geocerca_alias_contrato a1 ON a1.geocerca_nombre = v.origen_nombre AND a1.contrato = 'CENCOSUD'
+        LEFT JOIN geocerca_alias_contrato a2 ON a2.geocerca_nombre = v.destino_nombre AND a2.contrato = 'CENCOSUD'
+        WHERE v.camion_id = $1 AND v.contrato = 'CENCOSUD' AND v.fecha_inicio >= NOW() - INTERVAL '30 days' AND v.km_ecu > 5
+        ORDER BY v.fecha_inicio
+      `, [cam.camion_id]);
+
+      const trips = viajes.rows;
+      if (trips.length < 2) continue;
+
+      let i = 0;
+      while (i < trips.length) {
+        const first = trips[i];
+        const esOrigenCD = first.origen_c?.startsWith("CD ") || first.origen_c?.startsWith("CT ");
+        if (!esOrigenCD) { i++; continue; }
+
+        const cdOrigen = first.origen_c;
+        let lastDestino = first.destino_c;
+        let lastFin = new Date(first.fecha_fin || first.fecha_inicio);
+        let kmTotal = parseFloat(first.km_ecu || 0);
+        const segmentoIds = [first.id];
+        let j = i + 1;
+
+        while (j < trips.length) {
+          const next = trips[j];
+          const nextInicio = new Date(next.fecha_inicio);
+          const horasGap = (nextInicio.getTime() - lastFin.getTime()) / (1000 * 60 * 60);
+
+          if (horasGap > VENTANA_CONSOLIDACION_HORAS) break;
+
+          const nextOrigenEsCD = next.origen_c?.startsWith("CD ") || next.origen_c?.startsWith("CT ");
+          if (nextOrigenEsCD && next.origen_c !== cdOrigen) break;
+
+          segmentoIds.push(next.id);
+          lastDestino = next.destino_c;
+          lastFin = new Date(next.fecha_fin || next.fecha_inicio);
+          kmTotal += parseFloat(next.km_ecu || 0);
+          j++;
         }
-      }
-      if ((!v.destino_nombre || v.destino_nombre === "Punto desconocido") && v.dlat) {
-        const match = todasGeo.find((g: any) => distKm(v.dlat, v.dlng, g.lat, g.lng) * 1000 < g.radio_m);
-        if (match) {
-          await pool.query("UPDATE viajes_aprendizaje SET destino_nombre = $1 WHERE id = $2", [`[TMS] ${match.nombre}`, v.id]);
-          if (match.fuente === "AUTO") {
-            await pool.query("UPDATE cencosud_geocercas SET viajes_detectados = viajes_detectados + 1 WHERE id = $1", [match.id]);
+
+        if (segmentoIds.length >= 2 && cdOrigen && lastDestino && cdOrigen !== lastDestino) {
+          const tarifaCheck = await pool.query(
+            `SELECT tarifa::float FROM contrato_rutas_tarifas
+             WHERE contrato = 'CENCOSUD' AND activo = true AND origen = $1 AND destino = $2
+             ORDER BY CASE clase WHEN 'FLF' THEN 1 WHEN 'S2P' THEN 2 WHEN 'CON' THEN 3 END
+             LIMIT 1`,
+            [cdOrigen, lastDestino]
+          );
+
+          if (tarifaCheck.rows.length > 0) {
+            const tarifa = tarifaCheck.rows[0].tarifa;
+            const yaExiste = await pool.query(
+              `SELECT id FROM viajes_aprendizaje
+               WHERE camion_id = $1 AND contrato = 'CENCOSUD'
+                 AND origen_nombre = $2 AND destino_nombre = $3
+                 AND DATE(fecha_inicio) = DATE($4::timestamp)
+                 AND trayecto_consolidado = true`,
+              [cam.camion_id, `[TRAYECTO] ${cdOrigen}`, `[TRAYECTO] ${lastDestino}`, first.fecha_inicio]
+            );
+
+            if (yaExiste.rows.length === 0) {
+              await pool.query(
+                `INSERT INTO viajes_aprendizaje (camion_id, contrato, fecha_inicio, fecha_fin, origen_nombre, destino_nombre, origen_lat, origen_lng, destino_lat, destino_lng, km_ecu, trayecto_consolidado, segmento_ids)
+                 VALUES ($1, 'CENCOSUD', $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11)`,
+                [cam.camion_id, first.fecha_inicio, lastFin.toISOString(),
+                 `[TRAYECTO] ${cdOrigen}`, `[TRAYECTO] ${lastDestino}`,
+                 first.olat, first.olng, trips[j-1]?.dlat || first.dlat, trips[j-1]?.dlng || first.dlng,
+                 Math.round(kmTotal), segmentoIds]
+              );
+
+              await pool.query(
+                `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+                 VALUES ($1, $2, 'CENCOSUD', true, 'AGENTE_TRAYECTO') ON CONFLICT DO NOTHING`,
+                [`[TRAYECTO] ${cdOrigen}`, cdOrigen]
+              );
+              await pool.query(
+                `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+                 VALUES ($1, $2, 'CENCOSUD', true, 'AGENTE_TRAYECTO') ON CONFLICT DO NOTHING`,
+                [`[TRAYECTO] ${lastDestino}`, lastDestino]
+              );
+
+              consolidados++;
+              revenue += tarifa;
+            }
           }
-          clasificados++;
         }
+        i = j;
       }
     }
 
-    for (const g of geocercasAuto) {
-      try {
-        await pool.query(
-          "INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por) VALUES ($1,$2,'CENCOSUD',true,'TMS_AUTO') ON CONFLICT DO NOTHING",
-          [`[TMS] ${g.nombre}`, g.nombre_contrato]
-        );
-      } catch {}
+    if (consolidados > 0) {
+      console.log(`[SUPER-CENCOSUD] Trayectos: +${consolidados} consolidados = +$${Math.round(revenue).toLocaleString()}`);
+      await guardarMensaje("TRAYECTO", "ALTA",
+        `${consolidados} trayectos consolidados = +$${Math.round(revenue).toLocaleString()}`,
+        `El agente unió segmentos de viaje en rutas completas CD→destino que ahora son facturables.\nEsto recupera revenue que se perdía por detección fragmentada de viajes.`,
+        { consolidados, revenue: Math.round(revenue) });
     }
 
-    return { clasificados, pendientes: viajes.rows.length - clasificados };
+    return { consolidados, revenue };
   },
 
   async inteligenciaFacturacion() {
-    const tarifasR = await pool.query(`
-      SELECT origen, destino, tarifa::float FROM contrato_rutas_tarifas
-      WHERE contrato = 'CENCOSUD' AND activo = true
-    `);
-    const tarifas = tarifasR.rows;
-
-    const aliasR = await pool.query(`
-      SELECT geocerca_nombre, nombre_contrato FROM geocerca_alias_contrato
-      WHERE contrato = 'CENCOSUD' AND confirmado = true
-    `);
-    const aliasMap = new Map<string, string>();
-    aliasR.rows.forEach((a: any) => aliasMap.set(a.geocerca_nombre, a.nombre_contrato));
-
     const viajesR = await pool.query(`
-      SELECT va.id, va.origen_nombre, va.destino_nombre, va.km_ecu, va.fecha_inicio,
-             c.patente
-      FROM viajes_aprendizaje va
-      JOIN camiones c ON c.id = va.camion_id
-      WHERE va.contrato = 'CENCOSUD'
-        AND va.fecha_inicio >= DATE_TRUNC('month', NOW())
-        AND va.km_ecu > 10
-      ORDER BY va.fecha_inicio DESC
+      SELECT DISTINCT ON (v.id) v.id, v.origen_nombre, v.destino_nombre, v.km_ecu,
+             COALESCE(a1.nombre_contrato, v.origen_nombre) as o_c,
+             COALESCE(a2.nombre_contrato, v.destino_nombre) as d_c,
+             t.tarifa::float as tarifa
+      FROM viajes_aprendizaje v
+      LEFT JOIN geocerca_alias_contrato a1 ON a1.geocerca_nombre = v.origen_nombre AND a1.contrato = 'CENCOSUD'
+      LEFT JOIN geocerca_alias_contrato a2 ON a2.geocerca_nombre = v.destino_nombre AND a2.contrato = 'CENCOSUD'
+      LEFT JOIN contrato_rutas_tarifas t ON t.contrato = 'CENCOSUD' AND t.activo = true
+        AND t.origen = COALESCE(a1.nombre_contrato, v.origen_nombre)
+        AND t.destino = COALESCE(a2.nombre_contrato, v.destino_nombre)
+      WHERE v.contrato = 'CENCOSUD' AND v.fecha_inicio >= DATE_TRUNC('month', NOW()) AND v.km_ecu > 10
+      ORDER BY v.id, CASE t.clase WHEN 'FLF' THEN 1 WHEN 'S2P' THEN 2 WHEN 'CON' THEN 3 ELSE 4 END
     `);
 
     let conTarifa = 0;
     let sinTarifa = 0;
     let ingresoTarifa = 0;
-    const sinAlias = new Map<string, number>();
+    const sinAlias = new Map<string, { count: number; lat: number | null; lng: number | null }>();
     const sinRuta = new Map<string, number>();
 
     for (const v of viajesR.rows) {
-      const origenAlias = aliasMap.get(v.origen_nombre) || null;
-      const destinoAlias = aliasMap.get(v.destino_nombre) || null;
-
-      if (!origenAlias && v.origen_nombre && v.origen_nombre !== "Punto desconocido") {
-        sinAlias.set(v.origen_nombre, (sinAlias.get(v.origen_nombre) || 0) + 1);
-      }
-      if (!destinoAlias && v.destino_nombre && v.destino_nombre !== "Punto desconocido") {
-        sinAlias.set(v.destino_nombre, (sinAlias.get(v.destino_nombre) || 0) + 1);
-      }
-
-      if (origenAlias && destinoAlias) {
-        const tarifa = tarifas.find(t => t.origen === origenAlias && t.destino === destinoAlias);
-        if (tarifa) {
-          conTarifa++;
-          ingresoTarifa += tarifa.tarifa;
-        } else {
-          sinTarifa++;
-          const rutaKey = `${origenAlias} → ${destinoAlias}`;
-          sinRuta.set(rutaKey, (sinRuta.get(rutaKey) || 0) + 1);
-        }
+      if (v.tarifa) {
+        conTarifa++;
+        ingresoTarifa += v.tarifa;
       } else {
         sinTarifa++;
+        if (v.o_c && v.d_c && v.o_c !== v.origen_nombre) {
+          const rutaKey = `${v.o_c} → ${v.d_c}`;
+          sinRuta.set(rutaKey, (sinRuta.get(rutaKey) || 0) + 1);
+        }
       }
     }
 
     const totalViajes = conTarifa + sinTarifa;
     const pctFacturable = totalViajes > 0 ? Math.round(conTarifa / totalViajes * 100) : 0;
 
-    if (sinAlias.size > 0) {
-      const topSinAlias = [...sinAlias.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-
-      const detalle = topSinAlias.map(([nombre, cnt]) => `${nombre} (${cnt} viajes)`).join("\n");
-
-      await this.autoCrearAlias(topSinAlias);
-
-      if (topSinAlias.some(([_, cnt]) => cnt >= 3)) {
-        await guardarMensaje("FACTURACION", "ALTA",
-          `${sinAlias.size} geocercas sin alias = viajes sin facturar`,
-          `Estos puntos aparecen en viajes pero no tienen traducción al contrato comercial:\n${detalle}\n\nSin alias, estos viajes NO se pueden facturar a Cencosud.`,
-          { sinAlias: topSinAlias, perdidaEstimada: sinTarifa });
-      }
-    }
-
     if (sinRuta.size > 0) {
-      const topSinRuta = [...sinRuta.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-
-      const detalle = topSinRuta.map(([ruta, cnt]) => `${ruta} (${cnt} viajes)`).join("\n");
-
+      const topSinRuta = [...sinRuta.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       if (topSinRuta.some(([_, cnt]) => cnt >= 2)) {
+        const detalle = topSinRuta.map(([ruta, cnt]) => `${ruta} (${cnt} viajes)`).join("\n");
         await guardarMensaje("FACTURACION", "CRITICA",
-          `${sinRuta.size} rutas con alias pero SIN TARIFA = $0 facturación`,
-          `Estas rutas tienen alias mapeado pero no existe tarifa en el contrato:\n${detalle}\n\nEstos viajes se hicieron pero NO generan ingreso. Hay que agregar la tarifa o negociarla con Cencosud.`,
+          `${sinRuta.size} rutas con alias pero SIN TARIFA`,
+          `Estas rutas están mapeadas pero no hay tarifa en el contrato:\n${detalle}`,
           { sinRuta: topSinRuta });
       }
     }
 
-    if (pctFacturable < 70 && totalViajes > 10) {
-      await guardarMensaje("FACTURACION", "CRITICA",
-        `Solo ${pctFacturable}% de viajes facturables (${conTarifa}/${totalViajes})`,
-        `De ${totalViajes} viajes este mes, solo ${conTarifa} tienen tarifa asignada.\nIngreso confirmado: $${ingresoTarifa.toLocaleString()}\nViajes sin facturar: ${sinTarifa} (= plata perdida).\n\nEl agente está intentando auto-crear alias para resolver esto.`,
-        { conTarifa, sinTarifa, totalViajes, pctFacturable, ingresoTarifa });
-    }
-
     return { conTarifa, sinTarifa, totalViajes, ingresoTarifa, pctFacturable };
-  },
-
-  async autoCrearAlias(sinAlias: [string, number][]) {
-    const tarifasR = await pool.query(`
-      SELECT DISTINCT origen FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
-      UNION
-      SELECT DISTINCT destino FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
-    `);
-    const nombresContrato = tarifasR.rows.map((r: any) => r.origen);
-
-    let creados = 0;
-    for (const [nombreGeo, viajes] of sinAlias) {
-      if (viajes < 2) continue;
-      const geoUp = nombreGeo.toUpperCase().replace(/\[TMS\]\s*/g, "");
-
-      let mejorMatch: string | null = null;
-      let mejorScore = 0;
-
-      for (const nc of nombresContrato) {
-        const ncUp = nc.toUpperCase();
-
-        if (geoUp.includes(ncUp) || ncUp.includes(geoUp)) {
-          mejorMatch = nc;
-          mejorScore = 100;
-          break;
-        }
-
-        const palabrasGeo = geoUp.split(/[\s,\-_]+/).filter(p => p.length > 2);
-        const palabrasNc = ncUp.split(/[\s,\-_]+/).filter(p => p.length > 2);
-        let coincidencias = 0;
-        for (const pg of palabrasGeo) {
-          if (palabrasNc.some(pn => pn.includes(pg) || pg.includes(pn))) coincidencias++;
-        }
-        const score = palabrasGeo.length > 0 ? (coincidencias / palabrasGeo.length) * 100 : 0;
-        if (score > mejorScore && score >= 50) {
-          mejorScore = score;
-          mejorMatch = nc;
-        }
-      }
-
-      if (mejorMatch && mejorScore >= 50) {
-        try {
-          await pool.query(
-            `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
-             VALUES ($1, $2, 'CENCOSUD', $3, 'AGENTE_AUTO')
-             ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO NOTHING`,
-            [nombreGeo, mejorMatch, mejorScore >= 80]
-          );
-          creados++;
-        } catch {}
-      }
-    }
-
-    if (creados > 0) {
-      console.log(`[SUPER-CENCOSUD] Auto-creó ${creados} alias para facturación`);
-    }
-  },
-
-  async analizarFinanciero() {
-    const params = await getParams();
-    const hoy = new Date().toISOString().slice(0, 10);
-
-    const facturacion = await pool.query(`
-      SELECT c.patente,
-             COUNT(*)::int as viajes,
-             ROUND(SUM(va.km_ecu)::numeric) as km,
-             COUNT(crt.tarifa)::int as viajes_con_tarifa,
-             COALESCE(SUM(crt.tarifa), 0)::float as ingreso_tarifa,
-             ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
-      FROM viajes_aprendizaje va
-      JOIN camiones c ON c.id = va.camion_id
-      LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-      LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-      LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-      WHERE DATE(va.fecha_inicio) = $1 AND va.contrato = 'CENCOSUD' AND va.km_ecu > 0
-      GROUP BY c.patente
-    `, [hoy]);
-
-    const retornoFactor = 1 + params.pct_retorno / 100;
-
-    for (const v of facturacion.rows) {
-      const km = parseFloat(v.km || 0) * retornoFactor;
-      const rend = parseFloat(v.rend || params.meta_rendimiento);
-      const litros = km / Math.max(rend, 0.1);
-      const costoTotal = litros * params.precio_diesel + km * params.cvm_km + params.costo_conductor_dia + params.costo_fijo_dia;
-      const ingreso = v.ingreso_tarifa > 0 ? v.ingreso_tarifa : km * params.tarifa_km_cargado;
-      const margenPct = ingreso > 0 ? (ingreso - costoTotal) / ingreso * 100 : 0;
-
-      if (v.viajes > 0 && v.viajes_con_tarifa === 0 && km > 50) {
-        await guardarMensaje("FACTURACION", "CRITICA",
-          `${v.patente}: ${v.viajes} viajes SIN TARIFA = $0`,
-          `Camión ${v.patente} hizo ${v.viajes} viajes hoy (${Math.round(km)}km) pero ninguno tiene tarifa asignada. Estos viajes no generan ingreso.`,
-          { patente: v.patente, viajes: v.viajes, km: Math.round(km), ingreso: 0 });
-      } else if (margenPct < params.alerta_margen_minimo && km > 50) {
-        await guardarMensaje("FINANCIERO", margenPct < 0 ? "CRITICA" : "ALTA",
-          `Margen bajo: ${v.patente} al ${Math.round(margenPct)}%`,
-          `${Math.round(km)}km | ${v.viajes_con_tarifa}/${v.viajes} viajes tarifados | Ingreso $${Math.round(ingreso).toLocaleString()} | Costo $${Math.round(costoTotal).toLocaleString()} | Margen ${Math.round(margenPct)}%`,
-          { patente: v.patente, km, ingreso, costo: costoTotal, margenPct: Math.round(margenPct), viajesConTarifa: v.viajes_con_tarifa, viajesSinTarifa: v.viajes - v.viajes_con_tarifa });
-      }
-    }
   },
 
   async verificarMetas() {
@@ -425,25 +359,11 @@ export const superAgenteCencosud = {
     const pctMeta = Math.round(acum / params.meta_km_mes * 100);
     const pctEsperado = Math.round(dia / diasMes * 100);
 
-    const facMes = await pool.query(`
-      SELECT COUNT(*)::int as total,
-             COUNT(crt.tarifa)::int as con_tarifa,
-             COALESCE(SUM(crt.tarifa), 0)::float as ingreso_tarifa
-      FROM viajes_aprendizaje va
-      LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-      LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-      LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-      WHERE va.fecha_inicio >= DATE_TRUNC('month', NOW()) AND va.contrato = 'CENCOSUD' AND va.km_ecu > 10
-    `);
-
-    const fac = facMes.rows[0];
-    const pctFacturable = fac.total > 0 ? Math.round(fac.con_tarifa / fac.total * 100) : 0;
-
     if (pctMeta < pctEsperado - 15 && dia > 5) {
       await guardarMensaje("META", pctMeta < pctEsperado - 25 ? "ALTA" : "NORMAL",
         `Meta en riesgo: ${pctMeta}% (esperado ${pctEsperado}%)`,
-        `Acumulado ${acum.toLocaleString()} km de ${params.meta_km_mes.toLocaleString()} km meta.\nFacturación mes: $${Math.round(fac.ingreso_tarifa).toLocaleString()} (${fac.con_tarifa}/${fac.total} viajes tarifados = ${pctFacturable}%)`,
-        { acum, pctMeta, pctEsperado, ingresoMes: fac.ingreso_tarifa, pctFacturable });
+        `Acumulado ${acum.toLocaleString()} km de ${params.meta_km_mes.toLocaleString()} km meta.`,
+        { acum, pctMeta, pctEsperado });
     }
   },
 
@@ -474,20 +394,16 @@ export const superAgenteCencosud = {
           WHERE DATE(va.fecha_inicio) = $1 AND va.contrato = 'CENCOSUD' AND va.km_ecu > 0`, [hoy]),
         pool.query("SELECT COUNT(*)::int as total FROM cencosud_geocercas_kml WHERE activa = true"),
         pool.query(`
-          SELECT COUNT(*)::int as total,
-                 COUNT(crt.tarifa)::int as con_tarifa,
-                 COALESCE(SUM(crt.tarifa), 0)::float as ingreso
-          FROM viajes_aprendizaje va
-          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-          LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-          WHERE va.fecha_inicio >= DATE_TRUNC('month', NOW()) AND va.contrato = 'CENCOSUD' AND va.km_ecu > 10
+          SELECT COUNT(DISTINCT v.id)::int as total,
+                 COUNT(DISTINCT CASE WHEN t.tarifa IS NOT NULL THEN v.id END)::int as con_tarifa,
+                 COALESCE(SUM(t.tarifa) FILTER (WHERE t.tarifa IS NOT NULL), 0)::float as ingreso
+          FROM viajes_aprendizaje v
+          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = v.origen_nombre AND ao.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = v.destino_nombre AND ad.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas t ON t.origen = ao.nombre_contrato AND t.destino = ad.nombre_contrato AND t.contrato = 'CENCOSUD' AND t.activo = true
+          WHERE v.fecha_inicio >= DATE_TRUNC('month', NOW()) AND v.contrato = 'CENCOSUD' AND v.km_ecu > 10
         `),
-        pool.query(`
-          SELECT COUNT(*)::int as total,
-                 COUNT(*) FILTER (WHERE confirmado = true)::int as confirmados
-          FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD'
-        `),
+        pool.query("SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE confirmado = true)::int as confirmados FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD'"),
         pool.query("SELECT COUNT(*)::int as total FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true"),
       ]);
 
@@ -507,20 +423,17 @@ export const superAgenteCencosud = {
 
 DATOS REALES HOY ${hoy}:
 - Flota: ${c.camiones} camiones activos, ${c.viajes} viajes, ${c.km || 0} km, ${c.rend || 0} km/L
-- Geocercas KML: ${geoCount.rows[0].total} polígonos exactos (30 Santa Isabel, 17 Jumbo, 8 CD, 8 Copec, etc.)
-- Copec/Shell = paradas de combustible (NO son destinos de viaje)
-- Dwell time: 10 min mínimo dentro del polígono para activar geocerca
+- Geocercas KML: ${geoCount.rows[0].total} polígonos exactos
 
 FACTURACIÓN MES:
 - ${fac.total} viajes totales | ${fac.con_tarifa} con tarifa (${pctFact}%) | ${fac.total - fac.con_tarifa} SIN TARIFA
 - Ingreso tarifado: $${Math.round(fac.ingreso).toLocaleString()}
 - ${alias.total} alias (${alias.confirmados} confirmados) | ${tarifaData.rows[0].total} rutas tarifadas
 
-LÓGICA DE NEGOCIO:
-1. GPS detecta parada en polígono KML → nombre geocerca
-2. Alias traduce nombre → nombre comercial del contrato
-3. Tarifa cruza origen+destino → precio por viaje
-4. Si falta alias o tarifa → viaje NO se factura = pérdida
+CAPACIDADES DEL AGENTE:
+1. Auto-alias GPS: mapea geocercas sin alias a ciudades del contrato usando proximidad GPS (30km)
+2. Consolidación de trayectos: une segmentos CD→A→B→C en ruta facturable CD→C
+3. Aprendizaje: cada ciclo mejora el mapeo automáticamente
 
 Responde en español, max 200 palabras, con datos reales. Siempre piensa en cómo ganar más facturación.`,
         messages: [...hist.rows.reverse().map((h: any) => ({ role: h.rol === "CEO" ? "user" as const : "assistant" as const, content: h.mensaje })), { role: "user" as const, content: mensaje }],
