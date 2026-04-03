@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Brain, Loader2, Truck, MapPin, TrendingUp, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { Brain, Loader2, Truck, MapPin, TrendingUp, BarChart3, Activity } from "lucide-react";
 
 export default function OperativeBrain() {
   const { data, isLoading } = useQuery<any>({
@@ -94,11 +94,7 @@ export default function OperativeBrain() {
                 </tr>
               </thead>
               <tbody>
-                {contratos.map((c: any, i: number) => {
-                  const trendPrev = tendencia.length >= 2 ? parseInt(tendencia[tendencia.length - 2]?.viajes || 0) : 0;
-                  const trendCurr = parseInt(c.viajes_hoy || 0);
-
-                  return (
+                {contratos.map((c: any, i: number) => (
                     <tr key={c.contrato} style={{ background: i % 2 === 0 ? "#060d14" : "#0a1520" }}>
                       <td className="px-3 py-2">
                         <span className="font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{c.contrato}</span>
@@ -130,8 +126,7 @@ export default function OperativeBrain() {
                         )}
                       </td>
                     </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
 
