@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Map as GMap, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 
@@ -18,10 +19,6 @@ function MapeoInteractivo() {
   const [feedback, setFeedback] = useState<{msg: string, ok: boolean} | null>(null);
   const [showDropO, setShowDropO] = useState(false);
   const [showDropD, setShowDropD] = useState(false);
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapObjRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const polylinesRef = useRef<any[]>([]);
 
   const { data, refetch } = useQuery<any>({
     queryKey: ["/api/cencosud/viajes-sin-tarifa-mapa"],
@@ -38,81 +35,25 @@ function MapeoInteractivo() {
   });
   const nombres = data?.nombres_contrato || [];
 
-  const initMap = useCallback(() => {
-    if (!mapRef.current || mapObjRef.current) return;
-    const g = (window as any).google;
-    if (!g?.maps) return;
-    mapObjRef.current = new g.maps.Map(mapRef.current, {
-      center: { lat: -33.45, lng: -70.65 },
-      zoom: 6,
-      mapTypeId: "roadmap",
-      styles: [
-        { elementType: "geometry", stylers: [{ color: "#0a1520" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#0a1520" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#3a6080" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a3050" }] },
-        { featureType: "water", elementType: "geometry", stylers: [{ color: "#020508" }] },
-      ],
-    });
-  }, []);
+  const mapCenter = useMemo(() => {
+    if (selected?.origen_lat && selected?.destino_lat) {
+      return { lat: (selected.origen_lat + selected.destino_lat) / 2, lng: (selected.origen_lng + selected.destino_lng) / 2 };
+    }
+    if (selected?.origen_lat) return { lat: selected.origen_lat, lng: selected.origen_lng };
+    return { lat: -33.45, lng: -70.65 };
+  }, [selected]);
 
-  useEffect(() => {
-    if ((window as any).google) { initMap(); return; }
-    const existing = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existing) { const iv = setInterval(() => { if ((window as any).google) { initMap(); clearInterval(iv); } }, 200); return () => clearInterval(iv); }
-    const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${(import.meta as any).env?.VITE_GOOGLE_MAPS_KEY || ""}&libraries=places`;
-    s.async = true;
-    s.onload = () => setTimeout(initMap, 100);
-    document.head.appendChild(s);
-  }, [initMap]);
-
-  useEffect(() => {
-    const g = (window as any).google;
-    if (!mapObjRef.current || !selected || !g?.maps) return;
-    markersRef.current.forEach((m: any) => m.setMap(null));
-    markersRef.current = [];
-    polylinesRef.current.forEach((p: any) => p.setMap(null));
-    polylinesRef.current = [];
-    const esc = (s: string) => s.replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c] || c));
-    const bounds = new g.maps.LatLngBounds();
-    if (selected.origen_lat && selected.origen_lng) {
-      const m = new g.maps.Marker({
-        position: { lat: selected.origen_lat, lng: selected.origen_lng },
-        map: mapObjRef.current,
-        icon: { path: g.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
-        title: `ORIGEN: ${selected.origen_nombre || "?"}`,
-      });
-      const iw = new g.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">ORIGEN<br/>${esc(selected.origen_nombre || "Sin nombre")}<br/><small>${selected.origen_lat?.toFixed(4)}, ${selected.origen_lng?.toFixed(4)}</small></div>` });
-      m.addListener("click", () => iw.open(mapObjRef.current, m));
-      iw.open(mapObjRef.current, m);
-      markersRef.current.push(m);
-      bounds.extend(m.getPosition());
+  const mapZoom = useMemo(() => {
+    if (selected?.origen_lat && selected?.destino_lat) {
+      const latDiff = Math.abs(selected.origen_lat - selected.destino_lat);
+      const lngDiff = Math.abs(selected.origen_lng - selected.destino_lng);
+      const maxDiff = Math.max(latDiff, lngDiff);
+      if (maxDiff > 5) return 5;
+      if (maxDiff > 2) return 7;
+      if (maxDiff > 0.5) return 9;
+      return 11;
     }
-    if (selected.destino_lat && selected.destino_lng) {
-      const m = new g.maps.Marker({
-        position: { lat: selected.destino_lat, lng: selected.destino_lng },
-        map: mapObjRef.current,
-        icon: { path: g.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
-        title: `DESTINO: ${selected.destino_nombre || "?"}`,
-      });
-      const iw = new g.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">DESTINO<br/>${esc(selected.destino_nombre || "Sin nombre")}<br/><small>${selected.destino_lat?.toFixed(4)}, ${selected.destino_lng?.toFixed(4)}</small></div>` });
-      m.addListener("click", () => iw.open(mapObjRef.current, m));
-      iw.open(mapObjRef.current, m);
-      markersRef.current.push(m);
-      bounds.extend(m.getPosition());
-    }
-    if (selected.origen_lat && selected.destino_lat) {
-      const pl = new g.maps.Polyline({
-        path: [
-          { lat: selected.origen_lat, lng: selected.origen_lng },
-          { lat: selected.destino_lat, lng: selected.destino_lng },
-        ],
-        map: mapObjRef.current, strokeColor: "#00d4ff", strokeWeight: 2, strokeOpacity: 0.6,
-      });
-      polylinesRef.current.push(pl);
-      mapObjRef.current.fitBounds(bounds, 60);
-    }
+    return 6;
   }, [selected]);
 
   const handleMapear = async (orC: string, deC: string) => {
@@ -199,7 +140,6 @@ function MapeoInteractivo() {
       )}
 
       <div className="grid grid-cols-2 gap-0" style={{ height: 420 }}>
-        {/* LEFT: Lista de viajes */}
         <div className="overflow-auto border-r" style={{ borderColor: "#0d2035" }}>
           {viajes.length === 0 && (
             <div className="flex items-center justify-center h-full">
@@ -245,11 +185,33 @@ function MapeoInteractivo() {
           })}
         </div>
 
-        {/* RIGHT: Mapa + Panel de mapeo */}
         <div className="flex flex-col">
-          {/* Mapa Google */}
-          <div ref={mapRef} style={{ height: 200, background: "#0a1520" }}>
-            {!selected && (
+          <div style={{ height: 200, background: "#0a1520" }}>
+            {selected ? (
+              <GMap
+                mapId="mapeo-interactivo"
+                center={mapCenter}
+                zoom={mapZoom}
+                gestureHandling="greedy"
+                disableDefaultUI={true}
+                style={{ width: "100%", height: "100%" }}
+              >
+                {selected.origen_lat && selected.origen_lng && (
+                  <AdvancedMarker position={{ lat: selected.origen_lat, lng: selected.origen_lng }}>
+                    <div style={{ background: "#00ff88", borderRadius: "50%", width: 16, height: 16, border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ color: "#000", fontSize: 8, fontWeight: "bold" }}>O</span>
+                    </div>
+                  </AdvancedMarker>
+                )}
+                {selected.destino_lat && selected.destino_lng && (
+                  <AdvancedMarker position={{ lat: selected.destino_lat, lng: selected.destino_lng }}>
+                    <div style={{ background: "#ff2244", borderRadius: "50%", width: 16, height: 16, border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ color: "#fff", fontSize: 8, fontWeight: "bold" }}>D</span>
+                    </div>
+                  </AdvancedMarker>
+                )}
+              </GMap>
+            ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <Navigation className="w-6 h-6 mx-auto mb-2" style={{ color: "#3a6080" }} />
@@ -259,14 +221,12 @@ function MapeoInteractivo() {
             )}
           </div>
 
-          {/* Panel de mapeo */}
           {selected ? (
             <div className="flex-1 overflow-auto p-3 space-y-2" style={{ borderTop: "1px solid #0d2035" }}>
               <div className="font-exo text-[8px] font-bold tracking-wider uppercase" style={{ color: "#00d4ff" }}>
                 MAPEAR VIAJE · {selected.patente} · {Math.round(selected.km || 0)} km
               </div>
 
-              {/* Sugerencias del sistema */}
               {(selected.sugerencias || []).length > 0 && (
                 <div className="space-y-1">
                   <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#3a6080" }}>Sugerencias del sistema:</div>
@@ -290,13 +250,11 @@ function MapeoInteractivo() {
                 </div>
               )}
 
-              {/* Mapeo manual */}
               <div className="space-y-1.5">
                 <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#3a6080" }}>
                   {(selected.sugerencias || []).length > 0 ? "O ingresa manualmente:" : "Selecciona ruta del tarifario:"}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {/* Origen */}
                   <div className="relative">
                     <div className="font-exo text-[6px] uppercase mb-0.5" style={{ color: "#00ff88" }}>Origen</div>
                     <div className="font-exo text-[7px] mb-0.5 truncate" style={{ color: "#3a6080" }}>GPS: {(selected.origen_nombre || "?").substring(0, 25)}</div>
@@ -316,7 +274,6 @@ function MapeoInteractivo() {
                       </div>
                     )}
                   </div>
-                  {/* Destino */}
                   <div className="relative">
                     <div className="font-exo text-[6px] uppercase mb-0.5" style={{ color: "#ff2244" }}>Destino</div>
                     <div className="font-exo text-[7px] mb-0.5 truncate" style={{ color: "#3a6080" }}>GPS: {(selected.destino_nombre || "?").substring(0, 25)}</div>
