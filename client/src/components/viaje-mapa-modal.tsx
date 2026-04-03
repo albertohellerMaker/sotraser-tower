@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { X, Play, Pause, SkipBack, MapPin, Gauge, Clock, Route } from "lucide-react";
 import { APIProvider, Map as GMap, Polyline, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
