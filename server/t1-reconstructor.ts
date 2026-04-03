@@ -29,6 +29,7 @@ interface Geocerca {
   radio_km: number;
   es_cd: boolean;
   es_base_sotraser: boolean;
+  es_parada: boolean;
 }
 
 interface Visita {
@@ -40,7 +41,22 @@ interface Visita {
   lng: number;
   es_cd: boolean;
   es_base: boolean;
+  es_parada: boolean;
 }
+
+const PARADA_PATTERNS = [
+  "copec", "es copec", "shell", "servicentro", "estacionamiento",
+  "hosteria", "hostería", "zona de descanso", "t.vpv", "peaje",
+  "plaza pesaje", "plaza de pesaje", "taller gallardo",
+];
+
+function esParadaIntermedia(nombre: string): boolean {
+  const lower = nombre.toLowerCase();
+  return PARADA_PATTERNS.some(p => lower.includes(p));
+}
+
+const CENCOSUD_LAT_MIN = -43.0;
+const CENCOSUD_LAT_MAX = -27.0;
 
 interface ViajeT1 {
   camion_id: number;
@@ -103,7 +119,8 @@ async function cargarGeocercasTarifa(): Promise<Geocerca[]> {
     const esTarifa = nombresValidos.has(nombre);
     const esCD = nombre.startsWith("CD ") || nombre.startsWith("CT ");
     const esBase = basesSet.has(nombre.toLowerCase());
-    const radioKm = esCD ? 5 : 15;
+    const esParada = esParadaIntermedia(nombre);
+    const radioKm = esCD ? 5 : esParada ? 3 : 15;
 
     geocercas.push({
       nombre_contrato: nombre,
@@ -111,6 +128,7 @@ async function cargarGeocercasTarifa(): Promise<Geocerca[]> {
       radio_km: radioKm,
       es_cd: esCD,
       es_base_sotraser: esBase || esCD,
+      es_parada: esParada,
     });
   }
 
@@ -151,6 +169,7 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
               lng: enGeocerca.lng,
               es_cd: enGeocerca.geo.es_cd,
               es_base: enGeocerca.geo.es_base_sotraser,
+              es_parada: enGeocerca.geo.es_parada,
             });
           }
           ultimaSalida = new Date(p.timestamp_gps);
@@ -170,6 +189,7 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
             lng: enGeocerca.lng,
             es_cd: enGeocerca.geo.es_cd,
             es_base: enGeocerca.geo.es_base_sotraser,
+            es_parada: enGeocerca.geo.es_parada,
           });
         }
         ultimaSalida = new Date(p.timestamp_gps);
@@ -191,6 +211,7 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
         lng: enGeocerca.lng,
         es_cd: enGeocerca.geo.es_cd,
         es_base: enGeocerca.geo.es_base_sotraser,
+        es_parada: enGeocerca.geo.es_parada,
       });
     }
   }
@@ -230,6 +251,17 @@ async function cargarTarifas(): Promise<Map<string, number>> {
   return tarifas;
 }
 
+function filtrarParadas(visitas: Visita[]): Visita[] {
+  if (visitas.length <= 2) return visitas;
+  const result: Visita[] = [];
+  for (const v of visitas) {
+    if (v.es_parada) continue;
+    result.push(v);
+  }
+  if (result.length < 2 && visitas.length >= 2) return visitas;
+  return result;
+}
+
 function construirViajes(
   camion_id: number,
   patente: string,
@@ -237,23 +269,20 @@ function construirViajes(
   puntos: GpsPoint[],
   tarifas: Map<string, number>
 ): ViajeT1[] {
-  if (visitas.length < 2) return [];
+  const visitasLimpias = filtrarParadas(visitas);
+  if (visitasLimpias.length < 2) return [];
 
   const viajes: ViajeT1[] = [];
   let i = 0;
 
-  while (i < visitas.length - 1) {
-    const origen = visitas[i];
-    const destino = visitas[i + 1];
+  while (i < visitasLimpias.length - 1) {
+    const origen = visitasLimpias[i];
+    const destino = visitasLimpias[i + 1];
 
     if (origen.geocerca === destino.geocerca) {
       i++;
       continue;
     }
-
-    const keyIda = `${origen.geocerca}→${destino.geocerca}`;
-    const keyVuelta = `${destino.geocerca}→${origen.geocerca}`;
-    const tarifaIda = tarifas.get(keyIda);
 
     const kmEntrePuntos = estimarKm(puntos, origen.salida, destino.llegada);
 
@@ -262,27 +291,36 @@ function construirViajes(
       continue;
     }
 
+    const paradasEnMedio = visitas.filter(v =>
+      v.es_parada && v.llegada >= origen.salida && v.salida <= destino.llegada
+    ).map(v => ({ nombre: v.geocerca, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
+
     let esRoundTrip = false;
     let roundTripDestIdx = -1;
-    if (origen.es_cd && i + 2 < visitas.length && visitas[i + 2].geocerca === origen.geocerca) {
+    if (origen.es_cd && i + 2 < visitasLimpias.length && visitasLimpias[i + 2].geocerca === origen.geocerca) {
       esRoundTrip = true;
       roundTripDestIdx = i + 2;
     }
 
     if (esRoundTrip) {
-      const vuelta = visitas[roundTripDestIdx];
+      const vuelta = visitasLimpias[roundTripDestIdx];
       const kmTotal = estimarKm(puntos, origen.salida, vuelta.llegada);
       const durTotal = Math.round((vuelta.llegada.getTime() - origen.salida.getTime()) / 60000);
 
-      const paradasIntermedias = [];
+      const paradasRT = visitas.filter(v =>
+        v.es_parada && v.llegada >= origen.salida && v.salida <= vuelta.llegada
+      ).map(v => ({ nombre: v.geocerca, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
+
+      const allParadas = [];
       for (let j = i + 1; j < roundTripDestIdx; j++) {
-        paradasIntermedias.push({
-          nombre: visitas[j].geocerca,
-          llegada: visitas[j].llegada,
-          salida: visitas[j].salida,
-          duracion_min: visitas[j].duracion_min,
+        allParadas.push({
+          nombre: visitasLimpias[j].geocerca,
+          llegada: visitasLimpias[j].llegada,
+          salida: visitasLimpias[j].salida,
+          duracion_min: visitasLimpias[j].duracion_min,
         });
       }
+      allParadas.push(...paradasRT);
 
       viajes.push({
         camion_id,
@@ -294,13 +332,15 @@ function construirViajes(
         km_estimado: kmTotal,
         duracion_min: durTotal,
         es_round_trip: true,
-        paradas_intermedias: paradasIntermedias,
-        visitas_secuencia: visitas.slice(i, roundTripDestIdx + 1).map(v => v.geocerca),
+        paradas_intermedias: allParadas,
+        visitas_secuencia: visitasLimpias.slice(i, roundTripDestIdx + 1).map(v => v.geocerca),
       });
 
       i = roundTripDestIdx;
     } else {
       const dur = Math.round((destino.llegada.getTime() - origen.salida.getTime()) / 60000);
+
+      const esRetorno = !origen.es_cd && destino.es_cd;
 
       viajes.push({
         camion_id,
@@ -312,9 +352,10 @@ function construirViajes(
         km_estimado: kmEntrePuntos,
         duracion_min: dur,
         es_round_trip: false,
-        paradas_intermedias: [],
+        paradas_intermedias: paradasEnMedio,
         visitas_secuencia: [origen.geocerca, destino.geocerca],
-      });
+        es_retorno: esRetorno,
+      } as any);
 
       i++;
     }
@@ -367,6 +408,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   let totalViajes = 0;
   let totalRoundTrip = 0;
   let totalIda = 0;
+  let totalRetorno = 0;
   let camionesDescanso = 0;
   const errores: string[] = [];
 
@@ -410,6 +452,13 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
       const viajes = construirViajes(cam.camion_id, cam.patente, visitas, puntos, tarifas);
 
       for (const v of viajes) {
+        const esRetorno = (v as any).es_retorno === true;
+
+        if (esRetorno) {
+          totalRetorno++;
+          continue;
+        }
+
         const tarifa = tarifas.get(`${v.origen}→${v.destino}`);
         const tarifaRev = !tarifa ? tarifas.get(`${v.destino}→${v.origen}`) : null;
         const tarifaFinal = tarifa || tarifaRev || null;
@@ -480,13 +529,18 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   }
 
   const durSeg = Math.round((Date.now() - inicio) / 1000);
-  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida), ${camionesDescanso} descanso, ${errores.length} errores ═══`);
+  const facturados = allInserts.filter(v => v.tarifa).length;
+  const pct = totalViajes > 0 ? Math.round(facturados * 100 / totalViajes) : 0;
+  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida, ${totalRetorno} retornos descartados), ${facturados}/${totalViajes} facturables (${pct}%), ${camionesDescanso} descanso, ${errores.length} errores ═══`);
 
   return {
     camiones_procesados: camiones.length,
     viajes_creados: totalViajes,
     viajes_round_trip: totalRoundTrip,
     viajes_ida: totalIda,
+    viajes_retorno_descartados: totalRetorno,
+    viajes_facturados: facturados,
+    pct_facturable: pct,
     camiones_descanso: camionesDescanso,
     errores,
   };
