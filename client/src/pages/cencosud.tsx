@@ -469,7 +469,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           </>
         )}
 
-        {tab === "AGENTE" && <SuperAgentePanel saEstado={saEstado} saMsgs={saMsgs} refetchSaMsgs={refetchSaMsgs} paramData={paramData} refetchParams={refetchParams} intelData={intelData} refetchIntel={refetchIntel} sinMapear={sinMapear?.sin_mapear || []} />}
+        {tab === "AGENTE" && <SuperAgentePanel saEstado={saEstado} saMsgs={saMsgs} refetchSaMsgs={refetchSaMsgs} paramData={paramData} refetchParams={refetchParams} intelData={intelData} refetchIntel={refetchIntel} />}
 
         {/* ═══ TARIFAS ═══ */}
         {tab === "TARIFAS" && tarifasData && (
@@ -520,7 +520,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchParams, intelData, refetchIntel, sinMapear }: any) {
+function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchParams, intelData, refetchIntel }: any) {
   const [msg, setMsg] = useState("");
   const [hist, setHist] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -565,13 +565,18 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
   const categorias = ["FINANCIERO", "OPERACIONAL", "ALERTAS"];
   const colorTipo = (t: string): string => ({ OPERACION: "#00d4ff", FINANCIERO: "#00ff88", ANOMALIA: "#ff2244", META: "#ffcc00", CONDUCTOR: "#a78bfa", INACTIVIDAD: "#ff6b35" }[t] || "#3a6080");
 
+  const confirmarAlias = async (id: number) => {
+    await fetch(`/api/cencosud/alias/${id}/confirmar`, { method: "POST" });
+    refetchIntel();
+  };
+
   const intel = intelData || {};
   const al = intel.alias || {};
   const tr = intel.trayectos || {};
   const bl = intel.billing || {};
   const lotes = bl.por_lote || [];
   const aliasRecientes = al.recientes || [];
-  const sinMap = sinMapear || [];
+  const sinMap = intel.sin_mapear || [];
 
   return (
     <div className="space-y-3">
@@ -735,7 +740,13 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
                     <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#c8e8ff" }}>{a.geocerca_nombre?.substring(0, 40)}</td>
                     <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00d4ff" }}>{a.nombre_contrato}</td>
                     <td className="font-exo text-[7px] px-3 py-1" style={{ color: a.creado_por?.includes("GPS") || a.creado_por?.includes("AGENTE") || a.creado_por?.includes("SUPER") ? "#fbbf24" : "#a855f7" }}>{a.creado_por}</td>
-                    <td className="px-3 py-1"><span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: a.confirmado ? "#00ff88" : "#ffcc00", border: `1px solid ${a.confirmado ? "#00ff8830" : "#ffcc0030"}` }}>{a.confirmado ? "OK" : "PENDIENTE"}</span></td>
+                    <td className="px-3 py-1">
+                      {a.confirmado ? (
+                        <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{ color: "#00ff88", border: "1px solid #00ff8830" }}>OK</span>
+                      ) : (
+                        <button onClick={() => confirmarAlias(a.id)} className="font-exo text-[7px] px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80" style={{ color: "#ffcc00", border: "1px solid #ffcc0030", background: "#ffcc0008" }}>CONFIRMAR</button>
+                      )}
+                    </td>
                     <td className="font-exo text-[7px] px-3 py-1" style={{ color: "#3a6080" }}>{a.created_at ? new Date(a.created_at).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" }) : "--"}</td>
                   </tr>
                 ))}

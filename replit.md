@@ -80,7 +80,7 @@ migrations/                # SQL migration files
 - **Copec/Shell/Servicentro** = fuel stops (`es_combustible: true`), NOT trip destinations
 - **KML priority**: Only evaluated for contrato=CENCOSUD; non-Cencosud trips skip KML entirely
 - **Billing flow**: GPS → KML polygon → geocerca name → alias (`geocerca_alias_contrato`) → tarifa (`contrato_rutas_tarifas`) → facturación
-- **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min, auto-creates aliases, detects trips without tariffs (CRITICA alerts), tracks % facturable, maximizes billing
+- **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min, GPS-proximity auto-aliasing (30km radius, 5km for CD/CT), trayecto consolidation (4h window), billing intelligence. Dedicated UI tab (AGENTE) with sub-tabs: INTELIGENCIA (billing by lote, trayectos, sin mapear), ALIAS GPS (confirm/manage), ALERTAS, PARÁMETROS, CHAT
 - **Trayecto consolidation** (`cencosud-trayectos.ts`): merges GPS segments into full point-to-point trajectories — fuel stops and base passes become `paradas_intermedias`, trip closes only at real KML destination with ≥10 min dwell. MAX_GAP=6h, MAX_CONSOLIDAR=8. Stored in `cencosud_trayectos` table. Job runs every 15 min. API: `GET /api/cencosud/trayectos?fecha=YYYY-MM-DD&dias=7`
 
 ## Background Processes
