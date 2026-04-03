@@ -1,8 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { X, Play, Pause, SkipBack, MapPin, Gauge, Clock, Route } from "lucide-react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Popup, useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { APIProvider, Map as GMap, Polyline, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 
 interface Props {
   viajeId: number;
@@ -29,36 +27,17 @@ const velColor = (v: number) => {
 const RC = (r: number | null) =>
   !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 
-function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
+function FitToBounds({ puntos }: { puntos: PuntoGps[] }) {
   const map = useMap();
   const fitted = useRef(false);
   useEffect(() => {
-    if (!fitted.current) {
-      map.fitBounds(bounds, { padding: [40, 40] });
-      fitted.current = true;
-    }
-  }, [map, bounds]);
+    if (!map || fitted.current || puntos.length < 2) return;
+    const bounds = new google.maps.LatLngBounds();
+    puntos.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    map.fitBounds(bounds, 60);
+    fitted.current = true;
+  }, [map, puntos]);
   return null;
-}
-
-function AnimatedTruck({ position }: { position: [number, number] }) {
-  const map = useMap();
-  const markerRef = useRef<L.Marker>(null);
-
-  useEffect(() => {
-    if (markerRef.current) {
-      markerRef.current.setLatLng(position);
-    }
-  }, [position]);
-
-  const icon = useMemo(() => L.divIcon({
-    className: "",
-    html: `<div style="width:18px;height:18px;background:#00d4ff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #00d4ff80;"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  }), []);
-
-  return <Marker ref={markerRef} position={position} icon={icon} />;
 }
 
 export default function ViajeMapaModal({ viajeId, onClose }: Props) {
@@ -139,46 +118,51 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
 
   const segments = useMemo(() => {
     if (!hasGps) return [];
-    const segs: { positions: [number, number][]; color: string }[] = [];
-    for (let i = 0; i < puntos.length - 1; i++) {
-      const p1 = puntos[i];
-      const p2 = puntos[i + 1];
-      segs.push({
-        positions: [[p1.lat, p1.lng], [p2.lat, p2.lng]],
-        color: velColor(p2.vel || p1.vel || 0),
-      });
+    const segs: { path: google.maps.LatLngLiteral[]; color: string }[] = [];
+    let currentColor = velColor(puntos[0].vel || 0);
+    let currentPath: google.maps.LatLngLiteral[] = [{ lat: puntos[0].lat, lng: puntos[0].lng }];
+
+    for (let i = 1; i < puntos.length; i++) {
+      const color = velColor(puntos[i].vel || 0);
+      const pt = { lat: puntos[i].lat, lng: puntos[i].lng };
+      if (color === currentColor) {
+        currentPath.push(pt);
+      } else {
+        currentPath.push(pt);
+        segs.push({ path: currentPath, color: currentColor });
+        currentPath = [pt];
+        currentColor = color;
+      }
+    }
+    if (currentPath.length > 1) {
+      segs.push({ path: currentPath, color: currentColor });
     }
     return segs;
   }, [data]);
 
-  const bounds = useMemo((): L.LatLngBoundsExpression => {
-    if (hasGps) return puntos.map(p => [p.lat, p.lng] as [number, number]);
-    if (v.olat && v.dlat) return [[v.olat, v.olng], [v.dlat, v.dlng]];
-    return [[-33.45, -70.65], [-33.44, -70.64]];
+  const center = useMemo(() => {
+    if (hasGps) {
+      const midIdx = Math.floor(puntos.length / 2);
+      return { lat: puntos[midIdx].lat, lng: puntos[midIdx].lng };
+    }
+    if (v.olat && v.dlat) return { lat: (v.olat + v.dlat) / 2, lng: (v.olng + v.dlng) / 2 };
+    return { lat: -33.45, lng: -70.65 };
   }, [data]);
 
   const currentIdx = Math.min(Math.floor(progress * (puntos.length - 1)), puntos.length - 1);
   const currentPoint = puntos[currentIdx];
-  const trailPositions = puntos.slice(0, currentIdx + 1).map(p => [p.lat, p.lng] as [number, number]);
 
-  const startIcon = L.divIcon({
-    className: "",
-    html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#00ff88;border-radius:50%;border:3px solid #fff;box-shadow:0 0 10px #00ff8860;"><span style="font-size:11px;font-weight:bold;color:#020508;">A</span></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
-  const endIcon = L.divIcon({
-    className: "",
-    html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#ff2244;border-radius:50%;border:3px solid #fff;box-shadow:0 0 10px #ff224460;"><span style="font-size:11px;font-weight:bold;color:#fff;">B</span></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
+  const trailPath = useMemo(() =>
+    puntos.slice(0, currentIdx + 1).map(p => ({ lat: p.lat, lng: p.lng })),
+    [currentIdx, data]
+  );
 
   const rend = parseFloat(v.rendimiento || 0);
   const durH = v.duracion ? Math.floor(v.duracion / 60) : 0;
   const durM = v.duracion ? v.duracion % 60 : 0;
-
   const currentTime = currentPoint?.ts ? new Date(currentPoint.ts).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--";
+
+  const apiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_KEY || "";
 
   return (
     <div className="fixed inset-0 z-[9999]" style={{ background: "rgba(0,0,0,0.9)" }}>
@@ -201,56 +185,70 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
         </div>
 
         <div className="flex-1 relative">
-          <MapContainer
-            center={hasGps ? [puntos[0].lat, puntos[0].lng] : [-33.45, -70.65]}
-            zoom={10}
-            style={{ height: "100%", width: "100%", background: "#020508" }}
-            zoomControl={false}
-          >
-            <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              attribution='&copy; CartoDB'
-            />
-            <FitBounds bounds={bounds} />
+          <APIProvider apiKey={apiKey}>
+            <GMap
+              defaultCenter={center}
+              defaultZoom={10}
+              mapId="sotraser-viaje-gps"
+              style={{ height: "100%", width: "100%" }}
+              gestureHandling="greedy"
+              disableDefaultUI
+              colorScheme="DARK"
+            >
+              <FitToBounds puntos={puntos} />
 
-            {progress > 0 && playing ? (
-              <>
-                <Polyline positions={trailPositions} pathOptions={{ color: "#00d4ff", weight: 4, opacity: 0.9 }} />
-                {segments.slice(currentIdx).map((seg, i) => (
-                  <Polyline key={`future-${i}`} positions={seg.positions} pathOptions={{ color: "#3a608040", weight: 2, opacity: 0.3, dashArray: "4 8" }} />
-                ))}
-                {currentPoint && <AnimatedTruck position={[currentPoint.lat, currentPoint.lng]} />}
-              </>
-            ) : progress >= 1 ? (
-              segments.map((seg, i) => (
-                <Polyline key={`seg-${i}`} positions={seg.positions} pathOptions={{ color: seg.color, weight: 4, opacity: 0.85 }} />
-              ))
-            ) : (
-              segments.map((seg, i) => (
-                <Polyline key={`seg-${i}`} positions={seg.positions} pathOptions={{ color: seg.color, weight: 4, opacity: 0.85 }} />
-              ))
-            )}
+              {playing && progress > 0 ? (
+                <>
+                  <Polyline
+                    path={trailPath}
+                    strokeColor="#00d4ff"
+                    strokeWeight={5}
+                    strokeOpacity={0.9}
+                  />
+                  {currentPoint && (
+                    <AdvancedMarker position={{ lat: currentPoint.lat, lng: currentPoint.lng }}>
+                      <div style={{
+                        width: 20, height: 20, background: "#00d4ff",
+                        border: "3px solid #fff", borderRadius: "50%",
+                        boxShadow: "0 0 14px #00d4ff80",
+                      }} />
+                    </AdvancedMarker>
+                  )}
+                </>
+              ) : (
+                segments.map((seg, i) => (
+                  <Polyline
+                    key={`seg-${i}`}
+                    path={seg.path}
+                    strokeColor={seg.color}
+                    strokeWeight={5}
+                    strokeOpacity={0.85}
+                  />
+                ))
+              )}
 
-            {hasGps && (
-              <>
-                <Marker position={[puntos[0].lat, puntos[0].lng]} icon={startIcon}>
-                  <Popup><b>{v.origen_nombre || "Origen"}</b><br/>{new Date(v.fecha_inicio).toLocaleTimeString("es-CL")}</Popup>
-                </Marker>
-                <Marker position={[puntos[puntos.length - 1].lat, puntos[puntos.length - 1].lng]} icon={endIcon}>
-                  <Popup><b>{v.destino_nombre || "Destino"}</b><br/>{new Date(v.fecha_fin).toLocaleTimeString("es-CL")}</Popup>
-                </Marker>
-              </>
-            )}
-
-            {!playing && progress > 0 && progress < 1 && hasGps && puntos.map((p, i) => {
-              if (i % Math.max(1, Math.floor(puntos.length / 50)) !== 0) return null;
-              return (
-                <CircleMarker key={`dot-${i}`} center={[p.lat, p.lng]} radius={3}
-                  pathOptions={{ color: velColor(p.vel), fillColor: velColor(p.vel), fillOpacity: 0.8, weight: 1 }}
-                />
-              );
-            })}
-          </MapContainer>
+              {hasGps && (
+                <>
+                  <AdvancedMarker position={{ lat: puntos[0].lat, lng: puntos[0].lng }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      width: 30, height: 30, background: "#00ff88", borderRadius: "50%",
+                      border: "3px solid #fff", boxShadow: "0 0 12px #00ff8860",
+                      fontSize: 12, fontWeight: "bold", color: "#020508",
+                    }}>A</div>
+                  </AdvancedMarker>
+                  <AdvancedMarker position={{ lat: puntos[puntos.length - 1].lat, lng: puntos[puntos.length - 1].lng }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      width: 30, height: 30, background: "#ff2244", borderRadius: "50%",
+                      border: "3px solid #fff", boxShadow: "0 0 12px #ff224460",
+                      fontSize: 12, fontWeight: "bold", color: "#fff",
+                    }}>B</div>
+                  </AdvancedMarker>
+                </>
+              )}
+            </GMap>
+          </APIProvider>
 
           <div className="absolute top-4 right-4 p-3 rounded-lg" style={{ background: "#060d14ee", border: "1px solid #0d2035", zIndex: 1000, minWidth: 200 }}>
             <div className="font-exo text-[7px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>LEYENDA VELOCIDAD</div>
