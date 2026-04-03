@@ -8,6 +8,350 @@ const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
 type Tab = "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
 
+function MapeoInteractivo() {
+  const qc = useQueryClient();
+  const [selected, setSelected] = useState<any>(null);
+  const [origenManual, setOrigenManual] = useState("");
+  const [destinoManual, setDestinoManual] = useState("");
+  const [filtro, setFiltro] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{msg: string, ok: boolean} | null>(null);
+  const [showDropO, setShowDropO] = useState(false);
+  const [showDropD, setShowDropD] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapObjRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+
+  const { data, refetch } = useQuery<any>({
+    queryKey: ["/api/cencosud/viajes-sin-tarifa-mapa"],
+    queryFn: () => fetch("/api/cencosud/viajes-sin-tarifa-mapa").then(r => r.json()),
+    staleTime: 60000,
+  });
+
+  const viajes = (data?.viajes || []).filter((v: any) => {
+    if (!filtro) return true;
+    const f = filtro.toLowerCase();
+    return (v.patente || "").toLowerCase().includes(f) ||
+      (v.origen_nombre || "").toLowerCase().includes(f) ||
+      (v.destino_nombre || "").toLowerCase().includes(f);
+  });
+  const nombres = data?.nombres_contrato || [];
+
+  const initMap = useCallback(() => {
+    if (!mapRef.current || mapObjRef.current) return;
+    if (!(window as any).google) return;
+    mapObjRef.current = new google.maps.Map(mapRef.current, {
+      center: { lat: -33.45, lng: -70.65 },
+      zoom: 6,
+      mapTypeId: "roadmap",
+      styles: [
+        { elementType: "geometry", stylers: [{ color: "#0a1520" }] },
+        { elementType: "labels.text.stroke", stylers: [{ color: "#0a1520" }] },
+        { elementType: "labels.text.fill", stylers: [{ color: "#3a6080" }] },
+        { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a3050" }] },
+        { featureType: "water", elementType: "geometry", stylers: [{ color: "#020508" }] },
+      ],
+    });
+  }, []);
+
+  useEffect(() => {
+    if ((window as any).google) { initMap(); return; }
+    const existing = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existing) { const iv = setInterval(() => { if ((window as any).google) { initMap(); clearInterval(iv); } }, 200); return () => clearInterval(iv); }
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyBFOGhxmCNGCafGEl4wKVn9VLJXqZgavbo&libraries=places`;
+    s.async = true;
+    s.onload = () => setTimeout(initMap, 100);
+    document.head.appendChild(s);
+  }, [initMap]);
+
+  useEffect(() => {
+    if (!mapObjRef.current || !selected) return;
+    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current = [];
+    const bounds = new google.maps.LatLngBounds();
+    if (selected.origen_lat && selected.origen_lng) {
+      const m = new google.maps.Marker({
+        position: { lat: selected.origen_lat, lng: selected.origen_lng },
+        map: mapObjRef.current,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+        title: `ORIGEN: ${selected.origen_nombre || "?"}`,
+      });
+      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">ORIGEN<br/>${selected.origen_nombre || "Sin nombre"}<br/><small>${selected.origen_lat?.toFixed(4)}, ${selected.origen_lng?.toFixed(4)}</small></div>` });
+      m.addListener("click", () => iw.open(mapObjRef.current!, m));
+      iw.open(mapObjRef.current!, m);
+      markersRef.current.push(m);
+      bounds.extend(m.getPosition()!);
+    }
+    if (selected.destino_lat && selected.destino_lng) {
+      const m = new google.maps.Marker({
+        position: { lat: selected.destino_lat, lng: selected.destino_lng },
+        map: mapObjRef.current,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+        title: `DESTINO: ${selected.destino_nombre || "?"}`,
+      });
+      const iw = new google.maps.InfoWindow({ content: `<div style="color:#000;font-size:12px;font-weight:bold">DESTINO<br/>${selected.destino_nombre || "Sin nombre"}<br/><small>${selected.destino_lat?.toFixed(4)}, ${selected.destino_lng?.toFixed(4)}</small></div>` });
+      m.addListener("click", () => iw.open(mapObjRef.current!, m));
+      iw.open(mapObjRef.current!, m);
+      markersRef.current.push(m);
+      bounds.extend(m.getPosition()!);
+    }
+    if (selected.origen_lat && selected.destino_lat) {
+      new google.maps.Polyline({
+        path: [
+          { lat: selected.origen_lat, lng: selected.origen_lng },
+          { lat: selected.destino_lat, lng: selected.destino_lng },
+        ],
+        map: mapObjRef.current, strokeColor: "#00d4ff", strokeWeight: 2, strokeOpacity: 0.6,
+      });
+      mapObjRef.current.fitBounds(bounds, 60);
+    }
+  }, [selected]);
+
+  const handleMapear = async (orC: string, deC: string) => {
+    if (!selected || !orC || !deC) return;
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const r = await fetch("/api/cencosud/mapear-viaje", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          viaje_id: selected.id,
+          origen_nombre: selected.origen_nombre,
+          destino_nombre: selected.destino_nombre,
+          origen_contrato: orC,
+          destino_contrato: deC,
+        }),
+      }).then(r => r.json());
+      if (r.ok) {
+        setFeedback({ msg: `Mapeado: ${r.ruta}${r.tarifa_match ? ` · Tarifa: $${Math.round(r.tarifa_match.tarifa).toLocaleString("es-CL")}` : " · Sin tarifa en tarifario"}. ${r.viajes_afectados} viajes afectados.`, ok: true });
+        setSelected(null);
+        setOrigenManual("");
+        setDestinoManual("");
+        refetch();
+        qc.invalidateQueries({ queryKey: ["/api/cencosud/viajes-mes"] });
+        qc.invalidateQueries({ queryKey: ["/api/cencosud/resumen-mes"] });
+      } else {
+        setFeedback({ msg: r.error || "Error", ok: false });
+      }
+    } catch (e: any) { setFeedback({ msg: e.message, ok: false }); }
+    setSaving(false);
+  };
+
+  const handleDescartar = async () => {
+    if (!selected) return;
+    setSaving(true);
+    await fetch("/api/cencosud/descartar-viaje", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ viaje_id: selected.id, motivo: "No es Cencosud" }),
+    });
+    setFeedback({ msg: "Viaje descartado", ok: true });
+    setSelected(null);
+    refetch();
+    setSaving(false);
+  };
+
+  const filteredNombresO = nombres.filter((n: string) => n.toLowerCase().includes(origenManual.toLowerCase()));
+  const filteredNombresD = nombres.filter((n: string) => n.toLowerCase().includes(destinoManual.toLowerCase()));
+
+  return (
+    <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #ffcc0030" }}>
+      <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: "1px solid #0d2035" }}>
+        <div className="flex items-center gap-2">
+          <Map className="w-3.5 h-3.5" style={{ color: "#ffcc00" }} />
+          <span className="font-exo text-[9px] tracking-wider uppercase font-bold" style={{ color: "#ffcc00" }}>
+            MAPEO INTERACTIVO · {viajes.length} viajes sin tarifa
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: "#3a6080" }} />
+            <input value={filtro} onChange={e => setFiltro(e.target.value)} placeholder="Buscar patente o lugar..."
+              className="font-exo text-[9px] pl-6 pr-3 py-1 rounded outline-none w-48"
+              style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+          </div>
+        </div>
+      </div>
+
+      {feedback && (
+        <div className="mx-4 mt-2 px-3 py-2 rounded flex items-center gap-2" style={{ background: feedback.ok ? "#00ff8815" : "#ff224415", border: `1px solid ${feedback.ok ? "#00ff8840" : "#ff224440"}` }}>
+          {feedback.ok ? <Check className="w-3.5 h-3.5" style={{ color: "#00ff88" }} /> : <X className="w-3.5 h-3.5" style={{ color: "#ff2244" }} />}
+          <span className="font-exo text-[9px]" style={{ color: feedback.ok ? "#00ff88" : "#ff2244" }}>{feedback.msg}</span>
+          <button onClick={() => setFeedback(null)} className="ml-auto cursor-pointer"><X className="w-3 h-3" style={{ color: "#3a6080" }} /></button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-0" style={{ height: 420 }}>
+        {/* LEFT: Lista de viajes */}
+        <div className="overflow-auto border-r" style={{ borderColor: "#0d2035" }}>
+          {viajes.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>No hay viajes sin tarifa</span>
+            </div>
+          )}
+          {viajes.map((v: any) => {
+            const isSelected = selected?.id === v.id;
+            const hasSugerencia = (v.sugerencias || []).length > 0;
+            return (
+              <div key={v.id} onClick={() => { setSelected(v); setOrigenManual(v.origen_contrato || ""); setDestinoManual(v.destino_contrato || ""); setShowDropO(false); setShowDropD(false); }}
+                className="px-3 py-2 cursor-pointer transition-all"
+                style={{ background: isSelected ? "#0a2540" : "transparent", borderBottom: "1px solid #0d2035", borderLeft: isSelected ? "3px solid #00d4ff" : "3px solid transparent" }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-space text-[9px] font-bold" style={{ color: "#c8e8ff" }}>{v.patente}</span>
+                    <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{v.dia?.slice(5)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="font-space text-[8px]" style={{ color: "#c8e8ff" }}>{Math.round(v.km || 0)} km</span>
+                    {hasSugerencia && <span className="px-1 rounded font-exo text-[6px] font-bold" style={{ background: "#00d4ff20", color: "#00d4ff" }}>IA</span>}
+                  </div>
+                </div>
+                <div className="mt-0.5">
+                  <span className="font-exo text-[7px]" style={{ color: v.origen_contrato ? "#00ff88" : "#ffcc00" }}>
+                    {(v.origen_nombre || "Sin origen").substring(0, 30)}
+                  </span>
+                  <span className="font-exo text-[7px] mx-1" style={{ color: "#3a6080" }}>→</span>
+                  <span className="font-exo text-[7px]" style={{ color: v.destino_contrato ? "#00ff88" : "#ffcc00" }}>
+                    {(v.destino_nombre || "Sin destino").substring(0, 30)}
+                  </span>
+                </div>
+                {hasSugerencia && (
+                  <div className="mt-0.5 flex items-center gap-1">
+                    <Brain className="w-2.5 h-2.5" style={{ color: "#00d4ff50" }} />
+                    <span className="font-exo text-[6px]" style={{ color: "#00d4ff" }}>
+                      Sugerencia: {v.sugerencias[0].origen} → {v.sugerencias[0].destino}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* RIGHT: Mapa + Panel de mapeo */}
+        <div className="flex flex-col">
+          {/* Mapa Google */}
+          <div ref={mapRef} style={{ height: 200, background: "#0a1520" }}>
+            {!selected && (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Navigation className="w-6 h-6 mx-auto mb-2" style={{ color: "#3a6080" }} />
+                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Selecciona un viaje para ver en mapa</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Panel de mapeo */}
+          {selected ? (
+            <div className="flex-1 overflow-auto p-3 space-y-2" style={{ borderTop: "1px solid #0d2035" }}>
+              <div className="font-exo text-[8px] font-bold tracking-wider uppercase" style={{ color: "#00d4ff" }}>
+                MAPEAR VIAJE · {selected.patente} · {Math.round(selected.km || 0)} km
+              </div>
+
+              {/* Sugerencias del sistema */}
+              {(selected.sugerencias || []).length > 0 && (
+                <div className="space-y-1">
+                  <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#3a6080" }}>Sugerencias del sistema:</div>
+                  {selected.sugerencias.slice(0, 3).map((s: any, i: number) => (
+                    <button key={i} onClick={() => handleMapear(s.origen, s.destino)} disabled={saving}
+                      className="w-full text-left px-2 py-1.5 rounded cursor-pointer transition-all hover:opacity-90 flex items-center justify-between"
+                      style={{ background: i === 0 ? "#00d4ff15" : "#0a1520", border: `1px solid ${i === 0 ? "#00d4ff40" : "#0d2035"}` }}>
+                      <div className="flex items-center gap-2">
+                        {i === 0 && <Brain className="w-3 h-3" style={{ color: "#00d4ff" }} />}
+                        <span className="font-exo text-[8px]" style={{ color: i === 0 ? "#00d4ff" : "#c8e8ff" }}>
+                          {s.origen} → {s.destino}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-space text-[7px]" style={{ color: "#00ff88" }}>{fP(s.tarifa)}</span>
+                        <span className="font-exo text-[6px] px-1 rounded" style={{ background: "#0d2035", color: "#3a6080" }}>L{s.lote}</span>
+                        <Check className="w-3 h-3" style={{ color: "#00ff88" }} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Mapeo manual */}
+              <div className="space-y-1.5">
+                <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#3a6080" }}>
+                  {(selected.sugerencias || []).length > 0 ? "O ingresa manualmente:" : "Selecciona ruta del tarifario:"}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Origen */}
+                  <div className="relative">
+                    <div className="font-exo text-[6px] uppercase mb-0.5" style={{ color: "#00ff88" }}>Origen</div>
+                    <div className="font-exo text-[7px] mb-0.5 truncate" style={{ color: "#3a6080" }}>GPS: {(selected.origen_nombre || "?").substring(0, 25)}</div>
+                    <input value={origenManual} onChange={e => { setOrigenManual(e.target.value); setShowDropO(true); }} onFocus={() => setShowDropO(true)}
+                      placeholder="Buscar nombre contrato..."
+                      className="w-full font-exo text-[9px] px-2 py-1 rounded outline-none"
+                      style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+                    {showDropO && filteredNombresO.length > 0 && (
+                      <div className="absolute z-50 w-full mt-0.5 rounded overflow-auto" style={{ background: "#0a1520", border: "1px solid #0d2035", maxHeight: 100 }}>
+                        {filteredNombresO.map((n: string) => (
+                          <div key={n} onClick={() => { setOrigenManual(n); setShowDropO(false); }}
+                            className="px-2 py-1 cursor-pointer font-exo text-[8px] hover:opacity-80"
+                            style={{ color: "#c8e8ff", borderBottom: "1px solid #0d203530", background: origenManual === n ? "#00d4ff15" : "transparent" }}>
+                            {n}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Destino */}
+                  <div className="relative">
+                    <div className="font-exo text-[6px] uppercase mb-0.5" style={{ color: "#ff2244" }}>Destino</div>
+                    <div className="font-exo text-[7px] mb-0.5 truncate" style={{ color: "#3a6080" }}>GPS: {(selected.destino_nombre || "?").substring(0, 25)}</div>
+                    <input value={destinoManual} onChange={e => { setDestinoManual(e.target.value); setShowDropD(true); }} onFocus={() => setShowDropD(true)}
+                      placeholder="Buscar nombre contrato..."
+                      className="w-full font-exo text-[9px] px-2 py-1 rounded outline-none"
+                      style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+                    {showDropD && filteredNombresD.length > 0 && (
+                      <div className="absolute z-50 w-full mt-0.5 rounded overflow-auto" style={{ background: "#0a1520", border: "1px solid #0d2035", maxHeight: 100 }}>
+                        {filteredNombresD.map((n: string) => (
+                          <div key={n} onClick={() => { setDestinoManual(n); setShowDropD(false); }}
+                            className="px-2 py-1 cursor-pointer font-exo text-[8px] hover:opacity-80"
+                            style={{ color: "#c8e8ff", borderBottom: "1px solid #0d203530", background: destinoManual === n ? "#00d4ff15" : "transparent" }}>
+                            {n}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleMapear(origenManual, destinoManual)}
+                    disabled={saving || !origenManual || !destinoManual}
+                    className="flex-1 py-1.5 rounded font-exo text-[8px] font-bold tracking-wider uppercase cursor-pointer disabled:opacity-30 transition-all"
+                    style={{ background: "#00ff8820", border: "1px solid #00ff8840", color: "#00ff88" }}>
+                    {saving ? <Loader2 className="w-3 h-3 mx-auto animate-spin" /> : "CONFIRMAR MAPEO"}
+                  </button>
+                  <button onClick={handleDescartar} disabled={saving}
+                    className="px-3 py-1.5 rounded font-exo text-[8px] tracking-wider uppercase cursor-pointer disabled:opacity-30"
+                    style={{ background: "#ff224415", border: "1px solid #ff224430", color: "#ff2244" }}>
+                    NO ES CENCOSUD
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center" style={{ borderTop: "1px solid #0d2035" }}>
+              <div className="text-center p-4">
+                <MapPin className="w-6 h-6 mx-auto mb-2" style={{ color: "#3a608050" }} />
+                <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Selecciona un viaje de la lista izquierda</div>
+                <div className="font-exo text-[7px] mt-1" style={{ color: "#3a608080" }}>
+                  Verás la ruta en el mapa y podrás asignar origen/destino del tarifario
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CencosudView({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("RESUMEN");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
