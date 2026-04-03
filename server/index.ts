@@ -79,6 +79,7 @@ app.get("/api/auth/me", (req: Request, res: Response) => {
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith("/api/auth/")) return next();
+  if (req.path.startsWith("/api/conductor/")) return next();
   if (!req.path.startsWith("/api/")) return next();
   if (!req.session.user) return res.status(401).json({ error: "No autorizado" });
   next();
