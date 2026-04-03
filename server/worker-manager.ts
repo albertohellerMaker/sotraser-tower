@@ -20,8 +20,15 @@ function resolveWorkerPath(filename: string): string {
 }
 
 function spawnWorker(info: WorkerInfo): Worker {
-  const worker = new Worker(info.file, {
-    execArgv: ["--import", "tsx"],
+  const workerCode = `
+    const { register } = require('node:module');
+    const { pathToFileURL } = require('node:url');
+    register('tsx/esm', pathToFileURL('./'));
+    require('tsx/cjs');
+    require(${JSON.stringify(info.file)});
+  `;
+  const worker = new Worker(workerCode, {
+    eval: true,
     env: {
       ...process.env,
     } as Record<string, string>,
