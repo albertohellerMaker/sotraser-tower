@@ -58,15 +58,10 @@ async function storePositions(
     if (!ts) continue;
 
     try {
-      const existing = await pool.query(
-        `SELECT 1 FROM geo_puntos WHERE camion_id = $1 AND timestamp_punto = $2 LIMIT 1`,
-        [cam.id, new Date(ts)]
-      );
-      if (existing.rows.length > 0) continue;
-
-      await pool.query(
+      const result = await pool.query(
         `INSERT INTO geo_puntos (camion_id, patente, lat, lng, timestamp_punto, velocidad_kmh, rumbo_grados, km_odometro, fuente)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, 'VOLVO_BACKFILL')`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, 'VOLVO_BACKFILL')
+         ON CONFLICT (camion_id, timestamp_punto) DO NOTHING`,
         [
           cam.id, cam.patente,
           gps.Latitude, gps.Longitude,
@@ -76,14 +71,17 @@ async function storePositions(
         ]
       );
 
-      await insertarGpsVolvo(
-        cam.patente, pos.VIN, gps.Latitude, gps.Longitude,
-        gps.Speed ?? pos.WheelBasedSpeed ?? 0,
-        gps.Heading ?? 0, new Date(ts)
-      );
-
-      inserted++;
-    } catch {}
+      if (result.rowCount && result.rowCount > 0) {
+        await insertarGpsVolvo(
+          cam.patente, pos.VIN, gps.Latitude, gps.Longitude,
+          gps.Speed ?? pos.WheelBasedSpeed ?? 0,
+          gps.Heading ?? 0, new Date(ts)
+        );
+        inserted++;
+      }
+    } catch (err: any) {
+      console.error(`[backfill] storePositions error VIN=${pos.VIN}: ${err.message}`);
+    }
   }
   return inserted;
 }
@@ -99,14 +97,18 @@ async function storeSnapshots(
     const hourKey = ts.slice(0, 13) + ":00:00";
 
     try {
-      await pool.query(
+      const result = await pool.query(
         `INSERT INTO volvo_fuel_snapshots (vin, total_fuel_used, total_distance, captured_at)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (vin, captured_at) DO NOTHING`,
         [s.Vin, s.EngineTotalFuelUsed, s.HRTotalVehicleDistance, hourKey]
       );
-      inserted++;
-    } catch {}
+      if (result.rowCount && result.rowCount > 0) {
+        inserted++;
+      }
+    } catch (err: any) {
+      console.error(`[backfill] storeSnapshots error VIN=${s.Vin}: ${err.message}`);
+    }
   }
   return inserted;
 }
@@ -117,12 +119,47 @@ function addDays(date: Date, days: number): Date {
   return d;
 }
 
+export function validateBackfillParams(fromDate: string, toDate: string, chunkHours: number): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+    return "Dates must be YYYY-MM-DD format";
+  }
+  if (fromDate > toDate) {
+    return "from must be <= to";
+  }
+  const from = new Date(fromDate);
+  const to = new Date(toDate);
+  const diffDays = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays > 30) {
+    return "Maximum 30-day range allowed";
+  }
+  if (chunkHours < 1 || chunkHours > 24) {
+    return "chunkHours must be between 1 and 24";
+  }
+  return null;
+}
+
 export async function runBackfill(
   fromDate: string,
   toDate: string,
   chunkHours: number = 6
 ): Promise<BackfillProgress> {
   if (backfillProgress.status === "running") return backfillProgress;
+
+  const validationError = validateBackfillParams(fromDate, toDate, chunkHours);
+  if (validationError) {
+    backfillProgress = {
+      status: "error",
+      currentDay: "",
+      totalDays: 0,
+      daysProcessed: 0,
+      positionsInserted: 0,
+      snapshotsInserted: 0,
+      errores: [validationError],
+      inicioAt: new Date().toISOString(),
+      finAt: new Date().toISOString(),
+    };
+    return backfillProgress;
+  }
 
   const from = new Date(fromDate + "T00:00:00Z");
   const to = new Date(toDate + "T23:59:59Z");
@@ -156,6 +193,10 @@ export async function runBackfill(
 
       while (chunkStart < dayEnd && chunkStart < to) {
         const chunkEnd = new Date(Math.min(chunkStart.getTime() + chunkMs, dayEnd.getTime(), to.getTime()));
+
+        if (chunkEnd.getTime() <= chunkStart.getTime()) {
+          break;
+        }
 
         try {
           const maxPagesPerChunk = 15;

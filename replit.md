@@ -121,9 +121,18 @@ Set via Replit Secrets/Env Vars:
 - 11 active contracts
 - 176 VINs mapped via camion_identidades
 
+## Volvo Connect Historical Backfill
+- **`server/volvo-backfill.ts`**: Fetches historical GPS positions + fuel/distance snapshots from Volvo rFMS API
+- **API endpoints**: `POST /api/geo/backfill` (trigger), `GET /api/geo/backfill/progress` (status)
+- **rFMS limitation**: Only last 14 days of historical data available via API
+- **Range functions**: `getVehicleStatusesRange()` and `getVehiclePositionsRange()` in `volvo-api.ts` use `starttime`/`stoptime` params with pagination (max pages configurable)
+- **Rate limiting**: 1.1s delay between API pages, 1.5s between chunks to respect Volvo's 1 req/s limit
+- **Data stored**: GPS → `geo_puntos` (fuente='VOLVO_BACKFILL') + `gps_unificado`, Fuel → `volvo_fuel_snapshots`
+- **Trip rebuild**: After backfill, trigger `POST /api/viajes/sync-historico` to reconstruct trips from enriched data
+
 ## Cleanup History
 - WiseTrack GPS fully removed (April 2026). Code, DB tables (wisetrack_snapshots, wt_productividad_diaria, wt_viajes), and all "triple verificado" / "3 sistemas" DNA eliminated.
 - 27 orphaned frontend pages deleted (reduced from 48 to 21 active pages).
 - 37 dead trucks removed (no VIN, no recent Sigetra cargas).
 - Duplicate `client 2/` directory removed.
-- Volvo API currently returns 401 — credentials may be expired or IP not whitelisted.
+- Volvo Connect credentials fixed (April 2026): User=1615691745, password corrected (O not 0).

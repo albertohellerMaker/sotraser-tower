@@ -582,7 +582,15 @@ export function registerGeoRoutes(app: Express) {
       const { from, to, chunkHours } = req.body || {};
       const fromDate = from || "2026-03-01";
       const toDate = to || "2026-03-18";
-      runBackfill(fromDate, toDate, chunkHours || 6);
+      const hours = Math.max(1, Math.min(24, Number(chunkHours) || 6));
+
+      const { validateBackfillParams } = await import("./volvo-backfill");
+      const validationError = validateBackfillParams(fromDate, toDate, hours);
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
+      }
+
+      runBackfill(fromDate, toDate, hours);
       res.json({ message: `Backfill started: ${fromDate} → ${toDate}`, progress: getBackfillProgress() });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
