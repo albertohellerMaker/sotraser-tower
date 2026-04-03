@@ -446,6 +446,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   let totalIda = 0;
   let totalRetorno = 0;
   let totalNoCencosud = 0;
+  let totalSinTarifa = 0;
   let camionesDescanso = 0;
   const errores: string[] = [];
 
@@ -513,6 +514,9 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
             totalNoCencosud++;
             continue;
           }
+
+          totalSinTarifa++;
+          continue;
         }
 
         allInserts.push({
@@ -583,7 +587,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   const durSeg = Math.round((Date.now() - inicio) / 1000);
   const facturados = allInserts.filter(v => v.tarifa).length;
   const pct = totalViajes > 0 ? Math.round(facturados * 100 / totalViajes) : 0;
-  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida), ${facturados}/${totalViajes} facturables (${pct}%), descartados: ${totalRetorno} retornos + ${totalNoCencosud} no-cencosud, ${camionesDescanso} descanso, ${errores.length} errores ═══`);
+  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida), ${facturados}/${totalViajes} facturables (${pct}%), descartados: ${totalRetorno} retornos + ${totalNoCencosud} no-cencosud + ${totalSinTarifa} sin-tarifa, ${camionesDescanso} descanso, ${errores.length} errores ═══`);
 
   return {
     camiones_procesados: camiones.length,
