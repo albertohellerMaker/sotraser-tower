@@ -143,4 +143,4 @@ migrations/                # SQL migration files
 - WiseTrack GPS fully removed (April 2026).
 - 27 orphaned frontend pages deleted previously.
 - Duplicate `client 2/` directory removed.
-- Leaflet migration to Google Maps in progress (viaje-mapa-modal done, 9 legacy pages pending).
+- Leaflet fully removed. All maps use Google Maps (`@vis.gl/react-google-maps`).
