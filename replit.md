@@ -116,10 +116,15 @@ Set via Replit Secrets/Env Vars:
 - Run: `node dist/index.cjs`
 
 ## Database Stats
-- 968 trucks (323 with Volvo VIN, 645 Sigetra-only)
+- 972 trucks (323 with Volvo VIN, 649 Sigetra-only)
 - 1754 geocercas operacionales
+- 96 KML geocercas Cencosud
+- 909 aliases geocerca → ciudad contrato (auto-geo-30km)
+- 141 tarifas activas Cencosud (inter-CD, inversas, inter-ciudad)
 - 11 active contracts
 - 176 VINs mapped via camion_identidades
+- ~302K GPS points (294K live + 8K backfill)
+- ~35K fuel snapshots (162 VINs)
 
 ## Volvo Connect Historical Backfill
 - **`server/volvo-backfill.ts`**: Fetches historical GPS positions + fuel/distance snapshots from Volvo rFMS API
