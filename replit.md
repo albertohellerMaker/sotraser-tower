@@ -13,6 +13,13 @@ A comprehensive fleet management system for a Chilean trucking company (~968 tru
 - **Database**: PostgreSQL (Neon/Railway production DB loaded via `.env` file, overrides Replit's managed DATABASE_URL)
 - **GitHub auto-sync**: `server/github-sync.ts` pushes to `github.com/albertohellerMaker/sotraser-tower` every 10 minutes using `GITHUB_TOKEN`
 
+## Authentication
+- **Session-based login**: express-session with cookie auth (30-day expiry)
+- **Credentials**: usuario `beto`, clave `1234`
+- **Protection**: All `/api/*` routes require authenticated session (except `/api/auth/*`)
+- **Cookie**: httpOnly, sameSite=lax, secure in production
+- **Session secret**: Uses `SESSION_SECRET` env var (auto-generated if missing, warns in production)
+
 ## Tech Stack
 - **Frontend**: React 18, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Leaflet maps, wouter routing
 - **Backend**: Node.js, Express 5, TypeScript (ESM)

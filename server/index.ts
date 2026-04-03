@@ -36,13 +36,21 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+const isProd = process.env.NODE_ENV === "production";
+const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+if (isProd && !process.env.SESSION_SECRET) {
+  console.warn("[AUTH] WARNING: SESSION_SECRET not set in production — sessions will reset on restart");
+}
+
+app.set("trust proxy", 1);
 app.use(session({
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex"),
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: false,
+    secure: isProd,
+    sameSite: "lax",
     maxAge: 30 * 24 * 60 * 60 * 1000,
   },
 }));
@@ -50,15 +58,18 @@ app.use(session({
 app.post("/api/auth/login", (req: Request, res: Response) => {
   const { usuario, clave } = req.body;
   if (usuario === "beto" && clave === "1234") {
-    req.session.user = usuario;
-    return res.json({ ok: true, usuario });
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ ok: false, error: "Error de sesión" });
+      req.session.user = usuario;
+      req.session.save(() => res.json({ ok: true, usuario }));
+    });
+    return;
   }
   return res.status(401).json({ ok: false, error: "Credenciales incorrectas" });
 });
 
 app.post("/api/auth/logout", (req: Request, res: Response) => {
-  req.session.destroy(() => {});
-  return res.json({ ok: true });
+  req.session.destroy(() => res.json({ ok: true }));
 });
 
 app.get("/api/auth/me", (req: Request, res: Response) => {
