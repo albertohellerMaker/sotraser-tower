@@ -445,8 +445,16 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   let totalRoundTrip = 0;
   let totalIda = 0;
   let totalRetorno = 0;
+  let totalNoCencosud = 0;
   let camionesDescanso = 0;
   const errores: string[] = [];
+
+  const nombresValidosResult = await db.execute(sql`
+    SELECT DISTINCT origen as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+    UNION
+    SELECT DISTINCT destino as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+  `);
+  const nombresValidos = new Set((nombresValidosResult.rows || []).map((r: any) => r.nombre));
 
   const allInserts: any[] = [];
 
@@ -496,6 +504,16 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
         }
 
         const tarifaFinal = buscarTarifaFlexible(v.origen, v.destino, tarifas);
+
+        if (!tarifaFinal) {
+          const oEnTarifario = nombresValidos.has(v.origen) || EQUIVALENCIAS[v.origen]?.some(eq => nombresValidos.has(eq));
+          const dEnTarifario = nombresValidos.has(v.destino) || EQUIVALENCIAS[v.destino]?.some(eq => nombresValidos.has(eq));
+
+          if (!oEnTarifario || !dEnTarifario) {
+            totalNoCencosud++;
+            continue;
+          }
+        }
 
         allInserts.push({
           camion_id: cam.camion_id,
@@ -565,7 +583,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   const durSeg = Math.round((Date.now() - inicio) / 1000);
   const facturados = allInserts.filter(v => v.tarifa).length;
   const pct = totalViajes > 0 ? Math.round(facturados * 100 / totalViajes) : 0;
-  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida, ${totalRetorno} retornos descartados), ${facturados}/${totalViajes} facturables (${pct}%), ${camionesDescanso} descanso, ${errores.length} errores ═══`);
+  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida), ${facturados}/${totalViajes} facturables (${pct}%), descartados: ${totalRetorno} retornos + ${totalNoCencosud} no-cencosud, ${camionesDescanso} descanso, ${errores.length} errores ═══`);
 
   return {
     camiones_procesados: camiones.length,
