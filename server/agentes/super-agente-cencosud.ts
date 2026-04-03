@@ -1,4 +1,5 @@
 import { pool } from "../db";
+import { reconstruirAyer, reconstruirDiaT1 } from "../t1-reconstructor";
 
 async function getParams(): Promise<Record<string, number>> {
   const r = await pool.query("SELECT clave, valor::float as valor FROM cencosud_parametros");
@@ -87,23 +88,64 @@ function encontrarCiudadMasCercana(lat: number, lng: number, ciudades: CiudadCon
 export const superAgenteCencosud = {
   id: "super-agente-cencosud",
 
+  _t1Ejecutado: false as boolean,
+
   async iniciar() {
-    console.log("[SUPER-CENCOSUD] Iniciando agente con GPS-proximity + consolidación...");
+    console.log("[SUPER-CENCOSUD] Iniciando agente T-1 + GPS-proximity...");
     setInterval(async () => { try { await this.ejecutarCiclo(); } catch (e: any) { console.error("[SUPER-CENCOSUD]", e.message); } }, 30 * 60 * 1000);
     setTimeout(async () => { try { await this.ejecutarCiclo(); } catch (e: any) { console.error("[SUPER-CENCOSUD]", e.message); } }, 20000);
+
+    this.programarT1Diario();
+  },
+
+  programarT1Diario() {
+    const ahora = new Date();
+    const target = new Date();
+    target.setHours(5, 0, 0, 0);
+    if (target <= ahora) target.setDate(target.getDate() + 1);
+    const ms = target.getTime() - ahora.getTime();
+    const minutos = Math.round(ms / 60000);
+    console.log(`[SUPER-CENCOSUD] T-1 diario programado para las 05:00 (en ${minutos} min)`);
+
+    setTimeout(async () => {
+      try {
+        console.log("[SUPER-CENCOSUD] ═══ Ejecutando T-1 diario ═══");
+        const result = await reconstruirAyer();
+        console.log(`[SUPER-CENCOSUD] T-1 completado: ${result.viajes_creados} viajes (${result.viajes_round_trip} RT)`);
+        await guardarMensaje("T1_RECONSTRUCCION", "NORMAL",
+          `T-1 completado: ${result.viajes_creados} viajes reconstruidos`,
+          `Camiones: ${result.camiones_procesados}, Viajes: ${result.viajes_creados} (${result.viajes_round_trip} round-trip, ${result.viajes_ida} ida), Descanso: ${result.camiones_descanso}`,
+          result);
+      } catch (e: any) {
+        console.error("[SUPER-CENCOSUD] T-1 error:", e.message);
+      }
+      this.programarT1Diario();
+    }, ms);
   },
 
   async ejecutarCiclo() {
     console.log("[SUPER-CENCOSUD] ─── Ciclo inicio ───");
     try {
+      if (!this._t1Ejecutado) {
+        try {
+          const ayer = new Date();
+          ayer.setDate(ayer.getDate() - 1);
+          const fecha = ayer.toISOString().split("T")[0];
+          const result = await reconstruirDiaT1(fecha);
+          console.log(`[SUPER-CENCOSUD] T-1 inicial (${fecha}): ${result.viajes_creados} viajes`);
+          this._t1Ejecutado = true;
+        } catch (e: any) {
+          console.error("[SUPER-CENCOSUD] T-1 inicial error:", e.message);
+        }
+      }
+
       const aliasResult = await this.autoAliasGPS();
-      const consolResult = await this.consolidarTrayectos();
       const facResult = await this.inteligenciaFacturacion();
       await this.verificarMetas();
       await this.detectarAnomalias();
 
       await pool.query("UPDATE cencosud_agente_estado SET ultimo_ciclo = NOW(), ciclos_hoy = ciclos_hoy + 1, updated_at = NOW() WHERE id = 1");
-      console.log(`[SUPER-CENCOSUD] OK: +${aliasResult.nuevos} alias GPS, ${consolResult.consolidados} trayectos, billing: ${facResult.conTarifa}/${facResult.totalViajes} (${facResult.pctFacturable}%) = $${facResult.ingresoTarifa.toLocaleString()}`);
+      console.log(`[SUPER-CENCOSUD] OK: +${aliasResult.nuevos} alias GPS, billing: ${facResult.conTarifa}/${facResult.totalViajes} (${facResult.pctFacturable}%) = $${facResult.ingresoTarifa.toLocaleString()}`);
     } catch (e: any) { console.error("[SUPER-CENCOSUD] Error ciclo:", e.message); }
   },
 

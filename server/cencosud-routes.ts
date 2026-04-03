@@ -660,4 +660,41 @@ router.post("/descartar-viaje", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+router.post("/t1-reconstruir", async (req, res) => {
+  try {
+    const { fecha, desde, hasta } = req.body;
+    if (desde && hasta) {
+      const { reconstruirRango } = await import("./t1-reconstructor");
+      const resultados = await reconstruirRango(desde, hasta);
+      return res.json({ ok: true, resultados });
+    }
+    const { reconstruirDiaT1 } = await import("./t1-reconstructor");
+    const f = fecha || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+    const result = await reconstruirDiaT1(f);
+    res.json({ ok: true, fecha: f, ...result });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/t1-resultado", async (req, res) => {
+  try {
+    const fecha = (req.query.fecha as string) || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+    const viajes = await pool.query(`
+      SELECT va.id, c.patente, va.origen_nombre, va.destino_nombre,
+             va.km_ecu as km, va.duracion_minutos as duracion,
+             va.fecha_inicio, va.fecha_fin, va.estado, va.paradas
+      FROM viajes_aprendizaje va
+      JOIN camiones c ON c.id = va.camion_id
+      WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR'
+        AND DATE(va.fecha_inicio) = $1
+      ORDER BY va.fecha_inicio
+    `, [fecha]);
+    const total = viajes.rows.length;
+    const rt = viajes.rows.filter((v: any) => {
+      try { const p = JSON.parse(v.paradas || "{}"); return p.tipo === "ROUND_TRIP"; } catch { return false; }
+    }).length;
+    const facturados = viajes.rows.filter((v: any) => v.estado === "FACTURADO").length;
+    res.json({ fecha, total, round_trip: rt, ida: total - rt, facturados, viajes: viajes.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
