@@ -1,3 +1,5 @@
+export {};
+
 function send(msg: any) {
   if (process.send) process.send(msg);
 }
