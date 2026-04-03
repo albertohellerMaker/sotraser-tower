@@ -9,6 +9,7 @@ import EstacionesTab from "@/pages/geo-tabs/estaciones-tab";
 import CombustibleTMS from "@/pages/combustible-tms";
 import GeoValidator from "@/pages/geovalidator";
 import CencosudView from "@/pages/cencosud";
+import AngloView from "@/pages/anglo";
 import Flota from "@/pages/flota";
 import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X } from "lucide-react";
 import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
@@ -1170,7 +1171,7 @@ function CamionesUnificado() {
 
 // ── Main App Shell ──
 // Welcome screen
-function WelcomeScreen({ onTower, onMando, onTMS }: { onTower: () => void; onMando: () => void; onTMS: () => void }) {
+function WelcomeScreen({ onTower, onMando, onTMS, onAnglo }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAnglo: () => void }) {
   const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
   useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
   const { data: stats } = useQuery<any>({ queryKey: ["/api/welcome/stats"], queryFn: () => fetch("/api/welcome/stats").then(r => r.json()), refetchInterval: 60000 });
@@ -1190,7 +1191,7 @@ function WelcomeScreen({ onTower, onMando, onTMS }: { onTower: () => void; onMan
           </div>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-5 w-full max-w-5xl px-8">
+      <div className="grid grid-cols-4 gap-5 w-full max-w-5xl px-8">
         <button onClick={onTower} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #00d4ff20", borderTop: "3px solid #00d4ff", borderRadius: 12 }}>
           <div className="text-[32px] mb-3">🗼</div>
@@ -1221,6 +1222,16 @@ function WelcomeScreen({ onTower, onMando, onTMS }: { onTower: () => void; onMan
           ))}
           <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
         </button>
+        <button onClick={onAnglo} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+          style={{ background: "#060d14", border: "1px solid #22c55e20", borderTop: "3px solid #22c55e", borderRadius: 12 }}>
+          <div className="text-[32px] mb-3">⛏️</div>
+          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#22c55e" }}>TMS ANGLO</div>
+          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Cargas Varias</div>
+          {["74 camiones · Contrato 4.22.0015.1", "Reajuste cuatrimestral FR", "Calculadora IPC + Diesel + Dólar"].map(item => (
+            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#4a9060" }}><div className="w-1 h-1 rounded-full" style={{ background: "#22c55e" }} />{item}</div>
+          ))}
+          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#22c55e" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
+        </button>
       </div>
       <div className="mt-12 font-exo text-[8px] tracking-wider" style={{ color: "#1a3040" }}>SOTRASER TOWER · Sistema de Gestión de Flota · v2.0</div>
     </div>
@@ -1228,7 +1239,7 @@ function WelcomeScreen({ onTower, onMando, onTMS }: { onTower: () => void; onMan
 }
 
 function AppShell() {
-  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS">("WELCOME");
+  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "ANGLO">("WELCOME");
   const [tab, setTab] = useState<MainTab>("flota");
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -1249,9 +1260,11 @@ function AppShell() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} />;
+  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAnglo={() => setModo("ANGLO")} />;
 
   if (modo === "TMS") return <CencosudView onBack={() => setModo("WELCOME")} />;
+
+  if (modo === "ANGLO") return <AngloView onBack={() => setModo("WELCOME")} />;
 
   if (modo === "MANDO") return (
     <div className="min-h-screen" style={{ background: "#020508" }}>
