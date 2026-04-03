@@ -29,7 +29,7 @@ router.post("/login", async (req: Request, res: Response) => {
         `SELECT cp.id, cp.nombre, cp.contrato, cp.score_comportamiento,
                 c.id as camion_id, c.patente
          FROM conductores_perfil cp
-         LEFT JOIN camiones c ON c.conductor_actual = cp.nombre
+         LEFT JOIN camiones c ON c.conductor = cp.nombre
          WHERE cp.nombre ILIKE $1
          LIMIT 1`,
         [`%${rut}%`]
@@ -41,7 +41,7 @@ router.post("/login", async (req: Request, res: Response) => {
         `SELECT cp.id, cp.nombre, cp.contrato, cp.score_comportamiento,
                 c.id as camion_id, c.patente
          FROM camiones c
-         LEFT JOIN conductores_perfil cp ON cp.nombre = c.conductor_actual
+         LEFT JOIN conductores_perfil cp ON cp.nombre = c.conductor
          WHERE c.patente = $1
          LIMIT 1`,
         [patente.toUpperCase()]
@@ -197,11 +197,11 @@ router.get("/camion/:patente/info", async (req: Request, res: Response) => {
     const { patente } = req.params;
 
     const result = await pool.query(
-      `SELECT c.id, c.patente, c.marca, c.modelo, c.anio, c.contrato,
-              c.km_actual, c.conductor_actual,
-              cp.score_comportamiento, cp.rendimiento_promedio
+      `SELECT c.id, c.patente, c.modelo, c.anio_fabricacion, c.odometro,
+              c.conductor, c.tipo_vehiculo, c.capacidad_estanque_litros,
+              cp.score_comportamiento, cp.rendimiento_promedio, cp.contrato
        FROM camiones c
-       LEFT JOIN conductores_perfil cp ON cp.nombre = c.conductor_actual
+       LEFT JOIN conductores_perfil cp ON cp.nombre = c.conductor
        WHERE c.patente = $1`,
       [patente.toUpperCase()]
     );
