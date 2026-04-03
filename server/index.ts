@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -8,6 +9,7 @@ import { db } from "./db";
 import { geoBases } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { inicializarContratos } from "./faena-filter";
+import crypto from "crypto";
 
 const app = express();
 const httpServer = createServer(app);
@@ -15,6 +17,12 @@ const httpServer = createServer(app);
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
+  }
+}
+
+declare module "express-session" {
+  interface SessionData {
+    user?: string;
   }
 }
 
@@ -27,6 +35,43 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex"),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  },
+}));
+
+app.post("/api/auth/login", (req: Request, res: Response) => {
+  const { usuario, clave } = req.body;
+  if (usuario === "beto" && clave === "1234") {
+    req.session.user = usuario;
+    return res.json({ ok: true, usuario });
+  }
+  return res.status(401).json({ ok: false, error: "Credenciales incorrectas" });
+});
+
+app.post("/api/auth/logout", (req: Request, res: Response) => {
+  req.session.destroy(() => {});
+  return res.json({ ok: true });
+});
+
+app.get("/api/auth/me", (req: Request, res: Response) => {
+  if (req.session.user) return res.json({ ok: true, usuario: req.session.user });
+  return res.status(401).json({ ok: false });
+});
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path.startsWith("/api/auth/")) return next();
+  if (!req.path.startsWith("/api/")) return next();
+  if (!req.session.user) return res.status(401).json({ error: "No autorizado" });
+  next();
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
