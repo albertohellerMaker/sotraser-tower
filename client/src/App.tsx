@@ -294,13 +294,11 @@ function MiniMapaGoogle({ lat, lng, titulo, velocidad }: { lat?: number; lng?: n
   if (!lat || !lng) return <div className="flex items-center justify-center" style={{ height: 200, background: "#0a1520", borderRadius: 6 }}><span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin ubicación GPS</span></div>;
   return (
     <div style={{ height: 220, borderRadius: 6, overflow: "hidden", border: "1px solid #0d2035" }}>
-      <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY || ""}>
-        <GMap defaultCenter={{ lat, lng }} defaultZoom={13} mapId="sotraser-alert" style={{ height: "100%", width: "100%" }} disableDefaultUI gestureHandling="greedy">
-          <AdvancedMarker position={{ lat, lng }}>
-            <div style={{ width: 24, height: 24, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", boxShadow: "0 0 12px #ff2244", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: "bold" }}>!</div>
-          </AdvancedMarker>
-        </GMap>
-      </APIProvider>
+      <GMap defaultCenter={{ lat, lng }} defaultZoom={13} mapId="sotraser-alert" style={{ height: "100%", width: "100%" }} disableDefaultUI gestureHandling="greedy">
+        <AdvancedMarker position={{ lat, lng }}>
+          <div style={{ width: 24, height: 24, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", boxShadow: "0 0 12px #ff2244", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: "bold" }}>!</div>
+        </AdvancedMarker>
+      </GMap>
     </div>
   );
 }
@@ -1381,26 +1379,23 @@ function AppShell() {
 
                 {/* Mapa full screen */}
                 <div style={{ flex: 1 }}>
-                  <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY || ""}>
-                    <GMap defaultCenter={{ lat: focoAlerta.lat || -33.45, lng: focoAlerta.lng || -70.65 }} defaultZoom={focoAlerta.lat ? 15 : 6} mapId="sotraser-foco"
-                      style={{ width: "100%", height: "100%" }} gestureHandling="greedy" mapTypeControl streetViewControl zoomControl>
-                      {focoAlerta.lat && focoAlerta.lng && (
-                        <>
-                          <AdvancedMarker position={{ lat: focoAlerta.lat, lng: focoAlerta.lng }}>
-                            <div style={{ width: 40, height: 40, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff", fontWeight: "bold", boxShadow: "0 0 20px rgba(255,34,68,0.6)", animation: "pulse 2s infinite" }}>!</div>
-                          </AdvancedMarker>
-                          {/* Info overlay */}
-                          <div style={{ position: "absolute", bottom: 20, left: 20, background: "rgba(6,13,20,0.95)", border: "1px solid #ff224440", borderRadius: 8, padding: "12px 16px", zIndex: 10, backdropFilter: "blur(8px)" }}>
-                            <div className="font-space text-[14px] font-bold" style={{ color: "#ff2244" }}>{focoAlerta.tipo === "VELOCIDAD" ? (focoAlerta.dato || Math.round(focoAlerta.velocidad || 0) + " km/h") : focoAlerta.tipo}</div>
-                            <div className="font-space text-[12px] font-bold mt-1" style={{ color: "#c8e8ff" }}>{focoAlerta.patente} · {focoAlerta.contrato}</div>
-                            {focoAlerta.conductor && <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{focoAlerta.conductor}</div>}
-                            {focoAlerta.descripcion && <div className="font-exo text-[9px] mt-1" style={{ color: "#c8e8ff" }}>{focoAlerta.descripcion}</div>}
-                            <div className="font-exo text-[8px] mt-1" style={{ color: "#3a6080" }}>{focoAlerta.lat?.toFixed(5)}, {focoAlerta.lng?.toFixed(5)}</div>
-                          </div>
-                        </>
-                      )}
-                    </GMap>
-                  </APIProvider>
+                  <GMap defaultCenter={{ lat: focoAlerta.lat || -33.45, lng: focoAlerta.lng || -70.65 }} defaultZoom={focoAlerta.lat ? 15 : 6} mapId="sotraser-foco"
+                    style={{ width: "100%", height: "100%" }} gestureHandling="greedy" mapTypeControl streetViewControl zoomControl>
+                    {focoAlerta.lat && focoAlerta.lng && (
+                      <>
+                        <AdvancedMarker position={{ lat: focoAlerta.lat, lng: focoAlerta.lng }}>
+                          <div style={{ width: 40, height: 40, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff", fontWeight: "bold", boxShadow: "0 0 20px rgba(255,34,68,0.6)", animation: "pulse 2s infinite" }}>!</div>
+                        </AdvancedMarker>
+                        <div style={{ position: "absolute", bottom: 20, left: 20, background: "rgba(6,13,20,0.95)", border: "1px solid #ff224440", borderRadius: 8, padding: "12px 16px", zIndex: 10, backdropFilter: "blur(8px)" }}>
+                          <div className="font-space text-[14px] font-bold" style={{ color: "#ff2244" }}>{focoAlerta.tipo === "VELOCIDAD" ? (focoAlerta.dato || Math.round(focoAlerta.velocidad || 0) + " km/h") : focoAlerta.tipo}</div>
+                          <div className="font-space text-[12px] font-bold mt-1" style={{ color: "#c8e8ff" }}>{focoAlerta.patente} · {focoAlerta.contrato}</div>
+                          {focoAlerta.conductor && <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{focoAlerta.conductor}</div>}
+                          {focoAlerta.descripcion && <div className="font-exo text-[9px] mt-1" style={{ color: "#c8e8ff" }}>{focoAlerta.descripcion}</div>}
+                          <div className="font-exo text-[8px] mt-1" style={{ color: "#3a6080" }}>{focoAlerta.lat?.toFixed(5)}, {focoAlerta.lng?.toFixed(5)}</div>
+                        </div>
+                      </>
+                    )}
+                  </GMap>
                 </div>
               </div>
             )}
@@ -1526,10 +1521,12 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <AppShell />
-      </TooltipProvider>
+      <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY || ""}>
+        <TooltipProvider>
+          <Toaster />
+          <AppShell />
+        </TooltipProvider>
+      </APIProvider>
     </QueryClientProvider>
   );
 }

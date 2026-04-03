@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 import {
   Users, AlertTriangle, MapPin, CheckCircle, Clock, Truck, Search,
   Plus, Send, Eye, Radio, ChevronRight, X, Navigation, Loader2,
@@ -221,8 +221,7 @@ function ViajesEnVivo() {
             </div>
 
             <div className="flex-1 relative" style={{ minHeight: 400 }}>
-              <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY || ""}>
-                <GMap
+              <GMap
                   defaultCenter={{
                     lat: tracking.trayectoria?.[tracking.trayectoria.length - 1]?.lat
                       || tracking.viaje.origen_lat || -33.45,
@@ -263,7 +262,6 @@ function ViajesEnVivo() {
                     </AdvancedMarker>
                   )}
                 </GMap>
-              </APIProvider>
             </div>
 
             <div className="p-3 space-y-2" style={{ borderTop: "1px solid #0d2035", maxHeight: 200, overflowY: "auto" }}>

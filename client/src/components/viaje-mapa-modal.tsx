@@ -1,7 +1,7 @@
 /// <reference types="google.maps" />
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { X, Play, Pause, SkipBack, MapPin, Gauge, Clock, Route } from "lucide-react";
-import { APIProvider, Map as GMap, Polyline, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
+import { Map as GMap, Polyline, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 
 interface Props {
   viajeId: number;
@@ -163,8 +163,6 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const durM = v.duracion ? v.duracion % 60 : 0;
   const currentTime = currentPoint?.ts ? new Date(currentPoint.ts).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--";
 
-  const apiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_KEY || "";
-
   return (
     <div className="fixed inset-0 z-[9999]" style={{ background: "rgba(0,0,0,0.9)" }}>
       <div className="h-full flex flex-col">
@@ -186,8 +184,7 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
         </div>
 
         <div className="flex-1 relative">
-          <APIProvider apiKey={apiKey}>
-            <GMap
+          <GMap
               defaultCenter={center}
               defaultZoom={10}
               mapId="sotraser-viaje-gps"
@@ -249,7 +246,6 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
                 </>
               )}
             </GMap>
-          </APIProvider>
 
           <div className="absolute top-4 right-4 p-3 rounded-lg" style={{ background: "#060d14ee", border: "1px solid #0d2035", zIndex: 1000, minWidth: 200 }}>
             <div className="font-exo text-[7px] tracking-[0.15em] uppercase mb-2" style={{ color: "#3a6080" }}>LEYENDA VELOCIDAD</div>
