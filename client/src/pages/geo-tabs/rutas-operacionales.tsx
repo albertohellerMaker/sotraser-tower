@@ -10,12 +10,11 @@ const TEXT_DIM = "#3a6080";
 const BORDER = "#0d2035";
 
 const CC: Record<string, string> = {
-  "ANGLO-COCU": "#00ff88", "ANGLO-CAL": "#ff6b35",
-  "ANGLO-CARGAS VARIAS": "#00d4ff",
+  "CENCOSUD": "#00d4ff",
 };
 
 export default function RutasOperacionales() {
-  const [contrato, setContrato] = useState("ANGLO-COCU");
+  const [contrato, setContrato] = useState("CENCOSUD");
   const [expandido, setExpandido] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<any>({
@@ -31,7 +30,7 @@ export default function RutasOperacionales() {
       {/* Filtro contrato */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex gap-1.5">
-          {["ANGLO-COCU", "ANGLO-CAL", "ANGLO-CARGAS VARIAS", "TODOS"].map(c => (
+          {["CENCOSUD", "TODOS"].map(c => (
             <button key={c} onClick={() => setContrato(c)}
               className="font-exo text-[11px] font-bold px-3 py-1.5 cursor-pointer transition-all"
               style={{
@@ -39,7 +38,7 @@ export default function RutasOperacionales() {
                 color: contrato === c ? CC[c] || CYAN : TEXT_DIM,
                 background: contrato === c ? `${CC[c] || CYAN}08` : "transparent",
               }}>
-              {c === "ANGLO-CARGAS VARIAS" ? "ANGLO-CV" : c}
+              {c}
             </button>
           ))}
         </div>

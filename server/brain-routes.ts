@@ -193,24 +193,24 @@ export function registerBrainRoutes(app: Express) {
   app.get("/api/brain/resumen-rapido", async (_req: Request, res: Response) => {
     try {
       const anomalias = await detectarAnomaliasMacro("TODOS");
-      // Cobertura Volvo Connect: camiones Anglo con actividad Volvo desde 01-Mar
+      // Cobertura Volvo Connect: camiones con actividad Volvo desde 01-Mar
       const cobR = await pool.query(`
         SELECT
           (SELECT COUNT(DISTINCT c.id) FROM camiones c
            JOIN faenas f ON f.id = c.faena_id
            WHERE c.vin IS NOT NULL AND c.vin != ''
              AND f.nombre = ANY($1)
-             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as total_anglo_volvo,
+             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as total_volvo,
           (SELECT COUNT(DISTINCT g.camion_id) FROM geo_puntos g
            JOIN camiones c ON c.id = g.camion_id
            JOIN faenas f ON f.id = c.faena_id
            WHERE g.timestamp_punto >= NOW() - INTERVAL '2 hours'
              AND c.vin IS NOT NULL AND c.vin != ''
              AND f.nombre = ANY($1)
-             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as anglo_con_gps
+             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as con_gps
       `, [CONTRATOS_VOLVO_ACTIVOS]);
-      const total = parseInt(cobR.rows[0]?.total_anglo_volvo || "1");
-      const conGps = parseInt(cobR.rows[0]?.anglo_con_gps || "0");
+      const total = parseInt(cobR.rows[0]?.total_volvo || "1");
+      const conGps = parseInt(cobR.rows[0]?.con_gps || "0");
       res.json({ anomalias_macro: anomalias.length, cobertura_sistema: Math.round(conGps / total * 100) });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -218,7 +218,7 @@ export function registerBrainRoutes(app: Express) {
   // GET /api/brain/estado-sistema
   app.get("/api/brain/estado-sistema", async (_req: Request, res: Response) => {
     try {
-      // Cobertura Volvo Connect: camiones Anglo activos desde 01-Mar
+      // Cobertura Volvo Connect: camiones activos desde 01-Mar
       const cobR = await pool.query(`
         SELECT
           (SELECT COUNT(DISTINCT c.id) FROM camiones c
@@ -411,7 +411,7 @@ export function registerBrainRoutes(app: Express) {
       const diasRestantes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate();
       const kmProy = parseFloat(k.km || "0") + (parseFloat(predR.rows[0]?.km_dia || "0") * diasRestantes);
 
-      const systemPrompt = `Eres el asistente del administrador de contratos de Sotraser para Anglo American.
+      const systemPrompt = `Eres el asistente del administrador de contratos de Sotraser para Cencosud.
 Respondes en español, conciso y técnico. Siempre con números reales. Nunca inventas datos.
 
 DATOS REALES HOY ${new Date().toLocaleDateString("es-CL")}:

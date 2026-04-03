@@ -97,10 +97,9 @@ export async function calcularScoreAdaptativo(
 function normalizarContrato(raw: string): string {
   const upper = (raw || "").toUpperCase();
   if (upper.includes("CENCOSUD")) return "CENCOSUD";
-  if (upper.includes("CARGAS VARIAS") || upper.includes("CARGAS-VARIAS")) return "ANGLO-CARGAS VARIAS";
-  if (upper.includes("COCU")) return "ANGLO-COCU";
-  if (upper.includes("CAL") && upper.includes("ANGLO")) return "ANGLO-CAL";
-  if (upper.includes("ANGLO")) return "ANGLO-CARGAS VARIAS";
+  if (upper.includes("CARGAS VARIAS") || upper.includes("CARGAS-VARIAS")) return "CENCOSUD";
+  if (upper.includes("COCU")) return "CENCOSUD";
+  if (upper.includes("ANGLO")) return "CENCOSUD";
   return upper || "X ASIGNAR";
 }
 

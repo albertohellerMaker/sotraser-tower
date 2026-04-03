@@ -97,9 +97,7 @@ function CamionStatusDot({ estado }: { estado: string }) {
 function CamionesTab() {
   const CONTRATOS = [
     { id: "TODOS", label: "TODOS", color: "#c8e8ff" },
-    { id: "ANGLO-COCU", label: "ANGLO-COCU", color: "#00ff88" },
-    { id: "ANGLO-CARGAS VARIAS", label: "A-CARGAS VAR", color: "#00d4ff" },
-    { id: "ANGLO-CAL", label: "ANGLO-CAL", color: "#ff6b35" },
+    { id: "CENCOSUD", label: "CENCOSUD", color: "#00d4ff" },
   ];
 
   const [contrato, setContrato] = useState("TODOS");
@@ -420,13 +418,11 @@ function CamionesTab() {
 }
 
 const CONTRATOS_GEO: { id: string; label: string; color: string; subfaenas?: { id: string; label: string; color: string }[] }[] = [
-  { id: "ANGLO-COCU", label: "ANGLO-COCU", color: "#00ff88" },
-  { id: "ANGLO-CARGAS VARIAS", label: "ANGLO-CV", color: "#00d4ff" },
-  { id: "ANGLO-CAL", label: "ANGLO-CAL", color: "#ff6b35" },
+  { id: "CENCOSUD", label: "CENCOSUD", color: "#00d4ff" },
 ];
 
 function ConductoresTab() {
-  const [selectedContrato, setSelectedContrato] = useState("ANGLO-COCU");
+  const [selectedContrato, setSelectedContrato] = useState("CENCOSUD");
   const [selectedSubfaena, setSelectedSubfaena] = useState("");
 
   const contratoParam = selectedContrato;
@@ -447,9 +443,7 @@ function ConductoresTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"litros" | "rend_asc" | "rend_desc">("litros");
 
-  const activeColor = selectedSubfaena
-    ? (CONTRATOS_GEO.find(c => c.id === "ANGLO")?.subfaenas?.find(s => s.id === selectedSubfaena)?.color || "#FF6B35")
-    : (CONTRATOS_GEO.find(c => c.id === selectedContrato)?.color || "#00d4ff");
+  const activeColor = CONTRATOS_GEO.find(c => c.id === selectedContrato)?.color || "#00d4ff";
 
   const filtered = useMemo(() => {
     if (!conductoresData?.conductores) return [];
@@ -488,19 +482,6 @@ function ConductoresTab() {
               color: selectedContrato === c.id ? c.color : "#3a6080",
             }}>
             {c.label}
-          </button>
-        ))}
-        {selectedContrato === "ANGLO" && CONTRATOS_GEO.find(c => c.id === "ANGLO")?.subfaenas?.map(sf => (
-          <button key={sf.id}
-            onClick={() => { setSelectedSubfaena(selectedSubfaena === sf.id ? "" : sf.id); setExpandedConductor(null); }}
-            data-testid={`btn-subfaena-${sf.id}`}
-            className="font-space text-[11px] font-bold tracking-wider px-2.5 py-1 cursor-pointer transition-all"
-            style={{
-              background: selectedSubfaena === sf.id ? sf.color + "20" : "#0a1520",
-              border: `1px solid ${selectedSubfaena === sf.id ? sf.color : "#0d2035"}`,
-              color: selectedSubfaena === sf.id ? sf.color : "#3a6080",
-            }}>
-            {sf.label}
           </button>
         ))}
       </div>
@@ -1225,9 +1206,7 @@ function AprendizajeTab() {
 const MIN_VIAJES_CORREDOR = 5;
 
 const CONTRATO_COLORS: Record<string, string> = {
-  "ANGLO-COCU": "#00ff88",
-  "ANGLO-CAL": "#ff6b35",
-  "ANGLO-CARGAS VARIAS": "#00d4ff",
+  "CENCOSUD": "#00d4ff",
 };
 
 function RendimientoECUTab() {

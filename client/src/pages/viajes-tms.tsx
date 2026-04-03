@@ -7,7 +7,7 @@ const ViajeMapaModal = lazy(() => import("../components/viaje-mapa-modal"));
 type Vista = "RESUMEN" | "DIA" | "MES" | "CONTRATO" | "RANKING" | "ALERTAS";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
-const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("ANGLO") && u.includes("COCU")) return "#00ff88"; if (u.includes("ANGLO")) return "#22c55e"; if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; const h = c.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
+const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; const h = c.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 
 function Badge({ doble, wt }: { doble?: boolean; wt?: boolean }) {
@@ -128,7 +128,7 @@ export default function ViajesTMS() {
           {["TODOS", ...contratos].slice(0, 12).map((c: string) => (
             <button key={c} onClick={() => setContrato(c)} className="px-2 py-1 font-exo text-[8px] font-bold cursor-pointer transition-all"
               style={{ color: contrato === c ? CC(c) : "#3a6080", background: contrato === c ? `${CC(c)}12` : "transparent", border: `1px solid ${contrato === c ? `${CC(c)}35` : "#0d203500"}`, borderRadius: 4 }}>
-              {c === "TODOS" ? "TODOS" : c.replace("ANGLO-", "").substring(0, 14)}
+              {c === "TODOS" ? "TODOS" : c.substring(0, 14)}
             </button>
           ))}
         </div>
@@ -333,7 +333,7 @@ export default function ViajesTMS() {
                         style={{ height: 38, background: sel ? "rgba(0,212,255,0.06)" : i % 2 === 0 ? "#060d14" : "#070e16", borderBottom: "1px solid #0a1825", borderLeft: sel ? "3px solid #00d4ff" : "3px solid transparent", cursor: "pointer" }}>
                         <td style={{ padding: "0 12px" }}><span className="font-space text-[12px] font-bold" style={{ color: sel ? "#00d4ff" : "#c8e8ff" }}>{cam.patente}</span></td>
                         <td style={{ padding: "0 8px" }}><Badge doble={cam.doble_validado} wt={cam.tiene_wt} /></td>
-                        <td style={{ padding: "0 8px" }}><span className="font-exo text-[8px] font-bold" style={{ color: CC(cam.contrato), background: `${CC(cam.contrato)}12`, border: `1px solid ${CC(cam.contrato)}25`, padding: "1px 5px", borderRadius: 3 }}>{cam.contrato?.replace("ANGLO-", "")?.substring(0, 14)}</span></td>
+                        <td style={{ padding: "0 8px" }}><span className="font-exo text-[8px] font-bold" style={{ color: CC(cam.contrato), background: `${CC(cam.contrato)}12`, border: `1px solid ${CC(cam.contrato)}25`, padding: "1px 5px", borderRadius: 3 }}>{cam.contrato?.substring(0, 14)}</span></td>
                         <td style={{ padding: "0 12px", textAlign: "right" }}><span className="font-space text-[12px]" style={{ color: "#c8e8ff" }}>{fN(parseFloat(cam.km_total || cam.km_mes || 0))}</span><span className="font-exo text-[8px] ml-0.5" style={{ color: "#3a6080" }}>km</span></td>
                         <td style={{ padding: "0 12px", textAlign: "right" }}><span className="font-space text-[13px] font-bold" style={{ color: RC(rend) }}>{rend > 0 ? rend.toFixed(2) : "--"}</span></td>
                         <td style={{ padding: "0 12px", textAlign: "center" }}><span className="font-space text-[11px]" style={{ color: "#c8e8ff" }}>{cam.viajes || cam.viajes_mes}</span></td>
@@ -543,7 +543,7 @@ export default function ViajesTMS() {
                         <div key={cam.patente} className="flex items-center gap-3 px-4 py-3" style={{ background: "#060d14", borderLeft: `3px solid ${section.border(i)}`, borderRadius: 4 }}>
                           {section.title.includes("TOP") && <span className="font-space text-[16px] font-bold w-8" style={{ color: i < 3 ? "#ffcc00" : "#3a6080" }}>{i + 1}</span>}
                           <span className="font-space text-[13px] font-bold w-20" style={{ color: "#c8e8ff" }}>{cam.patente}</span>
-                          <span className="font-exo text-[8px] font-bold px-2 py-0.5" style={{ color: CC(cam.contrato), background: `${CC(cam.contrato)}12`, borderRadius: 3 }}>{cam.contrato?.replace("ANGLO-", "")?.substring(0, 14)}</span>
+                          <span className="font-exo text-[8px] font-bold px-2 py-0.5" style={{ color: CC(cam.contrato), background: `${CC(cam.contrato)}12`, borderRadius: 3 }}>{cam.contrato?.substring(0, 14)}</span>
                           <Badge doble={cam.doble_validado} />
                           <div className="flex-1 h-2" style={{ background: "#0d2035", borderRadius: 3 }}><div className="h-full" style={{ width: `${Math.min(100, (rend / 4.5) * 100)}%`, background: RC(rend), borderRadius: 3 }} /></div>
                           <span className="font-space text-[16px] font-bold w-16 text-right" style={{ color: RC(rend) }}>{rend > 0 ? rend.toFixed(2) : "--"}</span>

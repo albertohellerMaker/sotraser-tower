@@ -14,11 +14,7 @@ interface LugarConocido {
 
 // Radio: 1km (1000m) para faenas normales, 3km para mineras
 const LUGARES_CONOCIDOS: LugarConocido[] = [
-  { nombre: "Base Sotraser Quilicura", lat: -33.3840, lng: -70.7520, tipo: "base", radio_km: 1, contratos: ["CENCOSUD", "ANGLO-CARGAS VARIAS", "ANGLO-COCU", "ANGLO-CAL"] },
-  { nombre: "Planta Anglo Los Bronces", lat: -33.1420, lng: -70.7010, tipo: "mina", radio_km: 3, contratos: ["ANGLO-COCU", "ANGLO-CARGAS VARIAS", "ANGLO-CAL"] },
-  { nombre: "Mina El Soldado", lat: -32.8440, lng: -70.9810, tipo: "mina", radio_km: 3, contratos: ["ANGLO-COCU"] },
-  { nombre: "Planta Chagres", lat: -32.9200, lng: -70.8100, tipo: "descarga", radio_km: 3, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector Los Andes", lat: -33.1960, lng: -70.3400, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS", "ANGLO-CAL"] },
+  { nombre: "Base Sotraser Quilicura", lat: -33.3840, lng: -70.7520, tipo: "base", radio_km: 1, contratos: ["CENCOSUD"] },
   { nombre: "CD Cencosud Lo Espejo", lat: -33.4600, lng: -70.8800, tipo: "cd", radio_km: 1, contratos: ["CENCOSUD"] },
   { nombre: "CD Cencosud Maipu", lat: -33.4400, lng: -70.7900, tipo: "cd", radio_km: 1, contratos: ["CENCOSUD"] },
   { nombre: "Los Angeles", lat: -37.5200, lng: -72.6400, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
@@ -27,11 +23,6 @@ const LUGARES_CONOCIDOS: LugarConocido[] = [
   { nombre: "Chillan / Linares", lat: -36.6900, lng: -72.2500, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
   { nombre: "Antofagasta / Mejillones", lat: -23.6100, lng: -70.2600, tipo: "descarga", radio_km: 1 },
   { nombre: "La Serena", lat: -30.4800, lng: -71.4800, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Colina", lat: -33.2700, lng: -70.7500, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS"] },
-  { nombre: "Sector Pudahuel", lat: -33.3700, lng: -70.4900, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS"] },
-  { nombre: "Sector Las Condes / Lo Barnechea", lat: -33.3700, lng: -70.4000, tipo: "descarga", radio_km: 1, contratos: ["ANGLO-CARGAS VARIAS"] },
-  { nombre: "Quintero / Ventanas", lat: -32.7500, lng: -71.4800, tipo: "puerto", radio_km: 1, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector Ruta 60 Los Andes", lat: -32.8500, lng: -70.8800, tipo: "carga", radio_km: 1, contratos: ["ANGLO-COCU"] },
   { nombre: "Estacion Quilicura", lat: -33.3583, lng: -70.7250, tipo: "estacion", radio_km: 1 },
   { nombre: "Estacion Lampa", lat: -33.2480, lng: -70.7170, tipo: "estacion", radio_km: 1 },
   { nombre: "Estacion Renca", lat: -33.3890, lng: -70.6650, tipo: "estacion", radio_km: 1 },
@@ -55,16 +46,9 @@ const LUGARES_CONOCIDOS: LugarConocido[] = [
   { nombre: "Sector Lautaro", lat: -38.4085, lng: -72.3937, tipo: "descarga", radio_km: 1, contratos: ["CENCOSUD"] },
   { nombre: "Chillan Viejo", lat: -36.8000, lng: -72.3263, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
   { nombre: "Rio Bueno", lat: -40.2932, lng: -73.0730, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Nogales", lat: -32.8024, lng: -70.9579, tipo: "carga", radio_km: 4, contratos: ["ANGLO-COCU"] },
   { nombre: "Coquimbo / Tongoy", lat: -31.6956, lng: -71.5233, tipo: "descarga", radio_km: 6, contratos: ["CENCOSUD"] },
   { nombre: "Los Vilos / Pichidangui", lat: -32.0861, lng: -71.5136, tipo: "descarga", radio_km: 6, contratos: ["CENCOSUD"] },
-  { nombre: "Sector Tiltil", lat: -33.2305, lng: -70.7610, tipo: "descarga", radio_km: 3, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector Batuco", lat: -33.1441, lng: -70.8034, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-COCU", "CENCOSUD"] },
-  { nombre: "Catemu / Llay-Llay", lat: -32.9574, lng: -70.8233, tipo: "descarga", radio_km: 5, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector Rinconada", lat: -33.1007, lng: -70.8415, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-COCU"] },
-  { nombre: "La Calera / Hijuelas", lat: -32.7377, lng: -71.2342, tipo: "descarga", radio_km: 5, contratos: ["ANGLO-COCU"] },
-  { nombre: "Sector San Felipe", lat: -32.7500, lng: -70.7300, tipo: "descarga", radio_km: 5, contratos: ["ANGLO-COCU", "ANGLO-CARGAS VARIAS"] },
-  { nombre: "Los Andes Centro", lat: -33.2885, lng: -70.3544, tipo: "descarga", radio_km: 4, contratos: ["ANGLO-CARGAS VARIAS"] },
+  { nombre: "Sector Batuco", lat: -33.1441, lng: -70.8034, tipo: "descarga", radio_km: 4, contratos: ["CENCOSUD"] },
   { nombre: "Curacavi / Casablanca", lat: -33.3500, lng: -71.1000, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
   { nombre: "Rancagua Centro", lat: -33.9948, lng: -70.7014, tipo: "descarga", radio_km: 3, contratos: ["CENCOSUD"] },
   { nombre: "Loncoche / Gorbea", lat: -39.7918, lng: -72.9015, tipo: "descarga", radio_km: 5, contratos: ["CENCOSUD"] },
@@ -218,7 +202,7 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
     `, CONTRATOS_VOLVO_ACTIVOS);
     const camiones = camionesResult.rows;
     syncProgress.totalCamiones = camiones.length;
-    console.log(`[viajes-hist] Iniciando sync historico: ${camiones.length} camiones (solo CENCOSUD+ANGLO), desde ${desdeStr}`);
+    console.log(`[viajes-hist] Iniciando sync historico: ${camiones.length} camiones (solo CENCOSUD), desde ${desdeStr}`);
 
     const snapsResult = await pool.query(`
       SELECT vin, total_fuel_used, total_distance, captured_at
@@ -384,7 +368,7 @@ const CLUSTER_RADIUS_KM_DEFAULT = 1; // 1km = 1000m default
 const MIN_VIAJES_CORREDOR = 5;
 
 // Faenas mineras con radio extendido (zonas remotas, accesos largos)
-const FAENAS_MINERAS = ["ZALDIVAR", "GLENCORE", "ANGLO", "CODELCO", "CENTINELA", "MANTOS COPPER", "SIERRA ATACAMA", "MINISTRO HALES"];
+const FAENAS_MINERAS = ["ZALDIVAR", "GLENCORE", "CODELCO", "CENTINELA", "MANTOS COPPER", "SIERRA ATACAMA", "MINISTRO HALES"];
 
 function esFaenaMinera(contrato: string): boolean {
   if (!contrato) return false;

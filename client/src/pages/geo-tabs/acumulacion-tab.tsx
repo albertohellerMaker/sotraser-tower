@@ -9,9 +9,6 @@ function rendColor(r: number): string {
 }
 
 function getContColor(c: string): string {
-  if (c?.includes("ANGLO-COCU")) return "#00ff88";
-  if (c?.includes("ANGLO-CAL")) return "#ff6b35";
-  if (c?.includes("ANGLO")) return "#00d4ff";
   if (c?.includes("CENCOSUD") || c?.includes("WALMART")) return "#00bfff";
   const hash = c?.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0) || 0;
   return ["#a855f7", "#06b6d4", "#f97316", "#84cc16", "#ec4899"][hash % 5];

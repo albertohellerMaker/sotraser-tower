@@ -1095,7 +1095,7 @@ function ResumenMesPanel({ onClose }: { onClose: () => void }) {
 
   if (!data || data.error) return null;
 
-  const FAENA_COLORS: Record<string, string> = { "ANGLO-COCU": "#00ff88", "ANGLO-CARGAS VARIAS": "#00d4ff", "ANGLO-CAL": "#ff6b35", "ANGLO-CV": "#ffcc00" };
+  const FAENA_COLORS: Record<string, string> = { "CENCOSUD": "#00d4ff" };
 
   return (
     <div className="space-y-3" style={{ animation: "fadeIn 0.3s ease" }}>
@@ -1105,7 +1105,7 @@ function ResumenMesPanel({ onClose }: { onClose: () => void }) {
           <Calendar className="w-5 h-5" style={{ color: "#00d4ff" }} />
           <div>
             <div className="font-space text-[15px] font-bold" style={{ color: "#00d4ff" }}>RESUMEN {data.mes_nombre?.toUpperCase()} {data.anio}</div>
-            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Acumulado flota Anglo · Fuente: Sigetra + Volvo ECU</div>
+            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Acumulado flota Cencosud · Fuente: Sigetra + Volvo ECU</div>
           </div>
         </div>
         <button onClick={onClose} className="flex items-center gap-1 px-3 py-1.5 rounded cursor-pointer font-exo text-[9px] font-bold"
@@ -1253,10 +1253,6 @@ export default function ViajesCerrados() {
   const viajes = data?.viajes || [];
 
   const getColor = (c: string): string => {
-    if (c?.includes("ANGLO-COCU")) return "#00ff88";
-    if (c?.includes("ANGLO-CAL")) return "#ff6b35";
-    if (c?.includes("ANGLO-CV")) return "#ffcc00";
-    if (c?.includes("ANGLO")) return "#00d4ff";
     if (c?.includes("CENCOSUD") || c?.includes("WALMART")) return "#00bfff";
     if (c?.includes("INDURA") || c?.includes("AIR LIQUIDE")) return "#a855f7";
     if (c?.includes("GLENCORE") || c?.includes("ACIDO")) return "#ff8c00";

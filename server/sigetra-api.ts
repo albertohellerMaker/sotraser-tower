@@ -427,10 +427,7 @@ export async function syncSigetraToCargas(from: Date, to: Date): Promise<{ inser
     let faenaId = 1;
     if (info.faena) {
       const upper = info.faena.toUpperCase();
-      if (upper.includes("ANGLO") && upper.includes("COCU")) faenaId = faenaNameToId.get("ANGLO-COCU") || 2;
-      else if (upper.includes("ANGLO") && upper.includes("CARGAS")) faenaId = faenaNameToId.get("ANGLO-CARGAS VARIAS") || 3;
-      else if (upper.includes("ANGLO") && upper.includes("CAL")) faenaId = faenaNameToId.get("ANGLO-CAL") || 4;
-      else if (upper.includes("CENCOSUD")) faenaId = faenaNameToId.get("CENCOSUD") || 1;
+      if (upper.includes("CENCOSUD")) faenaId = faenaNameToId.get("CENCOSUD") || 1;
       else {
         for (const [name, id] of faenaNameToId) {
           if (upper.includes(name)) { faenaId = id; break; }

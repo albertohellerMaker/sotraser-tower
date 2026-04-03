@@ -2,8 +2,8 @@ import { storage } from "./storage";
 import { pool } from "./db";
 
 // Dynamic — populated at startup from DB
-export let CONTRATOS_VOLVO_ACTIVOS: string[] = ["ANGLO-COCU", "ANGLO-CAL", "ANGLO-CARGAS VARIAS", "CENCOSUD"];
-export const CONTRATO_DEFAULT = "ANGLO-COCU";
+export let CONTRATOS_VOLVO_ACTIVOS: string[] = ["CENCOSUD"];
+export const CONTRATO_DEFAULT = "CENCOSUD";
 
 export async function inicializarContratos() {
   try {
@@ -49,17 +49,6 @@ async function ensureCache() {
 export async function getContractConfig(contractName: string): Promise<ContractConfig> {
   await ensureCache();
   const faenas = await storage.getFaenas();
-
-  if (contractName.toUpperCase() === "ANGLO") {
-    const angloFaenas = faenas.filter(f =>
-      f.nombre.toUpperCase().includes("ANGLO")
-    );
-    return {
-      name: "ANGLO",
-      faenaIds: angloFaenas.map(f => f.id),
-      faenaNames: angloFaenas.map(f => f.nombre),
-    };
-  }
 
   const faena = faenas.find(f =>
     f.nombre.toUpperCase().includes(contractName.toUpperCase())

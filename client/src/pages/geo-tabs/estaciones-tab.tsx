@@ -4,8 +4,6 @@ import { Loader2, Fuel, Truck, Users, ChevronDown, ChevronUp, MapPin, Search, Al
 import { createDarkMap, addInfoWindow, fitBoundsToPoints, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 function getContColor(c: string): string {
-  if (c?.includes("ANGLO-COCU")) return "#00ff88";
-  if (c?.includes("ANGLO")) return "#00d4ff";
   if (c?.includes("CENCOSUD") || c?.includes("WALMART")) return "#00bfff";
   return "#c8e8ff";
 }

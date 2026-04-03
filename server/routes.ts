@@ -25,7 +25,7 @@ import agentesRoutes from "./agentes-routes";
 import gerenteRoutes from "./gerente-routes";
 import welcomeRoutes from "./welcome-routes";
 import cencosudRoutes from "./cencosud-routes";
-import angloRoutes from "./anglo-routes";
+
 import conductorRoutes from "./conductor-routes";
 import conductorPanelRoutes from "./conductor-panel-routes";
 import { syncViajesHistorico, getSyncProgress, getViajesStats, buscarLugarCercano, clusterizarCorredores, recalcularScoresConCorredor, getCorredoresStats } from "./viajes-historico";
@@ -1292,7 +1292,7 @@ export async function registerRoutes(
   app.use("/api/gerente", gerenteRoutes);
   app.use("/api/welcome", welcomeRoutes);
   app.use("/api/cencosud", cencosudRoutes);
-  app.use("/api/anglo", angloRoutes);
+
   app.use("/api/conductor", conductorRoutes);
   app.use("/api/conductor-panel", conductorPanelRoutes);
 

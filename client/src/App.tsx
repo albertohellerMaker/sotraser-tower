@@ -9,7 +9,7 @@ import EstacionesTab from "@/pages/geo-tabs/estaciones-tab";
 import CombustibleTMS from "@/pages/combustible-tms";
 import GeoValidator from "@/pages/geovalidator";
 import CencosudView from "@/pages/cencosud";
-import AngloView from "@/pages/anglo";
+
 import Flota from "@/pages/flota";
 import ConductoresPanel from "@/pages/conductores-panel";
 import AppConductorHub from "@/pages/app-conductor-hub";
@@ -114,7 +114,7 @@ function ContratosUnificado() {
 
   // Vista dedicada Cencosud
   if (sel?.toUpperCase() === "CENCOSUD") return <CencosudView onBack={() => setSel(null)} />;
-  const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("ANGLO") && u.includes("COCU")) return "#00ff88"; if (u.includes("ANGLO")) return "#22c55e"; if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; if (u.includes("WALMART")) return "#00d4ff"; const h = c.split("").reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
+  const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; if (u.includes("WALMART")) return "#00d4ff"; const h = c.split("").reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
   const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
   const circuitos = circuitosData?.circuitos || [];
   const totalCircuitos = circuitosData?.total_circuitos || 0;
@@ -130,7 +130,7 @@ function ContratosUnificado() {
         {conGps.map((c: any) => (
           <button key={c.contrato} onClick={() => { setSel(c.contrato); setSelRuta(null); }} className="px-3 py-2.5 font-space text-[9px] font-bold tracking-wider cursor-pointer flex-shrink-0"
             style={{ color: sel === c.contrato ? CC(c.contrato) : "#3a6080", borderBottom: sel === c.contrato ? `2px solid ${CC(c.contrato)}` : "2px solid transparent", background: sel === c.contrato ? `${CC(c.contrato)}08` : "transparent" }}>
-            {c.contrato.replace("ANGLO-", "").substring(0, 12)} <span className="ml-1 opacity-60">{c.viajes}</span>
+            {c.contrato.substring(0, 12)} <span className="ml-1 opacity-60">{c.viajes}</span>
           </button>
         ))}
       </div>
@@ -1104,7 +1104,7 @@ function CamionesUnificado() {
             <div key={c.patente_norm || c.movil} onClick={() => setSelectedPatente(c.patente_norm || c.patente)}
               className="px-2 py-2 text-center cursor-pointer transition-all hover:opacity-80" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 6 }}>
               <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{c.movil || c.patente_norm}</div>
-              <div className="font-exo text-[8px]" style={{ color: c.contrato?.includes("ANGLO") ? "#00ff88" : c.contrato?.includes("CENCOSUD") ? "#00d4ff" : "#3a6080" }}>{(c.contrato || "").substring(0, 12)}</div>
+              <div className="font-exo text-[8px]" style={{ color: c.contrato?.includes("CENCOSUD") ? "#00d4ff" : "#3a6080" }}>{(c.contrato || "").substring(0, 12)}</div>
               <div className="font-space text-[10px] font-bold mt-0.5" style={{ color: getRendColor(c.rendimiento || 0) }}>
                 {c.rendimiento ? parseFloat(c.rendimiento).toFixed(2) : "--"}
               </div>
@@ -1173,7 +1173,7 @@ function CamionesUnificado() {
 
 // ── Main App Shell ──
 // Welcome screen
-function WelcomeScreen({ onTower, onMando, onTMS, onAnglo, onAppConductor }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAnglo: () => void; onAppConductor: () => void }) {
+function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAppConductor: () => void }) {
   const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
   useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
   const { data: stats } = useQuery<any>({ queryKey: ["/api/welcome/stats"], queryFn: () => fetch("/api/welcome/stats").then(r => r.json()), refetchInterval: 60000 });
@@ -1193,7 +1193,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAnglo, onAppConductor }: { o
           </div>
         )}
       </div>
-      <div className="grid grid-cols-5 gap-4 w-full max-w-6xl px-8">
+      <div className="grid grid-cols-4 gap-4 w-full max-w-5xl px-8">
         <button onClick={onTower} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #00d4ff20", borderTop: "3px solid #00d4ff", borderRadius: 12 }}>
           <div className="text-[32px] mb-3">🗼</div>
@@ -1224,16 +1224,6 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAnglo, onAppConductor }: { o
           ))}
           <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00ff88" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
         </button>
-        <button onClick={onAnglo} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
-          style={{ background: "#060d14", border: "1px solid #22c55e20", borderTop: "3px solid #22c55e", borderRadius: 12 }}>
-          <div className="text-[32px] mb-3">⛏️</div>
-          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#22c55e" }}>TMS ANGLO</div>
-          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Cargas Varias</div>
-          {["74 camiones · Contrato 4.22.0015.1", "Reajuste cuatrimestral FR", "Calculadora IPC + Diesel + Dólar"].map(item => (
-            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#4a9060" }}><div className="w-1 h-1 rounded-full" style={{ background: "#22c55e" }} />{item}</div>
-          ))}
-          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#22c55e" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
-        </button>
         <button onClick={onAppConductor} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #a855f720", borderTop: "3px solid #ff6b35", borderRadius: 12 }}>
           <div className="text-[32px] mb-3">📱</div>
@@ -1251,7 +1241,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAnglo, onAppConductor }: { o
 }
 
 function AppShell() {
-  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "ANGLO" | "APP_CONDUCTOR">("WELCOME");
+  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "APP_CONDUCTOR">("WELCOME");
   const [tab, setTab] = useState<MainTab>("flota");
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -1272,11 +1262,10 @@ function AppShell() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAnglo={() => setModo("ANGLO")} onAppConductor={() => setModo("APP_CONDUCTOR")} />;
+  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAppConductor={() => setModo("APP_CONDUCTOR")} />;
 
   if (modo === "TMS") return <CencosudView onBack={() => setModo("WELCOME")} />;
 
-  if (modo === "ANGLO") return <AngloView onBack={() => setModo("WELCOME")} />;
 
   if (modo === "APP_CONDUCTOR") return <AppConductorHub onBack={() => setModo("WELCOME")} />;
 

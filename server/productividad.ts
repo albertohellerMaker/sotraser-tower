@@ -93,7 +93,7 @@ export function registerProductividadRoutes(app: Express) {
         GROUP BY pd.patente ORDER BY km_mes DESC
       `, [contrato, inicioMes, hoy]);
 
-      // Ranking Anglo completo
+      // Ranking completo
       const rankR = await pool.query(`
         SELECT patente, AVG(rendimiento_dia) FILTER (WHERE rendimiento_dia > 0) as rend
         FROM productividad_diaria
@@ -110,7 +110,7 @@ export function registerProductividadRoutes(app: Express) {
         rend_promedio: c.rend_promedio ? Math.round(parseFloat(c.rend_promedio) * 100) / 100 : null,
         rend_mejor_dia: c.rend_mejor_dia ? Math.round(parseFloat(c.rend_mejor_dia) * 100) / 100 : null,
         horas_ruta_mes: parseFloat(c.horas_ruta_mes || 0),
-        ranking_anglo: rankMap[c.patente] || null, ranking_total: rankR.rows.length,
+        ranking_contrato: rankMap[c.patente] || null, ranking_total: rankR.rows.length,
         pct_dias_activo: Math.round(parseInt(c.dias_activos) / diaActual * 100),
       }));
 
@@ -138,7 +138,7 @@ export function registerProductividadRoutes(app: Express) {
         contrato,
         periodo: { inicio: inicioMes.toISOString().slice(0, 10), hoy: hoy.toISOString().slice(0, 10), dia_actual: diaActual, dias_mes: diasMes },
         kpis: { total_camiones: camiones.length, km_flota_mes: Math.round(totalKm), rend_flota: Math.round(rendFlota * 100) / 100, camiones_activos_hoy: hoyR.rows.filter((c: any) => c.estuvo_activo).length },
-        camiones, hoy: hoyR.rows, historico: histR.rows, ranking_completo_anglo: rankR.rows.length,
+        camiones, hoy: hoyR.rows, historico: histR.rows, ranking_completo: rankR.rows.length,
       });
     } catch (error: any) {
       console.error("[productividad] Error:", error.message);

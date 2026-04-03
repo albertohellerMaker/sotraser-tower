@@ -1187,9 +1187,6 @@ function Comunicaciones() {
             style={{ background: "#0a1628", border: "1px solid #0d2035", borderRadius: 4, color: "#c8e8ff", outline: "none" }}>
             <option value="">Todos los conductores activos</option>
             <option value="CENCOSUD">Solo CENCOSUD</option>
-            <option value="ANGLO-COCU">Solo ANGLO-COCU</option>
-            <option value="ANGLO-CARGAS VARIAS">Solo ANGLO-CARGAS VARIAS</option>
-            <option value="ANGLO-CAL">Solo ANGLO-CAL</option>
           </select>
         </div>
         <div className="flex gap-2">

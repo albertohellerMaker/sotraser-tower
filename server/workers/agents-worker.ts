@@ -25,7 +25,6 @@ async function main() {
   const { agenteCencosud } = await import("../agentes/cencosud");
   const { agenteGerenteOps } = await import("../agentes/gerente-ops");
   const { superAgenteCencosud } = await import("../agentes/super-agente-cencosud");
-  const { superAgenteAnglo } = await import("../agentes/super-agente-anglo");
 
   log("Sistema multi-agente v2 iniciando...");
 
@@ -73,11 +72,6 @@ async function main() {
     logError("Super-Cencosud init error: " + e.message);
   }
 
-  try {
-    await superAgenteAnglo.iniciar();
-  } catch (e: any) {
-    logError("Super-Anglo init error: " + e.message);
-  }
 
   log("v2 iniciado — Operaciones(15m) + Contratos(1h) + Gerente General(15m)");
   send({ type: "ready" });

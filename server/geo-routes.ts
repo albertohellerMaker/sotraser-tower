@@ -2003,9 +2003,6 @@ export function registerGeoRoutes(app: Express) {
         if (faenaResult.rows.length > 0) {
           const fn = faenaResult.rows[0].nombre?.toUpperCase() || "";
           if (fn.includes("CENCOSUD")) contrato = "CENCOSUD";
-          else if (fn.includes("CARGAS VARIAS") || fn.includes("CARGAS_VARIAS")) contrato = "ANGLO-CARGAS VARIAS";
-          else if (fn.includes("COCU")) contrato = "ANGLO-COCU";
-          else if (fn.includes("CAL") && !fn.includes("CARGAS")) contrato = "ANGLO-CAL";
         }
       }
 
@@ -2255,7 +2252,7 @@ export function registerGeoRoutes(app: Express) {
   // ═══════════════════════════════════════════════════
   app.get("/api/recopilacion/cobertura", async (_req: Request, res: Response) => {
     try {
-      // Total flota Anglo con VIN
+      // Total flota con VIN
       const flotaTotal = await pool.query(`
         SELECT DISTINCT c.patente, c.vin
         FROM camiones c

@@ -8,4 +8,4 @@ export const SQL_CAMION_VALIDO = `
 `;
 
 /** SQL: sin filtro de contrato (todos) */
-export const SQL_CONTRATO_ANGLO = `TRUE`;
+export const SQL_CONTRATO_CENCOSUD = `TRUE`;

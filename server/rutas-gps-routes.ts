@@ -20,7 +20,7 @@ export function registerRutasGpsRoutes(app: Express) {
         { id: "TODOS", label: "TODOS", viajes: totalViajes, camiones: 0 },
         ...r.rows.map((c: any) => ({
           id: c.contrato,
-          label: c.contrato.replace("ANGLO-", "").substring(0, 14),
+          label: c.contrato.substring(0, 14),
           viajes: parseInt(c.viajes),
           camiones: parseInt(c.camiones),
           rend: parseFloat(c.rend || "0"),

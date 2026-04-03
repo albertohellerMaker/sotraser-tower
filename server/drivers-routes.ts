@@ -98,10 +98,6 @@ async function getVolvoVinsWithInfo(): Promise<Map<string, VinInfo>> {
       const faenaNombre = (row.faena_nombre || "").toUpperCase();
       let contrato = "X ASIGNAR";
       if (faenaNombre.includes("CENCOSUD")) contrato = "CENCOSUD";
-      else if (faenaNombre.includes("CARGAS VARIAS") || faenaNombre.includes("CARGAS-VARIAS")) contrato = "ANGLO-CARGAS VARIAS";
-      else if (faenaNombre.includes("COCU")) contrato = "ANGLO-COCU";
-      else if (faenaNombre.includes("CAL") && faenaNombre.includes("ANGLO")) contrato = "ANGLO-CAL";
-      else if (faenaNombre.includes("ANGLO")) contrato = "ANGLO-CARGAS VARIAS";
 
       vinMap.set(row.vin, {
         patente: row.patente,
@@ -248,7 +244,7 @@ async function buildDriverData(): Promise<{
     contratosMap[c].push(d);
   }
 
-  const contratoOrder = ["CENCOSUD", "ANGLO-CARGAS VARIAS", "ANGLO-CAL", "ANGLO-COCU", "X ASIGNAR"];
+  const contratoOrder = ["CENCOSUD", "X ASIGNAR"];
   const porContrato = contratoOrder
     .filter(c => contratosMap[c] && contratosMap[c].length > 0)
     .map(c => {

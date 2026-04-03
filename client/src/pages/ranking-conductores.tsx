@@ -442,7 +442,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                       v.estado === "ANOMALIA" ? "bg-red-500/5" : v.estado === "REVISAR" ? "bg-amber-500/5" : ""
                     }`}>
                     <span className="text-xs font-mono font-bold text-[#c8e8ff]">{v.patente}</span>
-                    <span className="text-[11px] font-mono text-[#3a6080]">{v.contrato.replace("ANGLO-", "A-")}</span>
+                    <span className="text-[11px] font-mono text-[#3a6080]">{v.contrato}</span>
                     <span className="text-[11px] font-mono text-[#c8e8ff]">{new Date(v.fechaInicio).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                     <span className="text-[11px] font-mono text-[#c8e8ff]">{new Date(v.fechaFin).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                     <span className="text-xs font-mono font-bold text-[#c8e8ff]">{Math.round(v.kmEcu)}</span>
