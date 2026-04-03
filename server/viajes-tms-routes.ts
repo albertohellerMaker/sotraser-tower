@@ -561,11 +561,13 @@ router.get("/contratos-resumen", async (req, res) => {
         MAX(va.fecha_inicio)::text as ultimo_viaje
       FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
       WHERE va.fecha_inicio >= DATE_TRUNC('month', NOW()) AND va.km_ecu > 0
+        AND va.contrato NOT LIKE 'ANGLO%'
       GROUP BY va.contrato ORDER BY km_mes DESC NULLS LAST
     `);
     const sinGps = await pool.query(`
       SELECT DISTINCT faena as contrato, COUNT(DISTINCT patente)::int as camiones
       FROM cargas WHERE fecha::timestamp >= DATE_TRUNC('month', NOW()) AND faena IS NOT NULL AND faena != ''
+        AND faena NOT LIKE 'ANGLO%'
         AND faena NOT IN (SELECT DISTINCT contrato FROM viajes_aprendizaje WHERE fecha_inicio >= DATE_TRUNC('month', NOW()) AND km_ecu > 0)
       GROUP BY faena ORDER BY camiones DESC
     `);
