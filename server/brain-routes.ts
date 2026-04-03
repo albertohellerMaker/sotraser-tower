@@ -95,6 +95,86 @@ async function detectarAnomaliasMacro(contrato: string) {
 
 export function registerBrainRoutes(app: Express) {
 
+  app.get("/api/brain/resumen-ejecutivo", async (_req: Request, res: Response) => {
+    try {
+      const contratosR = await pool.query(`
+        SELECT va.contrato,
+          COUNT(*) as viajes_mes,
+          COUNT(DISTINCT va.camion_id) as camiones,
+          ROUND(SUM(va.km_ecu::float) FILTER (WHERE va.km_ecu::float > 0)::numeric) as km_total,
+          ROUND(AVG(va.km_ecu::float) FILTER (WHERE va.km_ecu::float > 0)::numeric) as km_prom,
+          COUNT(*) FILTER (WHERE va.fecha_inicio >= NOW() - INTERVAL '24 hours') as viajes_hoy,
+          COUNT(*) FILTER (WHERE va.fecha_inicio >= NOW() - INTERVAL '7 days') as viajes_semana
+        FROM viajes_aprendizaje va
+        WHERE va.fecha_inicio >= date_trunc('month', NOW()) AND va.km_ecu::float > 5
+        GROUP BY va.contrato ORDER BY viajes_mes DESC
+      `);
+
+      const billingR = await pool.query(`
+        SELECT va.contrato,
+          COUNT(*) as total_viajes,
+          COUNT(*) FILTER (WHERE va.estado = 'FACTURADO' OR va.estado = 'CONFIRMADO') as facturables,
+          COALESCE(SUM(crt.tarifa_clp) FILTER (WHERE va.estado = 'FACTURADO' OR va.estado = 'CONFIRMADO'), 0) as monto_clp
+        FROM viajes_aprendizaje va
+        LEFT JOIN contrato_rutas_tarifas crt ON crt.contrato = va.contrato
+          AND crt.origen = va.origen_nombre AND crt.destino = va.destino_nombre AND crt.activo = true
+        WHERE va.fecha_inicio >= date_trunc('month', NOW())
+          AND va.fuente_viaje = 'T1_RECONSTRUCTOR'
+        GROUP BY va.contrato
+      `);
+      const billingMap: Record<string, any> = {};
+      for (const b of billingR.rows) {
+        billingMap[b.contrato] = {
+          facturables: parseInt(b.facturables || "0"),
+          total: parseInt(b.total_viajes || "0"),
+          monto: parseInt(b.monto_clp || "0"),
+        };
+      }
+
+      const tendenciaR = await pool.query(`
+        SELECT DATE(fecha_inicio) as dia,
+          COUNT(*) as viajes,
+          COUNT(DISTINCT camion_id) as camiones,
+          ROUND(SUM(km_ecu::float) FILTER (WHERE km_ecu::float > 0)::numeric) as km
+        FROM viajes_aprendizaje
+        WHERE fecha_inicio >= NOW() - INTERVAL '7 days' AND km_ecu::float > 5
+        GROUP BY DATE(fecha_inicio) ORDER BY dia
+      `);
+
+      const gpsR = await pool.query(`
+        SELECT COUNT(DISTINCT camion_id) as activos
+        FROM geo_puntos WHERE timestamp_punto >= NOW() - INTERVAL '2 hours'
+      `);
+
+      const totalCamR = await pool.query(`SELECT COUNT(*) as total FROM camiones WHERE activo = true`);
+
+      const contratos = contratosR.rows.map((c: any) => ({
+        contrato: c.contrato,
+        camiones: parseInt(c.camiones || "0"),
+        viajes_mes: parseInt(c.viajes_mes || "0"),
+        viajes_hoy: parseInt(c.viajes_hoy || "0"),
+        viajes_semana: parseInt(c.viajes_semana || "0"),
+        km_total: parseInt(c.km_total || "0"),
+        km_prom: parseInt(c.km_prom || "0"),
+        billing: billingMap[c.contrato] || null,
+      }));
+
+      const totales = {
+        camiones_activos: parseInt(gpsR.rows[0]?.activos || "0"),
+        camiones_total: parseInt(totalCamR.rows[0]?.total || "0"),
+        viajes_hoy: contratos.reduce((s: number, c: any) => s + c.viajes_hoy, 0),
+        viajes_mes: contratos.reduce((s: number, c: any) => s + c.viajes_mes, 0),
+        km_mes: contratos.reduce((s: number, c: any) => s + c.km_total, 0),
+        contratos_activos: contratos.length,
+      };
+
+      res.json({ totales, contratos, tendencia_7d: tendenciaR.rows });
+    } catch (e: any) {
+      console.error("[BRAIN] Error resumen-ejecutivo:", e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // GET /api/brain/resumen-rapido — para card de inicio
   app.get("/api/brain/resumen-rapido", async (_req: Request, res: Response) => {
     try {
