@@ -32,6 +32,7 @@ client/                    # React frontend (Vite)
       combustible-tms.tsx  # Fuel management
       operative-brain.tsx  # AI brain with multi-agent chat
       cencosud.tsx         # Dedicated Cencosud TMS
+      anglo.tsx            # Anglo American Cargas Varias TMS (reajuste cuatrimestral)
       geovalidator.tsx     # Route validation and geofence management
       validador-cruzado.tsx # Cross-validation Volvo + Sigetra (6 sub-tabs)
       volvo.tsx            # Volvo Connect truck status and map

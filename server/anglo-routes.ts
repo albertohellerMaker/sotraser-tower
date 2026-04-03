@@ -4,6 +4,48 @@ import { pool } from "./db";
 const router = Router();
 const CONTRATO = "ANGLO-CARGAS VARIAS";
 
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS anglo_agente_estado (
+        id SERIAL PRIMARY KEY, ultimo_ciclo TIMESTAMPTZ, ciclos_totales INT DEFAULT 0,
+        alias_sugeridos INT DEFAULT 0, alertas_hoy INT DEFAULT 0, estado TEXT DEFAULT 'ACTIVO'
+      );
+      INSERT INTO anglo_agente_estado (id, estado) VALUES (1, 'ACTIVO') ON CONFLICT (id) DO NOTHING;
+      CREATE TABLE IF NOT EXISTS anglo_agente_mensajes (
+        id SERIAL PRIMARY KEY, tipo TEXT NOT NULL, prioridad TEXT DEFAULT 'MEDIA',
+        titulo TEXT, contenido TEXT, datos JSONB DEFAULT '{}', leido BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS anglo_agente_chat (
+        id SERIAL PRIMARY KEY, rol TEXT NOT NULL, mensaje TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS anglo_parametros (
+        id SERIAL PRIMARY KEY, clave TEXT UNIQUE NOT NULL, valor NUMERIC, nombre TEXT,
+        descripcion TEXT, categoria TEXT DEFAULT 'GENERAL', modificado_por TEXT DEFAULT 'SISTEMA', updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS anglo_reajuste (
+        id SERIAL PRIMARY KEY, periodo TEXT NOT NULL, fecha_aplicacion DATE NOT NULL,
+        ipc1 NUMERIC, diesel1 NUMERIC, dolar1 NUMERIC, fr_fijo NUMERIC, fr_variable NUMERIC,
+        activo BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    const params = [
+      ['IPC0', 128.65, 'IPC Base Nov 2022', 'Indice base IPC noviembre 2022', 'REAJUSTE'],
+      ['DIESEL0', 1025851.30, 'Diesel Base Nov 2022', 'Precio diesel base DIRPLAN noviembre 2022', 'REAJUSTE'],
+      ['DOLAR0', 917.05, 'Dolar Base Nov 2022', 'Dolar observado promedio mensual base noviembre 2022', 'REAJUSTE'],
+      ['CAMIONES_CONTRATO', 74, 'Camiones Contrato', 'Cantidad de camiones en contrato Anglo Cargas Varias', 'FLOTA'],
+      ['META_KM_CAMION', 8000, 'Meta KM/Camion/Mes', 'Meta de km por camion por mes', 'PRODUCTIVIDAD'],
+      ['FR_IPC_PCT', 60, 'Pct IPC en FR Variable', 'Ponderacion IPC en factor reajuste variable', 'REAJUSTE'],
+      ['FR_DIESEL_PCT', 30, 'Pct Diesel en FR Variable', 'Ponderacion diesel en factor reajuste variable', 'REAJUSTE'],
+      ['FR_DOLAR_PCT', 10, 'Pct Dolar en FR Variable', 'Ponderacion dolar en factor reajuste variable', 'REAJUSTE'],
+    ];
+    for (const [clave, valor, nombre, desc, cat] of params) {
+      await pool.query('INSERT INTO anglo_parametros (clave, valor, nombre, descripcion, categoria) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (clave) DO NOTHING', [clave, valor, nombre, desc, cat]);
+    }
+    console.log("[ANGLO] DB tables verified");
+  } catch (e: any) { console.error("[ANGLO] DB bootstrap error:", e.message); }
+})();
+
 router.get("/dashboard", async (req, res) => {
   try {
     const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
@@ -209,8 +251,10 @@ router.post("/alias", async (req, res) => {
 });
 
 router.post("/alias/:id/confirmar", async (req, res) => {
-  await pool.query("UPDATE geocerca_alias_contrato SET confirmado = true WHERE id = $1", [req.params.id]);
-  res.json({ ok: true });
+  try {
+    await pool.query("UPDATE geocerca_alias_contrato SET confirmado = true WHERE id = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.get("/sin-mapear", async (_req, res) => {
@@ -402,8 +446,10 @@ router.get("/parametros", async (_req, res) => {
 router.put("/parametros/:clave", async (req, res) => {
   const { valor } = req.body;
   if (valor === undefined) return res.status(400).json({ error: "valor requerido" });
-  await pool.query("UPDATE anglo_parametros SET valor = $1, modificado_por = 'USUARIO', updated_at = NOW() WHERE clave = $2", [valor, req.params.clave]);
-  res.json({ ok: true });
+  try {
+    await pool.query("UPDATE anglo_parametros SET valor = $1, modificado_por = 'USUARIO', updated_at = NOW() WHERE clave = $2", [valor, req.params.clave]);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.get("/agente/estado", async (_req, res) => {
@@ -417,13 +463,17 @@ router.get("/agente/estado", async (_req, res) => {
 });
 
 router.get("/agente/mensajes", async (_req, res) => {
-  const r = await pool.query("SELECT * FROM anglo_agente_mensajes WHERE created_at >= NOW() - INTERVAL '48 hours' ORDER BY CASE prioridad WHEN 'CRITICA' THEN 1 WHEN 'ALTA' THEN 2 ELSE 3 END, created_at DESC LIMIT 30");
-  res.json({ mensajes: r.rows });
+  try {
+    const r = await pool.query("SELECT * FROM anglo_agente_mensajes WHERE created_at >= NOW() - INTERVAL '48 hours' ORDER BY CASE prioridad WHEN 'CRITICA' THEN 1 WHEN 'ALTA' THEN 2 ELSE 3 END, created_at DESC LIMIT 30");
+    res.json({ mensajes: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.post("/agente/mensajes/leer", async (_req, res) => {
-  await pool.query("UPDATE anglo_agente_mensajes SET leido = true WHERE leido = false");
-  res.json({ ok: true });
+  try {
+    await pool.query("UPDATE anglo_agente_mensajes SET leido = true WHERE leido = false");
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.get("/agente/inteligencia", async (_req, res) => {
