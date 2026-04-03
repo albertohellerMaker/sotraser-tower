@@ -15,9 +15,11 @@ async function rfmsGet<T>(path: string, accept: string, params?: Record<string, 
     }
   }
 
+  const isHistorical = !!(params?.starttime || params?.startTime);
+  const timeoutMs = isHistorical ? 30000 : 15000;
   console.log(`[volvo-api] GET ${url.toString()}`);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url.toString(), {
@@ -212,6 +214,7 @@ export async function getVehicleStatusesRange(
     if (pages % 10 === 0) {
       console.log(`[volvo-api] statusesRange page ${pages}, ${all.length} records so far`);
     }
+    await new Promise(r => setTimeout(r, 1100));
   }
 
   console.log(`[volvo-api] statusesRange: ${all.length} records in ${pages} pages (${startTime} → ${stopTime})`);
@@ -249,6 +252,7 @@ export async function getVehiclePositionsRange(
     if (pages % 10 === 0) {
       console.log(`[volvo-api] positionsRange page ${pages}, ${all.length} records so far`);
     }
+    await new Promise(r => setTimeout(r, 1100));
   }
 
   console.log(`[volvo-api] positionsRange: ${all.length} records in ${pages} pages (${startTime} → ${stopTime})`);

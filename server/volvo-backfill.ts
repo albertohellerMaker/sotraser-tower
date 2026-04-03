@@ -158,10 +158,9 @@ export async function runBackfill(
         const chunkEnd = new Date(Math.min(chunkStart.getTime() + chunkMs, dayEnd.getTime(), to.getTime()));
 
         try {
-          const [positions, statuses] = await Promise.all([
-            getVehiclePositionsRange(chunkStart.toISOString(), chunkEnd.toISOString()),
-            getVehicleStatusesRange(chunkStart.toISOString(), chunkEnd.toISOString()),
-          ]);
+          const positions = await getVehiclePositionsRange(chunkStart.toISOString(), chunkEnd.toISOString());
+          await new Promise(r => setTimeout(r, 1200));
+          const statuses = await getVehicleStatusesRange(chunkStart.toISOString(), chunkEnd.toISOString());
 
           const posIns = await storePositions(positions, vinMap);
           const snapIns = await storeSnapshots(statuses);
@@ -176,7 +175,7 @@ export async function runBackfill(
         }
 
         chunkStart = chunkEnd;
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 1500));
       }
 
       backfillProgress.daysProcessed++;
