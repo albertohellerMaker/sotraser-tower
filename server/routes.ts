@@ -1053,9 +1053,11 @@ export async function registerRoutes(
   app.use("/api/conductor", conductorRoutes);
   app.use("/api/conductor-panel", conductorPanelRoutes);
 
-  app.get("/api/sigetra/fusion", async (_req, res) => {
-    res.json({ fechaCuadratura: null, totalCamiones: 0, trucks: [], message: "Sigetra removed — only Volvo Connect active" });
-  });
+  const fusionStub = (_req: any, res: any) => {
+    res.json([]);
+  };
+  app.get("/api/sigetra/fusion", fusionStub);
+  app.get("/api/datos/fusion", fusionStub);
 
   // ═══════════════════════════════════════════════════
   // DATOS — MICRO-CARGAS (suspicious fuel loads from DB cargas table)

@@ -1,11 +1,11 @@
 # SOTRASER - Fleet Intelligence Dashboard
 
 ## Overview
-A comprehensive fleet management system for a Chilean trucking company (~825 trucks). Integrates real-time GPS tracking and telemetry from Volvo Connect (rFMS) with fuel transaction data from the Sigetra portal to optimize fleet operations, detect fuel anomalies, and provide AI-driven insights.
+A comprehensive fleet management system for a Chilean trucking company (~825 trucks). Integrates real-time GPS tracking and telemetry from Volvo Connect (rFMS) with internal DB fuel data to optimize fleet operations, detect fuel anomalies, and provide AI-driven insights.
 
-## Data Sources (2 active)
+## Data Sources (1 active)
 - **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s)
-- **Sigetra**: Fuel loading transactions (litros, estacion, km, conductor) via API (sync every 1 hour)
+- **Internal DB cargas table**: Fuel loading transactions stored locally
 
 ## Architecture
 - **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`. Root has devDependencies and scripts.
@@ -55,7 +55,6 @@ client/                    # React frontend (Vite)
       volvo.tsx            # Volvo Connect truck status and map
       camiones.tsx         # Individual truck view with faena filter
       ranking-conductores.tsx # Driver performance ranking
-      sigetra-fusion.tsx   # Sigetra data fusion analysis
       micro-cargas.tsx     # Suspicious micro-fuel-load detection
       errores.tsx          # Data quality errors
       geo-tabs/            # 6 geo sub-tab components
@@ -92,7 +91,7 @@ migrations/                # SQL migration files
 | CAMIONES | Inline `CamionesUnificado` | Individual truck search, monthly calendar |
 | CONTROL | Inline `ControlCenter` | Speed alerts, fuel deviations, route anomalies |
 | BRAIN | `OperativeBrain` | Executive summary: multi-contract KPIs, 7-day trend, billing T-1, agent panels |
-| SISTEMA | Inline `SistemaTab` | Sync status, Volvo+Sigetra matching, geocercas |
+| SISTEMA | Inline `SistemaTab` | Sync status, Volvo matching, geocercas |
 
 ## Cencosud TMS — Trip Detection & Billing
 - **96 KML geocercas** imported to `cencosud_geocercas_kml`
@@ -112,7 +111,6 @@ migrations/                # SQL migration files
 - Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
 - Super Agente Cencosud (every 30 min) — billing intelligence + auto-alias
 - Super Agente Anglo (every 30 min) — mining-aware billing + cerro monitoring
-- Sigetra fuel sync (every 1 hour)
 - Daily report at 06:00
 - Overnight reconciliation at 03:00
 - GitHub auto-push every 10 minutes
@@ -126,7 +124,6 @@ migrations/                # SQL migration files
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection
 - `ANTHROPIC_API_KEY` - For Claude AI features
-- `SIGETRA_URL`, `SIGETRA_USER`, `SIGETRA_PASSWORD` - Sigetra fuel portal
 - `VOLVO_CONNECT_USER`, `VOLVO_CONNECT_PASSWORD` - Volvo Connect rFMS API
 - `GITHUB_TOKEN` - For auto-sync to GitHub
 - `VITE_GOOGLE_MAPS_KEY` - Google Maps API key
@@ -144,3 +141,4 @@ migrations/                # SQL migration files
 - 27 orphaned frontend pages deleted previously.
 - Duplicate `client 2/` directory removed.
 - Leaflet fully removed. All maps use Google Maps (`@vis.gl/react-google-maps`).
+- **Sigetra fully removed** (April 2026): `sigetra-api.ts` and `sigetra-fusion.tsx` deleted. All imports/calls replaced with empty arrays or no-ops. `cruzarConSigetra()` returns 0. DB columns (`sigetra_cruzado`, `litros_cargados_sigetra`, etc.) preserved but no longer written to. Fusion endpoints return empty stubs. Only Volvo Connect + internal DB active.
