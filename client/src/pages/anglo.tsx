@@ -346,17 +346,39 @@ export default function AngloView({ onBack }: { onBack: () => void }) {
 }
 
 function AngloAgentePanel({ intelData, sinMapear, paramData }: any) {
-  const [subTab, setSubTab] = useState<"INTELIGENCIA" | "ALIAS" | "SIN_MAPEAR" | "PARAMETROS">("INTELIGENCIA");
+  const [subTab, setSubTab] = useState<"INTELIGENCIA" | "CHAT" | "ALERTAS" | "ALIAS" | "SIN_MAPEAR" | "PARAMETROS">("INTELIGENCIA");
+  const [chatMsg, setChatMsg] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
   const ACC = "#22c55e";
   const al = intelData?.alias || {};
   const bl = intelData?.billing || {};
+  const ce = intelData?.cerro || {};
+
+  const { data: chatHist } = useQuery<any>({ queryKey: ["/api/anglo/agente/chat/historial"], queryFn: () => fetch("/api/anglo/agente/chat/historial").then(r => r.json()), staleTime: 30000, enabled: subTab === "CHAT" });
+  const { data: alertas } = useQuery<any>({ queryKey: ["/api/anglo/agente/mensajes"], queryFn: () => fetch("/api/anglo/agente/mensajes").then(r => r.json()), staleTime: 60000, enabled: subTab === "ALERTAS" });
+
+  useEffect(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [chatHist, chatLoading]);
+
+  const sendChat = async () => {
+    if (!chatMsg.trim() || chatLoading) return;
+    const msg = chatMsg.trim();
+    setChatMsg(""); setChatLoading(true);
+    try {
+      await fetch("/api/anglo/agente/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensaje: msg }) });
+      qc.invalidateQueries({ queryKey: ["/api/anglo/agente/chat/historial"] });
+    } catch {} finally { setChatLoading(false); }
+  };
 
   return (
     <div className="space-y-3">
       <div className="flex gap-2 mb-2">
-        {(["INTELIGENCIA", "ALIAS", "SIN_MAPEAR", "PARAMETROS"] as const).map(st => (
+        {(["INTELIGENCIA", "CHAT", "ALERTAS", "ALIAS", "SIN_MAPEAR", "PARAMETROS"] as const).map(st => (
           <button key={st} onClick={() => setSubTab(st)} className="px-3 py-1.5 rounded font-space text-[8px] font-bold tracking-wider cursor-pointer"
-            style={{ background: subTab === st ? `${ACC}20` : "#060d14", color: subTab === st ? ACC : "#3a6080", border: `1px solid ${subTab === st ? `${ACC}40` : "#0d2035"}` }}>{st.replace("_", " ")}</button>
+            style={{ background: subTab === st ? `${ACC}20` : "#060d14", color: subTab === st ? ACC : "#3a6080", border: `1px solid ${subTab === st ? `${ACC}40` : "#0d2035"}` }}>
+            {st === "CHAT" && <MessageSquare className="w-3 h-3 inline mr-1" />}{st.replace("_", " ")}
+          </button>
         ))}
       </div>
 
@@ -365,9 +387,9 @@ function AngloAgentePanel({ intelData, sinMapear, paramData }: any) {
           <div className="grid grid-cols-4 gap-2">
             {[
               { l: "VIAJES MES", v: bl.total || 0, c: "#a855f7" },
-              { l: "CON TARIFA", v: bl.con_tarifa || 0, c: "#00ff88" },
+              { l: "CON TARIFA 28T", v: bl.con_tarifa || 0, c: "#00ff88" },
               { l: "% COBERTURA", v: `${bl.pct || 0}%`, c: (bl.pct || 0) > 50 ? "#00ff88" : "#ffcc00" },
-              { l: "INGRESO", v: `$${Math.round((bl.revenue || 0) / 1e6)}M`, c: "#00ff88" },
+              { l: "INGRESO VAR 28T", v: `$${Math.round((bl.revenue || 0) / 1e6)}M`, c: "#00ff88" },
             ].map(k => (
               <div key={k.l} className="rounded-lg p-3" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
                 <div className="font-space text-[18px] font-bold" style={{ color: k.c }}>{k.v}</div>
@@ -375,11 +397,32 @@ function AngloAgentePanel({ intelData, sinMapear, paramData }: any) {
               </div>
             ))}
           </div>
+          <div className="rounded-lg p-3" style={{ background: "#060d1488", border: "1px solid #ff880030" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <Mountain className="w-4 h-4" style={{ color: "#ff8800" }} />
+              <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#ff8800" }}>MONITOREO CERRO / ALTA MONTAÑA</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <div className="font-space text-[14px] font-bold" style={{ color: "#ff8800" }}>{ce.viajes_cerro || 0}</div>
+                <div className="font-exo text-[7px]" style={{ color: "#5a8090" }}>VIAJES CERRO 7D</div>
+              </div>
+              <div>
+                <div className="font-space text-[14px] font-bold" style={{ color: RC(parseFloat(ce.rend_cerro) || 0) }}>{ce.rend_cerro || "--"} km/L</div>
+                <div className="font-exo text-[7px]" style={{ color: "#5a8090" }}>REND. CERRO</div>
+              </div>
+              <div>
+                <div className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>{ce.camiones_cerro || 0}</div>
+                <div className="font-exo text-[7px]" style={{ color: "#5a8090" }}>CAMIONES EN CERRO</div>
+              </div>
+            </div>
+            <div className="font-exo text-[7px] mt-2" style={{ color: "#5a808080" }}>Zonas: Mina Los Bronces (3,500m) · El Soldado (1,600m) · Lo Barnechea · Los Andes</div>
+          </div>
           <div className="grid grid-cols-4 gap-2">
             {[
               { l: "ALIAS TOTAL", v: al.total || 0, c: ACC },
               { l: "CONFIRMADOS", v: al.confirmados || 0, c: "#00ff88" },
-              { l: "AUTO GPS", v: al.auto_gps || 0, c: "#00d4ff" },
+              { l: "AUTO AGENTE", v: al.auto_gps || 0, c: "#00d4ff" },
               { l: "MANUALES", v: al.manuales || 0, c: "#a855f7" },
             ].map(k => (
               <div key={k.l} className="rounded-lg p-3" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
@@ -400,6 +443,82 @@ function AngloAgentePanel({ intelData, sinMapear, paramData }: any) {
         </div>
       )}
 
+      {subTab === "CHAT" && (
+        <div className="space-y-2">
+          <div className="rounded-lg p-3" style={{ background: "#060d14", border: `1px solid ${ACC}30` }}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded flex items-center justify-center" style={{ background: `${ACC}20`, border: `1px solid ${ACC}40` }}>
+                <Mountain className="w-3 h-3" style={{ color: ACC }} />
+              </div>
+              <span className="font-space text-[9px] font-bold" style={{ color: ACC }}>SUPER AGENTE ANGLO · TRANSPORTE MINERO</span>
+            </div>
+            <div className="font-exo text-[7px]" style={{ color: "#5a8090" }}>Especializado en operaciones de cerro: Mina Los Bronces (3,500m), El Soldado, accesos montaña. Pregunta sobre rutas, rendimiento, seguridad, facturación, reajuste.</div>
+          </div>
+          <div ref={chatRef} className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035", height: 340, overflow: "auto", padding: 12 }}>
+            {(chatHist?.mensajes || []).map((m: any, i: number) => (
+              <div key={i} className={`mb-3 flex ${m.rol === "CEO" ? "justify-end" : "justify-start"}`}>
+                <div className="rounded-lg px-3 py-2 max-w-[80%]" style={{ background: m.rol === "CEO" ? "#0d2035" : `${ACC}10`, border: `1px solid ${m.rol === "CEO" ? "#1a3050" : `${ACC}20`}` }}>
+                  <div className="font-exo text-[7px] mb-1" style={{ color: m.rol === "CEO" ? "#00d4ff" : ACC }}>{m.rol === "CEO" ? "TÚ" : "AGENTE MINERO"}</div>
+                  <div className="font-exo text-[9px] whitespace-pre-wrap" style={{ color: "#c8e8ff" }}>{m.mensaje}</div>
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex justify-start mb-3">
+                <div className="rounded-lg px-3 py-2" style={{ background: `${ACC}10`, border: `1px solid ${ACC}20` }}>
+                  <div className="font-exo text-[9px] animate-pulse" style={{ color: ACC }}>Analizando datos mineros...</div>
+                </div>
+              </div>
+            )}
+            {(!chatHist?.mensajes?.length && !chatLoading) && (
+              <div className="text-center py-8">
+                <Mountain className="w-8 h-8 mx-auto mb-2" style={{ color: "#3a6080" }} />
+                <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Pregunta al agente sobre la operación minera</div>
+                <div className="font-exo text-[7px] mt-1" style={{ color: "#2a4050" }}>Ej: "¿cómo va la facturación?" · "rendimiento en rutas de cerro" · "camiones sin viajes"</div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input value={chatMsg} onChange={e => setChatMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && sendChat()}
+              placeholder="Pregunta sobre operación minera, facturación, rendimiento cerro..."
+              className="flex-1 rounded-lg px-3 py-2 font-exo text-[10px] outline-none"
+              style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+            <button onClick={sendChat} disabled={chatLoading || !chatMsg.trim()} className="rounded-lg px-4 py-2 cursor-pointer"
+              style={{ background: `${ACC}20`, border: `1px solid ${ACC}40`, color: ACC, opacity: chatLoading || !chatMsg.trim() ? 0.4 : 1 }}>
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {subTab === "ALERTAS" && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-space text-[9px] font-bold" style={{ color: "#ff8800" }}>
+              <Shield className="w-3 h-3 inline mr-1" />{(alertas?.mensajes || []).length} ALERTAS (48h)
+            </span>
+            <button onClick={() => { fetch("/api/anglo/agente/mensajes/leer", { method: "POST" }); qc.invalidateQueries({ queryKey: ["/api/anglo/agente/mensajes"] }); }}
+              className="font-exo text-[7px] px-2 py-1 rounded cursor-pointer" style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#3a6080" }}>MARCAR LEÍDAS</button>
+          </div>
+          {(alertas?.mensajes || []).map((m: any, i: number) => {
+            const pc = m.prioridad === "CRITICA" ? "#ff2244" : m.prioridad === "ALTA" ? "#ff8800" : "#5a8090";
+            const tc = m.tipo === "ANOMALIA_CERRO" ? "#ff6b35" : m.tipo === "SEGURIDAD" ? "#ff2244" : m.tipo === "ALTITUD" ? "#ff8800" : m.tipo === "FACTURACION" ? "#00ff88" : m.tipo === "FLOTA" ? "#a855f7" : "#00d4ff";
+            return (
+              <div key={i} className="rounded-lg p-3" style={{ background: m.leido ? "#060d14" : "#0a1520", border: `1px solid ${m.leido ? "#0d2035" : pc + "30"}` }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-space text-[7px] px-1.5 py-0.5 rounded" style={{ background: `${tc}20`, color: tc }}>{m.tipo?.replace("_", " ")}</span>
+                  <span className="font-space text-[7px] px-1.5 py-0.5 rounded" style={{ background: `${pc}20`, color: pc }}>{m.prioridad}</span>
+                  {!m.leido && <span className="w-1.5 h-1.5 rounded-full" style={{ background: pc }} />}
+                </div>
+                <div className="font-space text-[9px] font-bold mb-0.5" style={{ color: "#c8e8ff" }}>{m.titulo}</div>
+                <div className="font-exo text-[8px] whitespace-pre-wrap" style={{ color: "#5a8090" }}>{m.contenido}</div>
+              </div>
+            );
+          })}
+          {(alertas?.mensajes || []).length === 0 && <div className="font-exo text-[9px] text-center py-6" style={{ color: "#3a6080" }}>Sin alertas recientes. El agente monitorea: rendimiento cerro, velocidad en mina, productividad y facturación.</div>}
+        </div>
+      )}
+
       {subTab === "ALIAS" && (
         <div className="rounded-lg overflow-hidden" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
           <div className="grid grid-cols-4 gap-2 px-3 py-2" style={{ background: "#0a1218" }}>
@@ -416,7 +535,7 @@ function AngloAgentePanel({ intelData, sinMapear, paramData }: any) {
                 <div className="font-exo text-[7px]" style={{ color: a.confirmado ? "#00ff88" : "#ffcc00" }}>{a.confirmado ? "CONFIRMADO" : "PENDIENTE"}</div>
               </div>
             ))}
-            {(al.recientes || []).length === 0 && <div className="font-exo text-[9px] text-center py-4" style={{ color: "#3a6080" }}>Sin alias. Configura manualmente o activa el Super Agente.</div>}
+            {(al.recientes || []).length === 0 && <div className="font-exo text-[9px] text-center py-4" style={{ color: "#3a6080" }}>Sin alias. El Super Agente mapea geocercas automáticamente.</div>}
           </div>
         </div>
       )}
