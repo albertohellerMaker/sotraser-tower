@@ -82,11 +82,11 @@ function getRendLabel(rend: number): string {
 
 function ReplayModal({ viaje, onClose }: { viaje: any; onClose: () => void }) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
+  const mapInstance = useRef<google.maps.Map | null>(null);
   const [progreso, setProgreso] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
   const [terminado, setTerminado] = useState(false);
-  const polylineRef = useRef<any>(null);
+  const polylineRef = useRef<google.maps.Polyline | null>(null);
   const marcadorRef = useRef<any>(null);
   const intervalRef = useRef<any>(null);
 
@@ -95,57 +95,73 @@ function ReplayModal({ viaje, onClose }: { viaje: any; onClose: () => void }) {
   }, [viaje]);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
-    const L = (window as any).L;
-    if (!L) return;
+    if (!mapRef.current || mapInstance.current || !isGoogleMapsReady()) return;
     const centerLat = puntosGps.length > 0 ? puntosGps[0].lat : -33.45;
     const centerLng = puntosGps.length > 0 ? puntosGps[0].lng : -70.65;
-    const map = L.map(mapRef.current, { attributionControl: false }).setView([centerLat, centerLng], 7);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18 }).addTo(map);
+    const map = createDarkMap(mapRef.current, {
+      center: { lat: centerLat, lng: centerLng },
+      zoom: 7,
+    });
     mapInstance.current = map;
     if (puntosGps.length > 0) {
       const first = puntosGps[0];
       const last = puntosGps[puntosGps.length - 1];
-      L.circleMarker([first.lat, first.lng], { radius: 8, fillColor: "#00ff88", color: "#020508", weight: 2, fillOpacity: 1 }).addTo(map).bindPopup(`<b>ORIGEN</b><br>${viaje.lugar_origen || "Inicio"}`);
-      L.circleMarker([last.lat, last.lng], { radius: 8, fillColor: "#ff2244", color: "#020508", weight: 2, fillOpacity: 1 }).addTo(map).bindPopup(`<b>DESTINO</b><br>${viaje.lugar_destino || "Fin"}`);
-      const bounds = puntosGps.map((p: any) => [p.lat, p.lng]);
-      if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
+      new google.maps.Circle({ map, center: { lat: first.lat, lng: first.lng }, radius: 300, fillColor: "#00ff88", strokeColor: "#020508", strokeWeight: 2, fillOpacity: 1 });
+      addInfoWindow(map, new google.maps.Marker({ map, position: { lat: first.lat, lng: first.lng }, icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#020508", strokeWeight: 2 } }), `<b>ORIGEN</b><br>${viaje.lugar_origen || "Inicio"}`);
+      addInfoWindow(map, new google.maps.Marker({ map, position: { lat: last.lat, lng: last.lng }, icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#020508", strokeWeight: 2 } }), `<b>DESTINO</b><br>${viaje.lugar_destino || "Fin"}`);
+      const points = puntosGps.map((p: any) => ({ lat: p.lat, lng: p.lng }));
+      if (points.length > 1) fitBoundsToPoints(map, points, 40);
     }
-    return () => { map.remove(); mapInstance.current = null; };
+    return () => { mapInstance.current = null; };
   }, [puntosGps]);
 
   const iniciarReplay = () => {
-    const L = (window as any).L;
-    if (!L || !mapInstance.current || puntosGps.length < 2) return;
+    if (!mapInstance.current || !isGoogleMapsReady() || puntosGps.length < 2) return;
+    const map = mapInstance.current;
     setReproduciendo(true); setTerminado(false); setProgreso(0);
-    if (polylineRef.current) polylineRef.current.remove();
-    if (marcadorRef.current) marcadorRef.current.remove();
+    if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
+    if (marcadorRef.current) { if (marcadorRef.current.setMap) marcadorRef.current.setMap(null); else if (marcadorRef.current.map !== undefined) marcadorRef.current.map = null; marcadorRef.current = null; }
     const calcBearing = (lat1: number, lng1: number, lat2: number, lng2: number) => {
       const dLng = (lng2 - lng1) * Math.PI / 180;
       const y = Math.sin(dLng) * Math.cos(lat2 * Math.PI / 180);
       const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) - Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLng);
       return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
     };
-    const makeIcon = (rotation: number) => L.divIcon({
-      html: `<div style="font-size:28px;line-height:1;transform:rotate(${rotation}deg);filter:drop-shadow(0 0 6px #00d4ff);text-align:center;">&#x1F69A;</div>`,
-      className: "", iconSize: [32, 32], iconAnchor: [16, 16],
-    });
+    const makeMarkerEl = (rotation: number) => {
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="font-size:28px;line-height:1;transform:rotate(${rotation}deg);filter:drop-shadow(0 0 6px #00d4ff);text-align:center;">&#x1F69A;</div>`;
+      el.style.width = "32px"; el.style.height = "32px";
+      return el;
+    };
     const total = puntosGps.length;
     const intervaloMs = 7000 / total;
     let idx = 0;
-    const coordsAnimadas: [number, number][] = [];
+    const coordsAnimadas: google.maps.LatLngLiteral[] = [];
     let currentBearing = 0;
-    marcadorRef.current = L.marker([puntosGps[0].lat, puntosGps[0].lng], { icon: makeIcon(0) }).addTo(mapInstance.current);
+
+    if (google.maps.marker?.AdvancedMarkerElement) {
+      marcadorRef.current = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: puntosGps[0].lat, lng: puntosGps[0].lng }, content: makeMarkerEl(0) });
+    } else {
+      marcadorRef.current = new google.maps.Marker({ map, position: { lat: puntosGps[0].lat, lng: puntosGps[0].lng } });
+    }
+
     intervalRef.current = setInterval(() => {
       if (idx >= total) { clearInterval(intervalRef.current); setReproduciendo(false); setTerminado(true); setProgreso(100); return; }
       const punto = puntosGps[idx];
-      coordsAnimadas.push([punto.lat, punto.lng]);
-      if (polylineRef.current) polylineRef.current.remove();
-      polylineRef.current = L.polyline(coordsAnimadas, { color: "#00d4ff", weight: 3, opacity: 0.8, dashArray: "8,4" }).addTo(mapInstance.current);
+      coordsAnimadas.push({ lat: punto.lat, lng: punto.lng });
+      if (polylineRef.current) polylineRef.current.setMap(null);
+      polylineRef.current = new google.maps.Polyline({ map, path: coordsAnimadas, strokeColor: "#00d4ff", strokeWeight: 3, strokeOpacity: 0.8 });
       if (idx > 0) { const prev = puntosGps[idx - 1]; currentBearing = calcBearing(prev.lat, prev.lng, punto.lat, punto.lng); }
-      if (marcadorRef.current) { marcadorRef.current.setLatLng([punto.lat, punto.lng]); marcadorRef.current.setIcon(makeIcon(currentBearing)); }
+      if (marcadorRef.current) {
+        if (marcadorRef.current instanceof google.maps.Marker) {
+          marcadorRef.current.setPosition({ lat: punto.lat, lng: punto.lng });
+        } else {
+          marcadorRef.current.position = { lat: punto.lat, lng: punto.lng };
+          marcadorRef.current.content = makeMarkerEl(currentBearing);
+        }
+      }
       setProgreso(Math.round((idx / total) * 100));
-      if (idx % 5 === 0) mapInstance.current.panTo([punto.lat, punto.lng], { animate: true, duration: 0.5 });
+      if (idx % 5 === 0) map.panTo({ lat: punto.lat, lng: punto.lng });
       idx++;
     }, intervaloMs);
   };
@@ -1216,21 +1232,8 @@ export default function ViajesCerrados() {
   const [viajeReplay, setViajeReplay] = useState<any | null>(null);
   const [dayFilter, setDayFilter] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const layersRef = useRef<any[]>([]);
-  const [leafletReady, setLeafletReady] = useState(false);
-
-  useEffect(() => {
-    if ((window as any).L) { setLeafletReady(true); return; }
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(link);
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.onload = () => setLeafletReady(true);
-    document.head.appendChild(script);
-  }, []);
 
   const ayer = useMemo(() => {
     const d = new Date(Date.now() - 86400000);
@@ -1279,27 +1282,20 @@ export default function ViajesCerrados() {
     return dayFilter === ayer ? viajes : viajes;
   }, [viajes, dayFilter, ayer]);
 
-  // Initialize map
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current || !leafletReady) return;
-    const L = (window as any).L;
-    if (!L) return;
-    const map = L.map(mapRef.current, {
-      center: [-33.45, -70.65], zoom: 6,
-      zoomControl: true, attributionControl: false,
+    if (!mapRef.current || mapInstanceRef.current || !isGoogleMapsReady()) return;
+    mapInstanceRef.current = createDarkMap(mapRef.current, {
+      center: { lat: -33.45, lng: -70.65 },
+      zoom: 6,
     });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18 }).addTo(map);
-    mapInstanceRef.current = map;
-    return () => { map.remove(); mapInstanceRef.current = null; };
-  }, [leafletReady]);
+    return () => { mapInstanceRef.current = null; };
+  }, []);
 
-  // Draw selected viaje on map with color-coded route
   useEffect(() => {
     const map = mapInstanceRef.current;
-    const L = (window as any).L;
-    if (!map || !L) return;
+    if (!map || !isGoogleMapsReady()) return;
 
-    layersRef.current.forEach(l => map.removeLayer(l));
+    layersRef.current.forEach((l: any) => { try { if (l.setMap) l.setMap(null); else if (l.map !== undefined) l.map = null; } catch {} });
     layersRef.current = [];
 
     if (!selectedViaje || !selectedViaje.puntos_gps?.length) return;
@@ -1307,52 +1303,48 @@ export default function ViajesCerrados() {
     const pts = selectedViaje.puntos_gps.filter((p: any) => p.lat != null && p.lng != null && isFinite(p.lat) && isFinite(p.lng));
     if (pts.length < 2) return;
 
-    // Color based on rendimiento
     const rend = selectedViaje.rendimiento || 0;
     const routeColor = getRendColor(rend);
 
-    const latlngs = pts.map((p: any) => [p.lat, p.lng]);
-    const line = L.polyline(latlngs, { color: routeColor, weight: 3.5, opacity: 0.85 }).addTo(map);
+    const path = pts.map((p: any) => ({ lat: p.lat, lng: p.lng }));
+    const line = new google.maps.Polyline({ map, path, strokeColor: routeColor, strokeWeight: 3.5, strokeOpacity: 0.85 });
     layersRef.current.push(line);
 
     const paradas = detectarParadas(pts);
     const first = pts[0];
     const last = pts[pts.length - 1];
 
-    // Origin: blue circle
-    const startMarker = L.circleMarker([first.lat, first.lng], {
-      radius: 9, color: "#0066ff", fillColor: "#0066ff", fillOpacity: 1, weight: 2,
-    }).addTo(map);
-    startMarker.bindTooltip(
-      `<div style="font-family:'Space Mono';font-size:10px;"><b>${selectedViaje.patente}</b> · ${rend > 0 ? rend.toFixed(2) + " km/L" : ""}<br/>${selectedViaje.lugar_origen || "Origen"}</div>`,
-      { permanent: true, direction: "top", offset: [0, -10], className: "leaflet-tooltip-custom" }
-    );
+    const startMarker = new google.maps.Marker({
+      map,
+      position: { lat: first.lat, lng: first.lng },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#0066ff", fillOpacity: 1, strokeColor: "#020508", strokeWeight: 2 },
+    });
+    addInfoWindow(map, startMarker, `<div style="font-family:monospace;font-size:10px;"><b>${selectedViaje.patente}</b> · ${rend > 0 ? rend.toFixed(2) + " km/L" : ""}<br/>${selectedViaje.lugar_origen || "Origen"}</div>`, true);
     layersRef.current.push(startMarker);
 
-    // Destination: color of rendimiento
-    const endMarker = L.circleMarker([last.lat, last.lng], {
-      radius: 9, color: routeColor, fillColor: routeColor, fillOpacity: 1, weight: 2,
-    }).addTo(map);
-    endMarker.bindTooltip(selectedViaje.lugar_destino || "Destino", {
-      permanent: true, direction: "top", offset: [0, -10], className: "leaflet-tooltip-custom",
+    const endMarker = new google.maps.Marker({
+      map,
+      position: { lat: last.lat, lng: last.lng },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: routeColor, fillOpacity: 1, strokeColor: "#020508", strokeWeight: 2 },
     });
+    addInfoWindow(map, endMarker, `<div style="font-family:monospace;font-size:10px;">${selectedViaje.lugar_destino || "Destino"}</div>`);
     layersRef.current.push(endMarker);
 
-    // Paradas
     for (const parada of paradas) {
       if (parada.nombre === selectedViaje.lugar_origen && parada === paradas[0]) continue;
       if (parada.nombre === selectedViaje.lugar_destino && parada === paradas[paradas.length - 1]) continue;
       const isLong = parada.minutos >= 10;
       const mkColor = isLong ? "#00d4ff" : "#ffcc0060";
-      const mk = L.circleMarker([parada.lat, parada.lng], {
-        radius: isLong ? 8 : 4, color: mkColor, fillColor: mkColor, fillOpacity: 0.9, weight: 2,
-      }).addTo(map);
-      mk.bindPopup(`<div style="font-family:'Space Mono';font-size:11px;color:#020508"><b>${isLong ? "PARADA" : "PASO"}</b><br/>${parada.nombre}<br/>${formatMinutos(parada.minutos)}</div>`);
-      if (isLong) mk.bindTooltip(`${parada.nombre} (${formatMinutos(parada.minutos)})`, { permanent: true, direction: "top", offset: [0, -8], className: "leaflet-tooltip-custom" });
+      const mk = new google.maps.Marker({
+        map,
+        position: { lat: parada.lat, lng: parada.lng },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: isLong ? 8 : 4, fillColor: mkColor, fillOpacity: 0.9, strokeColor: mkColor, strokeWeight: 2 },
+      });
+      addInfoWindow(map, mk, `<div style="font-family:monospace;font-size:11px;"><b>${isLong ? "PARADA" : "PASO"}</b><br/>${parada.nombre}<br/>${formatMinutos(parada.minutos)}</div>`);
       layersRef.current.push(mk);
     }
 
-    map.fitBounds(latlngs, { padding: [40, 40] });
+    fitBoundsToPoints(map, path, 40);
   }, [selectedViaje]);
 
   const formatHora = (f: string | null) => {

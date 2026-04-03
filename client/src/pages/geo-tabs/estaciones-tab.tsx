@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Fuel, Truck, Users, ChevronDown, ChevronUp, MapPin, Search, AlertTriangle } from "lucide-react";
+import { createDarkMap, addInfoWindow, fitBoundsToPoints, isGoogleMapsReady } from "@/lib/google-maps-utils";
 
 function getContColor(c: string): string {
   if (c?.includes("ANGLO-COCU")) return "#00ff88";
@@ -95,120 +96,118 @@ export default function EstacionesTab() {
 
   const res = data?.resumen || {};
 
-  // Map
   useEffect(() => {
-    if (!mapRef.current || !data?.estaciones) return;
-    const L = (window as any).L;
-    if (!L) return;
+    if (!mapRef.current || !data?.estaciones || !isGoogleMapsReady()) return;
     if (!mapInstanceRef.current) {
-      mapInstanceRef.current = L.map(mapRef.current, { center: [-33.45, -70.65], zoom: 5, zoomControl: true, attributionControl: false });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18 }).addTo(mapInstanceRef.current);
+      mapInstanceRef.current = createDarkMap(mapRef.current, { center: { lat: -33.45, lng: -70.65 }, zoom: 5 });
     }
-    markersRef.current.forEach((m: any) => m.remove());
+    const map = mapInstanceRef.current;
+    markersRef.current.forEach((m: any) => { if (m.setMap) m.setMap(null); else if (m.map !== undefined) m.map = null; });
     markersRef.current = [];
     const estConGeo = data.estaciones.filter((e: any) => e.lat && e.lng);
     if (estConGeo.length === 0) return;
     const maxCargas = Math.max(...estConGeo.map((e: any) => e.cargas));
+    const allPoints: { lat: number; lng: number }[] = [];
     estConGeo.forEach((e: any) => {
       const size = Math.max(10, Math.min(32, (e.cargas / maxCargas) * 32));
       const color = e.cargas > maxCargas * 0.5 ? "#ff6b35" : e.cargas > maxCargas * 0.2 ? "#ffcc00" : "#00d4ff";
       const isSel = expandida === e.nombre;
-      const icon = L.divIcon({
-        className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2],
-        html: `<div style="width:${size}px;height:${size}px;background:${color};border:2px solid ${isSel ? "#fff" : color + "80"};border-radius:50%;opacity:0.85;box-shadow:0 0 ${isSel ? 12 : 6}px ${color};display:flex;align-items:center;justify-content:center">${size > 14 ? `<span style="font-size:7px;color:#000;font-weight:bold">${e.cargas}</span>` : ""}</div>`,
-      });
-      const m = L.marker([e.lat, e.lng], { icon }).addTo(mapInstanceRef.current);
-      m.bindTooltip(`<div style="font-family:monospace;font-size:11px;line-height:1.4"><b>${e.nombre}</b><br>${e.cargas} cargas · ${e.camiones} camiones<br>${(e.litros || 0).toLocaleString()} litros · ${e.conductores} conductores</div>`, { direction: "top", offset: [0, -size / 2] });
-      m.on("click", () => { setVista("estaciones"); setExpandida(e.nombre); });
-      markersRef.current.push(m);
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="width:${size}px;height:${size}px;background:${color};border:2px solid ${isSel ? "#fff" : color + "80"};border-radius:50%;opacity:0.85;box-shadow:0 0 ${isSel ? 12 : 6}px ${color};display:flex;align-items:center;justify-content:center;cursor:pointer">${size > 14 ? `<span style="font-size:7px;color:#000;font-weight:bold">${e.cargas}</span>` : ""}</div>`;
+      const tooltipContent = `<div style="font-family:monospace;font-size:11px;line-height:1.4"><b>${e.nombre}</b><br>${e.cargas} cargas · ${e.camiones} camiones<br>${(e.litros || 0).toLocaleString()} litros · ${e.conductores} conductores</div>`;
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: e.lat, lng: e.lng }, content: el });
+        addInfoWindow(map, marker, tooltipContent);
+        marker.addListener("click", () => { setVista("estaciones"); setExpandida(e.nombre); });
+        markersRef.current.push(marker);
+      } else {
+        const marker = new google.maps.Marker({ map, position: { lat: e.lat, lng: e.lng } });
+        addInfoWindow(map, marker, tooltipContent);
+        marker.addListener("click", () => { setVista("estaciones"); setExpandida(e.nombre); });
+        markersRef.current.push(marker);
+      }
+      allPoints.push({ lat: e.lat, lng: e.lng });
     });
-    if (estConGeo.length > 1) mapInstanceRef.current.fitBounds(L.latLngBounds(estConGeo.map((e: any) => [e.lat, e.lng])), { padding: [30, 30] });
+    if (allPoints.length > 1) fitBoundsToPoints(map, allPoints, 30);
   }, [data, expandida]);
 
-  // Highlight selected irregularity on map — supports 2 stations for doble_carga
   const irrLayersRef = useRef<any[]>([]);
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const L = (window as any).L;
-    if (!L) return;
-    // Clean previous
-    irrLayersRef.current.forEach((l: any) => { try { l.remove(); } catch {} });
+    if (!mapInstanceRef.current || !isGoogleMapsReady()) return;
+    const map = mapInstanceRef.current;
+    irrLayersRef.current.forEach((l: any) => { try { if (l.setMap) l.setMap(null); else if (l.map !== undefined) l.map = null; } catch {} });
     irrLayersRef.current = [];
-    if (irrMarkerRef.current) { irrMarkerRef.current.remove(); irrMarkerRef.current = null; }
+    if (irrMarkerRef.current) { if (irrMarkerRef.current.setMap) irrMarkerRef.current.setMap(null); else if (irrMarkerRef.current.map !== undefined) irrMarkerRef.current.map = null; irrMarkerRef.current = null; }
     if (!selectedIrr) return;
 
     const estaciones = data?.estaciones || [];
     const findEst = (name: string) => estaciones.find((e: any) => e.nombre === name);
 
-    // Doble carga — show both stations
+    const makeEl = (html: string) => { const el = document.createElement("div"); el.innerHTML = html; return el; };
+
     if (selectedIrr.est1 && selectedIrr.est2) {
       const e1 = findEst(selectedIrr.est1);
       const e2 = findEst(selectedIrr.est2);
-      const points: any[] = [];
+      const points: { lat: number; lng: number }[] = [];
 
       if (e1?.lat && e1?.lng) {
-        points.push([e1.lat, e1.lng]);
-        const icon1 = L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14],
-          html: `<div style="width:28px;height:28px;background:#ff6b35;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #ff6b35;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;font-weight:bold;color:#fff">1</span></div>` });
-        const m1 = L.marker([e1.lat, e1.lng], { icon: icon1 }).addTo(mapInstanceRef.current);
-        m1.bindPopup(`<div style="font-family:monospace;font-size:11px;line-height:1.5">
-          <b style="color:#ff6b35">CARGA 1</b><br>
-          <b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>
-          ${selectedIrr.est1}<br>
-          ${(selectedIrr.fecha1 || "").slice(0, 16)}<br>
-          <b style="color:#ffcc00">${selectedIrr.litros1} litros</b>
-        </div>`).openPopup();
-        irrLayersRef.current.push(m1);
+        points.push({ lat: e1.lat, lng: e1.lng });
+        const el1 = makeEl(`<div style="width:28px;height:28px;background:#ff6b35;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #ff6b35;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;font-weight:bold;color:#fff">1</span></div>`);
+        const popup1 = `<div style="font-family:monospace;font-size:11px;line-height:1.5"><b style="color:#ff6b35">CARGA 1</b><br><b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>${selectedIrr.est1}<br>${(selectedIrr.fecha1 || "").slice(0, 16)}<br><b style="color:#ffcc00">${selectedIrr.litros1} litros</b></div>`;
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          const m1 = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: e1.lat, lng: e1.lng }, content: el1 });
+          const iw = addInfoWindow(map, m1, popup1, true);
+          irrLayersRef.current.push(m1);
+        } else {
+          const m1 = new google.maps.Marker({ map, position: { lat: e1.lat, lng: e1.lng } });
+          addInfoWindow(map, m1, popup1, true);
+          irrLayersRef.current.push(m1);
+        }
       }
 
       if (e2?.lat && e2?.lng) {
-        points.push([e2.lat, e2.lng]);
-        const icon2 = L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14],
-          html: `<div style="width:28px;height:28px;background:#ff2244;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #ff2244;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;font-weight:bold;color:#fff">2</span></div>` });
-        const m2 = L.marker([e2.lat, e2.lng], { icon: icon2 }).addTo(mapInstanceRef.current);
-        m2.bindPopup(`<div style="font-family:monospace;font-size:11px;line-height:1.5">
-          <b style="color:#ff2244">CARGA 2</b><br>
-          <b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>
-          ${selectedIrr.est2}<br>
-          ${(selectedIrr.fecha2 || "").slice(0, 16)}<br>
-          <b style="color:#ffcc00">${selectedIrr.litros2} litros</b><br>
-          <b style="color:#ff2244">TOTAL: ${selectedIrr.litros_total} lt · ${selectedIrr.minutos_entre} min entre</b>
-        </div>`);
-        irrLayersRef.current.push(m2);
+        points.push({ lat: e2.lat, lng: e2.lng });
+        const el2 = makeEl(`<div style="width:28px;height:28px;background:#ff2244;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px #ff2244;display:flex;align-items:center;justify-content:center"><span style="font-size:10px;font-weight:bold;color:#fff">2</span></div>`);
+        const popup2 = `<div style="font-family:monospace;font-size:11px;line-height:1.5"><b style="color:#ff2244">CARGA 2</b><br><b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>${selectedIrr.est2}<br>${(selectedIrr.fecha2 || "").slice(0, 16)}<br><b style="color:#ffcc00">${selectedIrr.litros2} litros</b><br><b style="color:#ff2244">TOTAL: ${selectedIrr.litros_total} lt · ${selectedIrr.minutos_entre} min entre</b></div>`;
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          const m2 = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: e2.lat, lng: e2.lng }, content: el2 });
+          addInfoWindow(map, m2, popup2);
+          irrLayersRef.current.push(m2);
+        } else {
+          const m2 = new google.maps.Marker({ map, position: { lat: e2.lat, lng: e2.lng } });
+          addInfoWindow(map, m2, popup2);
+          irrLayersRef.current.push(m2);
+        }
       }
 
-      // Draw line between stations if both have coords
       if (points.length === 2) {
-        const line = L.polyline(points, { color: "#ff2244", weight: 3, dashArray: "8,6", opacity: 0.8 }).addTo(mapInstanceRef.current);
-        // Midpoint label
-        const mid = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
-        const label = L.marker(mid, {
-          icon: L.divIcon({ className: "", iconSize: [120, 30], iconAnchor: [60, 15],
-            html: `<div style="background:#0a1520;border:1px solid #ff2244;border-radius:4px;padding:2px 8px;text-align:center;white-space:nowrap">
-              <span style="font-family:monospace;font-size:10px;color:#ff2244;font-weight:bold">${selectedIrr.minutos_entre} min · ${selectedIrr.litros_total} lt</span>
-            </div>` })
-        }).addTo(mapInstanceRef.current);
-        irrLayersRef.current.push(line, label);
-        mapInstanceRef.current.fitBounds(L.latLngBounds(points), { padding: [60, 60] });
+        const line = new google.maps.Polyline({ map, path: points, strokeColor: "#ff2244", strokeWeight: 3, strokeOpacity: 0.8 });
+        const mid = { lat: (points[0].lat + points[1].lat) / 2, lng: (points[0].lng + points[1].lng) / 2 };
+        const labelEl = makeEl(`<div style="background:#0a1520;border:1px solid #ff2244;border-radius:4px;padding:2px 8px;text-align:center;white-space:nowrap"><span style="font-family:monospace;font-size:10px;color:#ff2244;font-weight:bold">${selectedIrr.minutos_entre} min · ${selectedIrr.litros_total} lt</span></div>`);
+        irrLayersRef.current.push(line);
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          const label = new google.maps.marker.AdvancedMarkerElement({ map, position: mid, content: labelEl });
+          irrLayersRef.current.push(label);
+        }
+        fitBoundsToPoints(map, points, 60);
       } else if (points.length === 1) {
-        mapInstanceRef.current.setView(points[0], 10);
+        map.setCenter(points[0]);
+        map.setZoom(10);
       }
     } else {
-      // Single station irregularity
       const est = findEst(selectedIrr.estacion);
       if (!est?.lat || !est?.lng) return;
-      const icon = L.divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12],
-        html: `<div style="width:24px;height:24px;background:#ff2244;border:3px solid #fff;border-radius:50%;box-shadow:0 0 15px #ff2244"></div>` });
-      irrMarkerRef.current = L.marker([est.lat, est.lng], { icon }).addTo(mapInstanceRef.current);
-      irrMarkerRef.current.bindPopup(`<div style="font-family:monospace;font-size:11px;line-height:1.5">
-        <b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>
-        ${selectedIrr.estacion}<br>
-        ${(selectedIrr.fecha || "").slice(0, 16)}<br>
-        <b style="color:#ffcc00">${Math.round(selectedIrr.litros || 0)} litros</b><br>
-        ${selectedIrr.km_ant ? `KM: ${selectedIrr.km_ant.toLocaleString()} → ${selectedIrr.km_act?.toLocaleString()}<br>` : ""}
-        <b style="color:#ff2244">${selectedIrr.tipo_error || selectedIrr.razon || "Irregularidad"}</b>
-      </div>`).openPopup();
-      mapInstanceRef.current.setView([est.lat, est.lng], 10);
+      const el = makeEl(`<div style="width:24px;height:24px;background:#ff2244;border:3px solid #fff;border-radius:50%;box-shadow:0 0 15px #ff2244"></div>`);
+      const popup = `<div style="font-family:monospace;font-size:11px;line-height:1.5"><b>${selectedIrr.patente}</b> · ${selectedIrr.conductor || "?"}<br>${selectedIrr.estacion}<br>${(selectedIrr.fecha || "").slice(0, 16)}<br><b style="color:#ffcc00">${Math.round(selectedIrr.litros || 0)} litros</b><br>${selectedIrr.km_ant ? `KM: ${selectedIrr.km_ant.toLocaleString()} → ${selectedIrr.km_act?.toLocaleString()}<br>` : ""}<b style="color:#ff2244">${selectedIrr.tipo_error || selectedIrr.razon || "Irregularidad"}</b></div>`;
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        irrMarkerRef.current = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: est.lat, lng: est.lng }, content: el });
+        addInfoWindow(map, irrMarkerRef.current, popup, true);
+      } else {
+        irrMarkerRef.current = new google.maps.Marker({ map, position: { lat: est.lat, lng: est.lng } });
+        addInfoWindow(map, irrMarkerRef.current, popup, true);
+      }
+      map.setCenter({ lat: est.lat, lng: est.lng });
+      map.setZoom(10);
     }
   }, [selectedIrr, data]);
 
