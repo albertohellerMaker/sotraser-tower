@@ -11,7 +11,8 @@ import GeoValidator from "@/pages/geovalidator";
 import CencosudView from "@/pages/cencosud";
 import AngloView from "@/pages/anglo";
 import Flota from "@/pages/flota";
-import ConductoresPanel, { AppConductorIframe } from "@/pages/conductores-panel";
+import ConductoresPanel from "@/pages/conductores-panel";
+import AppConductorHub from "@/pages/app-conductor-hub";
 import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X, Users, Smartphone } from "lucide-react";
 import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 
@@ -1279,22 +1280,7 @@ function AppShell() {
 
   if (modo === "ANGLO") return <AngloView onBack={() => setModo("WELCOME")} />;
 
-  if (modo === "APP_CONDUCTOR") return (
-    <div className="min-h-screen" style={{ background: "#020508" }}>
-      <div className="flex items-center gap-3 px-6 py-3" style={{ background: "#060d14", borderBottom: "1px solid #0d2035" }}>
-        <button onClick={() => setModo("WELCOME")} className="font-exo text-[10px] font-bold px-3 py-1.5 cursor-pointer"
-          style={{ color: "#ff6b35", background: "#ff6b3515", border: "1px solid #ff6b3530", borderRadius: 6 }}>
-          ← VOLVER
-        </button>
-        <div className="text-[20px]">📱</div>
-        <span className="font-space text-[16px] font-bold tracking-wider" style={{ color: "#ff6b35" }}>APP CONDUCTOR</span>
-        <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Vista previa de la app del conductor en terreno</span>
-      </div>
-      <div className="p-4">
-        <AppConductorIframe />
-      </div>
-    </div>
-  );
+  if (modo === "APP_CONDUCTOR") return <AppConductorHub onBack={() => setModo("WELCOME")} />;
 
   if (modo === "MANDO") return (
     <div className="min-h-screen" style={{ background: "#020508" }}>
@@ -1376,7 +1362,7 @@ function AppShell() {
             {tab === "control" && <ControlCenter />}
             {tab === "brain" && <OperativeBrain />}
             {tab === "conductores" && <ConductoresPanel />}
-            {tab === "app-conductor" && <AppConductorIframe />}
+            {tab === "app-conductor" && <AppConductorHub onBack={() => setTab("flota")} />}
             {tab === "sistema" && <SistemaTab />}
             {tab === "foco" && focoAlerta && (
               <div style={{ height: "calc(100vh - 80px)", display: "flex", flexDirection: "column" }}>

@@ -30,6 +30,7 @@ A comprehensive fleet management system for a Chilean trucking company (~825 tru
 - **Workers**: Background jobs and agents run in separate child processes via `server/worker-manager.ts` (uses `child_process.fork` + tsx). Workers: `server/workers/jobs-worker.ts` (data sync, scoring, geocercas), `server/workers/agents-worker.ts` (multi-agent AI system). Auto-restart with exponential backoff on crash.
 - **Conductor API**: `/api/conductor/*` endpoints for the driver-facing app. Auth via `X-API-Key` header (env: `CONDUCTOR_API_KEY`). Bypasses Tower session auth. Endpoints: login, viajes del día, paradas, confirmar parada, enviar ubicación, reportar novedad, info camión.
 - **Conductor Panel**: Tower tab "CONDUCTORES" with 4 sub-tabs: Viajes en Vivo (live map tracking + GPS validation), Asignar Viaje (Uber-style trip creation with paradas), Gestión (conductor roster), Novedades (incident reports). Routes: `/api/conductor-panel/*`.
+- **APP CONDUCTOR Hub** (`app-conductor-hub.tsx`): Full management hub accessed from Welcome screen and Tower navbar. Two modes: Vista App (iframe preview of driver-facing Replit app) and Gestión Empresa (4 sub-tabs: Viajes management with filtering/creation/chat, Conductores with profile cards/history, Comunicaciones with broadcast + direct messaging + quick messages, Novedades center with open/resolved split). Messaging uses `mensajes_conductor` table (TORRE/CONDUCTOR remitente, per-viaje or direct). Driver app URL: `https://driver-route-planner-albertoheller.replit.app/?patente={PATENTE}`.
 
 ## Project Structure
 ```

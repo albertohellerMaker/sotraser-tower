@@ -327,4 +327,177 @@ router.get("/viajes-historial", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/mensajes/:viajeId", async (req: Request, res: Response) => {
+  try {
+    const { viajeId } = req.params;
+    const result = await pool.query(
+      `SELECT * FROM mensajes_conductor
+       WHERE viaje_id = $1
+       ORDER BY created_at ASC`,
+      [viajeId]
+    );
+    return res.json({ mensajes: result.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/mensajes-conductor/:conductor", async (req: Request, res: Response) => {
+  try {
+    const { conductor } = req.params;
+    const result = await pool.query(
+      `SELECT m.*, v.codigo as viaje_codigo, v.cliente
+       FROM mensajes_conductor m
+       LEFT JOIN viajes v ON m.viaje_id = v.id
+       WHERE m.conductor = $1
+       ORDER BY m.created_at DESC
+       LIMIT 50`,
+      [decodeURIComponent(conductor)]
+    );
+    return res.json({ mensajes: result.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/mensaje", async (req: Request, res: Response) => {
+  try {
+    const { viajeId, conductor, mensaje, tipo } = req.body;
+    if (!mensaje) {
+      return res.status(400).json({ error: "mensaje es requerido" });
+    }
+    if (!viajeId && !conductor) {
+      return res.status(400).json({ error: "viajeId o conductor es requerido" });
+    }
+    const result = await pool.query(
+      `INSERT INTO mensajes_conductor (viaje_id, conductor, remitente, mensaje, tipo)
+       VALUES ($1, $2, 'TORRE', $3, $4)
+       RETURNING *`,
+      [viajeId || null, conductor || null, mensaje, tipo || 'TEXTO']
+    );
+    return res.json({ ok: true, mensaje: result.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/mensaje/broadcast", async (req: Request, res: Response) => {
+  try {
+    const { mensaje, contrato } = req.body;
+    if (!mensaje) {
+      return res.status(400).json({ error: "mensaje es requerido" });
+    }
+    let conductores: string[] = [];
+    if (contrato) {
+      const result = await pool.query(
+        `SELECT DISTINCT nombre FROM conductores_perfil WHERE contrato = $1`, [contrato]
+      );
+      conductores = result.rows.map((r: any) => r.nombre);
+    } else {
+      const result = await pool.query(
+        `SELECT DISTINCT conductor FROM viajes WHERE estado IN ('EN_RUTA', 'PROGRAMADO') AND conductor IS NOT NULL`
+      );
+      conductores = result.rows.map((r: any) => r.conductor);
+    }
+    let count = 0;
+    for (const c of conductores) {
+      await pool.query(
+        `INSERT INTO mensajes_conductor (conductor, remitente, mensaje, tipo) VALUES ($1, 'TORRE', $2, 'BROADCAST')`,
+        [c, mensaje]
+      );
+      count++;
+    }
+    return res.json({ ok: true, enviados: count });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/viajes-todos", async (req: Request, res: Response) => {
+  try {
+    const estado = (req.query.estado as string) || "";
+    const conductor = (req.query.conductor as string) || "";
+    const cliente = (req.query.cliente as string) || "";
+    const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "50") || 50, 1), 200);
+    
+    let query = `SELECT v.id, v.codigo, v.conductor, v.cliente, v.origen_nombre,
+                        v.estado, v.fecha_salida, v.fecha_cierre,
+                        v.carga_descripcion, v.km_recorridos,
+                        c.patente, c.modelo,
+                        (SELECT COUNT(*) FROM viaje_paradas vp WHERE vp.viaje_id = v.id) as total_paradas,
+                        (SELECT COUNT(*) FROM viaje_paradas vp WHERE vp.viaje_id = v.id AND vp.estado = 'COMPLETADA') as paradas_ok,
+                        (SELECT COUNT(*) FROM mensajes_conductor m WHERE m.viaje_id = v.id) as total_mensajes
+                 FROM viajes v
+                 LEFT JOIN camiones c ON v.camion_id = c.id
+                 WHERE 1=1`;
+    const params: any[] = [];
+    let idx = 1;
+    if (estado) { query += ` AND v.estado = $${idx++}`; params.push(estado); }
+    if (conductor) { query += ` AND v.conductor ILIKE $${idx++}`; params.push(`%${conductor}%`); }
+    if (cliente) { query += ` AND v.cliente ILIKE $${idx++}`; params.push(`%${cliente}%`); }
+    query += ` ORDER BY v.created_at DESC LIMIT $${idx++}`;
+    params.push(limit);
+    
+    const result = await pool.query(query, params);
+    return res.json({ viajes: result.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/conductor-ficha/:nombre", async (req: Request, res: Response) => {
+  try {
+    const nombre = decodeURIComponent(req.params.nombre);
+    const perfil = await pool.query(
+      `SELECT * FROM conductores_perfil WHERE nombre = $1`, [nombre]
+    );
+    const viajes = await pool.query(
+      `SELECT v.id, v.codigo, v.cliente, v.estado, v.fecha_salida, v.fecha_cierre,
+              v.km_recorridos, c.patente,
+              (SELECT COUNT(*) FROM viaje_paradas vp WHERE vp.viaje_id = v.id AND vp.estado = 'COMPLETADA') as paradas_ok,
+              (SELECT COUNT(*) FROM viaje_paradas vp WHERE vp.viaje_id = v.id) as total_paradas
+       FROM viajes v LEFT JOIN camiones c ON v.camion_id = c.id
+       WHERE v.conductor = $1
+       ORDER BY v.fecha_salida DESC LIMIT 20`, [nombre]
+    );
+    const novedades = await pool.query(
+      `SELECT * FROM novedades_conductor WHERE conductor = $1 ORDER BY creado_at DESC LIMIT 10`, [nombre]
+    );
+    const mensajes = await pool.query(
+      `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE leido = false) as no_leidos
+       FROM mensajes_conductor WHERE conductor = $1`, [nombre]
+    );
+    const camion = await pool.query(
+      `SELECT c.id, c.patente, c.modelo FROM camiones c WHERE c.conductor = $1`, [nombre]
+    );
+    return res.json({
+      perfil: perfil.rows[0] || null,
+      viajes: viajes.rows,
+      novedades: novedades.rows,
+      mensajes: mensajes.rows[0],
+      camion: camion.rows[0] || null,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/stats-conductor", async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM viajes WHERE estado = 'EN_RUTA') as en_ruta,
+        (SELECT COUNT(*) FROM viajes WHERE estado = 'PROGRAMADO') as programados,
+        (SELECT COUNT(*) FROM viajes WHERE estado = 'COMPLETADO') as completados,
+        (SELECT COUNT(*) FROM viajes WHERE fecha_salida::date = CURRENT_DATE) as viajes_hoy,
+        (SELECT COUNT(*) FROM novedades_conductor WHERE resuelta = false) as novedades_abiertas,
+        (SELECT COUNT(*) FROM mensajes_conductor WHERE leido = false AND remitente = 'CONDUCTOR') as mensajes_sin_leer,
+        (SELECT COUNT(DISTINCT conductor) FROM viajes WHERE estado IN ('EN_RUTA', 'PROGRAMADO')) as conductores_activos
+    `);
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
