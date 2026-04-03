@@ -84,9 +84,27 @@ migrations/                # SQL migration files
 - **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min, GPS-proximity auto-aliasing (30km radius, 5km for CD/CT), trayecto consolidation (4h window), billing intelligence. Dedicated UI tab (AGENTE) with sub-tabs: INTELIGENCIA (billing by lote, trayectos, sin mapear), ALIAS GPS (confirm/manage), ALERTAS, PARÁMETROS, CHAT
 - **Trayecto consolidation** (`cencosud-trayectos.ts`): merges GPS segments into full point-to-point trajectories — fuel stops and base passes become `paradas_intermedias`, trip closes only at real KML destination with ≥10 min dwell. MAX_GAP=6h, MAX_CONSOLIDAR=8. Stored in `cencosud_trayectos` table. Job runs every 15 min. API: `GET /api/cencosud/trayectos?fecha=YYYY-MM-DD&dias=7`
 
+## Anglo American TMS — Cargas Varias (Componente Variable 28T)
+- **Contrato N° 4.22.0015.1**: Vigencia Mar 2023 - Jun 2027, 74 camiones contratados
+- **Componente variable**: Tarifa por ruta OD a 28 toneladas. 35 rutas tarifadas clase VAR-28T
+- **Reajuste cuatrimestral** (Mar, Jul, Nov): FR = 60% IPC + 30% P.DIESEL + 10% DÓLAR (base Nov 2022: IPC=128.65, DIESEL=1,025,851.30, DÓLAR=917.05)
+- **Zonas mineras**: Mina Los Bronces (3,500m), El Soldado (1,600m), Lo Barnechea, Los Andes
+- **Super Agente Anglo** (`super-agente-anglo.ts`): Mining-aware agent, runs every 30 min
+  - Auto-alias GPS con matching a geocercas tarifadas
+  - Detección anomalías cerro: rendimiento bajo, excesos velocidad en rutas mineras (límite 40-60 km/h)
+  - Monitoreo altitud: seguimiento rutas alta montaña
+  - Facturación inteligente: cruce viajes × tarifas VAR-28T
+  - Chat con IA especializada en transporte minero
+- **DB tables**: anglo_agente_estado, anglo_agente_mensajes, anglo_agente_chat, anglo_parametros, anglo_reajuste
+- **Frontend** (`anglo.tsx`): 8 tabs — RESUMEN, VIAJES, ERR, RUTAS, FLOTA, AGENTE (6 sub-tabs: INTELIGENCIA, CHAT, ALERTAS, ALIAS, SIN_MAPEAR, PARAMETROS), TARIFAS, REAJUSTE
+- **Backend** (`anglo-routes.ts`): 18 endpoints en /api/anglo/* incl. chat, historial, cerro monitoring
+- **Billing flow**: GPS → geocerca → alias (`geocerca_alias_contrato`) → tarifa VAR-28T (`contrato_rutas_tarifas`) → facturación
+- **Alias system**: 235 aliases auto-creados, matching por proximidad GPS + nombre
+
 ## Background Processes
 - Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
 - Super Agente Cencosud (every 30 min) — billing intelligence + auto-alias
+- Super Agente Anglo (every 30 min) — mining-aware billing + cerro monitoring
 - Sigetra fuel sync (every 1 hour)
 - Daily report at 06:00
 - Overnight reconciliation at 03:00
