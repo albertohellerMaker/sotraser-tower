@@ -28,6 +28,7 @@ A comprehensive fleet management system for a Chilean trucking company (~825 tru
 - **Package manager**: npm
 - **Maps**: Google Maps ONLY (`@vis.gl/react-google-maps`). Key: `VITE_GOOGLE_MAPS_KEY`. All Leaflet fully removed.
 - **Workers**: Background jobs and agents run in separate child processes via `server/worker-manager.ts` (uses `child_process.fork` + tsx). Workers: `server/workers/jobs-worker.ts` (data sync, scoring, geocercas), `server/workers/agents-worker.ts` (multi-agent AI system). Auto-restart with exponential backoff on crash.
+- **Conductor API**: `/api/conductor/*` endpoints for the driver-facing app. Auth via `X-API-Key` header (env: `CONDUCTOR_API_KEY`). Bypasses Tower session auth. Endpoints: login, viajes del día, paradas, confirmar parada, enviar ubicación, reportar novedad, info camión.
 
 ## Project Structure
 ```
