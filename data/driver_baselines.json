@@ -619,12 +619,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 100
+      },
+      {
+        "semana": "2026-W14",
+        "score": 71,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 100
       }
     ],
     "baseline": 71,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:43.331Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.462Z"
   },
   "9BVRG30C4ME898628": {
     "nombre": "Sin asignar",
@@ -638,12 +646,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:43.731Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.446Z"
   },
   "9BVRG30C6TE631945": {
     "nombre": "Sin asignar",
@@ -923,12 +939,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 61
+      },
+      {
+        "semana": "2026-W14",
+        "score": 69,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 93
       }
     ],
-    "baseline": 61,
-    "variabilidad": 0,
+    "baseline": 65,
+    "variabilidad": 4,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:47.812Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.430Z"
   },
   "9BVRG30D4ME898582": {
     "nombre": "Sin asignar",
@@ -942,12 +966,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 92
+      },
+      {
+        "semana": "2026-W14",
+        "score": 69,
+        "anticipacion": 73,
+        "velocidad": 75,
+        "motor": 60,
+        "combustible": 69
       }
     ],
     "baseline": 69,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:48.074Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.414Z"
   },
   "9BVRG30D5LE873957": {
     "nombre": "Sin asignar",
@@ -961,12 +993,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:48.372Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.393Z"
   },
   "9BVRG30D6LE870501": {
     "nombre": "Sin asignar",
@@ -980,12 +1020,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:48.601Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.378Z"
   },
   "9BVRG30D6LE873799": {
     "nombre": "Sin asignar",
@@ -999,12 +1047,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:48.829Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.362Z"
   },
   "9BVRG30D9PE917357": {
     "nombre": "Sin asignar",
@@ -1037,12 +1093,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 92
+      },
+      {
+        "semana": "2026-W14",
+        "score": 68,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 90
       }
     ],
-    "baseline": 69,
-    "variabilidad": 0,
+    "baseline": 68,
+    "variabilidad": 0.5,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:49.432Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.346Z"
   },
   "9BVRG40C9PE928211": {
     "nombre": "Sin asignar",
@@ -1113,12 +1177,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 77
+      },
+      {
+        "semana": "2026-W14",
+        "score": 66,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 79
       }
     ],
-    "baseline": 65,
-    "variabilidad": 0,
+    "baseline": 66,
+    "variabilidad": 0.5,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:50.556Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.330Z"
   },
   "9BVX1F1D0KE856336": {
     "nombre": "Sin asignar",
@@ -1132,12 +1204,20 @@
         "velocidad": 75,
         "motor": 60,
         "combustible": 56
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
-    "baseline": 65,
-    "variabilidad": 0,
+    "baseline": 62,
+    "variabilidad": 3,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:50.880Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.314Z"
   },
   "9BVX1F1D1KE856405": {
     "nombre": "Sin asignar",
@@ -1284,12 +1364,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 92
+      },
+      {
+        "semana": "2026-W14",
+        "score": 71,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 100
       }
     ],
-    "baseline": 69,
-    "variabilidad": 0,
+    "baseline": 70,
+    "variabilidad": 1,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:53.299Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.299Z"
   },
   "9BVXG20D2TE622135": {
     "nombre": "Sin asignar",
@@ -1322,12 +1410,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 88
+      },
+      {
+        "semana": "2026-W14",
+        "score": 70,
+        "anticipacion": 73,
+        "velocidad": 75,
+        "motor": 60,
+        "combustible": 71
       }
     ],
-    "baseline": 68,
-    "variabilidad": 0,
+    "baseline": 69,
+    "variabilidad": 1,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:53.779Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.283Z"
   },
   "9BVXG20D3TE632298": {
     "nombre": "Sin asignar",
@@ -1341,12 +1437,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 44
+      },
+      {
+        "semana": "2026-W14",
+        "score": 56,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 44
       }
     ],
     "baseline": 56,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:54.015Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.267Z"
   },
   "9BVXG20D6SE603455": {
     "nombre": "Sin asignar",
@@ -1436,12 +1540,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 67,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 84
       }
     ],
-    "baseline": 59,
-    "variabilidad": 0,
+    "baseline": 63,
+    "variabilidad": 4,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:55.499Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.236Z"
   },
   "9BVXG40D7TE624995": {
     "nombre": "Sin asignar",
@@ -1512,12 +1624,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 70
+      },
+      {
+        "semana": "2026-W14",
+        "score": 63,
+        "anticipacion": 63,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 70
       }
     ],
     "baseline": 63,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T03:06:04.990Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.220Z"
   },
   "YV2XB40C0RA339865": {
     "nombre": "Sin asignar",
@@ -1531,12 +1651,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
     "baseline": 59,
     "variabilidad": 0,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:56.597Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.204Z"
   },
   "YV2XG10C2NA893175": {
     "nombre": "Sin asignar",
@@ -1550,12 +1678,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 100
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
-    "baseline": 71,
-    "variabilidad": 0,
+    "baseline": 65,
+    "variabilidad": 6,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:56.866Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.188Z"
   },
   "YV2XG10C4NB372131": {
     "nombre": "Sin asignar",
@@ -1645,12 +1781,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 59
+      },
+      {
+        "semana": "2026-W14",
+        "score": 59,
+        "anticipacion": 60,
+        "velocidad": 60,
+        "motor": 60,
+        "combustible": 55
       }
     ],
-    "baseline": 61,
-    "variabilidad": 0,
+    "baseline": 60,
+    "variabilidad": 1,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:58.146Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.172Z"
   },
   "9BVRG30D4LE870342": {
     "nombre": "Sin asignar",
@@ -1778,12 +1922,20 @@
         "velocidad": 60,
         "motor": 60,
         "combustible": 55
+      },
+      {
+        "semana": "2026-W14",
+        "score": 71,
+        "anticipacion": 73,
+        "velocidad": 75,
+        "motor": 60,
+        "combustible": 77
       }
     ],
-    "baseline": 59,
-    "variabilidad": 0,
+    "baseline": 65,
+    "variabilidad": 6,
     "umbralAlerta": 10,
-    "ultimaActualizacion": "2026-03-21T20:04:54.763Z"
+    "ultimaActualizacion": "2026-04-03T19:04:37.252Z"
   },
   "9BVXG20C1TE628448": {
     "nombre": "Sin asignar",

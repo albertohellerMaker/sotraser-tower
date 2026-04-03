@@ -10,10 +10,14 @@ export async function inicializarContratos() {
     const r = await pool.query(`
       SELECT DISTINCT contrato FROM viajes_aprendizaje
       WHERE km_ecu::float > 20 AND fecha_inicio >= NOW() - INTERVAL '30 days' AND contrato IS NOT NULL
+        AND contrato NOT LIKE 'ANGLO%'
       ORDER BY contrato
     `);
     if (r.rows.length > 0) {
       CONTRATOS_VOLVO_ACTIVOS = r.rows.map((row: any) => row.contrato);
+    }
+    if (!CONTRATOS_VOLVO_ACTIVOS.includes("CENCOSUD")) {
+      CONTRATOS_VOLVO_ACTIVOS.unshift("CENCOSUD");
     }
     console.log("[CONFIG] Contratos activos:", CONTRATOS_VOLVO_ACTIVOS);
   } catch (e: any) {
