@@ -2,6 +2,11 @@ import type { Express, Request, Response } from "express";
 import { pool } from "./db";
 import Anthropic from "@anthropic-ai/sdk";
 import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
+import { validate } from "./middleware/validate";
+import { z } from "zod";
+
+const ContratoParam = z.object({ contrato: z.string().min(1) });
+const BrainAnomaliasMacroQuery = z.object({ contrato: z.string().default("TODOS") });
 
 const MODEL = "claude-sonnet-4-20250514";
 
@@ -252,8 +257,7 @@ export function registerBrainRoutes(app: Express) {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  // GET /api/brain/predicciones/:contrato
-  app.get("/api/brain/predicciones/:contrato", async (req: Request, res: Response) => {
+  app.get("/api/brain/predicciones/:contrato", validate({ params: ContratoParam }), async (req: Request, res: Response) => {
     try {
       const contratos = getContratos(req.params.contrato);
       const now = new Date();
@@ -321,17 +325,15 @@ export function registerBrainRoutes(app: Express) {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  // GET /api/brain/anomalias-macro
-  app.get("/api/brain/anomalias-macro", async (req: Request, res: Response) => {
+  app.get("/api/brain/anomalias-macro", validate({ query: BrainAnomaliasMacroQuery }), async (req: Request, res: Response) => {
     try {
-      const contrato = (req.query.contrato as string) || "TODOS";
+      const { contrato } = (req as any).validatedQuery as z.infer<typeof BrainAnomaliasMacroQuery>;
       const anomalias = await detectarAnomaliasMacro(contrato);
       res.json(anomalias);
-    } catch (e: any) { res.status(500).json({ error: e.message }); }
+    } catch (e: any) { res.status(500).json({ error: "Error interno del servidor" }); }
   });
 
-  // GET /api/brain/kpis-administrador/:contrato
-  app.get("/api/brain/kpis-administrador/:contrato", async (req: Request, res: Response) => {
+  app.get("/api/brain/kpis-administrador/:contrato", validate({ params: ContratoParam }), async (req: Request, res: Response) => {
     try {
       const contratos = getContratos(req.params.contrato);
 
@@ -376,10 +378,15 @@ export function registerBrainRoutes(app: Express) {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  // POST /api/brain/chat
-  app.post("/api/brain/chat", async (req: Request, res: Response) => {
+  const BrainChatBody = z.object({
+    mensaje: z.string().min(1).max(5000),
+    contrato: z.string().default("TODOS"),
+    historial: z.array(z.object({ role: z.string(), content: z.string() })).default([]),
+  });
+
+  app.post("/api/brain/chat", validate({ body: BrainChatBody }), async (req: Request, res: Response) => {
     try {
-      const { mensaje, contrato = "TODOS", historial = [] } = req.body;
+      const { mensaje, contrato, historial } = req.body as z.infer<typeof BrainChatBody>;
       const contratos = getContratos(contrato);
 
       const [flotaR, kpiR, predR] = await Promise.all([

@@ -1,5 +1,30 @@
 import { Router } from "express";
 import { pool } from "./db";
+import { validate } from "./middleware/validate";
+import { z } from "zod";
+
+const FechaContratoQuery = z.object({
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  contrato: z.string().default("TODOS"),
+});
+const ContratoQuery = z.object({ contrato: z.string().default("TODOS") });
+const PeriodoQuery = z.object({
+  periodo: z.enum(["DIA", "3DIAS", "SEMANA"]).default("DIA"),
+  contrato: z.string().default("TODOS"),
+});
+const PatenteParam = z.object({ patente: z.string().min(1) });
+const ViajeIdParam = z.object({ viajeId: z.coerce.number().int().positive() });
+const IdParam = z.object({ id: z.coerce.number().int().positive() });
+const ContratoParam = z.object({ contrato: z.string().min(1) });
+const GeocercaRenameRequest = z.object({ nombre: z.string().min(1).max(200) });
+const GeocercaRadioRequest = z.object({ radio_km: z.coerce.number().positive().max(100) });
+const GeocercaCrearRequest = z.object({
+  nombre: z.string().min(1),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  radio_km: z.number().positive().max(100),
+  tipo: z.string().default("MANUAL"),
+});
 
 const router = Router();
 
@@ -35,11 +60,10 @@ function buildKpis(camiones: any[]) {
   };
 }
 
-// ── Resumen del día
-router.get("/resumen-dia", async (req, res) => {
+router.get("/resumen-dia", validate({ query: FechaContratoQuery }), async (req, res) => {
   try {
-    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { contrato } = (req as any).validatedQuery as z.infer<typeof FechaContratoQuery>;
+    const fecha = (req as any).validatedQuery.fecha || new Date().toISOString().slice(0, 10);
 
     const result = await pool.query(`
       ${BASE_SELECT}
@@ -55,10 +79,9 @@ router.get("/resumen-dia", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Acumulado del mes
-router.get("/acumulado-mes", async (req, res) => {
+router.get("/acumulado-mes", validate({ query: ContratoQuery }), async (req, res) => {
   try {
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { contrato } = (req as any).validatedQuery as z.infer<typeof ContratoQuery>;
     const now = new Date();
     const inicioMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const diaActual = now.getDate();
@@ -93,10 +116,9 @@ router.get("/acumulado-mes", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Por contrato
-router.get("/por-contrato", async (req, res) => {
+router.get("/por-contrato", validate({ query: ContratoQuery }), async (req, res) => {
   try {
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { contrato } = (req as any).validatedQuery as z.infer<typeof ContratoQuery>;
     if (!contrato || contrato === "TODOS") {
       const result = await pool.query(`
         SELECT va.contrato, COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
@@ -130,11 +152,14 @@ router.get("/por-contrato", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Ranking
-router.get("/ranking", async (req, res) => {
+const RankingQuery = z.object({
+  periodo: z.enum(["HOY", "SEMANA", "MES"]).default("MES"),
+  contrato: z.string().default("TODOS"),
+});
+
+router.get("/ranking", validate({ query: RankingQuery }), async (req, res) => {
   try {
-    const periodo = (req.query.periodo as string) || "MES";
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { periodo, contrato } = (req as any).validatedQuery as z.infer<typeof RankingQuery>;
     const desde = periodo === "HOY" ? "CURRENT_DATE" : periodo === "SEMANA" ? "NOW() - INTERVAL '7 days'" : "DATE_TRUNC('month', NOW())";
 
     const result = await pool.query(`
@@ -158,11 +183,10 @@ router.get("/ranking", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Alertas
-router.get("/alertas", async (req, res) => {
+router.get("/alertas", validate({ query: FechaContratoQuery }), async (req, res) => {
   try {
-    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { contrato } = (req as any).validatedQuery as z.infer<typeof FechaContratoQuery>;
+    const fecha = (req as any).validatedQuery.fecha || new Date().toISOString().slice(0, 10);
 
     const result = await pool.query(`
       SELECT c.patente, va.contrato,
@@ -186,11 +210,10 @@ router.get("/alertas", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Detalle viajes de un camión en un día
-router.get("/camion-dia/:patente", async (req, res) => {
+router.get("/camion-dia/:patente", validate({ params: PatenteParam, query: FechaContratoQuery }), async (req, res) => {
   try {
     const { patente } = req.params;
-    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
+    const fecha = (req as any).validatedQuery.fecha || new Date().toISOString().slice(0, 10);
 
     const result = await pool.query(`
       SELECT va.id, c.patente, va.contrato, va.conductor,
@@ -214,10 +237,10 @@ router.get("/camion-dia/:patente", async (req, res) => {
 });
 
 // ── Alertas detalladas con contexto completo
-router.get("/alertas-detalle", async (req, res) => {
+router.get("/alertas-detalle", validate({ query: FechaContratoQuery }), async (req, res) => {
   try {
-    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { contrato } = (req as any).validatedQuery as z.infer<typeof FechaContratoQuery>;
+    const fecha = (req as any).validatedQuery.fecha || new Date().toISOString().slice(0, 10);
 
     // Alertas de rendimiento bajo
     const rendBajo = await pool.query(`
@@ -277,8 +300,7 @@ router.get("/alertas-detalle", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Detalle completo de un contrato
-router.get("/contrato-detalle/:contrato", async (req, res) => {
+router.get("/contrato-detalle/:contrato", validate({ params: ContratoParam }), async (req, res) => {
   try {
     const { contrato } = req.params;
     const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0,0,0,0);
@@ -404,11 +426,17 @@ router.get("/puntos-desconocidos", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Georefernciar punto desconocido manualmente
-router.post("/georefernciar", async (req, res) => {
+const GeoreferenciarBody = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  nombre: z.string().min(1),
+  contrato: z.string().nullable().optional(),
+  radio_metros: z.number().positive().default(50),
+});
+
+router.post("/georefernciar", validate({ body: GeoreferenciarBody }), async (req, res) => {
   try {
-    const { lat, lng, nombre, contrato, radio_metros } = req.body;
-    if (!lat || !lng || !nombre) return res.status(400).json({ error: "lat, lng, nombre requeridos" });
+    const { lat, lng, nombre, contrato, radio_metros } = req.body as z.infer<typeof GeoreferenciarBody>;
 
     // Crear geocerca
     const geo = await pool.query(
@@ -697,51 +725,50 @@ router.get("/geocercas", async (_req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-router.post("/geocercas/:id/toggle", async (req, res) => {
+router.post("/geocercas/:id/toggle", validate({ params: IdParam }), async (req, res) => {
   try {
     const { id } = req.params;
     const r = await pool.query("UPDATE geocercas_operacionales SET activa = NOT activa WHERE id = $1 RETURNING id, nombre, activa", [id]);
-    res.json(r.rows[0] || { error: "not found" });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    if (!r.rows[0]) return res.status(404).json({ error: "Geocerca no encontrada" });
+    res.json(r.rows[0]);
+  } catch (e: any) { res.status(500).json({ error: "Error interno del servidor" }); }
 });
 
-router.post("/geocercas/:id/rename", async (req, res) => {
+router.post("/geocercas/:id/rename", validate({ params: IdParam, body: GeocercaRenameRequest }), async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre } = req.body;
-    if (!nombre) return res.status(400).json({ error: "nombre requerido" });
+    const { nombre } = req.body as z.infer<typeof GeocercaRenameRequest>;
     const r = await pool.query("UPDATE geocercas_operacionales SET nombre = $1, confirmada = true WHERE id = $2 RETURNING id, nombre", [nombre, id]);
-    res.json(r.rows[0] || { error: "not found" });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    if (!r.rows[0]) return res.status(404).json({ error: "Geocerca no encontrada" });
+    res.json(r.rows[0]);
+  } catch (e: any) { res.status(500).json({ error: "Error interno del servidor" }); }
 });
 
-router.post("/geocercas/:id/radio", async (req, res) => {
+router.post("/geocercas/:id/radio", validate({ params: IdParam, body: GeocercaRadioRequest }), async (req, res) => {
   try {
     const { id } = req.params;
-    const { radio } = req.body;
-    const r = await pool.query("UPDATE geocercas_operacionales SET radio_metros = $1 WHERE id = $2 RETURNING id, nombre, radio_metros", [radio, id]);
-    res.json(r.rows[0] || { error: "not found" });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    const { radio_km } = req.body as z.infer<typeof GeocercaRadioRequest>;
+    const r = await pool.query("UPDATE geocercas_operacionales SET radio_metros = $1 WHERE id = $2 RETURNING id, nombre, radio_metros", [radio_km * 1000, id]);
+    if (!r.rows[0]) return res.status(404).json({ error: "Geocerca no encontrada" });
+    res.json(r.rows[0]);
+  } catch (e: any) { res.status(500).json({ error: "Error interno del servidor" }); }
 });
 
-router.post("/geocercas/crear", async (req, res) => {
+router.post("/geocercas/crear", validate({ body: GeocercaCrearRequest }), async (req, res) => {
   try {
-    const { nombre, lat, lng, radio_metros, tipo, contrato } = req.body;
-    if (!nombre || !lat || !lng) return res.status(400).json({ error: "nombre, lat, lng requeridos" });
+    const { nombre, lat, lng, radio_km, tipo } = req.body as z.infer<typeof GeocercaCrearRequest>;
     const r = await pool.query(
       `INSERT INTO geocercas_operacionales (nombre, lat, lng, radio_metros, tipo, contrato, confianza, confirmada, nivel)
        VALUES ($1, $2, $3, $4, $5, $6, 'ALTA', true, $7) RETURNING id, nombre`,
-      [nombre, lat, lng, radio_metros || 50, tipo || "MANUAL", contrato || null, tipo === "BASE_ORIGEN" ? 1 : 2]
+      [nombre, lat, lng, radio_km * 1000, tipo, null, tipo === "BASE_ORIGEN" ? 1 : 2]
     );
     res.json(r.rows[0]);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { res.status(500).json({ error: "Error interno del servidor" }); }
 });
 
-// ═══ RESUMEN EJECUTIVO: DIARIO / 3 DÍAS / SEMANAL ═══
-router.get("/resumen-ejecutivo", async (req, res) => {
+router.get("/resumen-ejecutivo", validate({ query: PeriodoQuery }), async (req, res) => {
   try {
-    const periodo = (req.query.periodo as string) || "DIA"; // DIA | 3DIAS | SEMANA
-    const contrato = (req.query.contrato as string) || "TODOS";
+    const { periodo, contrato } = (req as any).validatedQuery as z.infer<typeof PeriodoQuery>;
 
     let diasAtras = 1;
     let diasCompara = 1;
@@ -843,12 +870,9 @@ router.get("/resumen-ejecutivo", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-router.get("/viaje-gps/:viajeId", async (req, res) => {
+router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req, res) => {
   try {
     const viajeId = parseInt(req.params.viajeId);
-    if (!Number.isFinite(viajeId) || viajeId <= 0) {
-      return res.status(400).json({ error: "ID de viaje inválido" });
-    }
 
     const viaje = await pool.query(`
       SELECT va.id, va.camion_id, c.patente, va.contrato, va.conductor,
