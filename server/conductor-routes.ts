@@ -194,7 +194,7 @@ router.post("/novedad", async (req: Request, res: Response) => {
 
 router.get("/camion/:patente/info", async (req: Request, res: Response) => {
   try {
-    const { patente } = req.params;
+    const patente = String(req.params.patente);
 
     const result = await pool.query(
       `SELECT c.id, c.patente, c.modelo, c.anio_fabricacion, c.odometro,

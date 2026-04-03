@@ -550,7 +550,7 @@ export function registerDriversRoutes(app: Express) {
 
   app.get("/api/drivers/:vin/detalle", async (req: Request, res: Response) => {
     try {
-      const { vin } = req.params;
+      const vin = String(req.params.vin);
       const data = await buildDriverData();
       const driver = data.drivers.find((d: any) => d.vin === vin);
       if (!driver) {

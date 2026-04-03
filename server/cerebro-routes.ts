@@ -249,7 +249,7 @@ Maximo 3 parrafos.`;
   app.patch("/api/aprendizaje/alertas/:id/gestionar", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const idNum = parseInt(id);
+      const idNum = parseInt(String(id));
       if (isNaN(idNum)) return res.status(400).json({ message: "ID invalido" });
       const { nota } = req.body;
 

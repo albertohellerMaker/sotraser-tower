@@ -396,7 +396,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
 
       // ALERTA GPS: camión detenido más de 12h
       try {
-        const camionesConVin = camiones.filter(c => c.vin && c.activo !== false);
+        const camionesConVin = camiones.filter(c => c.vin && (c as any).activo !== false);
         for (const cam of camionesConVin) {
           const ultimoPunto = await pool.query(`
             SELECT lat::float, lng::float, velocidad_kmh::float as vel, timestamp_punto
@@ -1026,7 +1026,7 @@ Sin formato adicional. Solo las 4 lineas.`;
   // ── Dashboard maestro por contrato ──
   app.get("/api/contratos/dashboard/:contrato", async (req: Request, res: Response) => {
     try {
-      const { contrato } = req.params;
+      const contrato = String(req.params.contrato);
       const hoy = new Date();
       const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
       const diasMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
@@ -1067,7 +1067,7 @@ Sin formato adicional. Solo las 4 lineas.`;
       const totalViajes = kpisR.rows.reduce((s: number, r: any) => s + r.viajes, 0);
 
       // Meta
-      const META: Record<string, number> = {}; // Sin metas km hardcodeadas por ahora
+      const META: Record<string, number> = {};
       const metaPorCamion = META[contrato] || null;
       const metaTotal = metaPorCamion ? metaPorCamion * patentes.length : null;
       const proyeccion = metaTotal && diaActual > 0 ? Math.round(kmTotal + (kmTotal / diaActual * diasRestantes)) : null;

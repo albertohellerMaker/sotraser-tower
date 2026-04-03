@@ -352,7 +352,7 @@ router.get("/mensajes-conductor/:conductor", async (req: Request, res: Response)
        WHERE m.conductor = $1
        ORDER BY m.created_at DESC
        LIMIT 50`,
-      [decodeURIComponent(conductor)]
+      [decodeURIComponent(String(conductor))]
     );
     return res.json({ mensajes: result.rows });
   } catch (err: any) {
@@ -447,7 +447,7 @@ router.get("/viajes-todos", async (req: Request, res: Response) => {
 
 router.get("/conductor-ficha/:nombre", async (req: Request, res: Response) => {
   try {
-    const nombre = decodeURIComponent(req.params.nombre);
+    const nombre = decodeURIComponent(String(req.params.nombre));
     const perfil = await pool.query(
       `SELECT * FROM conductores_perfil WHERE nombre = $1`, [nombre]
     );

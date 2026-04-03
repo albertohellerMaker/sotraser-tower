@@ -872,7 +872,7 @@ router.get("/resumen-ejecutivo", validate({ query: PeriodoQuery }), async (req, 
 
 router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req, res) => {
   try {
-    const viajeId = parseInt(req.params.viajeId);
+    const viajeId = parseInt(String(req.params.viajeId));
 
     const viaje = await pool.query(`
       SELECT va.id, va.camion_id, c.patente, va.contrato, va.conductor,

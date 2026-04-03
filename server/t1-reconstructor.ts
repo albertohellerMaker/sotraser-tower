@@ -418,6 +418,9 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   viajes_creados: number;
   viajes_round_trip: number;
   viajes_ida: number;
+  viajes_retorno_descartados: number;
+  viajes_facturados: number;
+  pct_facturable: number;
   camiones_descanso: number;
   errores: string[];
 }> {

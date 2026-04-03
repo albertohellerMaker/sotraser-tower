@@ -1,5 +1,5 @@
 import { db, DATA_START, getDefaultDesde } from "./db";
-import { geoLugares, geoVisitas, geoPuntos, geoViajes, camiones } from "@shared/schema";
+import { geoLugares, geoVisitas, geoPuntos, geoViajes, camiones, geoAnalisisIa } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, asc } from "drizzle-orm";
 import { getCencosudFaenaId } from "./cencosud-filter";
 

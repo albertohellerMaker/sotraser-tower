@@ -937,8 +937,8 @@ export function registerEstacionesRoutes(app: Express) {
 
       const topConsumidores = [...patronesCamion].sort((a, b) => Number(b.cargaTipica) - Number(a.cargaTipica)).slice(0, 3);
       const topEficientes = [...patronesCamion].sort((a, b) => Number(a.cargaTipica) - Number(b.cargaTipica)).slice(0, 3);
-      const masConsistentes = [...patronesCamion].filter(p => p.totalCargas >= 5).sort((a, b) => Number(a.cargaDesviacion) - Number(b.cargaDesviacion)).slice(0, 3);
-      const menosConsistentes = [...patronesCamion].filter(p => p.totalCargas >= 5).sort((a, b) => Number(b.cargaDesviacion) - Number(a.cargaDesviacion)).slice(0, 3);
+      const masConsistentes = [...patronesCamion].filter(p => (p.totalCargas ?? 0) >= 5).sort((a, b) => Number(a.cargaDesviacion) - Number(b.cargaDesviacion)).slice(0, 3);
+      const menosConsistentes = [...patronesCamion].filter(p => (p.totalCargas ?? 0) >= 5).sort((a, b) => Number(b.cargaDesviacion) - Number(a.cargaDesviacion)).slice(0, 3);
 
       const estacionStats = new Map<string, { totalCargas: number; camiones: Set<string>; avgLitros: number[] }>();
       for (const p of patronesCamionEstacion) {

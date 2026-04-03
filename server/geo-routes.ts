@@ -151,8 +151,8 @@ export function registerGeoRoutes(app: Express) {
 
   app.get("/api/geo/trayectoria/:camionId", async (req: Request, res: Response) => {
     try {
-      const camionId = parseInt(req.params.camionId);
-      const fecha = req.query.fecha as string || new Date().toISOString().split("T")[0];
+      const camionId = parseInt(String(req.params.camionId));
+      const fecha = String(req.query.fecha || new Date().toISOString().split("T")[0]);
 
       const dayStart = new Date(fecha + "T00:00:00");
       const dayEnd = new Date(fecha + "T23:59:59");
@@ -354,7 +354,7 @@ export function registerGeoRoutes(app: Express) {
 
   app.get("/api/geo/viajes/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const [viaje] = await db.select().from(geoViajes).where(eq(geoViajes.id, id));
       if (!viaje) return res.status(404).json({ message: "Viaje no encontrado" });
 
@@ -373,7 +373,7 @@ export function registerGeoRoutes(app: Express) {
 
   app.post("/api/geo/viajes/:id/validar", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const { estado, notas, validadoPor } = req.body;
       if (!["VALIDADO", "REVISAR", "ANOMALIA", "PENDIENTE"].includes(estado)) {
         return res.status(400).json({ message: "Estado invalido" });
@@ -938,7 +938,7 @@ export function registerGeoRoutes(app: Express) {
       const desde = req.query.desde ? new Date(req.query.desde as string) : getDefaultDesde();
       const hasta = req.query.hasta ? new Date(req.query.hasta as string) : new Date();
 
-      const resultado = await obtenerHistorialCamion(patente, desde, hasta);
+      const resultado = await obtenerHistorialCamion(String(patente), desde, hasta);
       if (!resultado) {
         return res.status(404).json({ message: `Camion ${patente} no encontrado` });
       }
@@ -990,7 +990,7 @@ export function registerGeoRoutes(app: Express) {
 
   app.get("/api/geo/camion/:camionId/puntos", async (req: Request, res: Response) => {
     try {
-      const camionId = parseInt(req.params.camionId);
+      const camionId = parseInt(String(req.params.camionId));
       const desde = req.query.desde ? new Date(req.query.desde as string) : getDefaultDesde();
       const hasta = req.query.hasta ? new Date(req.query.hasta as string) : new Date();
 
@@ -1042,7 +1042,7 @@ export function registerGeoRoutes(app: Express) {
 
   app.get("/api/geo/camion/:patente/visitas", async (req: Request, res: Response) => {
     try {
-      const { patente } = req.params;
+      const patente = String(req.params.patente);
       const visitas = await obtenerVisitasCamion(patente);
       res.json(visitas);
     } catch (error: any) {
