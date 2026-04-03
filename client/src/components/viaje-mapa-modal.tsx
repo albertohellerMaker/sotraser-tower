@@ -31,8 +31,12 @@ const RC = (r: number | null) =>
 
 function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   const map = useMap();
+  const fitted = useRef(false);
   useEffect(() => {
-    map.fitBounds(bounds, { padding: [40, 40] });
+    if (!fitted.current) {
+      map.fitBounds(bounds, { padding: [40, 40] });
+      fitted.current = true;
+    }
   }, [map, bounds]);
   return null;
 }
@@ -68,14 +72,16 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const lastTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    fetch(`/api/viajes-tms/viaje-gps/${viajeId}`)
-      .then(r => r.json())
+    const ctrl = new AbortController();
+    fetch(`/api/viajes-tms/viaje-gps/${viajeId}`, { signal: ctrl.signal })
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(d => {
         if (d.error) { setError(d.error); }
         else { setData(d); }
         setLoading(false);
       })
-      .catch(() => { setError("Error de conexión"); setLoading(false); });
+      .catch(e => { if (e.name !== "AbortError") { setError("Error de conexión"); setLoading(false); } });
+    return () => ctrl.abort();
   }, [viajeId]);
 
   useEffect(() => {
@@ -131,23 +137,25 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const { viaje: v, puntos } = data;
   const hasGps = puntos.length >= 2;
 
-  const segments: { positions: [number, number][]; color: string }[] = [];
-  if (hasGps) {
+  const segments = useMemo(() => {
+    if (!hasGps) return [];
+    const segs: { positions: [number, number][]; color: string }[] = [];
     for (let i = 0; i < puntos.length - 1; i++) {
       const p1 = puntos[i];
       const p2 = puntos[i + 1];
-      segments.push({
+      segs.push({
         positions: [[p1.lat, p1.lng], [p2.lat, p2.lng]],
         color: velColor(p2.vel || p1.vel || 0),
       });
     }
-  }
+    return segs;
+  }, [data]);
 
-  const bounds: L.LatLngBoundsExpression = hasGps
-    ? puntos.map(p => [p.lat, p.lng] as [number, number])
-    : v.olat && v.dlat
-      ? [[v.olat, v.olng], [v.dlat, v.dlng]]
-      : [[-33.45, -70.65], [-33.44, -70.64]];
+  const bounds = useMemo((): L.LatLngBoundsExpression => {
+    if (hasGps) return puntos.map(p => [p.lat, p.lng] as [number, number]);
+    if (v.olat && v.dlat) return [[v.olat, v.olng], [v.dlat, v.dlng]];
+    return [[-33.45, -70.65], [-33.44, -70.64]];
+  }, [data]);
 
   const currentIdx = Math.min(Math.floor(progress * (puntos.length - 1)), puntos.length - 1);
   const currentPoint = puntos[currentIdx];

@@ -845,7 +845,10 @@ router.get("/resumen-ejecutivo", async (req, res) => {
 
 router.get("/viaje-gps/:viajeId", async (req, res) => {
   try {
-    const { viajeId } = req.params;
+    const viajeId = parseInt(req.params.viajeId);
+    if (!Number.isFinite(viajeId) || viajeId <= 0) {
+      return res.status(400).json({ error: "ID de viaje inválido" });
+    }
 
     const viaje = await pool.query(`
       SELECT va.id, va.camion_id, c.patente, va.contrato, va.conductor,
@@ -894,7 +897,10 @@ router.get("/viaje-gps/:viajeId", async (req, res) => {
       puntos: puntosGps,
       total_puntos: puntosGps.length,
     });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) {
+    console.error("[VIAJE-GPS] Error:", e.message);
+    res.status(500).json({ error: "Error interno al obtener ruta GPS" });
+  }
 });
 
 export default router;

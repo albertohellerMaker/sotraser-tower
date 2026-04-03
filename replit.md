@@ -35,7 +35,7 @@ client/                    # React frontend (Vite)
     components/            # UI components including shadcn/ui primitives
     pages/                 # 21 page files (cleaned from 48)
       flota.tsx            # Fleet overview (P90/P75/P50 tables, rankings)
-      viajes-tms.tsx       # Trip analysis (executive summary, daily/monthly)
+      viajes-tms.tsx       # Trip analysis (executive summary, daily/monthly, GPS route viewer)
       combustible-tms.tsx  # Fuel management
       operative-brain.tsx  # AI brain with multi-agent chat
       cencosud.tsx         # Dedicated Cencosud TMS
