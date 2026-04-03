@@ -1681,8 +1681,6 @@ export function registerGeoRoutes(app: Express) {
         destinoNombre: string;
         viajes: number;
         camiones: Set<string>;
-        kmPromedio: number;
-        rendPromedio: number;
         totalKm: number;
         totalLitros: number;
         viajeIds: number[];

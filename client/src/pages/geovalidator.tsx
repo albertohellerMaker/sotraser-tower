@@ -419,7 +419,7 @@ function CamionesTab() {
   );
 }
 
-const CONTRATOS_GEO = [
+const CONTRATOS_GEO: { id: string; label: string; color: string; subfaenas?: { id: string; color: string }[] }[] = [
   { id: "ANGLO-COCU", label: "ANGLO-COCU", color: "#00ff88" },
   { id: "ANGLO-CARGAS VARIAS", label: "ANGLO-CV", color: "#00d4ff" },
   { id: "ANGLO-CAL", label: "ANGLO-CAL", color: "#ff6b35" },

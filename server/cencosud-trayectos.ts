@@ -110,7 +110,7 @@ export async function consolidarTrayectosCencosud(): Promise<{ consolidados: num
 
         const destinoPrevGeo = await resolverGeocerca(prev.dlat, prev.dlng, Math.round(gapHoras * 60), "CENCOSUD");
 
-        if (destinoPrevGeo.es_combustible || esParadaIntermedia(prev.destino_nombre, destinoPrevGeo.fuente)) {
+        if (destinoPrevGeo.es_combustible || esParadaIntermedia(prev.destino_nombre, destinoPrevGeo.fuente ?? null)) {
           cadena.push(curr);
           j++;
           continue;

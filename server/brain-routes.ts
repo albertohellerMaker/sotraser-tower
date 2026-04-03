@@ -259,7 +259,7 @@ export function registerBrainRoutes(app: Express) {
 
   app.get("/api/brain/predicciones/:contrato", validate({ params: ContratoParam }), async (req: Request, res: Response) => {
     try {
-      const contratos = getContratos(req.params.contrato);
+      const contratos = getContratos(String(req.params.contrato));
       const now = new Date();
       const diasRestantes = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
 
@@ -335,7 +335,7 @@ export function registerBrainRoutes(app: Express) {
 
   app.get("/api/brain/kpis-administrador/:contrato", validate({ params: ContratoParam }), async (req: Request, res: Response) => {
     try {
-      const contratos = getContratos(req.params.contrato);
+      const contratos = getContratos(String(req.params.contrato));
 
       const kpiR = await pool.query(`
         SELECT COUNT(*) as viajes, COUNT(DISTINCT camion_id) as camiones,

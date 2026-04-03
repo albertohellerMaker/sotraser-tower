@@ -40,7 +40,7 @@ interface VolvoTruckModalProps {
   onClose: () => void;
 }
 
-function formatDateTime(iso?: string): string {
+function formatDateTime(iso?: string | null): string {
   if (!iso) return "\u2014";
   try {
     const d = new Date(iso);

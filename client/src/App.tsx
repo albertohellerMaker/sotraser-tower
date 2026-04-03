@@ -303,8 +303,8 @@ function MiniMapaGoogle({ lat, lng, titulo, velocidad }: { lat?: number; lng?: n
   );
 }
 
-function ControlCenter() {
-  const { navigateTo } = useNavigation();
+function ControlCenter({ onFocoAlerta }: { onFocoAlerta?: (a: any) => void }) {
+  const { navigateTo, setTab } = useNavigation();
   const [subTab, setSubTab] = useState<"resumen" | "velocidad" | "combustible" | "historial">("resumen");
   const [selAlerta, setSelAlerta] = useState<any>(null);
   const { data: ubicAlerta } = useQuery<any>({ queryKey: ["/api/control/ubicacion-alerta", selAlerta?.patente, selAlerta?.tipo], queryFn: () => fetch(`/api/control/ubicacion-alerta?patente=${selAlerta.patente}&tipo=${selAlerta.tipo}`).then(r => r.json()), enabled: !!selAlerta });
@@ -502,7 +502,7 @@ function ControlCenter() {
 
               {/* Acciones */}
               <div className="flex gap-2 pt-2" style={{ borderTop: "1px solid #0d2035" }}>
-                <button onClick={() => { setFocoAlerta({ ...selAlerta, lat: ubicAlerta?.lat, lng: ubicAlerta?.lng, velocidad: ubicAlerta?.velocidad, hora: ubicAlerta?.hora }); setSelAlerta(null); setTab("foco"); }}
+                <button onClick={() => { onFocoAlerta?.({ ...selAlerta, lat: ubicAlerta?.lat, lng: ubicAlerta?.lng, velocidad: ubicAlerta?.velocidad, hora: ubicAlerta?.hora }); setSelAlerta(null); setTab("foco"); }}
                   className="flex-1 py-2.5 font-exo text-[10px] font-bold cursor-pointer text-center" style={{ color: "#fff", background: "#ff2244", borderRadius: 6 }}>VER EN MAPA</button>
                 <button onClick={() => { navigateTo("camiones", selAlerta.patente); setSelAlerta(null); }}
                   className="flex-1 py-2.5 font-exo text-[10px] font-bold cursor-pointer text-center" style={{ color: "#06b6d4", border: "1px solid #06b6d430", borderRadius: 6 }}>VER FICHA</button>
@@ -1357,7 +1357,7 @@ function AppShell() {
             {tab === "contratos" && <ContratosUnificado />}
             {tab === "combustible" && <EstacionesTab />}
             {tab === "camiones" && <CamionesUnificado />}
-            {tab === "control" && <ControlCenter />}
+            {tab === "control" && <ControlCenter onFocoAlerta={setFocoAlerta} />}
             {tab === "brain" && <OperativeBrain />}
             {tab === "conductores" && <ConductoresPanel />}
             {tab === "app-conductor" && <AppConductorHub onBack={() => setTab("flota")} />}

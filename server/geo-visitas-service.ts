@@ -95,7 +95,7 @@ export async function inicializarPerfilGPS(): Promise<void> {
       .filter(l => l.tipo === "CD_CENCOSUD" || l.tipo === "BASE_ORIGEN")
       .map(l => ({
         id: l.id,
-        nombre: l.nombre,
+        nombre: l.nombre || "",
         lat: parseFloat(l.lat),
         lng: parseFloat(l.lng),
         radioMetros: l.radioMetros || 1000,

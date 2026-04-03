@@ -959,7 +959,7 @@ export async function registerRoutes(
           .map(v => ({
             id: v.id,
             codigo: v.codigo,
-            camionPatente: camionMap.get(v.camionId)?.patente || "?",
+            camionPatente: camionMap.get(v.camionId!)?.patente || "?",
             fechaSalida: v.fechaSalida,
             estado: v.estado,
             km: parseFloat(v.kmRecorridos || "0") || 0,
@@ -1060,7 +1060,7 @@ export async function registerRoutes(
             if (!viajesPorDia[fecha]) viajesPorDia[fecha] = { total: 0, km: 0, camiones: [] };
             viajesPorDia[fecha].total++;
             viajesPorDia[fecha].km += parseFloat(v.kmRecorridos || "0") || 0;
-            const pat = camionMap.get(v.camionId)?.patente || "?";
+            const pat = camionMap.get(v.camionId!)?.patente || "?";
             if (!viajesPorDia[fecha].camiones.includes(pat)) viajesPorDia[fecha].camiones.push(pat);
           }
 
@@ -1070,9 +1070,10 @@ export async function registerRoutes(
 
           const viajesByCamion = new Map<number, typeof viajes>();
           for (const v of viajes) {
-            const arr = viajesByCamion.get(v.camionId) || [];
+            const cid = v.camionId!;
+            const arr = viajesByCamion.get(cid) || [];
             arr.push(v);
-            viajesByCamion.set(v.camionId, arr);
+            viajesByCamion.set(cid, arr);
           }
 
           const fuelByPatente = new Map<string, any[]>();
