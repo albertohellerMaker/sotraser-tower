@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertFaenaSchema, insertCamionSchema, insertCargaSchema, insertTarifaRutaSchema, camiones, volvoFuelSnapshots } from "@shared/schema";
 import { z } from "zod";
 import { getVehicles, getVehicleStatuses, getVehiclePositions, getFleetStatus, getSingleVehicleStatus } from "./volvo-api";
-import { checkSigetraConnection, getCachedFuelData, getSigetraFuelSummary, syncSigetraToCargas, syncVolvoVinsToCamiones } from "./sigetra-api";
+import { syncVolvoVinsToCamiones } from "./volvo-vin-sync";
 import { registerIARoutes } from "./ia-routes";
 import { registerTMSRoutes } from "./tms-routes";
 import { registerCEORoutes } from "./ceo-routes";
@@ -32,7 +32,6 @@ import { syncViajesHistorico, getSyncProgress, getViajesStats, buscarLugarCercan
 import { detectarParadas } from "./paradas-detector";
 import { getAllContracts, getContractConfig, getContractPatentes, getContractCamiones, invalidateCache as invalidateFaenaCache } from "./faena-filter";
 import { db, pool, DATA_START, getDefaultDesde } from "./db";
-import { getSigetraFuelData } from "./sigetra-api";
 import { eq } from "drizzle-orm";
 
 export async function registerRoutes(
@@ -51,66 +50,6 @@ export async function registerRoutes(
       const contracts = await getAllContracts(soloVolvo);
       res.json(contracts);
     } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/contratos/importar-sigetra", async (req, res) => {
-    try {
-      const { contrato } = req.body;
-      if (!contrato) return res.status(400).json({ message: "contrato required" });
-
-      const from = getDefaultDesde();
-      const to = new Date();
-      const allFuel = await getSigetraFuelData(from, to);
-      const faenas = await storage.getFaenas();
-      const existingCamiones = await storage.getCamiones();
-      const existingPatentes = new Set(existingCamiones.map(c => c.patente));
-
-      let importedCount = 0;
-      const matchFaenas = faenas.filter(f => f.nombre.toUpperCase().includes(contrato.toUpperCase()));
-
-      for (const faena of matchFaenas) {
-        const faenaFuel = allFuel.filter(r => r.faena === faena.nombre);
-        const truckMap = new Map<string, { modelo: string; marca: string }>();
-
-        for (const r of faenaFuel) {
-          const numVeh = String(r.numVeh || "").trim();
-          if (!numVeh || numVeh === "null" || numVeh === "0") continue;
-          if (!truckMap.has(numVeh)) {
-            truckMap.set(numVeh, {
-              modelo: r.modelo || r.marca || "Camion",
-              marca: r.marca || "Volvo",
-            });
-          }
-        }
-
-        for (const [patente, info] of truckMap) {
-          if (existingPatentes.has(patente)) continue;
-          await storage.createCamion({
-            patente,
-            modelo: info.modelo ? `${info.marca || ""} ${info.modelo}`.trim() : "Camion",
-            faenaId: faena.id,
-            metaKmL: 2.1,
-            vin: null,
-            odometro: null,
-            horasMotor: null,
-            horasRalenti: null,
-            velPromedio: null,
-            conductor: null,
-            syncOk: false,
-            syncAt: null,
-          });
-          existingPatentes.add(patente);
-          importedCount++;
-        }
-      }
-
-      invalidateFaenaCache();
-      const updatedContracts = await getAllContracts();
-      res.json({ success: true, imported: importedCount, faenas: matchFaenas.map(f => f.nombre), contracts: updatedContracts });
-    } catch (error: any) {
-      console.error("[importar] Error:", error.message);
       res.status(500).json({ message: error.message });
     }
   });
@@ -151,65 +90,6 @@ export async function registerRoutes(
     res.json(filtered);
   });
 
-  app.get("/api/camiones/preview-asignacion", async (_req, res) => {
-    try {
-      const camiones = await storage.getCamiones();
-      const faenas = await storage.getFaenas();
-      const now = new Date();
-      const from = getDefaultDesde();
-      const summaries = await getSigetraFuelSummary(from, now);
-
-      const faenaNameMap = new Map(faenas.map(f => [f.nombre.toLowerCase().trim(), f]));
-
-      const detalle = camiones.map(cam => {
-        const pNorm = cam.patente.trim();
-        const summary = summaries.find(s => String(s.numVeh).trim() === pNorm || s.patente?.trim() === pNorm);
-        const clienteSigetra = summary?.faenaPri?.trim() || null;
-        const litros = summary ? Math.round(summary.cantidadLt) : 0;
-        const faenaActual = faenas.find(f => f.id === cam.faenaId);
-
-        let faenaPropuesta: string | null = null;
-        let confianza: "alta" | "media" | "sin_datos" = "sin_datos";
-
-        if (clienteSigetra) {
-          faenaPropuesta = clienteSigetra;
-          confianza = litros >= 500 ? "alta" : "media";
-        }
-
-        const yaAsignado = faenaActual && faenaActual.id !== 0 &&
-          faenaPropuesta && faenaActual.nombre.toLowerCase().trim() === faenaPropuesta.toLowerCase().trim();
-
-        return {
-          camionId: cam.id,
-          patente: cam.patente,
-          clienteSigetra,
-          litrosSigetra: litros,
-          faenaActualId: cam.faenaId,
-          faenaActualNombre: faenaActual?.nombre || "Sin asignar",
-          faenaPropuesta,
-          confianza,
-          accion: !clienteSigetra ? "SIN_DATOS" : yaAsignado ? "YA_ASIGNADO" : "ASIGNAR",
-        };
-      });
-
-      detalle.sort((a, b) => {
-        const order = { ASIGNAR: 0, YA_ASIGNADO: 1, SIN_DATOS: 2 };
-        return (order[a.accion as keyof typeof order] ?? 3) - (order[b.accion as keyof typeof order] ?? 3);
-      });
-
-      res.json({
-        total: detalle.length,
-        porAsignar: detalle.filter(d => d.accion === "ASIGNAR").length,
-        yaAsignados: detalle.filter(d => d.accion === "YA_ASIGNADO").length,
-        sinDatos: detalle.filter(d => d.accion === "SIN_DATOS").length,
-        detalle,
-      });
-    } catch (err: any) {
-      console.error("[asignacion] Error preview:", err.message);
-      res.status(500).json({ message: err.message });
-    }
-  });
-
   app.get("/api/camiones/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const cam = await storage.getCamion(id);
@@ -246,18 +126,6 @@ export async function registerRoutes(
     res.json(cargasList);
   });
 
-  app.post("/api/cargas/sync-sigetra", async (_req, res) => {
-    try {
-      const now = new Date();
-      const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const result = await syncSigetraToCargas(from, now);
-      res.json(result);
-    } catch (error: any) {
-      console.error("[cargas-sync] Error:", error.message);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   app.post("/api/cargas", async (req, res) => {
     const parsed = insertCargaSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -269,69 +137,6 @@ export async function registerRoutes(
     const id = parseInt(req.params.id);
     await storage.deleteCarga(id);
     res.json({ success: true });
-  });
-
-  app.post("/api/camiones/asignar-faenas-sigetra", async (_req, res) => {
-    try {
-      const camiones = await storage.getCamiones();
-      const faenas = await storage.getFaenas();
-      const now = new Date();
-      const from = getDefaultDesde();
-      const summaries = await getSigetraFuelSummary(from, now);
-
-      const faenaNameMap = new Map<string, number>();
-      faenas.forEach(f => faenaNameMap.set(f.nombre.toLowerCase().trim(), f.id));
-
-      let asignados = 0;
-      let sinDatosSigetra = 0;
-      let faenasCreadas = 0;
-      const detalle: any[] = [];
-      const colorsPool = ["#1A8FFF", "#FF6B35", "#00C49A", "#FFD93D", "#6C5CE7", "#E17055", "#00B894", "#FD79A8", "#74B9FF", "#A29BFE"];
-
-      for (const cam of camiones) {
-        const pNorm = cam.patente.trim();
-        const summary = summaries.find(s => String(s.numVeh).trim() === pNorm || s.patente?.trim() === pNorm);
-        const clienteSigetra = summary?.faenaPri?.trim() || null;
-
-        if (!clienteSigetra) {
-          sinDatosSigetra++;
-          detalle.push({ patente: cam.patente, cliente_detectado: null, faena_asignada: null, accion: "SIN_DATOS" });
-          continue;
-        }
-
-        const key = clienteSigetra.toLowerCase().trim();
-        let faenaId = faenaNameMap.get(key);
-
-        if (faenaId == null) {
-          const newFaena = await storage.createFaena({
-            nombre: clienteSigetra,
-            color: colorsPool[faenasCreadas % colorsPool.length],
-          });
-          faenaId = newFaena.id;
-          faenaNameMap.set(key, faenaId);
-          faenasCreadas++;
-        }
-
-        if (cam.faenaId !== faenaId) {
-          await storage.updateCamion(cam.id, { faenaId });
-          asignados++;
-          detalle.push({ patente: cam.patente, cliente_detectado: clienteSigetra, faena_asignada: clienteSigetra, accion: "ASIGNADO" });
-        } else {
-          detalle.push({ patente: cam.patente, cliente_detectado: clienteSigetra, faena_asignada: clienteSigetra, accion: "YA_ASIGNADO" });
-        }
-      }
-
-      res.json({
-        procesados: camiones.length,
-        asignados,
-        sin_datos_sigetra: sinDatosSigetra,
-        faenas_creadas: faenasCreadas,
-        detalle,
-      });
-    } catch (err: any) {
-      console.error("[asignacion] Error asignar:", err.message);
-      res.status(500).json({ message: err.message });
-    }
   });
 
   app.get("/api/volvo/status", async (_req, res) => {
@@ -466,7 +271,7 @@ export async function registerRoutes(
         } catch { }
       }
 
-      const fuelData = await getCachedFuelData(from, to);
+      const fuelData: any[] = [];
       const numVeh = parseInt(patente, 10);
       const truckCargas = fuelData.filter(c =>
         (!isNaN(numVeh) && c.numVeh === numVeh) || c.patente === patente
@@ -583,41 +388,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/sigetra/status", async (_req, res) => {
-    try {
-      const status = await checkSigetraConnection();
-      res.json(status);
-    } catch (error: any) {
-      res.json({ connected: false, message: error.message, user: "" });
-    }
-  });
-
-  app.get("/api/sigetra/fuel-data", async (req, res) => {
-    try {
-      const fromStr = req.query.from as string | undefined;
-      const toStr = req.query.to as string | undefined;
-      const from = fromStr ? new Date(fromStr) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const to = toStr ? new Date(toStr) : new Date();
-      if (isNaN(from.getTime()) || isNaN(to.getTime())) {
-        return res.status(400).json({ message: "Parametros from/to invalidos" });
-      }
-      const data = await getCachedFuelData(from, to);
-      res.json(data);
-    } catch (error: any) {
-      console.error("[sigetra] Error fetching fuel data:", error.message);
-      res.status(502).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/sigetra/fuel-summary", async (req, res) => {
-    try {
-      const from = req.query.from ? new Date(req.query.from as string) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const to = req.query.to ? new Date(req.query.to as string) : new Date();
-      const data = await getSigetraFuelSummary(from, to);
-      res.json(data);
-    } catch (error: any) {
-      console.error("[sigetra] Error fetching fuel summary:", error.message);
-      res.status(502).json({ message: error.message });
-    }
+    res.json({ connected: false, message: "Sigetra removed — only Volvo Connect active", user: "" });
   });
 
   app.get("/api/parametros", async (_req, res) => {
@@ -795,7 +566,7 @@ export async function registerRoutes(
 
       let fuelData: any[] = [];
       try {
-        fuelData = await getCachedFuelData(from30, to);
+        fuelData = [];
       } catch {}
 
       let fleetStatus: any[] = [];
@@ -859,7 +630,7 @@ export async function registerRoutes(
       const from30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       let fuelData: any[] = [];
       try {
-        fuelData = await getCachedFuelData(from30, to);
+        fuelData = [];
       } catch {}
 
       const camionByPatente = new Map(allCamiones.map(c => [c.patente, c]));
@@ -928,7 +699,7 @@ export async function registerRoutes(
       const from30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       let fuelData: any[] = [];
       try {
-        fuelData = await getCachedFuelData(from30, to);
+        fuelData = [];
       } catch {}
 
       const fuelRecs = fuelData.filter((r: any) => r.faena === faena.nombre);
@@ -1030,7 +801,7 @@ export async function registerRoutes(
       const to = new Date();
       const from30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       let fuelData: any[] = [];
-      try { fuelData = await getCachedFuelData(from30, to); } catch {}
+      try { fuelData = []; } catch {}
 
       const results = await Promise.all(allFaenas.map(async f => {
         const camionesEnFaena = allCamiones.filter(c => c.faenaId === f.id);
@@ -1233,18 +1004,6 @@ export async function registerRoutes(
         volvoStatus = { status: "error", vehiculos: 0, configured: true, error: e.message };
       }
 
-      let sigetraStatus: any = { status: "unknown" };
-      try {
-        const sigetra = await checkSigetraConnection();
-        sigetraStatus = {
-          status: sigetra.connected ? "connected" : "disconnected",
-          connected: sigetra.connected,
-          user: sigetra.user,
-        };
-      } catch (e: any) {
-        sigetraStatus = { status: "error", connected: false, error: e.message };
-      }
-
       const iaConfigured = !!process.env.ANTHROPIC_API_KEY;
       const iaStatus = {
         status: iaConfigured ? "available" : "not_configured",
@@ -1256,15 +1015,13 @@ export async function registerRoutes(
       const ultimoSync = now.toLocaleString("es-CL", { timeZone: "America/Santiago" });
 
       const healthVolvo = volvoStatus.status === "connected" ? 100 : volvoStatus.status === "not_configured" ? 0 : 30;
-      const healthSigetra = sigetraStatus.status === "connected" ? 100 : sigetraStatus.status === "disconnected" ? 0 : 30;
       const healthIA = iaConfigured ? 100 : 0;
 
       res.json({
         volvo: { ...volvoStatus, health: healthVolvo },
-        sigetra: { ...sigetraStatus, health: healthSigetra },
         ia: { ...iaStatus, health: healthIA },
         ultimoSync,
-        healthGeneral: Math.round((healthVolvo + healthSigetra + healthIA) / 3),
+        healthGeneral: Math.round((healthVolvo + healthIA) / 2),
       });
     } catch (error: any) {
       console.error("[dashboard/sistema] Error:", error.message);
@@ -1296,205 +1053,28 @@ export async function registerRoutes(
   app.use("/api/conductor", conductorRoutes);
   app.use("/api/conductor-panel", conductorPanelRoutes);
 
-  app.get("/api/sigetra/fusion", async (req, res) => {
-    try {
-      const nowUtc = new Date();
-      const todayUtcMidnight = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate()));
-      const yesterdayStart = new Date(todayUtcMidnight.getTime() - 24 * 3600000);
-      const yesterdayEnd = todayUtcMidnight;
-      const fechaCuadratura = yesterdayStart.toISOString().split("T")[0];
-
-      const [fleetStatus, allCamionesRaw] = await Promise.all([
-        getFleetStatus().catch(() => []),
-        storage.getCamiones(),
-      ]);
-      const allCamiones = allCamionesRaw.filter(c => c.vin != null);
-      const camionesSinVinCount = allCamionesRaw.length - allCamiones.length;
-
-      const hourKey = nowUtc.toISOString().slice(0, 13) + ":00:00.000Z";
-      const snapshotsToSave: { vin: string; totalFuelUsed: number; totalDistance: number | null; capturedAt: string }[] = [];
-      for (const vs of fleetStatus) {
-        if (vs.totalFuelUsed != null) {
-          snapshotsToSave.push({
-            vin: vs.vin,
-            totalFuelUsed: vs.totalFuelUsed,
-            totalDistance: vs.totalDistance ?? null,
-            capturedAt: hourKey,
-          });
-        }
-      }
-      if (snapshotsToSave.length > 0) {
-        try {
-          await storage.saveVolvoFuelSnapshots(snapshotsToSave);
-        } catch (err: any) {
-          console.error("[fusion] Error saving volvo snapshots:", err.message);
-        }
-      }
-
-      const ecuAyerQuery = await pool.query(`
-        SELECT vin,
-          MIN(total_fuel_used) as fuel_min,
-          MAX(total_fuel_used) as fuel_max,
-          MIN(total_distance) as dist_min,
-          MAX(total_distance) as dist_max,
-          COUNT(*) as snaps
-        FROM volvo_fuel_snapshots
-        WHERE captured_at >= $1 AND captured_at < $2
-        GROUP BY vin
-      `, [yesterdayStart.toISOString(), yesterdayEnd.toISOString()]);
-
-      const ecuByVin = new Map<string, { litrosQuemados: number; kmRecorrido: number; snapshots: number }>();
-      for (const row of ecuAyerQuery.rows) {
-        const deltaFuel = Number(row.fuel_max) - Number(row.fuel_min);
-        const deltaDist = Number(row.dist_max) - Number(row.dist_min);
-        if (deltaFuel >= 0) {
-          ecuByVin.set(row.vin, {
-            litrosQuemados: Math.round(deltaFuel / 1000 * 100) / 100,
-            kmRecorrido: Math.round(deltaDist / 1000),
-            snapshots: Number(row.snaps),
-          });
-        }
-      }
-
-      const cargasAyer = await storage.getCargasByDateRange(yesterdayStart, yesterdayEnd);
-
-      const volvoByVin = new Map(fleetStatus.map(s => [s.vin, s]));
-      const camionByPatente = new Map(allCamiones.map(c => [c.patente, c]));
-      const camionByNumVeh = new Map<string, typeof allCamiones[0]>();
-      for (const c of allCamiones) {
-        if (c.numVeh) camionByNumVeh.set(c.numVeh, c);
-      }
-
-      const cargasByPatente = new Map<string, typeof cargasAyer>();
-      for (const carga of cargasAyer) {
-        let pat: string | null = carga.patente || null;
-        if (!pat && carga.camionId) {
-          const cam = camionByNumVeh.get(String(carga.camionId));
-          if (cam) pat = cam.patente;
-        }
-        if (!pat) continue;
-        const arr = cargasByPatente.get(pat) || [];
-        arr.push(carga);
-        cargasByPatente.set(pat, arr);
-      }
-
-      const fusion: any[] = [];
-      const processedPatentes = new Set<string>();
-      let conDatosEcu = 0;
-      let sinDatosEcuCount = 0;
-
-      for (const camion of allCamiones) {
-        if (processedPatentes.has(camion.patente)) continue;
-        processedPatentes.add(camion.patente);
-
-        const cargas = cargasByPatente.get(camion.patente) || [];
-        const volvo = camion.vin ? volvoByVin.get(camion.vin) : null;
-        const ecu = camion.vin ? ecuByVin.get(camion.vin) : null;
-
-        const litrosCargados = cargas.reduce((s, c) => s + c.litrosSurtidor, 0);
-        const totalCargasCount = cargas.length;
-        const lastCarga = cargas.length > 0
-          ? cargas.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())[cargas.length - 1]
-          : null;
-        const rendValues = cargas.filter(c => c.rendReal != null && c.rendReal > 0 && c.rendReal < 100);
-        const rendPromedio = rendValues.length > 0
-          ? rendValues.reduce((s, c) => s + c.rendReal!, 0) / rendValues.length
-          : 0;
-
-        const litrosQuemadosEcu = ecu?.litrosQuemados ?? null;
-        const sinDatosEcuAyer = ecu === null || ecu === undefined;
-        const deltaCuadratura = (litrosQuemadosEcu !== null && litrosCargados > 0)
-          ? Math.round((litrosCargados - litrosQuemadosEcu) * 100) / 100
-          : null;
-
-        if (totalCargasCount === 0 && sinDatosEcuAyer) continue;
-
-        if (sinDatosEcuAyer) sinDatosEcuCount++;
-        else conDatosEcu++;
-
-        let alertLevel: "ok" | "alerta" | "critico" = "ok";
-        if (!sinDatosEcuAyer && deltaCuadratura !== null) {
-          if (deltaCuadratura > 50) alertLevel = "critico";
-          else if (deltaCuadratura > 20) alertLevel = "alerta";
-        }
-
-        const odometroSigetra = lastCarga?.kmActual ?? null;
-        const odometroVolvo = volvo?.totalDistance != null ? Math.round(volvo.totalDistance / 1000) : camion.odometro;
-        const fuelLevelVolvo = volvo?.fuelLevel ?? null;
-
-        fusion.push({
-          fleetNum: camion.numVeh || "",
-          patenteReal: camion.patente,
-          vin: camion.vin,
-          modeloVolvo: camion.modelo,
-          faenaSigetra: lastCarga?.faena || null,
-          conductorSigetra: lastCarga?.conductor || null,
-          litrosCargados: Math.round(litrosCargados * 100) / 100,
-          litrosQuemadosEcu,
-          deltaCuadratura,
-          totalCargas: totalCargasCount,
-          snapshotsAyer: ecu?.snapshots ?? 0,
-          kmEcuAyer: ecu?.kmRecorrido ?? null,
-          sinDatosEcuAyer,
-          rendPromedio: Math.round(rendPromedio * 100) / 100,
-          odometroSigetra,
-          odometroVolvo,
-          fuelLevelVolvo,
-          engineHoursVolvo: volvo?.engineHours != null ? Math.round(volvo.engineHours) : camion.horasMotor,
-          gpsVolvo: volvo?.gps || null,
-          alertLevel,
-          cargas: cargas.map(c => ({
-            numGuia: c.numGuia,
-            fecha: c.fecha,
-            litros: c.litrosSurtidor,
-            odometro: c.kmActual,
-            kmRecorrido: c.kmActual - c.kmAnterior,
-            rendimiento: c.rendReal,
-            lugar: c.lugarConsumo,
-            conductor: c.conductor,
-          })),
-        });
-      }
-
-      fusion.sort((a: any, b: any) => {
-        if (a.sinDatosEcuAyer !== b.sinDatosEcuAyer) return a.sinDatosEcuAyer ? 1 : -1;
-        const order: Record<string, number> = { critico: 0, alerta: 1, ok: 2 };
-        return (order[a.alertLevel] ?? 2) - (order[b.alertLevel] ?? 2);
-      });
-
-      res.json({
-        fechaCuadratura,
-        proximaActualizacion: "manana 06:00",
-        totalCamiones: fusion.length,
-        conDatosEcu,
-        sinDatosEcu: sinDatosEcuCount,
-        totalLitrosCargados: Math.round(fusion.reduce((s: number, f: any) => s + f.litrosCargados, 0)),
-        totalLitrosEcu: Math.round(fusion.filter((f: any) => !f.sinDatosEcuAyer).reduce((s: number, f: any) => s + (f.litrosQuemadosEcu ?? 0), 0)),
-        totalCargas: fusion.reduce((s: number, f: any) => s + f.totalCargas, 0),
-        alertCount: fusion.filter((f: any) => f.alertLevel !== "ok").length,
-        vinFilterActive: true,
-        camionesConVin: allCamiones.length,
-        camionesSinVin: camionesSinVinCount,
-        trucks: fusion,
-      });
-    } catch (error: any) {
-      console.error("[sigetra] Fusion error:", error.message);
-      res.status(502).json({ message: error.message });
-    }
+  app.get("/api/sigetra/fusion", async (_req, res) => {
+    res.json({ fechaCuadratura: null, totalCamiones: 0, trucks: [], message: "Sigetra removed — only Volvo Connect active" });
   });
 
   // ═══════════════════════════════════════════════════
-  // DATOS — MICRO-CARGAS (suspicious fuel loads)
+  // DATOS — MICRO-CARGAS (suspicious fuel loads from DB cargas table)
   // ═══════════════════════════════════════════════════
   app.get("/api/datos/micro-cargas", async (_req, res) => {
     try {
       const from = getDefaultDesde();
-      const to = new Date();
-      const allFuelData = await getCachedFuelData(from, to);
       const allCamiones = await storage.getCamiones();
       const faenas = await storage.getFaenas();
       const camiones = allCamiones;
-      const fuelData = allFuelData;
+
+      const cargasR = await pool.query(`
+        SELECT num_guia as "numGuia", fecha as "fechaConsumo", patente,
+               litros_surtidor as "cantidadLt", lugar_consumo as "lugarConsumo",
+               conductor as "nombreConductor", faena, camion_id as "numVeh"
+        FROM cargas WHERE fecha >= $1 AND litros_surtidor > 0
+        ORDER BY fecha DESC
+      `, [from]);
+      const fuelData = cargasR.rows;
 
       const params = await storage.getParametros();
       const litrosMicro = parseFloat(params.find(p => p.clave === "litros_micro_carga")?.valor || "100");
@@ -1747,7 +1327,7 @@ export async function registerRoutes(
       const to = new Date();
       let fuelData: any[] = [];
       try {
-        fuelData = await getCachedFuelData(from, to);
+        fuelData = [];
       } catch {}
 
       const conTara = camiones.filter(c => c.taraKg != null);

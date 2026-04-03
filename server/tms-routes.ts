@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { storage } from "./storage";
 import { getFleetStatus } from "./volvo-api";
-import { getCachedFuelData, getSigetraFuelSummary } from "./sigetra-api";
 import Anthropic from "@anthropic-ai/sdk";
 import { getCencosudFaenaId } from "./cencosud-filter";
 import { DATA_START } from "./db";
@@ -150,7 +149,6 @@ export function registerTMSRoutes(app: Express) {
       try { fleetStatus = await getFleetStatus(); } catch {}
 
       let fuelData: any[] = [];
-      try { fuelData = await getCachedFuelData(from, to); } catch {}
 
       const snapshots = await storage.getVolvoFuelSnapshotsInRange(
         camiones.map(c => c.vin).filter((v): v is string => !!v),
@@ -938,21 +936,9 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       const from = new Date(DATA_START.getTime());
       const to = new Date();
 
-      let summaries: any[] = [];
-      try {
-        summaries = await getSigetraFuelSummary(from, to);
-      } catch (e: any) {
-        console.error("[tms-auto-sync] Error Sigetra:", e.message);
-        return res.status(502).json({ message: `Error conectando con Sigetra: ${e.message}` });
-      }
-
-      const sigetraFaenas = [...new Set(
-        summaries
-          .map(s => s.faenaPri?.trim())
-          .filter((f): f is string => !!f && f.length > 0)
-      )];
-
-      console.log(`[tms-auto-sync] Faenas Sigetra detectadas: ${sigetraFaenas.length}`);
+      const summaries: any[] = [];
+      const sigetraFaenas: string[] = [];
+      console.log("[tms-auto-sync] Sigetra removed — using existing data only");
 
       const existingFaenas = await storage.getFaenas();
       const existingContratos = await storage.getTmsContratos();
@@ -1026,7 +1012,6 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       try { fleetStatus = await getFleetStatus(); } catch {}
 
       let fuelData: any[] = [];
-      try { fuelData = await getCachedFuelData(from, to); } catch {}
 
       const updatedCamiones = await storage.getCamiones();
       const allVins = updatedCamiones.map(c => c.vin).filter((v): v is string => !!v);

@@ -17,9 +17,8 @@ function logError(msg: string) {
 async function main() {
   log("Inicializando worker de jobs...");
 
-  const { syncSigetraToCargas } = await import("../sigetra-api");
   const { calcularExpectativasDiarias, compararRealVsEsperado } = await import("../supervision-engine");
-  const { procesarViajesNuevos, calcularParametros, detectarCambiosPatron, cruzarConSigetra, procesarCierreAutomatico } = await import("../aprendizaje-engine");
+  const { procesarViajesNuevos, calcularParametros, detectarCambiosPatron, procesarCierreAutomatico } = await import("../aprendizaje-engine");
   const { syncViajesHistorico } = await import("../viajes-historico");
   const { procesarProductividadDiaria } = await import("../productividad");
   const { getSistemaEstado } = await import("../sistema-estado");
@@ -83,25 +82,6 @@ async function main() {
       nombre: "PATRONES",
       fn: async () => {
         await detectarCambiosPatron();
-      },
-    },
-
-    CUADRATURA_SIGETRA: {
-      intervalo: null,
-      nombre: "CUADRATURA_SIGETRA",
-      fn: async () => {
-        await cruzarConSigetra();
-      },
-    },
-
-    SIGETRA_SYNC: {
-      intervalo: null,
-      nombre: "SIGETRA_SYNC",
-      fn: async () => {
-        const desde = getDefaultDesde(7);
-        const hasta = new Date();
-        await syncSigetraToCargas(desde, hasta);
-        await procesarCierreAutomatico(7, 200);
       },
     },
 
@@ -338,44 +318,13 @@ async function main() {
           AND estado IN ('ANOMALIA', 'REVISAR', 'CRITICO')
       `, [ayer, hoy]);
 
-      const cuadraturaR = await pool.query(`
-        SELECT
-          COUNT(*) FILTER (WHERE sigetra_cruzado = true)::int as cruzados,
-          COUNT(*) FILTER (WHERE delta_cuadratura IS NOT NULL AND delta_cuadratura > 20)::int as desvios_altos
-        FROM viajes_aprendizaje
-        WHERE fecha_inicio >= $1 AND fecha_inicio < $2
-      `, [ayer, hoy]);
-
       log(`REPORTE DIARIO ${ayer.toISOString().slice(0, 10)}`);
       log(`  Anomalias detectadas: ${anomaliasR.rows[0].count}`);
       log(`  Viajes totales procesados: ${estado.total_viajes_procesados}`);
       log(`  Confianza global: ${estado.confianza_global}`);
-      log(`  Cuadratura: ${cuadraturaR.rows[0].cruzados} cruzados, ${cuadraturaR.rows[0].desvios_altos} desvios >20L`);
     } catch (err: any) {
       logError("Reporte diario error: " + err.message);
     }
-  }
-
-  function programarSigetra() {
-    const INTERVALO_MS = 60 * 60 * 1000;
-    log("Sigetra sync cada 1 hora");
-
-    setTimeout(() => {
-      log("Ejecutando sync Sigetra inicial...");
-      runJob(JOBS.SIGETRA_SYNC).then(() => {
-        log("Cuadratura inicial en 2 min...");
-        setTimeout(() => runJob(JOBS.CUADRATURA_SIGETRA), 2 * 60 * 1000);
-      });
-    }, 60 * 1000);
-
-    setInterval(async () => {
-      try {
-        await runJob(JOBS.SIGETRA_SYNC);
-        setTimeout(() => runJob(JOBS.CUADRATURA_SIGETRA), 2 * 60 * 60 * 1000);
-      } catch (e: any) {
-        logError("Sigetra sync horario error: " + e.message);
-      }
-    }, INTERVALO_MS);
   }
 
   function programarReporteDiario() {
@@ -435,7 +384,6 @@ async function main() {
     setInterval(() => runJob(JOBS.SCORE_CONDUCCION), JOBS.SCORE_CONDUCCION.intervalo!);
   }, 7 * 60 * 1000);
 
-  programarSigetra();
   programarReporteDiario();
   programarCuadraturaNocturna();
 

@@ -2,7 +2,6 @@ import type { Express, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { pool, DATA_START } from "./db";
-import { getCachedFuelData } from "./sigetra-api";
 import { getFleetStatus } from "./volvo-api";
 
 const MODEL = "claude-sonnet-4-20250514";
@@ -33,8 +32,8 @@ async function getCoreData(dias: number) {
   const [allCamiones, faenas, allFuelData, allFuelDataPrev, fleet, params] = await Promise.all([
     storage.getCamiones(),
     storage.getFaenas(),
-    getCachedFuelData(from, now).catch(() => []),
-    getCachedFuelData(prevFuelFrom, prevTo).catch(() => []),
+    Promise.resolve([]),
+    Promise.resolve([]),
     getFleetStatus().catch(() => []),
     storage.getParametros(),
   ]);
@@ -557,7 +556,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
 
       const from30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const toNow = new Date();
-      const allFuel = await getCachedFuelData(from30, toNow);
+      const allFuel: any[] = [];
       const cargasFiltradas = allFuel
         .filter(f => f.patente === patente)
         .sort((a, b) => new Date(b.fechaConsumo).getTime() - new Date(a.fechaConsumo).getTime())

@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import Volvo from "@/pages/volvo";
 import Camiones from "@/pages/camiones";
 import RankingConductores from "@/pages/ranking-conductores";
-import SigetraFusion from "@/pages/sigetra-fusion";
 import MicroCargas from "@/pages/micro-cargas";
 import Errores from "@/pages/errores";
 import { useQuery } from "@tanstack/react-query";
@@ -260,10 +259,6 @@ export default function Flota({ initialSub }: { initialSub?: string }) {
 
           {activeSub === "combustible" && (
             <div className="space-y-0">
-              <AccordionSection title="CRUCE SIGETRA-VOLVO" defaultOpen={true}
-                tooltip="Comparacion entre lo que cargo el camion segun Sigetra y lo que consumio segun el GPS.">
-                <SigetraFusion />
-              </AccordionSection>
               <AccordionSection title="CARGAS SOSPECHOSAS"
                 tooltip="Carga de poco combustible con senales que podrian indicar desvio. Requiere verificacion.">
                 <MicroCargas />

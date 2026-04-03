@@ -1,5 +1,4 @@
 import { pool } from "./db";
-import { getCachedFuelData } from "./sigetra-api";
 import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
 import { resolverGeocerca, resolverNombreViaje } from "./geocerca-inteligente";
 
@@ -219,7 +218,7 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
 
     let sigetraData: any[] = [];
     try {
-      sigetraData = await getCachedFuelData(desde, new Date());
+      sigetraData = [];
     } catch (err: any) {
       console.error("[viajes-hist] Error cargando Sigetra:", err.message);
       syncProgress.errores.push("Error cargando datos Sigetra: " + err.message);

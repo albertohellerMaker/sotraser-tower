@@ -5,7 +5,6 @@ import { geoPuntos, geoViajes, geoBases, geoTrayectorias, geoGeocache, camiones,
 import { eq, desc, and, gte, lte, sql, inArray, asc, or, isNull, isNotNull } from "drizzle-orm";
 import { getFleetStatus } from "./volvo-api";
 import { runBackfill, getBackfillProgress } from "./volvo-backfill";
-import { getCachedFuelData } from "./sigetra-api";
 import { getContractConfig, getContractPatentes, getContractCamiones, CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
 import { detectarLugar, registrarVisita, analizarHistoricoCompleto, generarAnalisisIA } from "./geo-lugares-service";
 import { obtenerHistorialCamion, procesarFlotaHistorico, obtenerResumenFlota } from "./geo-reconstruccion-service";
@@ -722,7 +721,7 @@ export function registerGeoRoutes(app: Express) {
       const from = getDefaultDesde();
       const to = new Date();
       let fuelData: any[] = [];
-      try { fuelData = await getCachedFuelData(from, to); } catch {}
+      fuelData = [];
 
       let validated = 0;
 
@@ -1059,8 +1058,7 @@ export function registerGeoRoutes(app: Express) {
       const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
       const patenteFilter = req.query.patente as string || "";
       const contrato = (req.query.contrato as string || "").toUpperCase();
-      const { getCachedFuelData } = await import("./sigetra-api");
-      const allFuel = await getCachedFuelData(new Date(desde), new Date(hasta + "T23:59:59"));
+      const allFuel: any[] = [];
 
       const allCamiones = await storage.getCamiones();
       let faenaIds: number[];
@@ -1154,7 +1152,6 @@ export function registerGeoRoutes(app: Express) {
       const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
       const contrato = (req.query.contrato as string || "TODOS").toUpperCase();
       const subfaena = req.query.subfaena as string || "";
-      const { getCachedFuelData } = await import("./sigetra-api");
 
       let faenaIds: number[];
       if (contrato === "TODOS") {
@@ -1179,12 +1176,8 @@ export function registerGeoRoutes(app: Express) {
         if (c.numVeh) numVehToPatente.set(c.numVeh, c.patente);
       }
 
-      const allFuel = await getCachedFuelData(new Date(desde), new Date(hasta + "T23:59:59"));
-      const filteredFuel = allFuel.filter((r: any) => {
-        if (r.patente && patentes.has(r.patente)) return true;
-        if (r.numVeh && numVehToPatente.has(String(r.numVeh))) return true;
-        return false;
-      });
+      const allFuel: any[] = [];
+      const filteredFuel = allFuel;
 
       const sigetraPorCamion: Record<string, { litros: number; cargas: number; conductores: Set<string>; odoMin: number; odoMax: number }> = {};
       for (const r of filteredFuel) {
@@ -1285,7 +1278,6 @@ export function registerGeoRoutes(app: Express) {
       const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
       const contrato = (req.query.contrato as string || "TODOS").toUpperCase();
       const subfaena = req.query.subfaena as string || "";
-      const { getCachedFuelData } = await import("./sigetra-api");
 
       const allCamiones = await storage.getCamiones();
       let faenaIds: number[];
@@ -1309,12 +1301,8 @@ export function registerGeoRoutes(app: Express) {
         if (c.numVeh) numVehToPatente.set(c.numVeh, c.patente);
       }
 
-      const allFuel = await getCachedFuelData(new Date(desde), new Date(hasta + "T23:59:59"));
-      const filteredFuel = allFuel.filter((r: any) => {
-        if (r.patente && patentes.has(r.patente)) return true;
-        if (r.numVeh && numVehToPatente.has(String(r.numVeh))) return true;
-        return false;
-      });
+      const allFuel: any[] = [];
+      const filteredFuel = allFuel;
 
       const byConductor: Record<string, {
         litros: number; cargas: number; kmTotal: number; litrosValidos: number;
@@ -1415,8 +1403,7 @@ export function registerGeoRoutes(app: Express) {
         litrosSigetra: parseFloat(v.litros_sigetra) || 0,
       }));
 
-      const { getCachedFuelData } = await import("./sigetra-api");
-      const allFuel = await getCachedFuelData(new Date(desde), new Date(hasta + "T23:59:59"));
+      const allFuel: any[] = [];
       const conductorFuel = allFuel.filter((r: any) => {
         const cn = (r.nombreConductor || "").trim().toLowerCase();
         return cn === nombre.toLowerCase();
