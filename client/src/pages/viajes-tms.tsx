@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Minus, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertTriangle, MapPin, X, Truck, Clock, Fuel, Route, Shield, Activity, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Trophy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertTriangle, MapPin, X, Truck, Clock, Fuel, Route, Shield, Activity, Calendar, Map } from "lucide-react";
+
+const ViajeMapaModal = lazy(() => import("../components/viaje-mapa-modal"));
 
 type Vista = "RESUMEN" | "DIA" | "MES" | "CONTRATO" | "RANKING" | "ALERTAS";
 
@@ -23,6 +25,7 @@ export default function ViajesTMS() {
   const [selCamion, setSelCamion] = useState<string | null>(null);
   const [ordenCol, setOrdenCol] = useState("km_total");
   const [ordenDir, setOrdenDir] = useState<"asc"|"desc">("desc");
+  const [mapaViajeId, setMapaViajeId] = useState<number | null>(null);
 
   const { data: dataResumen } = useQuery<any>({ queryKey: ["/api/viajes-tms/resumen-ejecutivo", periodoResumen, contrato], queryFn: () => fetch(`/api/viajes-tms/resumen-ejecutivo?periodo=${periodoResumen}&contrato=${contrato}`).then(r => r.json()), enabled: vista === "RESUMEN", refetchInterval: 120000 });
   const { data: dataDia } = useQuery<any>({ queryKey: ["/api/viajes-tms/resumen-dia", fecha, contrato], queryFn: () => fetch(`/api/viajes-tms/resumen-dia?fecha=${fecha}&contrato=${contrato}`).then(r => r.json()), enabled: vista === "DIA", refetchInterval: 120000 });
@@ -645,6 +648,12 @@ export default function ViajesTMS() {
         </div>
 
         {/* ── RIGHT: TRIP DETAIL PANEL ── */}
+        {mapaViajeId && (
+          <Suspense fallback={null}>
+            <ViajeMapaModal viajeId={mapaViajeId} onClose={() => setMapaViajeId(null)} />
+          </Suspense>
+        )}
+
         {selCamion && vista === "DIA" && (
           <div className="w-[40%] overflow-auto" style={{ background: "#060d14" }}>
             <div className="px-4 py-3 flex items-center justify-between sticky top-0 z-10" style={{ background: "#060d14", borderBottom: "1px solid #0d2035" }}>
@@ -703,6 +712,15 @@ export default function ViajesTMS() {
                       <div className="text-center"><div className="font-space text-[13px] font-bold" style={{ color: "#c8e8ff" }}>{v.vel_prom ? Math.round(v.vel_prom) : "--"}</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>VEL PROM</div></div>
                       <div className="text-center"><div className="font-space text-[13px] font-bold" style={{ color: (v.vel_max || 0) > 105 ? "#ff2244" : "#c8e8ff" }}>{v.vel_max ? Math.round(v.vel_max) : "--"}</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>VEL MAX</div></div>
                     </div>
+
+                    {v.id && (
+                      <button onClick={(e) => { e.stopPropagation(); setMapaViajeId(v.id); }}
+                        className="w-full mt-3 py-2.5 flex items-center justify-center gap-2 cursor-pointer rounded-lg transition-all hover:scale-[1.02]"
+                        style={{ background: "linear-gradient(135deg, #00d4ff15, #00ff8815)", border: "1px solid #00d4ff30" }}>
+                        <Map className="w-4 h-4" style={{ color: "#00d4ff" }} />
+                        <span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>VER RUTA EN MAPA</span>
+                      </button>
+                    )}
                   </div>
                 );
               })}

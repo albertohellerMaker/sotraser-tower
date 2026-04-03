@@ -843,4 +843,58 @@ router.get("/resumen-ejecutivo", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+router.get("/viaje-gps/:viajeId", async (req, res) => {
+  try {
+    const { viajeId } = req.params;
+
+    const viaje = await pool.query(`
+      SELECT va.id, va.camion_id, c.patente, va.contrato, va.conductor,
+        va.fecha_inicio, va.fecha_fin,
+        va.origen_nombre, va.destino_nombre,
+        va.origen_lat::float as olat, va.origen_lng::float as olng,
+        va.destino_lat::float as dlat, va.destino_lng::float as dlng,
+        ROUND(va.km_ecu::numeric, 1) as km,
+        ROUND(va.rendimiento_real::numeric, 2) as rendimiento,
+        va.duracion_minutos as duracion,
+        ROUND(va.velocidad_promedio::numeric, 1) as vel_prom,
+        ROUND(va.velocidad_maxima::numeric, 1) as vel_max
+      FROM viajes_aprendizaje va
+      JOIN camiones c ON c.id = va.camion_id
+      WHERE va.id = $1
+    `, [viajeId]);
+
+    if (viaje.rows.length === 0) {
+      return res.status(404).json({ error: "Viaje no encontrado" });
+    }
+
+    const v = viaje.rows[0];
+
+    const puntos = await pool.query(`
+      SELECT lat::float, lng::float, timestamp_punto as ts,
+        velocidad_kmh::float as vel, rumbo_grados::float as rumbo
+      FROM geo_puntos
+      WHERE camion_id = $1
+        AND timestamp_punto >= $2
+        AND timestamp_punto <= $3
+      ORDER BY timestamp_punto ASC
+      LIMIT 10000
+    `, [v.camion_id, v.fecha_inicio, v.fecha_fin]);
+
+    let puntosGps = puntos.rows;
+
+    if (puntosGps.length < 3 && v.olat && v.olng && v.dlat && v.dlng) {
+      puntosGps = [
+        { lat: v.olat, lng: v.olng, ts: v.fecha_inicio, vel: 0, rumbo: 0 },
+        { lat: v.dlat, lng: v.dlng, ts: v.fecha_fin, vel: 0, rumbo: 0 },
+      ];
+    }
+
+    res.json({
+      viaje: v,
+      puntos: puntosGps,
+      total_puntos: puntosGps.length,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
