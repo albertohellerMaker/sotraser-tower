@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { pool } from "./db";
+import { superAgenteAnglo } from "./agentes/super-agente-anglo";
 
 const router = Router();
 const CONTRATO = "ANGLO-CARGAS VARIAS";
@@ -479,7 +480,7 @@ router.post("/agente/mensajes/leer", async (_req, res) => {
 router.get("/agente/inteligencia", async (_req, res) => {
   try {
     const [aliasR, billR, sinMapR, recentAliasR, reajusteR] = await Promise.all([
-      pool.query(`SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE confirmado)::int as confirmados, COUNT(*) FILTER (WHERE creado_por IN ('SUPER_AGENTE','AGENTE_GEO','GPS_PROXIMITY'))::int as auto_gps, COUNT(*) FILTER (WHERE creado_por = 'MANUAL')::int as manuales FROM geocerca_alias_contrato WHERE contrato = $1`, [CONTRATO]),
+      pool.query(`SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE confirmado)::int as confirmados, COUNT(*) FILTER (WHERE creado_por IN ('SUPER_AGENTE','SUPER_AGENTE_ANGLO','AGENTE_GEO','GPS_PROXIMITY','AUTO_TARIFA'))::int as auto_gps, COUNT(*) FILTER (WHERE creado_por = 'MANUAL')::int as manuales FROM geocerca_alias_contrato WHERE contrato = $1`, [CONTRATO]),
       pool.query(`
         WITH trip_tarifa AS (
           SELECT DISTINCT ON (v.id) v.id, t.tarifa
@@ -500,12 +501,41 @@ router.get("/agente/inteligencia", async (_req, res) => {
     ]);
     const al = aliasR.rows[0];
     const bl = billR.rows[0];
+
+    const cerroR = await pool.query(`
+      SELECT COUNT(*)::int as viajes_cerro,
+        ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend_cerro,
+        COUNT(DISTINCT c.patente)::int as camiones_cerro
+      FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+      WHERE va.contrato = $1 AND va.fecha_inicio >= NOW() - INTERVAL '7 days' AND va.km_ecu > 10
+        AND (va.origen_nombre ILIKE '%bronce%' OR va.destino_nombre ILIKE '%bronce%'
+          OR va.origen_nombre ILIKE '%soldado%' OR va.destino_nombre ILIKE '%soldado%'
+          OR va.origen_nombre ILIKE '%barnechea%' OR va.destino_nombre ILIKE '%barnechea%')
+    `, [CONTRATO]);
+
     res.json({
       alias: { total: al.total, confirmados: al.confirmados, auto_gps: al.auto_gps, manuales: al.manuales, recientes: recentAliasR.rows },
       billing: { total: bl.total, con_tarifa: bl.con_tarifa, revenue: Number(bl.revenue), pct: Number(bl.pct) || 0 },
       sin_mapear: sinMapR.rows,
       ultimo_reajuste: reajusteR.rows[0] || null,
+      cerro: cerroR.rows[0] || { viajes_cerro: 0, rend_cerro: null, camiones_cerro: 0 },
     });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/agente/chat", async (req, res) => {
+  try {
+    const { mensaje } = req.body;
+    if (!mensaje) return res.status(400).json({ error: "mensaje requerido" });
+    const respuesta = await superAgenteAnglo.chat(mensaje);
+    res.json({ respuesta });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/agente/chat/historial", async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT rol, mensaje, created_at FROM anglo_agente_chat ORDER BY created_at DESC LIMIT 30");
+    res.json({ mensajes: r.rows.reverse() });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

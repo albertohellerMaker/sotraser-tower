@@ -115,6 +115,7 @@ app.use((req, res, next) => {
       // Multi-agent system
       import("./agentes/index").then(m => m.iniciarAgentes()).catch(e => console.error("[AGENTES] Init error:", e.message));
       import("./agentes/super-agente-cencosud").then(m => m.superAgenteCencosud.iniciar()).catch(e => console.error("[SUPER-CENCOSUD] Init error:", e.message));
+      import("./agentes/super-agente-anglo").then(m => m.superAgenteAnglo.iniciar()).catch(e => console.error("[SUPER-ANGLO] Init error:", e.message));
 
       setTimeout(async () => {
         try {
