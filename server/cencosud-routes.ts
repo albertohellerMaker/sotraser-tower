@@ -752,4 +752,195 @@ router.get("/pl/mes", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ EN VIVO: Real-time trip detection for Cencosud trucks ═══
+router.get("/en-vivo", async (req, res) => {
+  try {
+    const ahora = new Date();
+    const hoyStr = ahora.toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+
+    const [camionesRes, geocercasRes, aliasRes] = await Promise.all([
+      pool.query(`
+        SELECT u.patente, u.lat, u.lng, u.velocidad, u.rumbo, u.timestamp_gps,
+               u.odometro, u.conductor, u.combustible_nivel
+        FROM ultima_posicion_camion u
+        JOIN camiones c ON c.patente = u.patente
+        JOIN faenas f ON f.id = c.faena_id
+        WHERE f.nombre = 'CENCOSUD'
+          AND u.lat IS NOT NULL AND u.lat != 0
+      `),
+      pool.query(`
+        SELECT nombre, lat, lng, poligono FROM cencosud_geocercas_kml
+        WHERE lat IS NOT NULL AND lat != 0
+      `),
+      pool.query(`
+        SELECT geocerca_nombre, nombre_contrato 
+        FROM geocerca_alias_contrato 
+        WHERE contrato = 'CENCOSUD' AND confirmado = true
+      `),
+    ]);
+
+    const aliasMap = new Map<string, string>();
+    for (const a of aliasRes.rows as any[]) {
+      aliasMap.set(a.geocerca_nombre.toLowerCase(), a.nombre_contrato);
+    }
+
+    const geocercas = (geocercasRes.rows as any[]).map(g => ({
+      nombre: g.nombre,
+      nombre_contrato: aliasMap.get(g.nombre.toLowerCase()) || g.nombre,
+      lat: parseFloat(g.lat),
+      lng: parseFloat(g.lng),
+      poligono: g.poligono && Array.isArray(g.poligono) && g.poligono.length >= 3 ? g.poligono : null,
+    }));
+
+    function pipCheck(lat: number, lng: number, poligono: [number, number][]): boolean {
+      let inside = false;
+      for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+        const yi = poligono[i][0], xi = poligono[i][1];
+        const yj = poligono[j][0], xj = poligono[j][1];
+        if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+      }
+      return inside;
+    }
+    function hav(lat1: number, lon1: number, lat2: number, lon2: number): number {
+      const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    function findGeocerca(lat: number, lng: number) {
+      for (const g of geocercas) {
+        if (g.poligono) { if (pipCheck(lat, lng, g.poligono)) return g; }
+        else if (hav(lat, lng, g.lat, g.lng) < 0.5) return g;
+      }
+      return null;
+    }
+
+    const enRuta: any[] = [];
+    const enCD: any[] = [];
+    const sinGps: any[] = [];
+
+    for (const cam of camionesRes.rows as any[]) {
+      const lat = parseFloat(cam.lat);
+      const lng = parseFloat(cam.lng);
+      const tsGps = new Date(cam.timestamp_gps);
+      const minutosDesde = (ahora.getTime() - tsGps.getTime()) / 60000;
+
+      if (minutosDesde > 120) {
+        sinGps.push({
+          patente: cam.patente,
+          lat, lng,
+          ultimo_gps: cam.timestamp_gps,
+          minutos_sin_gps: Math.round(minutosDesde),
+          conductor: cam.conductor,
+        });
+        continue;
+      }
+
+      const geoActual = findGeocerca(lat, lng);
+
+      if (geoActual) {
+        enCD.push({
+          patente: cam.patente,
+          lat, lng,
+          velocidad: parseFloat(cam.velocidad || 0),
+          geocerca: geoActual.nombre_contrato || geoActual.nombre,
+          timestamp_gps: cam.timestamp_gps,
+          conductor: cam.conductor,
+          odometro: cam.odometro ? parseFloat(cam.odometro) : null,
+        });
+      } else {
+        const gpsHoyRes = await pool.query(`
+          SELECT lat, lng, timestamp_gps, velocidad
+          FROM gps_unificado
+          WHERE patente = $1 AND DATE(timestamp_gps) = $2
+          ORDER BY timestamp_gps ASC
+          LIMIT 500
+        `, [cam.patente, hoyStr]);
+
+        let origenGeo = null;
+        let horaSalida = null;
+        let kmRecorridos = 0;
+
+        const puntos = gpsHoyRes.rows as any[];
+        for (let i = 0; i < puntos.length; i++) {
+          const pLat = parseFloat(puntos[i].lat);
+          const pLng = parseFloat(puntos[i].lng);
+          const geo = findGeocerca(pLat, pLng);
+          if (geo && geo.nombre_contrato) {
+            origenGeo = geo;
+            horaSalida = null;
+          } else if (origenGeo && !horaSalida) {
+            horaSalida = puntos[i].timestamp_gps;
+          }
+          if (i > 0) {
+            const d = hav(parseFloat(puntos[i - 1].lat), parseFloat(puntos[i - 1].lng), pLat, pLng);
+            if (d < 10) kmRecorridos += d;
+          }
+        }
+
+        let destinoProb = null;
+        let distMinDest = Infinity;
+        for (const g of geocercas) {
+          if (!g.nombre_contrato) continue;
+          if (origenGeo && g.nombre === origenGeo.nombre) continue;
+          const d = hav(lat, lng, g.lat, g.lng);
+          if (d < distMinDest) { distMinDest = d; destinoProb = g; }
+        }
+
+        enRuta.push({
+          patente: cam.patente,
+          lat, lng,
+          velocidad: parseFloat(cam.velocidad || 0),
+          rumbo: parseFloat(cam.rumbo || 0),
+          timestamp_gps: cam.timestamp_gps,
+          conductor: cam.conductor,
+          odometro: cam.odometro ? parseFloat(cam.odometro) : null,
+          origen: origenGeo ? (origenGeo.nombre_contrato || origenGeo.nombre) : null,
+          hora_salida: horaSalida,
+          km_recorridos: Math.round(kmRecorridos),
+          destino_probable: destinoProb ? {
+            nombre: destinoProb.nombre_contrato || destinoProb.nombre,
+            km_restante: Math.round(distMinDest),
+            lat: destinoProb.lat,
+            lng: destinoProb.lng,
+          } : null,
+        });
+      }
+    }
+
+    enRuta.sort((a, b) => (b.km_recorridos || 0) - (a.km_recorridos || 0));
+
+    res.json({
+      timestamp: ahora.toISOString(),
+      fecha: hoyStr,
+      resumen: {
+        total_cencosud: camionesRes.rows.length,
+        en_ruta: enRuta.length,
+        en_cd: enCD.length,
+        sin_gps: sinGps.length,
+      },
+      en_ruta: enRuta,
+      en_cd: enCD,
+      sin_gps: sinGps,
+    });
+  } catch (e: any) {
+    console.error("[EN-VIVO]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══ EN VIVO: GPS trail for specific truck today ═══
+router.get("/en-vivo/trail/:patente", async (req, res) => {
+  try {
+    const { patente } = req.params;
+    const hoyStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+    const result = await pool.query(`
+      SELECT lat, lng, velocidad, timestamp_gps, odometro
+      FROM gps_unificado
+      WHERE patente = $1 AND DATE(timestamp_gps) = $2
+      ORDER BY timestamp_gps ASC
+    `, [patente, hoyStr]);
+    res.json({ patente, puntos: result.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
