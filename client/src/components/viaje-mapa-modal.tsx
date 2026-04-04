@@ -91,7 +91,7 @@ function DashedPolyline({ origin, destination, color = "#ffcc00" }: { origin: go
 }
 
 export default function ViajeMapaModal({ viajeId, onClose }: Props) {
-  const [data, setData] = useState<{ viaje: any; puntos: PuntoGps[]; corredor: CorredorData | null } | null>(null);
+  const [data, setData] = useState<{ viaje: any; puntos: PuntoGps[]; corredor: CorredorData | null; has_real_gps?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -102,6 +102,7 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const [showPanel, setShowPanel] = useState(true);
   const [validating, setValidating] = useState(false);
   const [validated, setValidated] = useState<string | null>(null);
+  const [validateError, setValidateError] = useState<string | null>(null);
   const animRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
 
@@ -148,14 +149,23 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const handleValidate = useCallback(async (decision: "APROBADO" | "RECHAZADO") => {
     setValidating(true);
     try {
+      setValidateError(null);
       const resp = await fetch(`/api/viajes-tms/viaje-validar/${viajeId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       });
-      if (resp.ok) setValidated(decision);
+      if (resp.ok) {
+        setValidated(decision);
+      } else {
+        const body = await resp.json().catch(() => ({}));
+        setValidateError(body.error || `Error ${resp.status}`);
+        setTimeout(() => setValidateError(null), 4000);
+      }
     } catch (e) {
       console.error("Error validando viaje:", e);
+      setValidateError("Error de conexión");
+      setTimeout(() => setValidateError(null), 4000);
     }
     setValidating(false);
   }, [viajeId]);
@@ -183,7 +193,8 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   }
 
   const { viaje: v, puntos, corredor } = data;
-  const hasGps = puntos.length >= 2;
+  const hasRealGps = data.has_real_gps === true;
+  const hasGps = hasRealGps && puntos.length >= 2;
   const hasOriginDest = v.olat != null && v.olng != null && v.dlat != null && v.dlng != null && v.olat !== 0 && v.dlat !== 0;
   const hasCorredor = corredor != null && corredor.olat != null && corredor.dlat != null && corredor.olng != null && corredor.dlng != null;
 
@@ -209,7 +220,7 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   }, [data]);
 
   const center = useMemo(() => {
-    if (hasGps) {
+    if (hasRealGps && puntos.length > 0) {
       const midIdx = Math.floor(puntos.length / 2);
       return { lat: puntos[midIdx].lat, lng: puntos[midIdx].lng };
     }
@@ -300,6 +311,12 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
                 }}>
                 {validated === "APROBADO" ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
                 {validated}
+              </div>
+            )}
+
+            {validateError && (
+              <div className="px-2 py-1 rounded font-exo text-[9px]" style={{ background: "#ff224415", border: "1px solid #ff224430", color: "#ff2244" }}>
+                {validateError}
               </div>
             )}
 

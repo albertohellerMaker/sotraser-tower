@@ -951,25 +951,14 @@ router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req
       v.dlng = geoDest.rows[0].lng;
     }
 
-    let puntosGps = puntos.rows;
-
-    if (puntosGps.length < 3) {
-      const oLat = v.olat || null;
-      const oLng = v.olng || null;
-      const dLat = v.dlat || null;
-      const dLng = v.dlng || null;
-      if (oLat && oLng && dLat && dLng) {
-        puntosGps = [
-          { lat: oLat, lng: oLng, ts: v.fecha_inicio, vel: 0, rumbo: 0 },
-          { lat: dLat, lng: dLng, ts: v.fecha_fin, vel: 0, rumbo: 0 },
-        ];
-      }
-    }
+    const puntosGps = puntos.rows;
+    const hasRealGps = puntosGps.length >= 3;
 
     res.json({
       viaje: v,
       puntos: puntosGps,
       total_puntos: puntosGps.length,
+      has_real_gps: hasRealGps,
       corredor: corredorResult.rows[0] || null,
     });
   } catch (e: any) {
