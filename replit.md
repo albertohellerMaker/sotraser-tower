@@ -92,7 +92,7 @@ migrations/                # SQL migration files
 - **96 KML geocercas** imported to `cencosud_geocercas_kml` (primary source)
 - **Point-in-polygon** (ray-casting) detection in `geocerca-inteligente.ts`
 - **T-1 Reconstructor v2** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from GPS data
-  - Radios: CDs 2km, ciudades 3km, paradas 1.5km, bases 2km (reduced from 15km generic)
+  - Radios: 200m uniformes para todos los tipos (CDs, ciudades, paradas, bases)
   - Dwell: CDs 15min, other 10min (reduced from 30min)
   - Only creates trips between geocercas WITH confirmed alias (no noise from unmapped geocercas)
   - Saves ALL trips: FACTURADO (with tarifa) or PENDIENTE (without)

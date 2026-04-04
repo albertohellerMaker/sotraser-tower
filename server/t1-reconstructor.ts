@@ -4,10 +4,10 @@ import { sql } from "drizzle-orm";
 const MIN_DWELL_CD = 15;
 const MIN_DWELL_OTHER = 10;
 const MIN_TRIP_KM = 30;
-const RADIO_CD_KM = 2;
-const RADIO_CITY_KM = 3;
-const RADIO_PARADA_KM = 1.5;
-const RADIO_BASE_KM = 2;
+const RADIO_CD_KM = 0.2;
+const RADIO_CITY_KM = 0.2;
+const RADIO_PARADA_KM = 0.2;
+const RADIO_BASE_KM = 0.2;
 
 function ayerChile(): string {
   const d = new Date();
