@@ -1,12 +1,13 @@
 import { db, pool } from "./db";
 import { sql } from "drizzle-orm";
 
-const MIN_DWELL_MINUTES = 30;
-const MIN_TRIP_KM = 40;
-
-function fechaChile(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
-}
+const MIN_DWELL_CD = 15;
+const MIN_DWELL_OTHER = 10;
+const MIN_TRIP_KM = 30;
+const RADIO_CD_KM = 2;
+const RADIO_CITY_KM = 3;
+const RADIO_PARADA_KM = 1.5;
+const RADIO_BASE_KM = 2;
 
 function ayerChile(): string {
   const d = new Date();
@@ -23,46 +24,32 @@ interface GpsPoint {
 }
 
 interface Geocerca {
-  nombre_contrato: string;
+  nombre: string;
+  nombre_contrato: string | null;
   lat: number;
   lng: number;
   radio_km: number;
-  es_cd: boolean;
-  es_base_sotraser: boolean;
-  es_parada: boolean;
+  tipo: "CD" | "BASE" | "PARADA" | "DESTINO";
 }
 
 interface Visita {
-  geocerca: string;
+  geocerca_nombre: string;
+  nombre_contrato: string | null;
   llegada: Date;
   salida: Date;
   duracion_min: number;
   lat: number;
   lng: number;
-  es_cd: boolean;
-  es_base: boolean;
-  es_parada: boolean;
+  tipo: "CD" | "BASE" | "PARADA" | "DESTINO";
 }
-
-const PARADA_PATTERNS = [
-  "copec", "es copec", "shell", "servicentro", "estacionamiento",
-  "hosteria", "hostería", "zona de descanso", "t.vpv", "peaje",
-  "plaza pesaje", "plaza de pesaje", "taller gallardo",
-];
-
-function esParadaIntermedia(nombre: string): boolean {
-  const lower = nombre.toLowerCase();
-  return PARADA_PATTERNS.some(p => lower.includes(p));
-}
-
-const CENCOSUD_LAT_MIN = -43.0;
-const CENCOSUD_LAT_MAX = -27.0;
 
 interface ViajeT1 {
   camion_id: number;
   patente: string;
   origen: string;
   destino: string;
+  origen_geo: string;
+  destino_geo: string;
   fecha_inicio: Date;
   fecha_fin: Date;
   km_estimado: number;
@@ -70,6 +57,17 @@ interface ViajeT1 {
   es_round_trip: boolean;
   paradas_intermedias: any[];
   visitas_secuencia: string[];
+}
+
+const PARADA_PATTERNS = [
+  "copec", "es copec", "shell", "servicentro", "estacionamiento",
+  "hosteria", "hostería", "zona de descanso", "t.vpv", "peaje",
+  "plaza pesaje", "plaza de pesaje", "taller gallardo", "luengo",
+];
+
+function esParadaIntermedia(nombre: string): boolean {
+  const lower = nombre.toLowerCase();
+  return PARADA_PATTERNS.some(p => lower.includes(p));
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -82,57 +80,86 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function cargarGeocercasTarifa(): Promise<Geocerca[]> {
-  const nombresContrato = await db.execute(sql`
-    SELECT DISTINCT nombre_contrato, 
-           AVG(lat) as lat_avg, AVG(lng) as lng_avg
-    FROM (
-      SELECT gac.nombre_contrato,
-             COALESCE(kml.lat, go2.lat) as lat,
-             COALESCE(kml.lng, go2.lng) as lng
-      FROM geocerca_alias_contrato gac
-      LEFT JOIN cencosud_geocercas_kml kml ON LOWER(kml.nombre) = LOWER(gac.geocerca_nombre)
-      LEFT JOIN geocercas_operacionales go2 ON LOWER(go2.nombre) = LOWER(gac.geocerca_nombre)
-      WHERE gac.contrato = 'CENCOSUD' AND gac.confirmado = true
-        AND COALESCE(kml.lat, go2.lat) IS NOT NULL
-    ) sub
-    GROUP BY nombre_contrato
+async function cargarGeocercas(): Promise<Geocerca[]> {
+  const kmlRows = await pool.query(`
+    SELECT nombre, lat, lng FROM cencosud_geocercas_kml WHERE lat IS NOT NULL AND lat != 0
   `);
 
-  const tarifasNombres = await db.execute(sql`
-    SELECT DISTINCT origen as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
-    UNION
-    SELECT DISTINCT destino as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+  const opRows = await pool.query(`
+    SELECT nombre, lat, lng FROM geocercas_operacionales WHERE lat != 0 AND lng != 0
   `);
-  const nombresValidos = new Set((tarifasNombres.rows || []).map((r: any) => r.nombre));
 
-  const basesSOTRASER = ["Sotraser Antofagasta", "Sotraser Copiapó", "Sotraser Llay Llay", "SOTRASER CALAMA"];
-  const basesSet = new Set(basesSOTRASER.map(b => b.toLowerCase()));
+  const aliasRows = await pool.query(`
+    SELECT geocerca_nombre, nombre_contrato 
+    FROM geocerca_alias_contrato 
+    WHERE contrato = 'CENCOSUD' AND confirmado = true
+  `);
+  const aliasMap = new Map<string, string>();
+  for (const a of aliasRows.rows) {
+    aliasMap.set((a as any).geocerca_nombre.toLowerCase(), (a as any).nombre_contrato);
+  }
 
+  const basesSOTRASER = new Set([
+    "base sotraser antofagasta", "base sotraser calama",
+    "base sotraser lo boza", "base sotraser los angeles",
+  ]);
+
+  const seen = new Set<string>();
   const geocercas: Geocerca[] = [];
-  for (const row of (nombresContrato.rows || []) as any[]) {
-    const nombre = row.nombre_contrato;
-    const lat = parseFloat(row.lat_avg);
-    const lng = parseFloat(row.lng_avg);
-    if (!lat || !lng) continue;
 
-    const esTarifa = nombresValidos.has(nombre);
-    const esCD = nombre.startsWith("CD ") || nombre.startsWith("CT ");
-    const esBase = basesSet.has(nombre.toLowerCase());
-    const esParada = esParadaIntermedia(nombre);
-    const radioKm = esCD ? 5 : esParada ? 3 : 15;
+  for (const row of kmlRows.rows as any[]) {
+    const key = row.nombre.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const esParada = esParadaIntermedia(row.nombre);
+    const esCD = row.nombre.startsWith("CD ") || row.nombre.startsWith("CT ") ||
+      row.nombre.includes("BODEGA") || row.nombre.includes("Centro de distribución");
+    const esBase = basesSOTRASER.has(key);
+
+    let tipo: Geocerca["tipo"] = "DESTINO";
+    let radio = RADIO_CITY_KM;
+    if (esCD) { tipo = "CD"; radio = RADIO_CD_KM; }
+    else if (esBase) { tipo = "BASE"; radio = RADIO_BASE_KM; }
+    else if (esParada) { tipo = "PARADA"; radio = RADIO_PARADA_KM; }
 
     geocercas.push({
-      nombre_contrato: nombre,
-      lat, lng,
-      radio_km: radioKm,
-      es_cd: esCD,
-      es_base_sotraser: esBase || esCD,
-      es_parada: esParada,
+      nombre: row.nombre,
+      nombre_contrato: aliasMap.get(key) || null,
+      lat: parseFloat(row.lat),
+      lng: parseFloat(row.lng),
+      radio_km: radio,
+      tipo,
     });
   }
 
-  console.log(`[T1] ${geocercas.length} geocercas cargadas (${[...nombresValidos].length} en tarifario)`);
+  for (const row of opRows.rows as any[]) {
+    const key = row.nombre.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const esParada = esParadaIntermedia(row.nombre);
+    const esCD = row.nombre.startsWith("CD ") || row.nombre.startsWith("CT ");
+    const esBase = basesSOTRASER.has(key);
+
+    let tipo: Geocerca["tipo"] = "DESTINO";
+    let radio = RADIO_CITY_KM;
+    if (esCD) { tipo = "CD"; radio = RADIO_CD_KM; }
+    else if (esBase) { tipo = "BASE"; radio = RADIO_BASE_KM; }
+    else if (esParada) { tipo = "PARADA"; radio = RADIO_PARADA_KM; }
+
+    geocercas.push({
+      nombre: row.nombre,
+      nombre_contrato: aliasMap.get(key) || null,
+      lat: parseFloat(row.lat),
+      lng: parseFloat(row.lng),
+      radio_km: radio,
+      tipo,
+    });
+  }
+
+  const conAlias = geocercas.filter(g => g.nombre_contrato).length;
+  console.log(`[T1] ${geocercas.length} geocercas cargadas (${kmlRows.rows.length} KML + ${opRows.rows.length - seen.size + kmlRows.rows.length} oper), ${conAlias} con alias contrato`);
   return geocercas;
 }
 
@@ -141,7 +168,6 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
 
   const visitas: Visita[] = [];
   let enGeocerca: { geo: Geocerca; desde: Date; lat: number; lng: number } | null = null;
-  let ultimaSalida: Date | null = null;
 
   for (const p of puntos) {
     let geocercaCercana: Geocerca | null = null;
@@ -156,43 +182,46 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
     }
 
     if (geocercaCercana) {
-      if (!enGeocerca || enGeocerca.geo.nombre_contrato !== geocercaCercana.nombre_contrato) {
+      const mismaGeo = enGeocerca && (
+        enGeocerca.geo.nombre === geocercaCercana.nombre ||
+        (enGeocerca.geo.nombre_contrato && enGeocerca.geo.nombre_contrato === geocercaCercana.nombre_contrato)
+      );
+
+      if (!mismaGeo) {
         if (enGeocerca) {
           const dur = (p.timestamp_gps.getTime() - enGeocerca.desde.getTime()) / 60000;
-          if (dur >= MIN_DWELL_MINUTES) {
+          const minDwell = enGeocerca.geo.tipo === "CD" ? MIN_DWELL_CD : MIN_DWELL_OTHER;
+          if (dur >= minDwell) {
             visitas.push({
-              geocerca: enGeocerca.geo.nombre_contrato,
+              geocerca_nombre: enGeocerca.geo.nombre,
+              nombre_contrato: enGeocerca.geo.nombre_contrato,
               llegada: enGeocerca.desde,
               salida: new Date(p.timestamp_gps),
               duracion_min: Math.round(dur),
               lat: enGeocerca.lat,
               lng: enGeocerca.lng,
-              es_cd: enGeocerca.geo.es_cd,
-              es_base: enGeocerca.geo.es_base_sotraser,
-              es_parada: enGeocerca.geo.es_parada,
+              tipo: enGeocerca.geo.tipo,
             });
           }
-          ultimaSalida = new Date(p.timestamp_gps);
         }
         enGeocerca = { geo: geocercaCercana, desde: new Date(p.timestamp_gps), lat: p.lat, lng: p.lng };
       }
     } else {
       if (enGeocerca) {
         const dur = (p.timestamp_gps.getTime() - enGeocerca.desde.getTime()) / 60000;
-        if (dur >= MIN_DWELL_MINUTES) {
+        const minDwell = enGeocerca.geo.tipo === "CD" ? MIN_DWELL_CD : MIN_DWELL_OTHER;
+        if (dur >= minDwell) {
           visitas.push({
-            geocerca: enGeocerca.geo.nombre_contrato,
+            geocerca_nombre: enGeocerca.geo.nombre,
+            nombre_contrato: enGeocerca.geo.nombre_contrato,
             llegada: enGeocerca.desde,
             salida: new Date(p.timestamp_gps),
             duracion_min: Math.round(dur),
             lat: enGeocerca.lat,
             lng: enGeocerca.lng,
-            es_cd: enGeocerca.geo.es_cd,
-            es_base: enGeocerca.geo.es_base_sotraser,
-            es_parada: enGeocerca.geo.es_parada,
+            tipo: enGeocerca.geo.tipo,
           });
         }
-        ultimaSalida = new Date(p.timestamp_gps);
         enGeocerca = null;
       }
     }
@@ -201,17 +230,17 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
   if (enGeocerca) {
     const ultimoPunto = puntos[puntos.length - 1];
     const dur = (ultimoPunto.timestamp_gps.getTime() - enGeocerca.desde.getTime()) / 60000;
-    if (dur >= MIN_DWELL_MINUTES) {
+    const minDwell = enGeocerca.geo.tipo === "CD" ? MIN_DWELL_CD : MIN_DWELL_OTHER;
+    if (dur >= minDwell) {
       visitas.push({
-        geocerca: enGeocerca.geo.nombre_contrato,
+        geocerca_nombre: enGeocerca.geo.nombre,
+        nombre_contrato: enGeocerca.geo.nombre_contrato,
         llegada: enGeocerca.desde,
         salida: ultimoPunto.timestamp_gps,
         duracion_min: Math.round(dur),
         lat: enGeocerca.lat,
         lng: enGeocerca.lng,
-        es_cd: enGeocerca.geo.es_cd,
-        es_base: enGeocerca.geo.es_base_sotraser,
-        es_parada: enGeocerca.geo.es_parada,
+        tipo: enGeocerca.geo.tipo,
       });
     }
   }
@@ -224,7 +253,9 @@ function deduplicarVisitas(visitas: Visita[]): Visita[] {
   const result: Visita[] = [visitas[0]];
   for (let i = 1; i < visitas.length; i++) {
     const prev = result[result.length - 1];
-    if (visitas[i].geocerca === prev.geocerca) {
+    const misma = visitas[i].geocerca_nombre === prev.geocerca_nombre ||
+      (visitas[i].nombre_contrato && visitas[i].nombre_contrato === prev.nombre_contrato);
+    if (misma) {
       prev.salida = visitas[i].salida;
       prev.duracion_min += visitas[i].duracion_min;
     } else {
@@ -234,50 +265,26 @@ function deduplicarVisitas(visitas: Visita[]): Visita[] {
   return result;
 }
 
-async function cargarTarifas(): Promise<Map<string, number>> {
-  const rows = await db.execute(sql`
-    SELECT origen, destino, tarifa, clase
-    FROM contrato_rutas_tarifas
-    WHERE contrato = 'CENCOSUD' AND activo = true
-    ORDER BY clase ASC
-  `);
-  const tarifas = new Map<string, number>();
-  for (const r of (rows.rows || []) as any[]) {
-    const key = `${r.origen}→${r.destino}`;
-    if (!tarifas.has(key)) {
-      tarifas.set(key, parseFloat(r.tarifa));
-    }
-  }
-  return tarifas;
-}
-
-function filtrarParadas(visitas: Visita[]): Visita[] {
-  const result: Visita[] = [];
-  for (const v of visitas) {
-    if (v.es_parada) continue;
-    result.push(v);
-  }
-  return result.length >= 2 ? result : result;
-}
-
 function construirViajes(
   camion_id: number,
   patente: string,
   visitas: Visita[],
-  puntos: GpsPoint[],
-  tarifas: Map<string, number>
+  puntos: GpsPoint[]
 ): ViajeT1[] {
-  const visitasLimpias = filtrarParadas(visitas);
-  if (visitasLimpias.length < 2) return [];
+  const visitasDestino = visitas.filter(v => v.tipo !== "PARADA");
+  if (visitasDestino.length < 2) return [];
 
   const viajes: ViajeT1[] = [];
   let i = 0;
 
-  while (i < visitasLimpias.length - 1) {
-    const origen = visitasLimpias[i];
-    const destino = visitasLimpias[i + 1];
+  while (i < visitasDestino.length - 1) {
+    const origen = visitasDestino[i];
+    const destino = visitasDestino[i + 1];
 
-    if (origen.geocerca === destino.geocerca) {
+    const origenNombre = origen.nombre_contrato || origen.geocerca_nombre;
+    const destinoNombre = destino.nombre_contrato || destino.geocerca_nombre;
+
+    if (origenNombre === destinoNombre) {
       i++;
       continue;
     }
@@ -290,70 +297,72 @@ function construirViajes(
     }
 
     const paradasEnMedio = visitas.filter(v =>
-      v.es_parada && v.llegada >= origen.salida && v.salida <= destino.llegada
-    ).map(v => ({ nombre: v.geocerca, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
+      v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= destino.llegada
+    ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
 
     let esRoundTrip = false;
     let roundTripDestIdx = -1;
-    if (origen.es_cd && i + 2 < visitasLimpias.length && visitasLimpias[i + 2].geocerca === origen.geocerca) {
-      esRoundTrip = true;
-      roundTripDestIdx = i + 2;
+    const origenEsBase = origen.tipo === "CD" || origen.tipo === "BASE";
+    if (origenEsBase && i + 2 < visitasDestino.length) {
+      const vueltaNombre = visitasDestino[i + 2].nombre_contrato || visitasDestino[i + 2].geocerca_nombre;
+      if (vueltaNombre === origenNombre) {
+        esRoundTrip = true;
+        roundTripDestIdx = i + 2;
+      }
     }
 
     if (esRoundTrip) {
-      const vuelta = visitasLimpias[roundTripDestIdx];
+      const vuelta = visitasDestino[roundTripDestIdx];
       const kmTotal = estimarKm(puntos, origen.salida, vuelta.llegada);
       const durTotal = Math.round((vuelta.llegada.getTime() - origen.salida.getTime()) / 60000);
-
-      const paradasRT = visitas.filter(v =>
-        v.es_parada && v.llegada >= origen.salida && v.salida <= vuelta.llegada
-      ).map(v => ({ nombre: v.geocerca, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
 
       const allParadas = [];
       for (let j = i + 1; j < roundTripDestIdx; j++) {
         allParadas.push({
-          nombre: visitasLimpias[j].geocerca,
-          llegada: visitasLimpias[j].llegada,
-          salida: visitasLimpias[j].salida,
-          duracion_min: visitasLimpias[j].duracion_min,
+          nombre: visitasDestino[j].nombre_contrato || visitasDestino[j].geocerca_nombre,
+          llegada: visitasDestino[j].llegada,
+          salida: visitasDestino[j].salida,
+          duracion_min: visitasDestino[j].duracion_min,
         });
       }
+      const paradasRT = visitas.filter(v =>
+        v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= vuelta.llegada
+      ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
       allParadas.push(...paradasRT);
 
       viajes.push({
-        camion_id,
-        patente,
-        origen: origen.geocerca,
-        destino: destino.geocerca,
+        camion_id, patente,
+        origen: origenNombre,
+        destino: destinoNombre,
+        origen_geo: origen.geocerca_nombre,
+        destino_geo: destino.geocerca_nombre,
         fecha_inicio: origen.salida,
         fecha_fin: vuelta.llegada,
         km_estimado: kmTotal,
         duracion_min: durTotal,
         es_round_trip: true,
         paradas_intermedias: allParadas,
-        visitas_secuencia: visitasLimpias.slice(i, roundTripDestIdx + 1).map(v => v.geocerca),
+        visitas_secuencia: visitasDestino.slice(i, roundTripDestIdx + 1).map(v => v.nombre_contrato || v.geocerca_nombre),
       });
 
       i = roundTripDestIdx;
     } else {
       const dur = Math.round((destino.llegada.getTime() - origen.salida.getTime()) / 60000);
 
-      const esRetorno = !origen.es_cd && destino.es_cd;
-
       viajes.push({
-        camion_id,
-        patente,
-        origen: origen.geocerca,
-        destino: destino.geocerca,
+        camion_id, patente,
+        origen: origenNombre,
+        destino: destinoNombre,
+        origen_geo: origen.geocerca_nombre,
+        destino_geo: destino.geocerca_nombre,
         fecha_inicio: origen.salida,
         fecha_fin: destino.llegada,
         km_estimado: kmEntrePuntos,
         duracion_min: dur,
         es_round_trip: false,
         paradas_intermedias: paradasEnMedio,
-        visitas_secuencia: [origen.geocerca, destino.geocerca],
-        es_retorno: esRetorno,
-      } as any);
+        visitas_secuencia: [origenNombre, destinoNombre],
+      });
 
       i++;
     }
@@ -368,22 +377,47 @@ function estimarKm(puntos: GpsPoint[], desde: Date, hasta: Date): number {
   for (const p of puntos) {
     if (p.timestamp_gps < desde || p.timestamp_gps > hasta) continue;
     if (prev) {
-      km += haversineKm(prev.lat, prev.lng, p.lat, p.lng);
+      const segKm = haversineKm(prev.lat, prev.lng, p.lat, p.lng);
+      if (segKm < 10) {
+        km += segKm;
+      }
     }
     prev = p;
   }
   return Math.round(km);
 }
 
+async function cargarTarifas(): Promise<Map<string, number>> {
+  const rows = await pool.query(`
+    SELECT origen, destino, tarifa::int as tarifa, clase
+    FROM contrato_rutas_tarifas
+    WHERE contrato = 'CENCOSUD' AND activo = true
+    ORDER BY clase ASC
+  `);
+  const tarifas = new Map<string, number>();
+  for (const r of rows.rows as any[]) {
+    const key = `${r.origen}→${r.destino}`;
+    if (!tarifas.has(key)) {
+      tarifas.set(key, r.tarifa);
+    }
+  }
+  return tarifas;
+}
+
 const EQUIVALENCIAS: Record<string, string[]> = {
   "Chillán": ["CD Chillán", "CD LTS CHILLAN camino Nahueltoro 230"],
   "CD Chillán": ["Chillán"],
   "CD LTS CHILLAN camino Nahueltoro 230": ["CD Chillán", "Chillán"],
-  "CT Concepción": ["Concepción", "CENTRO DE TRANSFERENCIA CENCOSUD CONCEPCIÓN"],
+  "CT Concepción": ["Concepción"],
   "Concepción": ["CT Concepción"],
-  "CENTRO DE TRANSFERENCIA CENCOSUD CONCEPCIÓN": ["CT Concepción", "Concepción"],
   "Coquimbo": ["CT Coquimbo"],
   "CT Coquimbo": ["Coquimbo"],
+  "CD Noviciado": ["Noviciado"],
+  "Noviciado": ["CD Noviciado"],
+  "CD Vespucio": ["Vespucio"],
+  "Vespucio": ["CD Vespucio"],
+  "CD Lo Aguirre": ["Lo Aguirre"],
+  "Lo Aguirre": ["CD Lo Aguirre"],
 };
 
 function buscarTarifaFlexible(origen: string, destino: string, tarifas: Map<string, number>): number | null {
@@ -398,14 +432,7 @@ function buscarTarifaFlexible(origen: string, destino: string, tarifas: Map<stri
 
   for (const o of origenAlts) {
     for (const d of destinoAlts) {
-      const t = tarifas.get(`${o}→${d}`);
-      if (t) return t;
-    }
-  }
-
-  for (const o of origenAlts) {
-    for (const d of destinoAlts) {
-      const t = tarifas.get(`${d}→${o}`);
+      const t = tarifas.get(`${o}→${d}`) || tarifas.get(`${d}→${o}`);
       if (t) return t;
     }
   }
@@ -418,64 +445,59 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   viajes_creados: number;
   viajes_round_trip: number;
   viajes_ida: number;
-  viajes_retorno_descartados: number;
+  viajes_retorno: number;
   viajes_facturados: number;
+  viajes_pendientes: number;
   pct_facturable: number;
   camiones_descanso: number;
+  camiones_sin_geocerca: string[];
   errores: string[];
 }> {
   const inicio = Date.now();
-  console.log(`[T1] ═══ Reconstrucción T-1 para ${fecha} ═══`);
+  console.log(`[T1] ═══ Reconstrucción T-1 v2 para ${fecha} ═══`);
 
-  const geocercas = await cargarGeocercasTarifa();
+  const geocercas = await cargarGeocercas();
   const tarifas = await cargarTarifas();
   console.log(`[T1] ${tarifas.size} rutas tarifadas cargadas`);
 
-  const camionesResult = await db.execute(sql`
+  const camionesResult = await pool.query(`
     SELECT DISTINCT patente, 
            (SELECT id FROM camiones WHERE camiones.patente = gps_unificado.patente LIMIT 1) as camion_id
     FROM gps_unificado
     WHERE contrato = 'CENCOSUD'
-      AND timestamp_gps >= ${fecha}::date
-      AND timestamp_gps < (${fecha}::date + interval '1 day')
+      AND timestamp_gps >= $1::date
+      AND timestamp_gps < ($1::date + interval '1 day')
     ORDER BY patente
-  `);
+  `, [fecha]);
 
-  const camiones = (camionesResult.rows || []) as any[];
+  const camiones = camionesResult.rows as any[];
   console.log(`[T1] ${camiones.length} camiones Cencosud con GPS el ${fecha}`);
 
   let totalViajes = 0;
   let totalRoundTrip = 0;
   let totalIda = 0;
   let totalRetorno = 0;
-  let totalNoCencosud = 0;
-  let totalSinTarifa = 0;
+  let totalFacturados = 0;
+  let totalPendientes = 0;
   let camionesDescanso = 0;
+  const camionesSinGeocerca: string[] = [];
   const errores: string[] = [];
-
-  const nombresValidosResult = await db.execute(sql`
-    SELECT DISTINCT origen as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
-    UNION
-    SELECT DISTINCT destino as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
-  `);
-  const nombresValidos = new Set((nombresValidosResult.rows || []).map((r: any) => r.nombre));
-
   const allInserts: any[] = [];
 
   for (const cam of camiones) {
     if (!cam.camion_id) continue;
 
     try {
-      const puntosResult = await db.execute(sql`
+      const puntosResult = await pool.query(`
         SELECT lat, lng, timestamp_gps, velocidad, odometro
         FROM gps_unificado
-        WHERE patente = ${cam.patente}
-          AND timestamp_gps >= ${fecha}::date
-          AND timestamp_gps < (${fecha}::date + interval '1 day')
+        WHERE patente = $1
+          AND timestamp_gps >= $2::date
+          AND timestamp_gps < ($2::date + interval '1 day')
         ORDER BY timestamp_gps ASC
-      `);
+      `, [cam.patente, fecha]);
 
-      const puntos: GpsPoint[] = ((puntosResult.rows || []) as any[]).map((r: any) => ({
+      const puntos: GpsPoint[] = (puntosResult.rows as any[]).map((r: any) => ({
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lng),
         timestamp_gps: new Date(r.timestamp_gps),
@@ -485,42 +507,31 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 
       if (puntos.length < 10) continue;
 
-      let visitasRaw = identificarVisitas(puntos, geocercas);
-      const visitas = deduplicarVisitas(visitasRaw);
-
-      if (visitas.length === 0) {
-        continue;
-      }
-
-      if (visitas.length === 1 && visitas[0].es_base) {
+      const kmTotal = estimarKm(puntos, puntos[0].timestamp_gps, puntos[puntos.length - 1].timestamp_gps);
+      if (kmTotal < 20) {
         camionesDescanso++;
         continue;
       }
 
-      const viajes = construirViajes(cam.camion_id, cam.patente, visitas, puntos, tarifas);
+      const visitasRaw = identificarVisitas(puntos, geocercas);
+      const visitas = deduplicarVisitas(visitasRaw);
+
+      if (visitas.length === 0) {
+        if (kmTotal > 50) {
+          camionesSinGeocerca.push(`${cam.patente} (${kmTotal}km, ${puntos.length}pts)`);
+        }
+        continue;
+      }
+
+      if (visitas.length === 1 && (visitas[0].tipo === "BASE" || visitas[0].tipo === "CD")) {
+        camionesDescanso++;
+        continue;
+      }
+
+      const viajes = construirViajes(cam.camion_id, cam.patente, visitas, puntos);
 
       for (const v of viajes) {
-        const esRetorno = (v as any).es_retorno === true;
-
-        if (esRetorno) {
-          totalRetorno++;
-          continue;
-        }
-
         const tarifaFinal = buscarTarifaFlexible(v.origen, v.destino, tarifas);
-
-        if (!tarifaFinal) {
-          const oEnTarifario = nombresValidos.has(v.origen) || EQUIVALENCIAS[v.origen]?.some(eq => nombresValidos.has(eq));
-          const dEnTarifario = nombresValidos.has(v.destino) || EQUIVALENCIAS[v.destino]?.some(eq => nombresValidos.has(eq));
-
-          if (!oEnTarifario || !dEnTarifario) {
-            totalNoCencosud++;
-            continue;
-          }
-
-          totalSinTarifa++;
-          continue;
-        }
 
         allInserts.push({
           camion_id: cam.camion_id,
@@ -528,6 +539,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           fecha_fin: v.fecha_fin,
           origen: v.origen,
           destino: v.destino,
+          origen_geo: v.origen_geo,
+          destino_geo: v.destino_geo,
           km: v.km_estimado,
           duracion: v.duracion_min,
           es_round_trip: v.es_round_trip,
@@ -539,6 +552,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
         totalViajes++;
         if (v.es_round_trip) totalRoundTrip++;
         else totalIda++;
+        if (tarifaFinal) totalFacturados++;
+        else totalPendientes++;
       }
     } catch (err: any) {
       errores.push(`${cam.patente}: ${err.message}`);
@@ -583,6 +598,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           paradas: v.paradas_intermedias,
           secuencia: v.visitas_secuencia,
           tarifa_encontrada: v.tarifa,
+          origen_geocerca: v.origen_geo,
+          destino_geocerca: v.destino_geo,
         }),
         v.tarifa ? 'FACTURADO' : 'PENDIENTE',
       ]);
@@ -597,19 +614,26 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
   }
 
   const durSeg = Math.round((Date.now() - inicio) / 1000);
-  const facturados = allInserts.filter(v => v.tarifa).length;
-  const pct = totalViajes > 0 ? Math.round(facturados * 100 / totalViajes) : 0;
-  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida), ${facturados}/${totalViajes} facturables (${pct}%), descartados: ${totalRetorno} retornos + ${totalNoCencosud} no-cencosud + ${totalSinTarifa} sin-tarifa, ${camionesDescanso} descanso, ${errores.length} errores ═══`);
+  const pct = totalViajes > 0 ? Math.round(totalFacturados * 100 / totalViajes) : 0;
+  console.log(`[T1] ═══ Completado en ${durSeg}s: ${totalViajes} viajes (${totalRoundTrip} RT, ${totalIda} ida, ${totalRetorno} retorno), ${totalFacturados}/${totalViajes} facturables (${pct}%), ${totalPendientes} pendientes, ${camionesDescanso} descanso ═══`);
+  if (camionesSinGeocerca.length > 0) {
+    console.log(`[T1] ⚠ Camiones con km pero sin geocerca detectada: ${camionesSinGeocerca.join(", ")}`);
+  }
+  if (errores.length > 0) {
+    console.log(`[T1] ⚠ Errores: ${errores.join(", ")}`);
+  }
 
   return {
     camiones_procesados: camiones.length,
     viajes_creados: totalViajes,
     viajes_round_trip: totalRoundTrip,
     viajes_ida: totalIda,
-    viajes_retorno_descartados: totalRetorno,
-    viajes_facturados: facturados,
+    viajes_retorno: totalRetorno,
+    viajes_facturados: totalFacturados,
+    viajes_pendientes: totalPendientes,
     pct_facturable: pct,
     camiones_descanso: camionesDescanso,
+    camiones_sin_geocerca: camionesSinGeocerca,
     errores,
   };
 }
