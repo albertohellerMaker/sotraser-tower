@@ -371,7 +371,7 @@ function SistemaTab() {
                 { label: "GEOCERCAS", desc: "5 niveles", color: "#a855f7", n: "CDs + minas" },
                 { label: "CORREDORES", desc: "Rutas agrupadas", color: "#ffcc00", n: "auto" },
                 { label: "ALERTAS", desc: "Vel + desvío", color: "#ff2244", n: "24/7" },
-                { label: "KPIs", desc: "Dashboard", color: "#00ffcc", n: "8 tabs" },
+                { label: "KPIs", desc: "Dashboard", color: "#00ffcc", n: "6 tabs" },
               ].map(s => (
                 <div key={s.label} className="p-2" style={{ background: "#060d14", borderRadius: 4, borderTop: `2px solid ${s.color}` }}>
                   <div className="font-space text-[10px] font-bold" style={{ color: s.color }}>{s.n}</div>

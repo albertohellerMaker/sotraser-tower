@@ -39,21 +39,11 @@ client/                    # React frontend (Vite)
       mapa-geocercas-cencosud.tsx # Cencosud geofence map
     pages/                 # Active pages
       flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
-      viajes-tms.tsx       # Trip analysis: executive summary, daily detail, rankings
-      cencosud.tsx         # Dedicated Cencosud TMS view
+      cencosud.tsx         # Dedicated Cencosud TMS view (P&L, viajes, tarifas, mapeo)
       operative-brain.tsx  # AI brain with multi-agent chat
       conductores-panel.tsx # Conductores management
       app-conductor-hub.tsx # Driver app management hub
-      volvo.tsx            # Volvo Connect truck status and map
-      camiones.tsx         # Individual truck view with faena filter
-      micro-cargas.tsx     # Suspicious micro-fuel-load detection
-      geovalidator.tsx     # Route validation and geofence management
-      geo-tabs/            # Geo sub-tab components
-        mapa-en-vivo.tsx   # Live fleet map
-        viajes-cerrados.tsx # Completed trips
-        rutas-operacionales.tsx # Operational routes
-        estaciones-tab.tsx  # Fuel station monitoring
-        types.ts           # Shared types
+      camiones.tsx         # Individual truck view with faena filter (CamionesUnificado in App.tsx)
     lib/                   # Frontend utilities, API clients
 server/                    # Express backend
   agentes/                 # AI agent logic
@@ -137,5 +127,17 @@ migrations/                # SQL migration files
 - Build: `npm run build`
 - Run: `node dist/index.cjs`
 
+## Tower Navigation (6 tabs)
+- **FLOTA**: Live GPS map, fleet status, positions, speed
+- **CAMIONES**: Individual truck detail, monthly calendar, rendimiento
+- **BRAIN**: AI multi-agent chat, predictions, anomalies
+- **CONDUCTORES**: Driver management panel
+- **APP CONDUCTOR**: Driver app hub
+- **SISTEMA**: System health, geocercas, data flow diagram
+
+Removed tabs: VIAJES (Sigetra dependency), CONTRATOS (phantom contracts), COMBUSTIBLE (Sigetra comparison), CONTROL (fuel deviations needed Sigetra). TMS Cencosud is accessed from Welcome screen as a standalone view.
+
 ## Cleanup History
+- **April 2026 Tower Cleanup**: Removed 4 dead tabs (VIAJES, CONTRATOS, COMBUSTIBLE, CONTROL) from Tower. Removed ~420 lines of dead code (ContratosUnificado, ControlCenter, MiniMapaGoogle, focoAlerta). Tower now has 6 focused tabs. TMS Cencosud accessed from Welcome screen.
+- **April 2026 Anglo Purge**: All Anglo geocercas, aliases, tarifas, trips, and GPS removed. VOLVO_ECU Cencosud trips purged (1,392 deleted). T-1 Reconstructor v2 is the only source for Cencosud trips.
 - **April 2026 Major Cleanup**: Removed Sigetra completely (API, components, all UI references). Removed WiseTrack GPS. Cleaned database from ~825 to 72 active Volvo-only trucks. Removed dead pages (ranking-conductores sub-tab, errores sub-tab, anglo.tsx, super-agente-anglo.ts). Updated all UI text from "581 camiones" to "72 camiones". Removed all Sigetra labels, matching panels, cuadratura sections, and comparison tables from SISTEMA tab. Leaflet fully removed — all maps use Google Maps.
