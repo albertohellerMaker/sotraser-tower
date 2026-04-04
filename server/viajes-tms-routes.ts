@@ -900,7 +900,10 @@ router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req
 
     const v = viaje.rows[0];
 
-    const [puntos, corredorResult] = await Promise.all([
+    const hasOriginCoords = v.olat != null && v.olng != null && v.olat !== 0 && v.olng !== 0;
+    const hasDestCoords = v.dlat != null && v.dlng != null && v.dlat !== 0 && v.dlng !== 0;
+
+    const queries: Promise<any>[] = [
       pool.query(`
         SELECT lat::float, lng::float, timestamp_punto as ts,
           velocidad_kmh::float as vel, rumbo_grados::float as rumbo
@@ -920,15 +923,47 @@ router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req
           duracion_promedio_min
         FROM corredores WHERE id = $1
       `, [v.corredor_id]) : Promise.resolve({ rows: [] }),
-    ]);
+    ];
+
+    if (!hasOriginCoords && v.origen_nombre) {
+      queries.push(pool.query(`
+        SELECT lat::float, lng::float FROM geocercas_operacionales WHERE nombre = $1 LIMIT 1
+      `, [v.origen_nombre]));
+    } else {
+      queries.push(Promise.resolve({ rows: [] }));
+    }
+    if (!hasDestCoords && v.destino_nombre) {
+      queries.push(pool.query(`
+        SELECT lat::float, lng::float FROM geocercas_operacionales WHERE nombre = $1 LIMIT 1
+      `, [v.destino_nombre]));
+    } else {
+      queries.push(Promise.resolve({ rows: [] }));
+    }
+
+    const [puntos, corredorResult, geoOrigen, geoDest] = await Promise.all(queries);
+
+    if (!hasOriginCoords && geoOrigen.rows.length > 0) {
+      v.olat = geoOrigen.rows[0].lat;
+      v.olng = geoOrigen.rows[0].lng;
+    }
+    if (!hasDestCoords && geoDest.rows.length > 0) {
+      v.dlat = geoDest.rows[0].lat;
+      v.dlng = geoDest.rows[0].lng;
+    }
 
     let puntosGps = puntos.rows;
 
-    if (puntosGps.length < 3 && v.olat && v.olng && v.dlat && v.dlng) {
-      puntosGps = [
-        { lat: v.olat, lng: v.olng, ts: v.fecha_inicio, vel: 0, rumbo: 0 },
-        { lat: v.dlat, lng: v.dlng, ts: v.fecha_fin, vel: 0, rumbo: 0 },
-      ];
+    if (puntosGps.length < 3) {
+      const oLat = v.olat || null;
+      const oLng = v.olng || null;
+      const dLat = v.dlat || null;
+      const dLng = v.dlng || null;
+      if (oLat && oLng && dLat && dLng) {
+        puntosGps = [
+          { lat: oLat, lng: oLng, ts: v.fecha_inicio, vel: 0, rumbo: 0 },
+          { lat: dLat, lng: dLng, ts: v.fecha_fin, vel: 0, rumbo: 0 },
+        ];
+      }
     }
 
     res.json({
