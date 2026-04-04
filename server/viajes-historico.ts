@@ -262,6 +262,7 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
         const viajes = buildViajesFromSnapshots(cam, snaps, sigetraByPatente.get(cam.patente) || [], geoByCamion.get(cam.id) || []);
 
         for (const viaje of viajes) {
+          if (viaje.contrato === "CENCOSUD") continue;
           const result = await pool.query(`
             INSERT INTO viajes_aprendizaje (
               camion_id, vin, contrato, fecha_inicio, fecha_fin,
