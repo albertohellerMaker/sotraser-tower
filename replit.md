@@ -80,25 +80,27 @@ migrations/                # SQL migration files
 
 ## Cencosud TMS — Trip Detection & Billing
 - **96 KML geocercas** imported to `cencosud_geocercas_kml` (primary source)
+- **Geocerca classification**: `cd` (7 CDs), `tienda` (~50 stores), `transito` (22 peajes/copec/descanso — ignored in route logic)
+- **Round-trip TMS logic**: CD → Tienda(s) → CD. Trip starts at CD, delivery at tienda, closes on return to CD. All intermediate stops (peajes, copec, descanso) are paradas — don't change the trip. Trip only closes when truck stays at CD (dwell >= 15 min).
 - **Point-in-polygon** (ray-casting) detection in `geocerca-inteligente.ts`
 - **T-1 Reconstructor v2** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from GPS data
   - Detección: point-in-polygon con polígonos KML reales (96 geocercas), radio 150m fallback solo para geocercas operacionales sin polígono
-  - Dwell: CDs 15min, other 10min (reduced from 30min)
-  - Only creates trips between geocercas WITH confirmed alias (no noise from unmapped geocercas)
+  - Dwell: CDs 15min, other 10min
+  - Stores real origin/destination coordinates from GPS visits
   - Saves ALL trips: FACTURADO (with tarifa) or PENDIENTE (without)
-  - Loads KML geocercas first, then geocercas_operacionales (no duplicates)
-  - ~67-76% facturable rate on real data
+  - Runs daily at 5am for previous day
 - **Anglo data purged**: All Anglo geocercas, aliases, tarifas, trips, and GPS removed (April 2026)
 - **Billing flow**: GPS → geocerca → alias → tarifa → facturación
-- **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min
+- **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min. Understands round-trip TMS logic. Auto-alias GPS, trayecto consolidation, billing intelligence, anomaly detection. AI chat with full TMS context.
 - **P&L Engine** (`pl-engine.ts`): Per-trip cost/revenue/margin calculation
-  - `calcularPLViajes()`: Backfills all trips with cost_diesel, cost_cvm, ingreso_tarifa, margen_bruto
+  - `calcularPLViajes()`: Backfills all trips with cost_diesel, cost_cvm, cost_conductor (prorated), cost_fijo (prorated), ingreso_tarifa, margen_bruto
   - `calcularPLResumenDiario(fecha)`: Daily P&L aggregation
   - `calcularPLResumenMes(YYYY-MM)`: Monthly P&L aggregation
   - Auto-runs after T-1 reconstruction and after interactive geocerca mapping
   - **Parameters** (`cencosud_parametros` table): precio_diesel=1110, cvm_km=450, costo_conductor_dia=45000, costo_fijo_dia=35000
   - **P&L columns** on `viajes_aprendizaje`: costo_diesel, costo_cvm, costo_total, ingreso_tarifa, margen_bruto, tarifa_id, tarifa_clase
   - **API endpoints**: GET `/api/cencosud/pl/mes?mes=YYYY-MM`, GET `/api/cencosud/pl/dia?fecha=YYYY-MM-DD`, POST `/api/cencosud/pl/calcular`
+- **EN VIVO** real-time tracking: batch GPS query, interactive markers, trail dots, IDA/VUELTA phase detection, delivery point markers
 
 ## Background Processes
 - Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
