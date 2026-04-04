@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { pool } from "./db";
+import { calcularPLViajes, calcularPLResumenDiario, calcularPLResumenMes } from "./pl-engine";
 
 const router = Router();
 
@@ -695,6 +696,54 @@ router.get("/t1-resultado", async (req, res) => {
     }).length;
     const facturados = viajes.rows.filter((v: any) => v.estado === "FACTURADO").length;
     res.json({ fecha, total, round_trip: rt, ida: total - rt, facturados, viajes: viajes.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/parametros", async (_req, res) => {
+  try {
+    const r = await pool.query(`SELECT clave, valor FROM cencosud_parametros ORDER BY clave`);
+    const params: Record<string, string> = {};
+    r.rows.forEach((row: any) => { params[row.clave] = row.valor; });
+    res.json(params);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.put("/parametros", async (req, res) => {
+  try {
+    const updates = req.body as Record<string, string>;
+    const allowed = ['precio_diesel','cvm_km','tarifa_km_cargado','tarifa_km_vacio','costo_conductor_dia','costo_fijo_dia','meta_km_dia','meta_km_mes','meta_rendimiento','pct_retorno','tiempo_max_cd','capacidad_estanque','alerta_rendimiento_critico','alerta_margen_minimo','alerta_dias_inactivo'];
+    let updated = 0;
+    for (const [k, v] of Object.entries(updates)) {
+      if (allowed.includes(k)) {
+        await pool.query(`UPDATE cencosud_parametros SET valor = $1 WHERE clave = $2`, [String(v), k]);
+        updated++;
+      }
+    }
+    res.json({ ok: true, updated });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/pl/calcular", async (req, res) => {
+  try {
+    const fecha = req.body?.fecha as string | undefined;
+    const result = await calcularPLViajes(fecha);
+    res.json(result);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/pl/dia", async (req, res) => {
+  try {
+    const fecha = (req.query.fecha as string) || new Date().toISOString().slice(0, 10);
+    const result = await calcularPLResumenDiario(fecha);
+    res.json({ fecha, ...result });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/pl/mes", async (req, res) => {
+  try {
+    const mes = (req.query.mes as string) || new Date().toISOString().slice(0, 7);
+    const result = await calcularPLResumenMes(mes);
+    res.json({ mes, ...result });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
