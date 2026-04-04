@@ -1,11 +1,10 @@
 # SOTRASER - Fleet Intelligence Dashboard
 
 ## Overview
-A comprehensive fleet management system for a Chilean trucking company (~825 trucks). Integrates real-time GPS tracking and telemetry from Volvo Connect (rFMS) with internal DB fuel data to optimize fleet operations, detect fuel anomalies, and provide AI-driven insights.
+Fleet management system for Chilean trucking company SOTRASER. **72 active trucks** with GPS Volvo Connect (rFMS), focused on Cencosud TMS (~95%+ tariff billing) with Anglo American mining contracts. Single data source: Volvo Connect GPS + ECU telemetry.
 
 ## Data Sources (1 active)
-- **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s)
-- **Internal DB cargas table**: Fuel loading transactions stored locally
+- **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s). 72 camiones with VIN.
 
 ## Architecture
 - **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`. Root has devDependencies and scripts.
@@ -28,54 +27,40 @@ A comprehensive fleet management system for a Chilean trucking company (~825 tru
 - **Package manager**: npm
 - **Maps**: Google Maps ONLY (`@vis.gl/react-google-maps`). Key: `VITE_GOOGLE_MAPS_KEY`. All Leaflet fully removed.
 - **Workers**: Background jobs and agents run in separate child processes via `server/worker-manager.ts` (uses `child_process.fork` + tsx). Workers: `server/workers/jobs-worker.ts` (data sync, scoring, geocercas), `server/workers/agents-worker.ts` (multi-agent AI system). Auto-restart with exponential backoff on crash.
-- **Conductor API**: `/api/conductor/*` endpoints for the driver-facing app. Auth via `X-API-Key` header (env: `CONDUCTOR_API_KEY`). Bypasses Tower session auth. Endpoints: login, viajes del día, paradas, confirmar parada, enviar ubicación, reportar novedad, info camión.
-- **Conductor Panel**: Tower tab "CONDUCTORES" with 4 sub-tabs: Viajes en Vivo (live map tracking + GPS validation), Asignar Viaje (Uber-style trip creation with paradas), Gestión (conductor roster), Novedades (incident reports). Routes: `/api/conductor-panel/*`.
-- **APP CONDUCTOR Hub** (`app-conductor-hub.tsx`): Full management hub accessed from Welcome screen and Tower navbar. Two modes: Vista App (iframe preview of driver-facing Replit app) and Gestión Empresa (4 sub-tabs: Viajes management with filtering/creation/chat, Conductores with profile cards/history, Comunicaciones with broadcast + direct messaging + quick messages, Novedades center with open/resolved split). Messaging uses `mensajes_conductor` table (TORRE/CONDUCTOR remitente, per-viaje or direct). Driver app URL: `https://driver-route-planner-albertoheller.replit.app/?patente={PATENTE}`.
+- **Conductor API**: `/api/conductor/*` endpoints for the driver-facing app. Auth via `X-API-Key` header (env: `CONDUCTOR_API_KEY`). Bypasses Tower session auth.
+- **APP CONDUCTOR Hub** (`app-conductor-hub.tsx`): Full management hub accessed from Welcome screen and Tower navbar.
 
 ## Project Structure
 ```
 client/                    # React frontend (Vite)
   src/
     components/            # UI components
-      ui/                  # shadcn/ui primitives (cleaned: only used ones remain)
-      viaje-mapa-modal.tsx # GPS route viewer (Google Maps, Strava-style)
+      ui/                  # shadcn/ui primitives
       mapa-geocercas-cencosud.tsx # Cencosud geofence map
-      carga-modal.tsx      # Fuel load modal
-      ficha-camion-modal.tsx # Truck detail modal
-      status-tag.tsx       # Status tag component
-      volvo-truck-modal.tsx # Volvo truck detail
     pages/                 # Active pages
-      flota.tsx            # Fleet overview (P90/P75/P50 tables, rankings)
-      viajes-tms.tsx       # Trip analysis (executive summary, daily/monthly, GPS route viewer)
-      combustible-tms.tsx  # Fuel management
+      flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
+      viajes-tms.tsx       # Trip analysis: executive summary, daily detail, rankings
+      cencosud.tsx         # Dedicated Cencosud TMS view
       operative-brain.tsx  # AI brain with multi-agent chat
-      cencosud.tsx         # Dedicated Cencosud TMS
-      anglo.tsx            # Anglo American Cargas Varias TMS
-      geovalidator.tsx     # Route validation and geofence management
+      conductores-panel.tsx # Conductores management
+      app-conductor-hub.tsx # Driver app management hub
       volvo.tsx            # Volvo Connect truck status and map
       camiones.tsx         # Individual truck view with faena filter
-      ranking-conductores.tsx # Driver performance ranking
       micro-cargas.tsx     # Suspicious micro-fuel-load detection
-      errores.tsx          # Data quality errors
-      geo-tabs/            # 6 geo sub-tab components
+      geovalidator.tsx     # Route validation and geofence management
+      geo-tabs/            # Geo sub-tab components
         mapa-en-vivo.tsx   # Live fleet map
         viajes-cerrados.tsx # Completed trips
         rutas-operacionales.tsx # Operational routes
-        acumulacion-tab.tsx # Accumulation analysis
-        analisis-ia-tab.tsx # AI route analysis
         estaciones-tab.tsx  # Fuel station monitoring
-        shared-components.tsx # Shared UI
         types.ts           # Shared types
     lib/                   # Frontend utilities, API clients
 server/                    # Express backend
-  agentes/                 # AI agent logic (Operations, Contracts, General Manager)
-  utils/                   # GPS filtering, VIN mapping, truck matching
+  agentes/                 # AI agent logic
+  utils/                   # GPS filtering, VIN mapping
   middleware/              # Express middleware
-    validate.ts            # Zod request validation (params, query, body)
-  *-routes.ts              # Domain-specific API routes (22 route files, all mounted)
-  t1-reconstructor.ts      # T-1 billing reconstruction
+  *-routes.ts              # Domain-specific API routes
   github-sync.ts           # Auto-push to GitHub every 10 min
-  scripts/                 # Standalone maintenance scripts
 shared/                    # Shared code
   schema.ts                # Drizzle DB schema + TypeScript types
 migrations/                # SQL migration files
@@ -84,33 +69,36 @@ migrations/                # SQL migration files
 ## App Navigation (Tower mode)
 | Tab | Component | Purpose |
 |-----|-----------|---------|
-| FLOTA | `Flota` (flota.tsx) | Fleet-wide performance, P90/P75/P50 tables, ranking, errors |
+| FLOTA | `Flota` (flota.tsx) | Fleet GPS en vivo + combustible sub-tabs |
 | VIAJES | `ViajesTMS` (viajes-tms.tsx) | Trip analysis: executive summary, daily detail, rankings |
 | CONTRATOS | Inline `ContratosUnificado` | Per-contract KPIs, routes, top/bottom trucks |
-| COMBUSTIBLE | `EstacionesTab` | Fuel stations, irregular loads, fraud detection |
+| COMBUSTIBLE | `EstacionesTab` | Fuel stations, ECU consumption monitoring |
 | CAMIONES | Inline `CamionesUnificado` | Individual truck search, monthly calendar |
 | CONTROL | Inline `ControlCenter` | Speed alerts, fuel deviations, route anomalies |
-| BRAIN | `OperativeBrain` | Executive summary: multi-contract KPIs, 7-day trend, billing T-1, agent panels |
-| SISTEMA | Inline `SistemaTab` | Sync status, Volvo matching, geocercas |
+| BRAIN | `OperativeBrain` | AI multi-agent chat and fleet diagnostics |
+| CONDUCTORES | `ConductoresPanel` | Driver management |
+| APP CONDUCTOR | `AppConductorHub` | Driver app management |
+| SISTEMA | Inline `SistemaTab` | Volvo Connect status, geocercas, motor aprendizaje |
+
+## Fleet Composition (72 trucks)
+| Faena | Camiones |
+|-------|----------|
+| CENCOSUD | 41 |
+| ANGLO-COCU | 14 |
+| ANGLO-CARGAS VARIAS | 12 |
+| ANGLO-CAL | 5 |
 
 ## Cencosud TMS — Trip Detection & Billing
 - **96 KML geocercas** imported to `cencosud_geocercas_kml`
 - **Point-in-polygon** (ray-casting) detection in `geocerca-inteligente.ts`
 - **10-minute dwell time** required to activate a geocerca
 - **Billing flow**: GPS → KML polygon → geocerca name → alias → tarifa → facturación
-- **T-1 Reconstructor** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from previous day GPS data. 100% tariff match. Runs at 05:00 daily.
+- **T-1 Reconstructor** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from previous day GPS data
 - **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min
-
-## Anglo American TMS — Cargas Varias (Componente Variable 28T)
-- **Contrato N° 4.22.0015.1**: Vigencia Mar 2023 - Jun 2027, 74 camiones
-- **Componente variable**: Tarifa por ruta OD a 28 toneladas. 35 rutas tarifadas clase VAR-28T
-- **Reajuste cuatrimestral** (Mar, Jul, Nov)
-- **Super Agente Anglo** (`super-agente-anglo.ts`): Mining-aware agent, runs every 30 min
 
 ## Background Processes
 - Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
 - Super Agente Cencosud (every 30 min) — billing intelligence + auto-alias
-- Super Agente Anglo (every 30 min) — mining-aware billing + cerro monitoring
 - Daily report at 06:00
 - Overnight reconciliation at 03:00
 - GitHub auto-push every 10 minutes
@@ -136,9 +124,4 @@ migrations/                # SQL migration files
 - Run: `node dist/index.cjs`
 
 ## Cleanup History
-- **April 2026 Audit**: Removed 61 dead prompt text files from attached_assets/, 6 orphan frontend files (validador-cruzado.tsx, not-found.tsx, camion-modal.tsx, faena-modal.tsx, kpi-card.tsx, splash-aprendizaje.tsx), 33 unused shadcn/ui components, 18+ unused npm packages (wouter, ws, memorystore, passport, passport-local, connect-pg-simple, date-fns, framer-motion, react-icons, next-themes, jspdf, jspdf-autotable, pdfkit, supercluster, tw-animate-css, zod-validation-error, @jridgewell/trace-mapping).
-- WiseTrack GPS fully removed (April 2026).
-- 27 orphaned frontend pages deleted previously.
-- Duplicate `client 2/` directory removed.
-- Leaflet fully removed. All maps use Google Maps (`@vis.gl/react-google-maps`).
-- **Sigetra fully removed** (April 2026): `sigetra-api.ts` and `sigetra-fusion.tsx` deleted. All imports/calls replaced with empty arrays or no-ops. `cruzarConSigetra()` returns 0. DB columns (`sigetra_cruzado`, `litros_cargados_sigetra`, etc.) preserved but no longer written to. Fusion endpoints return empty stubs. Only Volvo Connect + internal DB active.
+- **April 2026 Major Cleanup**: Removed Sigetra completely (API, components, all UI references). Removed WiseTrack GPS. Cleaned database from ~825 to 72 active Volvo-only trucks. Removed dead pages (ranking-conductores sub-tab, errores sub-tab, anglo.tsx, super-agente-anglo.ts). Updated all UI text from "581 camiones" to "72 camiones". Removed all Sigetra labels, matching panels, cuadratura sections, and comparison tables from SISTEMA tab. Leaflet fully removed — all maps use Google Maps.

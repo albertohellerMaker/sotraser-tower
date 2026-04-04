@@ -798,11 +798,6 @@ function CamionDetalle({ patente, onDayFilter, onPointHighlight, viajesDelDia, o
                     {data.acumulado.dias_volvo}d Volvo ECU
                   </span>
                 )}
-                {false && data.acumulado?.dias_sigetra > 0 && (
-                  <span className="font-exo text-xs px-1.5 py-0.5 rounded" style={{ background: "#ffcc0012", border: "1px solid #ffcc0025", color: "#ffcc00" }}>
-                    {data.acumulado.dias_sigetra}d Sigetra
-                  </span>
-                )}
               </div>
             </div>
           </div>

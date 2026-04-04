@@ -55,7 +55,7 @@ function RendimientoTable() {
     const cargas = t.cargas || [];
     const rendVals = cargas.map((c: any) => c.rendimiento).filter((r: any) => r > 0 && r <= 20);
     const rendProm = rendVals.length > 0 ? +(rendVals.reduce((a: number, b: number) => a + b, 0) / rendVals.length).toFixed(2) : 0;
-    return { patente: t.patenteReal || t.fleetNum, faena: t.faenaSigetra || "Sin faena", rend: rendProm, cargas: cargas.length };
+    return { patente: t.patenteReal || t.fleetNum, faena: t.faena || t.contrato || "Sin faena", rend: rendProm, cargas: cargas.length };
   }).filter((t: any) => t.cargas > 0).sort((a: any, b: any) => a.rend - b.rend);
 
   const allRend = trucks.map((t: any) => t.rend).filter((r: number) => r > 0).sort((a: number, b: number) => a - b);
