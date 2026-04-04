@@ -9,6 +9,17 @@ const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
 type Tab = "EN_VIVO" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
 
+function MapPanner({ lat, lng, zoom }: { lat: number | null; lng: number | null; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (map && lat != null && lng != null) {
+      map.panTo({ lat, lng });
+      map.setZoom(zoom);
+    }
+  }, [map, lat, lng, zoom]);
+  return null;
+}
+
 function MapeoInteractivo() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<any>(null);
@@ -337,6 +348,8 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
   const { data: plDia } = useQuery<any>({ queryKey: ["/api/cencosud/pl/dia", fecha], queryFn: () => fetch(`/api/cencosud/pl/dia?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
   const { data: enVivoData } = useQuery<any>({ queryKey: ["/api/cencosud/en-vivo"], queryFn: () => fetch("/api/cencosud/en-vivo").then(r => r.json()), refetchInterval: 30000, enabled: tab === "EN_VIVO" });
   const [seguir, setSeguir] = useState<string | null>(null);
+  const prevTab = useRef<Tab>("EN_VIVO");
+  useEffect(() => { if (prevTab.current === "EN_VIVO" && tab !== "EN_VIVO") setSeguir(null); prevTab.current = tab; }, [tab]);
   const { data: trailData } = useQuery<any>({ queryKey: ["/api/cencosud/en-vivo/trail", seguir], queryFn: () => fetch(`/api/cencosud/en-vivo/trail/${seguir}`).then(r => r.json()), refetchInterval: 30000, enabled: !!seguir && tab === "EN_VIVO" });
   const { data: errData } = useQuery<any>({ queryKey: ["/api/cencosud/err", fecha], queryFn: () => fetch(`/api/cencosud/err?fecha=${fecha}`).then(r => r.json()), staleTime: 60000, enabled: tab === "ERR" });
   const { data: viajesMes } = useQuery<any>({ queryKey: ["/api/cencosud/viajes-mes"], queryFn: () => fetch("/api/cencosud/viajes-mes").then(r => r.json()), staleTime: 120000, enabled: tab === "VIAJES" });
@@ -522,12 +535,13 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
               {/* RIGHT: Map */}
               <div className="flex-1 rounded-lg overflow-hidden relative" style={{ border: "1px solid #0d2035" }}>
                 <GMap
-                  defaultCenter={{ lat: selCam?.lat || -33.45, lng: selCam?.lng || -70.65 }}
-                  defaultZoom={selCam ? 10 : 6}
+                  defaultCenter={{ lat: -33.45, lng: -70.65 }}
+                  defaultZoom={6}
                   mapId="cencosud-en-vivo"
                   style={{ width: "100%", height: "100%" }}
                   gestureHandling="greedy"
                 >
+                  <MapPanner lat={selCam?.lat || null} lng={selCam?.lng || null} zoom={selCam ? 10 : 6} />
                   {/* Trucks en ruta */}
                   {ruta.map((cam: any) => (
                     <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(cam.patente)}>

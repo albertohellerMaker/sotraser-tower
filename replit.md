@@ -39,7 +39,7 @@ client/                    # React frontend (Vite)
       mapa-geocercas-cencosud.tsx # Cencosud geofence map
     pages/                 # Active pages
       flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
-      cencosud.tsx         # Dedicated Cencosud TMS view (P&L, viajes, tarifas, mapeo)
+      cencosud.tsx         # Dedicated Cencosud TMS view (EN VIVO real-time tracking, P&L, viajes, tarifas, mapeo)
       operative-brain.tsx  # AI brain with multi-agent chat
       conductores-panel.tsx # Conductores management
       app-conductor-hub.tsx # Driver app management hub
