@@ -292,7 +292,8 @@ export const superAgenteCencosud = {
             if (yaExiste.rows.length === 0) {
               await pool.query(
                 `INSERT INTO viajes_aprendizaje (camion_id, contrato, fecha_inicio, fecha_fin, origen_nombre, destino_nombre, origen_lat, origen_lng, destino_lat, destino_lng, km_ecu, trayecto_consolidado, segmento_ids)
-                 VALUES ($1, 'CENCOSUD', $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11)`,
+                 VALUES ($1, 'CENCOSUD', $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11)
+                 ON CONFLICT (camion_id, fecha_inicio) DO NOTHING`,
                 [cam.camion_id, first.fecha_inicio, lastFin.toISOString(),
                  `[TRAYECTO] ${cdOrigen}`, `[TRAYECTO] ${lastDestino}`,
                  first.olat, first.olng, trips[j-1]?.dlat || first.dlat, trips[j-1]?.dlng || first.dlng,

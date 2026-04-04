@@ -262,15 +262,7 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
         const viajes = buildViajesFromSnapshots(cam, snaps, sigetraByPatente.get(cam.patente) || [], geoByCamion.get(cam.id) || []);
 
         for (const viaje of viajes) {
-          const existing = await pool.query(`
-            SELECT id FROM viajes_aprendizaje 
-            WHERE camion_id = $1 AND fecha_inicio = $2
-            LIMIT 1
-          `, [cam.id, viaje.fechaInicio]);
-
-          if (existing.rows.length > 0) continue;
-
-          await pool.query(`
+          const result = await pool.query(`
             INSERT INTO viajes_aprendizaje (
               camion_id, vin, contrato, fecha_inicio, fecha_fin,
               origen_lat, origen_lng, origen_nombre,
@@ -290,6 +282,7 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
               $19, $20, $21,
               $22, $23, $24
             )
+            ON CONFLICT (camion_id, fecha_inicio) DO NOTHING
           `, [
             cam.id, cam.vin, viaje.contrato, viaje.fechaInicio, viaje.fechaFin,
             viaje.origenLat, viaje.origenLng, viaje.origenNombre,
@@ -301,7 +294,7 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
             viaje.velocidadPromedio, viaje.velocidadMaxima, "VOLVO_ECU",
           ]);
 
-          syncProgress.viajesCreados++;
+          if (result.rowCount && result.rowCount > 0) syncProgress.viajesCreados++;
         }
 
         syncProgress.procesados++;
@@ -669,8 +662,9 @@ function buildViajesFromSnapshots(
     const litrosEcu = (fuelE - fuelS) / 1000;
     const kmEcu = (distE - distS) / 1000;
     if (kmEcu < MIN_TRIP_KM || litrosEcu <= 0) return;
+    if (kmEcu > 1000) return;
     const rendimiento = kmEcu / litrosEcu;
-    if (rendimiento > 100) return;
+    if (rendimiento > 6 || rendimiento < 0.5) return;
     const fechaInicio = new Date(tripStart.captured_at);
     const fechaFin = new Date(tripEnd.captured_at);
     rawViajes.push({

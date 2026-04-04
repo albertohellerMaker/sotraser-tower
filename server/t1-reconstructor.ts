@@ -565,6 +565,15 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           km_ecu, duracion_minutos, conductor, paradas,
           fuente_viaje, estado, procesado_aprendizaje
         ) VALUES ($1, 'CENCOSUD', $2, $3, 0, 0, $4, 0, 0, $5, $6, $7, NULL, $8, 'T1_RECONSTRUCTOR', $9, true)
+        ON CONFLICT (camion_id, fecha_inicio) DO UPDATE SET
+          fecha_fin = EXCLUDED.fecha_fin,
+          origen_nombre = EXCLUDED.origen_nombre,
+          destino_nombre = EXCLUDED.destino_nombre,
+          km_ecu = EXCLUDED.km_ecu,
+          duracion_minutos = EXCLUDED.duracion_minutos,
+          paradas = EXCLUDED.paradas,
+          estado = EXCLUDED.estado,
+          fuente_viaje = EXCLUDED.fuente_viaje
       `, [
         v.camion_id, v.fecha_inicio, v.fecha_fin,
         v.origen, v.destino,
