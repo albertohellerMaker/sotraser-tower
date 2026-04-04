@@ -159,7 +159,8 @@ async function cargarGeocercas(): Promise<Geocerca[]> {
   }
 
   const conAlias = geocercas.filter(g => g.nombre_contrato).length;
-  console.log(`[T1] ${geocercas.length} geocercas cargadas (${kmlRows.rows.length} KML + ${opRows.rows.length - seen.size + kmlRows.rows.length} oper), ${conAlias} con alias contrato`);
+  const opUsadas = geocercas.length - kmlRows.rows.length;
+  console.log(`[T1] ${geocercas.length} geocercas cargadas (${kmlRows.rows.length} KML + ${opUsadas} oper), ${conAlias} con alias contrato`);
   return geocercas;
 }
 
