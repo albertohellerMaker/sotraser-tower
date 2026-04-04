@@ -430,6 +430,8 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           const isEnRuta = selCam && ruta.some((c: any) => c.patente === seguir);
           const origenObj = selCam?.origen;
           const destObj = selCam?.destino_probable;
+          const entregaObj = selCam?.entrega;
+          const fase = selCam?.fase;
 
           return (
             <div className="flex gap-3" style={{ height: "calc(100vh - 140px)" }}>
@@ -475,17 +477,35 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                             </div>
                             <span className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{cam.km_recorridos} km</span>
                           </div>
+                          {cam.fase && (
+                            <div className="flex items-center gap-1 mb-0.5 ml-5">
+                              <span className="font-space text-[7px] font-bold px-1.5 py-0.5 rounded" style={{
+                                background: cam.fase === "ida" ? "#a855f715" : "#00d4ff15",
+                                color: cam.fase === "ida" ? "#a855f7" : "#00d4ff",
+                                border: `1px solid ${cam.fase === "ida" ? "#a855f730" : "#00d4ff30"}`,
+                              }}>{cam.fase === "ida" ? "IDA" : cam.fase === "vuelta" ? "VUELTA" : "—"}</span>
+                            </div>
+                          )}
                           {cam.origen && (
                             <div className="flex items-center gap-1 mb-0.5 ml-5">
                               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#00d4ff", border: "1.5px solid #00d4ff80" }} />
-                              <span className="font-exo text-[9px] font-bold" style={{ color: "#00d4ff" }}>{cam.origen.nombre || cam.origen}</span>
+                              <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>CD:</span>
+                              <span className="font-exo text-[9px] font-bold" style={{ color: "#00d4ff" }}>{cam.origen.nombre}</span>
                               {cam.hora_salida && <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>{String(cam.hora_salida).substring(11, 16)}</span>}
+                            </div>
+                          )}
+                          {cam.entrega && (
+                            <div className="flex items-center gap-1 mb-0.5 ml-5">
+                              <Check className="w-2.5 h-2.5 flex-shrink-0" style={{ color: "#00ff88" }} />
+                              <span className="font-exo text-[9px] font-bold" style={{ color: "#00ff88" }}>{cam.entrega.nombre}</span>
+                              {cam.entrega.hora && <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>{String(cam.entrega.hora).substring(11, 16)}</span>}
                             </div>
                           )}
                           {cam.destino_probable && (
                             <div className="flex items-center gap-1 ml-5">
-                              <span className="w-2 h-2 flex-shrink-0" style={{ background: "#a855f7", clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }} />
-                              <span className="font-exo text-[9px] font-bold" style={{ color: "#a855f7" }}>{cam.destino_probable.nombre}</span>
+                              <Navigation className="w-2.5 h-2.5 flex-shrink-0" style={{ color: cam.fase === "vuelta" ? "#00d4ff" : "#a855f7" }} />
+                              <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>→</span>
+                              <span className="font-exo text-[9px] font-bold" style={{ color: cam.fase === "vuelta" ? "#00d4ff" : "#a855f7" }}>{cam.destino_probable.nombre}</span>
                               <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>~{cam.destino_probable.km_restante} km</span>
                             </div>
                           )}
@@ -558,15 +578,22 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                 >
                   <MapPanner lat={selCam?.lat || null} lng={selCam?.lng || null} zoom={selCam ? 10 : 6} />
 
-                  {/* Geocercas Cencosud — subtle diamonds */}
-                  {(!seguir) && geos.map((g: any) => (
-                    <AdvancedMarker key={`geo-${g.nombre}`} position={{ lat: g.lat, lng: g.lng }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                        <div style={{ width: 8, height: 8, background: "#00d4ff30", border: "1px solid #00d4ff50", transform: "rotate(45deg)" }} />
-                        <span style={{ fontSize: 7, color: "#00d4ff60", fontFamily: "Space Grotesk", fontWeight: 600, whiteSpace: "nowrap", textShadow: "0 0 3px #000" }}>{g.nombre}</span>
-                      </div>
-                    </AdvancedMarker>
-                  ))}
+                  {/* Geocercas Cencosud — CDs big, tiendas small */}
+                  {(!seguir) && geos.map((g: any) => {
+                    const esCD = g.tipo === "cd";
+                    return (
+                      <AdvancedMarker key={`geo-${g.nombre}`} position={{ lat: g.lat, lng: g.lng }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                          {esCD ? (
+                            <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#00d4ff40", border: "2px solid #00d4ff80" }} />
+                          ) : (
+                            <div style={{ width: 6, height: 6, background: "#a855f730", border: "1px solid #a855f750", transform: "rotate(45deg)" }} />
+                          )}
+                          <span style={{ fontSize: esCD ? 8 : 6, color: esCD ? "#00d4ff80" : "#a855f750", fontFamily: "Space Grotesk", fontWeight: 600, whiteSpace: "nowrap", textShadow: "0 0 3px #000" }}>{g.nombre}</span>
+                        </div>
+                      </AdvancedMarker>
+                    );
+                  })}
 
                   {/* Trucks en ruta */}
                   {ruta.map((cam: any) => {
@@ -642,21 +669,37 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                     </AdvancedMarker>
                   )}
 
-                  {/* Destination marker */}
+                  {/* Entrega marker — where truck delivered */}
+                  {seguir && isEnRuta && entregaObj && (
+                    <AdvancedMarker position={{ lat: entregaObj.lat, lng: entregaObj.lng }} zIndex={50}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <div style={{
+                          background: "#00ff88", border: "3px solid #fff", borderRadius: "50%",
+                          width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: "0 0 12px rgba(0,255,136,0.6), 0 2px 8px rgba(0,0,0,0.5)",
+                        }}><Check style={{ width: 14, height: 14, color: "#060d14", strokeWidth: 3 }} /></div>
+                        <div style={{ background: "rgba(6,13,20,0.9)", border: "1px solid #00ff8860", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 8, color: "#00ff88", fontWeight: 700, fontFamily: "Space Grotesk" }}>{entregaObj.nombre}</span>
+                        </div>
+                      </div>
+                    </AdvancedMarker>
+                  )}
+
+                  {/* Destination marker — purple for tienda (ida), blue for CD (vuelta) */}
                   {seguir && isEnRuta && destObj && (
                     <AdvancedMarker position={{ lat: destObj.lat, lng: destObj.lng }} zIndex={50}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                         <div style={{
-                          background: "#a855f7", border: "3px solid #fff", borderRadius: "50%",
+                          background: fase === "vuelta" ? "#00d4ff" : "#a855f7", border: "3px solid #fff", borderRadius: "50%",
                           width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 12, color: "#fff", fontWeight: 900, fontFamily: "Space Grotesk",
-                          boxShadow: "0 0 12px rgba(168,85,247,0.6), 0 2px 8px rgba(0,0,0,0.5)",
-                        }}>D</div>
+                          fontSize: 12, color: fase === "vuelta" ? "#060d14" : "#fff", fontWeight: 900, fontFamily: "Space Grotesk",
+                          boxShadow: `0 0 12px ${fase === "vuelta" ? "rgba(0,212,255,0.6)" : "rgba(168,85,247,0.6)"}, 0 2px 8px rgba(0,0,0,0.5)`,
+                        }}>{fase === "vuelta" ? "CD" : "D"}</div>
                         <div style={{
-                          background: "rgba(6,13,20,0.9)", border: "1px solid #a855f760", borderRadius: 4,
+                          background: "rgba(6,13,20,0.9)", border: `1px solid ${fase === "vuelta" ? "#00d4ff60" : "#a855f760"}`, borderRadius: 4,
                           padding: "2px 6px", whiteSpace: "nowrap",
                         }}>
-                          <span style={{ fontSize: 8, color: "#a855f7", fontWeight: 700, fontFamily: "Space Grotesk" }}>{destObj.nombre}</span>
+                          <span style={{ fontSize: 8, color: fase === "vuelta" ? "#00d4ff" : "#a855f7", fontWeight: 700, fontFamily: "Space Grotesk" }}>{destObj.nombre}</span>
                           <span style={{ fontSize: 7, color: "#5a8090", fontFamily: "Exo 2", marginLeft: 4 }}>~{destObj.km_restante} km</span>
                         </div>
                       </div>
@@ -688,22 +731,44 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                     </div>
 
                     {isEnRuta && (
-                      <div className="flex items-start gap-2 mb-2" style={{ marginLeft: 2 }}>
-                        <div className="flex flex-col items-center gap-0.5 pt-0.5">
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00d4ff", border: "1.5px solid #fff" }} />
-                          <div style={{ width: 1, height: 20, background: "linear-gradient(#00d4ff40, #a855f740)" }} />
-                          <div style={{ width: 8, height: 8, background: "#a855f7", clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)", border: "1.5px solid #fff" }} />
-                        </div>
-                        <div className="flex flex-col gap-1.5 flex-1">
-                          <div>
-                            <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>Origen</div>
-                            <div className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{origenObj?.nombre || "Desconocido"}</div>
-                            {selCam.hora_salida && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>Salió {String(selCam.hora_salida).substring(11, 16)}</div>}
+                      <div className="mb-2">
+                        {fase && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-space text-[8px] font-bold px-2 py-0.5 rounded" style={{
+                              background: fase === "ida" ? "#a855f720" : "#00d4ff20",
+                              color: fase === "ida" ? "#a855f7" : "#00d4ff",
+                              border: `1px solid ${fase === "ida" ? "#a855f740" : "#00d4ff40"}`,
+                            }}>{fase === "ida" ? "IDA → ENTREGA" : fase === "vuelta" ? "VUELTA → CD" : "EN RUTA"}</span>
                           </div>
-                          <div>
-                            <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>Destino probable</div>
-                            <div className="font-space text-[11px] font-bold" style={{ color: "#a855f7" }}>{destObj?.nombre || "—"}</div>
-                            {destObj && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>~{destObj.km_restante} km restantes</div>}
+                        )}
+                        <div className="flex items-start gap-2" style={{ marginLeft: 2 }}>
+                          <div className="flex flex-col items-center gap-0.5 pt-0.5">
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00d4ff", border: "1.5px solid #fff" }} />
+                            {entregaObj && <>
+                              <div style={{ width: 1, height: 16, background: "#00d4ff40" }} />
+                              <Check style={{ width: 10, height: 10, color: "#00ff88" }} />
+                            </>}
+                            <div style={{ width: 1, height: 16, background: fase === "vuelta" ? "#00d4ff40" : "#a855f740" }} />
+                            <div style={{ width: 8, height: 8, background: fase === "vuelta" ? "#00d4ff" : "#a855f7", clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }} />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <div>
+                              <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>CD Origen</div>
+                              <div className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{origenObj?.nombre || "Desconocido"}</div>
+                              {selCam.hora_salida && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>Salió {String(selCam.hora_salida).substring(11, 16)}</div>}
+                            </div>
+                            {entregaObj && (
+                              <div>
+                                <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>Entregó en</div>
+                                <div className="font-space text-[11px] font-bold" style={{ color: "#00ff88" }}>{entregaObj.nombre}</div>
+                                {entregaObj.hora && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>{String(entregaObj.hora).substring(11, 16)}</div>}
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>{fase === "vuelta" ? "Volviendo a" : "Destino probable"}</div>
+                              <div className="font-space text-[11px] font-bold" style={{ color: fase === "vuelta" ? "#00d4ff" : "#a855f7" }}>{destObj?.nombre || "—"}</div>
+                              {destObj && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>~{destObj.km_restante} km</div>}
+                            </div>
                           </div>
                         </div>
                       </div>

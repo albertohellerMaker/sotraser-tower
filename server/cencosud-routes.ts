@@ -758,6 +758,21 @@ router.get("/en-vivo", async (req, res) => {
     const ahora = new Date();
     const hoyStr = ahora.toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
 
+    const TRANSITO_PATTERNS = [
+      'peaje', 'copec', 'descanso', 'pesaje', 'hosteria', 'estacionamiento',
+      'watts', 'prolesur', 'kaufman', 'embonor', 'blue express', 'tiltil',
+      'sotraser', 'bodegas san francisco',
+    ];
+
+    function isCD(nombre: string): boolean {
+      const n = nombre.toLowerCase();
+      return n.startsWith('cd ') || n.includes('centro de distribución') || n.includes('centro de transferencia');
+    }
+    function isTransito(nombre: string): boolean {
+      const n = nombre.toLowerCase();
+      return TRANSITO_PATTERNS.some(p => n.includes(p));
+    }
+
     const [camionesRes, geocercasRes, aliasRes] = await Promise.all([
       pool.query(`
         SELECT u.patente, u.lat, u.lng, u.velocidad, u.rumbo, u.timestamp_gps,
@@ -784,13 +799,20 @@ router.get("/en-vivo", async (req, res) => {
       aliasMap.set(a.geocerca_nombre.toLowerCase(), a.nombre_contrato);
     }
 
-    const geocercas = (geocercasRes.rows as any[]).map(g => ({
-      nombre: g.nombre,
-      nombre_contrato: aliasMap.get(g.nombre.toLowerCase()) || g.nombre,
-      lat: parseFloat(g.lat),
-      lng: parseFloat(g.lng),
-      poligono: g.poligono && Array.isArray(g.poligono) && g.poligono.length >= 3 ? g.poligono : null,
-    }));
+    const geocercas = (geocercasRes.rows as any[]).map(g => {
+      const nc = aliasMap.get(g.nombre.toLowerCase()) || g.nombre;
+      return {
+        nombre: g.nombre,
+        nombre_contrato: nc,
+        lat: parseFloat(g.lat),
+        lng: parseFloat(g.lng),
+        poligono: g.poligono && Array.isArray(g.poligono) && g.poligono.length >= 3 ? g.poligono : null,
+        tipo: isCD(nc) ? "cd" as const : isTransito(nc) ? "transito" as const : "tienda" as const,
+      };
+    });
+
+    const cds = geocercas.filter(g => g.tipo === "cd");
+    const tiendas = geocercas.filter(g => g.tipo === "tienda");
 
     function pipCheck(lat: number, lng: number, poligono: [number, number][]): boolean {
       let inside = false;
@@ -813,10 +835,43 @@ router.get("/en-vivo", async (req, res) => {
       }
       return null;
     }
+    function findNearestOfType(lat: number, lng: number, list: typeof geocercas, exclude?: string) {
+      let best = null;
+      let bestDist = Infinity;
+      const seen = new Set<string>();
+      for (const g of list) {
+        const nc = g.nombre_contrato;
+        if (seen.has(nc)) continue;
+        seen.add(nc);
+        if (exclude && nc === exclude) continue;
+        const d = hav(lat, lng, g.lat, g.lng);
+        if (d < bestDist) { bestDist = d; best = g; }
+      }
+      return best ? { geo: best, dist: Math.round(bestDist) } : null;
+    }
 
     const enRuta: any[] = [];
     const enCD: any[] = [];
     const sinGps: any[] = [];
+
+    const allPatentes = (camionesRes.rows as any[]).filter(c => {
+      const ts = new Date(c.timestamp_gps);
+      return (ahora.getTime() - ts.getTime()) / 60000 <= 120;
+    }).map(c => c.patente);
+
+    let gpsBulk = new Map<string, any[]>();
+    if (allPatentes.length > 0) {
+      const gpsRes = await pool.query(`
+        SELECT patente, lat, lng, timestamp_gps, velocidad
+        FROM gps_unificado
+        WHERE patente = ANY($1) AND DATE(timestamp_gps) = $2
+        ORDER BY patente, timestamp_gps ASC
+      `, [allPatentes, hoyStr]);
+      for (const row of gpsRes.rows as any[]) {
+        if (!gpsBulk.has(row.patente)) gpsBulk.set(row.patente, []);
+        gpsBulk.get(row.patente)!.push(row);
+      }
+    }
 
     for (const cam of camionesRes.rows as any[]) {
       const lat = parseFloat(cam.lat);
@@ -837,39 +892,41 @@ router.get("/en-vivo", async (req, res) => {
 
       const geoActual = findGeocerca(lat, lng);
 
-      if (geoActual) {
+      if (geoActual && geoActual.tipo !== "transito") {
         enCD.push({
           patente: cam.patente,
           lat, lng,
           velocidad: parseFloat(cam.velocidad || 0),
           geocerca: geoActual.nombre_contrato || geoActual.nombre,
+          tipo_geocerca: geoActual.tipo,
           timestamp_gps: cam.timestamp_gps,
           conductor: cam.conductor,
           odometro: cam.odometro ? parseFloat(cam.odometro) : null,
         });
       } else {
-        const gpsHoyRes = await pool.query(`
-          SELECT lat, lng, timestamp_gps, velocidad
-          FROM gps_unificado
-          WHERE patente = $1 AND DATE(timestamp_gps) = $2
-          ORDER BY timestamp_gps ASC
-          LIMIT 500
-        `, [cam.patente, hoyStr]);
-
-        let origenGeo = null;
-        let horaSalida = null;
+        const puntos = gpsBulk.get(cam.patente) || [];
+        let ultimoCD: typeof geocercas[0] | null = null;
+        let horaSalidaCD: string | null = null;
+        let ultimaTienda: typeof geocercas[0] | null = null;
+        let horaTienda: string | null = null;
         let kmRecorridos = 0;
 
-        const puntos = gpsHoyRes.rows as any[];
         for (let i = 0; i < puntos.length; i++) {
           const pLat = parseFloat(puntos[i].lat);
           const pLng = parseFloat(puntos[i].lng);
           const geo = findGeocerca(pLat, pLng);
-          if (geo && geo.nombre_contrato) {
-            origenGeo = geo;
-            horaSalida = null;
-          } else if (origenGeo && !horaSalida) {
-            horaSalida = puntos[i].timestamp_gps;
+          if (geo) {
+            if (geo.tipo === "cd") {
+              ultimoCD = geo;
+              horaSalidaCD = null;
+              ultimaTienda = null;
+              horaTienda = null;
+            } else if (geo.tipo === "tienda") {
+              ultimaTienda = geo;
+              horaTienda = puntos[i].timestamp_gps;
+            }
+          } else if (ultimoCD && !horaSalidaCD) {
+            horaSalidaCD = puntos[i].timestamp_gps;
           }
           if (i > 0) {
             const d = hav(parseFloat(puntos[i - 1].lat), parseFloat(puntos[i - 1].lng), pLat, pLng);
@@ -877,13 +934,38 @@ router.get("/en-vivo", async (req, res) => {
           }
         }
 
-        let destinoProb = null;
-        let distMinDest = Infinity;
-        for (const g of geocercas) {
-          if (!g.nombre_contrato) continue;
-          if (origenGeo && g.nombre === origenGeo.nombre) continue;
-          const d = hav(lat, lng, g.lat, g.lng);
-          if (d < distMinDest) { distMinDest = d; destinoProb = g; }
+        let fase: "ida" | "vuelta" | "desconocido" = "desconocido";
+        let destino: { nombre: string; lat: number; lng: number; km_restante: number } | null = null;
+
+        if (ultimoCD) {
+          if (ultimaTienda) {
+            fase = "vuelta";
+            destino = {
+              nombre: ultimoCD.nombre_contrato || ultimoCD.nombre,
+              lat: ultimoCD.lat, lng: ultimoCD.lng,
+              km_restante: Math.round(hav(lat, lng, ultimoCD.lat, ultimoCD.lng)),
+            };
+          } else {
+            fase = "ida";
+            const nearest = findNearestOfType(lat, lng, tiendas);
+            if (nearest) {
+              destino = {
+                nombre: nearest.geo.nombre_contrato || nearest.geo.nombre,
+                lat: nearest.geo.lat, lng: nearest.geo.lng,
+                km_restante: nearest.dist,
+              };
+            }
+          }
+        } else {
+          const nearCD = findNearestOfType(lat, lng, cds);
+          if (nearCD) {
+            fase = "vuelta";
+            destino = {
+              nombre: nearCD.geo.nombre_contrato || nearCD.geo.nombre,
+              lat: nearCD.geo.lat, lng: nearCD.geo.lng,
+              km_restante: nearCD.dist,
+            };
+          }
         }
 
         enRuta.push({
@@ -894,28 +976,34 @@ router.get("/en-vivo", async (req, res) => {
           timestamp_gps: cam.timestamp_gps,
           conductor: cam.conductor,
           odometro: cam.odometro ? parseFloat(cam.odometro) : null,
-          origen: origenGeo ? {
-            nombre: origenGeo.nombre_contrato || origenGeo.nombre,
-            lat: origenGeo.lat,
-            lng: origenGeo.lng,
+          fase,
+          origen: ultimoCD ? {
+            nombre: ultimoCD.nombre_contrato || ultimoCD.nombre,
+            lat: ultimoCD.lat, lng: ultimoCD.lng,
           } : null,
-          hora_salida: horaSalida,
+          hora_salida: horaSalidaCD,
           km_recorridos: Math.round(kmRecorridos),
-          destino_probable: destinoProb ? {
-            nombre: destinoProb.nombre_contrato || destinoProb.nombre,
-            km_restante: Math.round(distMinDest),
-            lat: destinoProb.lat,
-            lng: destinoProb.lng,
+          entrega: ultimaTienda ? {
+            nombre: ultimaTienda.nombre_contrato || ultimaTienda.nombre,
+            lat: ultimaTienda.lat, lng: ultimaTienda.lng,
+            hora: horaTienda,
           } : null,
+          destino_probable: destino,
         });
       }
     }
 
     enRuta.sort((a, b) => (b.km_recorridos || 0) - (a.km_recorridos || 0));
 
-    const geocercasMap = geocercas
-      .filter(g => g.nombre_contrato)
-      .map(g => ({ nombre: g.nombre_contrato || g.nombre, lat: g.lat, lng: g.lng }));
+    const geocercasMap: any[] = [];
+    const seenGeo = new Set<string>();
+    for (const g of geocercas) {
+      if (g.tipo === "transito") continue;
+      const nc = g.nombre_contrato || g.nombre;
+      if (seenGeo.has(nc)) continue;
+      seenGeo.add(nc);
+      geocercasMap.push({ nombre: nc, lat: g.lat, lng: g.lng, tipo: g.tipo });
+    }
 
     res.json({
       timestamp: ahora.toISOString(),
