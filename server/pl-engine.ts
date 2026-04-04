@@ -22,9 +22,12 @@ async function getParametros(): Promise<Parametros> {
 export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesados: number; conTarifa: number; sinTarifa: number }> {
   const params = await getParametros();
 
-  const whereDate = filtroFecha
-    ? `AND DATE(va.fecha_inicio) = '${filtroFecha}'`
-    : "";
+  const queryParams: string[] = [];
+  let whereDate = "";
+  if (filtroFecha) {
+    queryParams.push(filtroFecha);
+    whereDate = `AND DATE(va.fecha_inicio) = $1`;
+  }
 
   const viajes = await pool.query(`
     SELECT va.id, va.km_ecu::float as km, va.litros_consumidos_ecu::float as litros,
@@ -38,7 +41,7 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
     WHERE va.contrato = 'CENCOSUD'
       AND va.km_ecu > 0
       ${whereDate}
-  `);
+  `, queryParams);
 
   const tarifas = await pool.query(`
     SELECT id, origen, destino, tarifa::int as tarifa, clase, lote

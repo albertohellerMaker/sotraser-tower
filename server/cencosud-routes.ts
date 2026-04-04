@@ -651,6 +651,8 @@ router.post("/mapear-viaje", async (req, res) => {
       viajes_afectados: viajesAfectados.rows[0].total,
       ruta: `${origen_contrato} → ${destino_contrato}`,
     });
+
+    calcularPLViajes().catch(err => console.error("[MAPEO] P&L recalc error:", err.message));
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

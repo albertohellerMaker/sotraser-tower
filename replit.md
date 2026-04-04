@@ -95,6 +95,14 @@ migrations/                # SQL migration files
 - **Billing flow**: GPS → KML polygon → geocerca name → alias → tarifa → facturación
 - **T-1 Reconstructor** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from previous day GPS data
 - **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min
+- **P&L Engine** (`pl-engine.ts`): Per-trip cost/revenue/margin calculation
+  - `calcularPLViajes()`: Backfills all trips with cost_diesel, cost_cvm, ingreso_tarifa, margen_bruto
+  - `calcularPLResumenDiario(fecha)`: Daily P&L aggregation
+  - `calcularPLResumenMes(YYYY-MM)`: Monthly P&L aggregation
+  - Auto-runs after T-1 reconstruction and after interactive geocerca mapping
+  - **Parameters** (`cencosud_parametros` table): precio_diesel=1110, cvm_km=450, costo_conductor_dia=45000, costo_fijo_dia=35000
+  - **P&L columns** on `viajes_aprendizaje`: costo_diesel, costo_cvm, costo_total, ingreso_tarifa, margen_bruto, tarifa_id, tarifa_clase
+  - **API endpoints**: GET `/api/cencosud/pl/mes?mes=YYYY-MM`, GET `/api/cencosud/pl/dia?fecha=YYYY-MM-DD`, POST `/api/cencosud/pl/calcular`
 
 ## Background Processes
 - Multi-agent AI: Operations + General Manager (every 15 min), Contracts (every 1 hour)
