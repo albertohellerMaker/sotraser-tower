@@ -484,10 +484,19 @@ FACTURACIÓN MES:
 - Ingreso tarifado: $${Math.round(fac.ingreso).toLocaleString()}
 - ${alias.total} alias (${alias.confirmados} confirmados) | ${tarifaData.rows[0].total} rutas tarifadas
 
+LÓGICA TMS ROUND-TRIP (cómo se cierran viajes):
+- Un viaje SIEMPRE empieza en un CD (Centro de Distribución) y termina cuando el camión vuelve a un CD
+- Ruta típica: CD → Tienda(s) → CD. El destino facturable es la tienda.
+- Todo lo intermedio (Copec, peajes, zonas de descanso, incluso otro CD de paso) son PARADAS — no cambian el viaje
+- El viaje solo se cierra cuando el camión llega a un CD y se queda (dwell >= 15 min)
+- Geocercas clasificadas: 7 CDs, ~50 tiendas, 22 tránsito (ignoradas)
+- El T-1 reconstruye viajes del día anterior a las 5am, detectando CD salida → tienda entrega → CD llegada
+
 CAPACIDADES DEL AGENTE:
 1. Auto-alias GPS: mapea geocercas sin alias a ciudades del contrato usando proximidad GPS (30km)
 2. Consolidación de trayectos: une segmentos CD→A→B→C en ruta facturable CD→C
 3. Aprendizaje: cada ciclo mejora el mapeo automáticamente
+4. P&L por viaje: diesel + CVM/km + conductor + costos fijos, cruzado con tarifa
 
 Responde en español, max 200 palabras, con datos reales. Siempre piensa en cómo ganar más facturación.`,
         messages: [...hist.rows.reverse().map((h: any) => ({ role: h.rol === "CEO" ? "user" as const : "assistant" as const, content: h.mensaje })), { role: "user" as const, content: mensaje }],

@@ -558,6 +558,13 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
       for (const v of viajes) {
         const tarifaFinal = buscarTarifaFlexible(v.origen, v.destino, tarifas);
 
+        const origenVisita = visitas.find(vis =>
+          vis.geocerca_nombre === v.origen_geo && vis.salida.getTime() === v.fecha_inicio.getTime()
+        );
+        const destinoVisita = visitas.find(vis =>
+          vis.geocerca_nombre === v.destino_geo && vis.llegada.getTime() === v.fecha_fin.getTime()
+        );
+
         allInserts.push({
           camion_id: cam.camion_id,
           fecha_inicio: v.fecha_inicio,
@@ -566,6 +573,10 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           destino: v.destino,
           origen_geo: v.origen_geo,
           destino_geo: v.destino_geo,
+          origen_lat: origenVisita?.lat || 0,
+          origen_lng: origenVisita?.lng || 0,
+          destino_lat: destinoVisita?.lat || 0,
+          destino_lng: destinoVisita?.lng || 0,
           km: v.km_estimado,
           duracion: v.duracion_min,
           es_round_trip: v.es_round_trip,
@@ -604,11 +615,15 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           destino_lat, destino_lng, destino_nombre,
           km_ecu, duracion_minutos, conductor, paradas,
           fuente_viaje, estado, procesado_aprendizaje
-        ) VALUES ($1, 'CENCOSUD', $2, $3, 0, 0, $4, 0, 0, $5, $6, $7, NULL, $8, 'T1_RECONSTRUCTOR', $9, true)
+        ) VALUES ($1, 'CENCOSUD', $2, $3, $10, $11, $4, $12, $13, $5, $6, $7, NULL, $8, 'T1_RECONSTRUCTOR', $9, true)
         ON CONFLICT (camion_id, fecha_inicio) DO UPDATE SET
           fecha_fin = EXCLUDED.fecha_fin,
           origen_nombre = EXCLUDED.origen_nombre,
           destino_nombre = EXCLUDED.destino_nombre,
+          origen_lat = EXCLUDED.origen_lat,
+          origen_lng = EXCLUDED.origen_lng,
+          destino_lat = EXCLUDED.destino_lat,
+          destino_lng = EXCLUDED.destino_lng,
           km_ecu = EXCLUDED.km_ecu,
           duracion_minutos = EXCLUDED.duracion_minutos,
           paradas = EXCLUDED.paradas,
@@ -627,6 +642,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           destino_geocerca: v.destino_geo,
         }),
         v.tarifa ? 'FACTURADO' : 'PENDIENTE',
+        v.origen_lat, v.origen_lng,
+        v.destino_lat, v.destino_lng,
       ]);
     }
 

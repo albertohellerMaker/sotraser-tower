@@ -68,7 +68,10 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
 
     const costoDiesel = Math.round(litros * params.precio_diesel);
     const costoCvm = Math.round(km * params.cvm_km);
-    const costoTotal = costoDiesel + costoCvm;
+    const horas = (v.dur || 0) / 60;
+    const costoConductor = Math.round(params.costo_conductor_dia * (horas / 24));
+    const costoFijo = Math.round(params.costo_fijo_dia * (horas / 24));
+    const costoTotal = costoDiesel + costoCvm + costoConductor + costoFijo;
 
     const origenC = v.origen_c || null;
     const destinoC = v.destino_c || null;
