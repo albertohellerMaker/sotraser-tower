@@ -193,8 +193,8 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
 
   const { viaje: v, puntos, corredor } = data;
   const hasGps = puntos.length >= 2;
-  const hasOriginDest = v.olat && v.olng && v.dlat && v.dlng;
-  const hasCorredor = corredor && corredor.olat && corredor.dlat;
+  const hasOriginDest = v.olat != null && v.olng != null && v.dlat != null && v.dlng != null;
+  const hasCorredor = corredor != null && corredor.olat != null && corredor.dlat != null && corredor.olng != null && corredor.dlng != null;
 
   const segments = useMemo(() => {
     if (!hasGps) return [];
@@ -225,7 +225,7 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
       const midIdx = Math.floor(puntos.length / 2);
       return { lat: puntos[midIdx].lat, lng: puntos[midIdx].lng };
     }
-    if (v.olat && v.dlat) return { lat: (v.olat + v.dlat) / 2, lng: (v.olng + v.dlng) / 2 };
+    if (v.olat != null && v.dlat != null) return { lat: (v.olat + v.dlat) / 2, lng: (v.olng + v.dlng) / 2 };
     return { lat: -33.45, lng: -70.65 };
   }, [data]);
 
