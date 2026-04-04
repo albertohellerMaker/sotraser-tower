@@ -886,7 +886,9 @@ router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req
         ROUND(va.rendimiento_real::numeric, 2) as rendimiento,
         va.duracion_minutos as duracion,
         ROUND(va.velocidad_promedio::numeric, 1) as vel_prom,
-        ROUND(va.velocidad_maxima::numeric, 1) as vel_max
+        ROUND(va.velocidad_maxima::numeric, 1) as vel_max,
+        va.corredor_id, va.estado, va.score_anomalia,
+        va.procesado_aprendizaje
       FROM viajes_aprendizaje va
       JOIN camiones c ON c.id = va.camion_id
       WHERE va.id = $1
@@ -898,16 +900,27 @@ router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req
 
     const v = viaje.rows[0];
 
-    const puntos = await pool.query(`
-      SELECT lat::float, lng::float, timestamp_punto as ts,
-        velocidad_kmh::float as vel, rumbo_grados::float as rumbo
-      FROM geo_puntos
-      WHERE camion_id = $1
-        AND timestamp_punto >= $2
-        AND timestamp_punto <= $3
-      ORDER BY timestamp_punto ASC
-      LIMIT 10000
-    `, [v.camion_id, v.fecha_inicio, v.fecha_fin]);
+    const [puntos, corredorResult] = await Promise.all([
+      pool.query(`
+        SELECT lat::float, lng::float, timestamp_punto as ts,
+          velocidad_kmh::float as vel, rumbo_grados::float as rumbo
+        FROM geo_puntos
+        WHERE camion_id = $1
+          AND timestamp_punto >= $2
+          AND timestamp_punto <= $3
+        ORDER BY timestamp_punto ASC
+        LIMIT 10000
+      `, [v.camion_id, v.fecha_inicio, v.fecha_fin]),
+      v.corredor_id ? pool.query(`
+        SELECT nombre, origen_nombre, destino_nombre,
+          origen_lat::float as olat, origen_lng::float as olng,
+          destino_lat::float as dlat, destino_lng::float as dlng,
+          ROUND(km_promedio::numeric, 1) as km_promedio,
+          ROUND(rendimiento_promedio::numeric, 2) as rendimiento_promedio,
+          duracion_promedio_min
+        FROM corredores WHERE id = $1
+      `, [v.corredor_id]) : Promise.resolve({ rows: [] }),
+    ]);
 
     let puntosGps = puntos.rows;
 
@@ -922,10 +935,40 @@ router.get("/viaje-gps/:viajeId", validate({ params: ViajeIdParam }), async (req
       viaje: v,
       puntos: puntosGps,
       total_puntos: puntosGps.length,
+      corredor: corredorResult.rows[0] || null,
     });
   } catch (e: any) {
     console.error("[VIAJE-GPS] Error:", e.message);
     res.status(500).json({ error: "Error interno al obtener ruta GPS" });
+  }
+});
+
+const ValidarViajeBody = z.object({
+  decision: z.enum(["APROBADO", "RECHAZADO"]),
+  motivo: z.string().optional(),
+});
+
+router.post("/viaje-validar/:viajeId", validate({ params: ViajeIdParam, body: ValidarViajeBody }), async (req, res) => {
+  try {
+    const viajeId = parseInt(String(req.params.viajeId));
+    const { decision, motivo } = req.body;
+
+    const result = await pool.query(`
+      UPDATE viajes_aprendizaje
+      SET estado = $2, procesado_aprendizaje = true
+      WHERE id = $1
+      RETURNING id, estado
+    `, [viajeId, decision]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Viaje no encontrado" });
+    }
+
+    console.log(`[VIAJE-VALIDAR] Viaje #${viajeId} → ${decision}${motivo ? ` (${motivo})` : ""}`);
+    res.json({ ok: true, viaje: result.rows[0] });
+  } catch (e: any) {
+    console.error("[VIAJE-VALIDAR] Error:", e.message);
+    res.status(500).json({ error: "Error al validar viaje" });
   }
 });
 
