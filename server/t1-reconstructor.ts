@@ -4,10 +4,7 @@ import { sql } from "drizzle-orm";
 const MIN_DWELL_CD = 15;
 const MIN_DWELL_OTHER = 10;
 const MIN_TRIP_KM = 30;
-const RADIO_CD_KM = 0.2;
-const RADIO_CITY_KM = 0.2;
-const RADIO_PARADA_KM = 0.2;
-const RADIO_BASE_KM = 0.2;
+const RADIO_FALLBACK_KM = 0.15;
 
 function ayerChile(): string {
   const d = new Date();
@@ -28,7 +25,7 @@ interface Geocerca {
   nombre_contrato: string | null;
   lat: number;
   lng: number;
-  radio_km: number;
+  poligono: [number, number][] | null;
   tipo: "CD" | "BASE" | "PARADA" | "DESTINO";
 }
 
@@ -80,9 +77,29 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function puntoEnPoligono(lat: number, lng: number, poligono: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+    const yi = poligono[i][0], xi = poligono[i][1];
+    const yj = poligono[j][0], xj = poligono[j][1];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function puntoEnGeocerca(lat: number, lng: number, geo: Geocerca): boolean {
+  if (geo.poligono && geo.poligono.length >= 3) {
+    return puntoEnPoligono(lat, lng, geo.poligono);
+  }
+  return haversineKm(lat, lng, geo.lat, geo.lng) < RADIO_FALLBACK_KM;
+}
+
 async function cargarGeocercas(): Promise<Geocerca[]> {
   const kmlRows = await pool.query(`
-    SELECT nombre, lat, lng FROM cencosud_geocercas_kml WHERE lat IS NOT NULL AND lat != 0
+    SELECT nombre, lat, lng, poligono FROM cencosud_geocercas_kml 
+    WHERE lat IS NOT NULL AND lat != 0
   `);
 
   const opRows = await pool.query(`
@@ -106,6 +123,7 @@ async function cargarGeocercas(): Promise<Geocerca[]> {
 
   const seen = new Set<string>();
   const geocercas: Geocerca[] = [];
+  let kmlConPoligono = 0;
 
   for (const row of kmlRows.rows as any[]) {
     const key = row.nombre.toLowerCase();
@@ -118,17 +136,22 @@ async function cargarGeocercas(): Promise<Geocerca[]> {
     const esBase = basesSOTRASER.has(key);
 
     let tipo: Geocerca["tipo"] = "DESTINO";
-    let radio = RADIO_CITY_KM;
-    if (esCD) { tipo = "CD"; radio = RADIO_CD_KM; }
-    else if (esBase) { tipo = "BASE"; radio = RADIO_BASE_KM; }
-    else if (esParada) { tipo = "PARADA"; radio = RADIO_PARADA_KM; }
+    if (esCD) tipo = "CD";
+    else if (esBase) tipo = "BASE";
+    else if (esParada) tipo = "PARADA";
+
+    let poligono: [number, number][] | null = null;
+    if (row.poligono && Array.isArray(row.poligono) && row.poligono.length >= 3) {
+      poligono = row.poligono as [number, number][];
+      kmlConPoligono++;
+    }
 
     geocercas.push({
       nombre: row.nombre,
       nombre_contrato: aliasMap.get(key) || null,
       lat: parseFloat(row.lat),
       lng: parseFloat(row.lng),
-      radio_km: radio,
+      poligono,
       tipo,
     });
   }
@@ -143,24 +166,23 @@ async function cargarGeocercas(): Promise<Geocerca[]> {
     const esBase = basesSOTRASER.has(key);
 
     let tipo: Geocerca["tipo"] = "DESTINO";
-    let radio = RADIO_CITY_KM;
-    if (esCD) { tipo = "CD"; radio = RADIO_CD_KM; }
-    else if (esBase) { tipo = "BASE"; radio = RADIO_BASE_KM; }
-    else if (esParada) { tipo = "PARADA"; radio = RADIO_PARADA_KM; }
+    if (esCD) tipo = "CD";
+    else if (esBase) tipo = "BASE";
+    else if (esParada) tipo = "PARADA";
 
     geocercas.push({
       nombre: row.nombre,
       nombre_contrato: aliasMap.get(key) || null,
       lat: parseFloat(row.lat),
       lng: parseFloat(row.lng),
-      radio_km: radio,
+      poligono: null,
       tipo,
     });
   }
 
   const conAlias = geocercas.filter(g => g.nombre_contrato).length;
   const opUsadas = geocercas.length - kmlRows.rows.length;
-  console.log(`[T1] ${geocercas.length} geocercas cargadas (${kmlRows.rows.length} KML + ${opUsadas} oper), ${conAlias} con alias contrato`);
+  console.log(`[T1] ${geocercas.length} geocercas (${kmlConPoligono} con polígono KML, ${opUsadas} oper con radio fallback), ${conAlias} con alias`);
   return geocercas;
 }
 
@@ -175,10 +197,12 @@ function identificarVisitas(puntos: GpsPoint[], geocercas: Geocerca[]): Visita[]
     let distMin = Infinity;
 
     for (const g of geocercas) {
-      const d = haversineKm(p.lat, p.lng, g.lat, g.lng);
-      if (d < g.radio_km && d < distMin) {
-        distMin = d;
-        geocercaCercana = g;
+      if (puntoEnGeocerca(p.lat, p.lng, g)) {
+        const d = haversineKm(p.lat, p.lng, g.lat, g.lng);
+        if (d < distMin) {
+          distMin = d;
+          geocercaCercana = g;
+        }
       }
     }
 
