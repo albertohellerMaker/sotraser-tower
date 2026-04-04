@@ -4,18 +4,16 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import OperativeBrain from "@/pages/operative-brain";
-import ViajesTMS from "@/pages/viajes-tms";
-import EstacionesTab from "@/pages/geo-tabs/estaciones-tab";
 import CencosudView from "@/pages/cencosud";
 
 import Flota from "@/pages/flota";
 import ConductoresPanel from "@/pages/conductores-panel";
 import AppConductorHub from "@/pages/app-conductor-hub";
-import { Map as MapIcon, Truck, Fuel, Brain, AlertTriangle, BarChart3, Settings, Loader2, MapPin, X, Users, Smartphone } from "lucide-react";
-import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { Map as MapIcon, Truck, Brain, Settings, Loader2, MapPin, X, Users, Smartphone } from "lucide-react";
+import { APIProvider } from "@vis.gl/react-google-maps";
 
 // ── Navigation Context ──
-type MainTab = "flota" | "viajes" | "contratos" | "combustible" | "camiones" | "control" | "brain" | "conductores" | "app-conductor" | "sistema" | "foco";
+type MainTab = "flota" | "camiones" | "brain" | "conductores" | "app-conductor" | "sistema";
 
 interface NavContext {
   tab: MainTab;
@@ -85,433 +83,15 @@ function LiveClock() {
 // ── Tab definitions ──
 const MAIN_TABS: { id: MainTab; label: string; icon: typeof MapIcon; color: string }[] = [
   { id: "flota", label: "FLOTA", icon: MapIcon, color: "#00d4ff" },
-  { id: "viajes", label: "VIAJES", icon: Truck, color: "#00ff88" },
-  { id: "contratos", label: "CONTRATOS", icon: BarChart3, color: "#a855f7" },
-  { id: "combustible", label: "COMBUSTIBLE", icon: Fuel, color: "#ff6b35" },
   { id: "camiones", label: "CAMIONES", icon: Truck, color: "#06b6d4" },
-  { id: "control", label: "CONTROL", icon: AlertTriangle, color: "#ff2244" },
   { id: "brain", label: "BRAIN", icon: Brain, color: "#a855f7" },
   { id: "conductores", label: "CONDUCTORES", icon: Users, color: "#06b6d4" },
   { id: "app-conductor", label: "APP CONDUCTOR", icon: Smartphone, color: "#a855f7" },
   { id: "sistema", label: "SISTEMA", icon: Settings, color: "#3a6080" },
 ];
 
-// ── Contratos Unificado ──
-function ContratosUnificado() {
-  const { navigateTo } = useNavigation();
-  const { data } = useQuery<any>({ queryKey: ["/api/viajes-tms/contratos-resumen"], queryFn: () => fetch("/api/viajes-tms/contratos-resumen").then(r => r.json()), staleTime: 5 * 60000 });
-  const [sel, setSel] = useState<string | null>(null);
-  const [selRuta, setSelRuta] = useState<{ origen: string; destino: string } | null>(null);
-  const { data: det } = useQuery<any>({ queryKey: ["/api/viajes-tms/contratos-detalle", sel], queryFn: () => fetch(`/api/viajes-tms/contratos-detalle/${encodeURIComponent(sel!)}`).then(r => r.json()), enabled: !!sel, staleTime: 5 * 60000 });
-  const { data: circuitosData } = useQuery<any>({ queryKey: ["/api/viajes-tms/circuitos-contrato", sel], queryFn: () => fetch(`/api/viajes-tms/circuitos-contrato/${encodeURIComponent(sel!)}`).then(r => r.json()), enabled: !!sel, staleTime: 5 * 60000 });
-  const { data: contDet } = useQuery<any>({ queryKey: ["/api/viajes-tms/contrato-detalle", sel], queryFn: () => fetch(`/api/viajes-tms/contrato-detalle/${encodeURIComponent(sel!)}`).then(r => r.json()), enabled: !!sel, staleTime: 5 * 60000 });
-
-  const contratos = data?.contratos || [];
-  const conGps = contratos.filter((c: any) => parseInt(c.viajes || 0) > 0);
-  const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
-
-  // Vista dedicada Cencosud
-  if (sel?.toUpperCase() === "CENCOSUD") return <CencosudView onBack={() => setSel(null)} />;
-  const CC = (c: string) => { if (!c) return "#3a6080"; const u = c.toUpperCase(); if (u.includes("CENCOSUD")) return "#00d4ff"; if (u.includes("MININCO")) return "#84cc16"; if (u.includes("SAN JORGE")) return "#fbbf24"; if (u.includes("GLENCORE")) return "#ff6b35"; if (u.includes("INDURA")) return "#a78bfa"; if (u.includes("BLUEX")) return "#f472b6"; if (u.includes("ESTANQUE")) return "#06b6d4"; if (u.includes("WALMART")) return "#00d4ff"; const h = c.split("").reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0); return ["#a855f7","#06b6d4","#f97316","#84cc16","#ec4899","#14b8a6"][h % 6]; };
-  const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
-  const circuitos = circuitosData?.circuitos || [];
-  const totalCircuitos = circuitosData?.total_circuitos || 0;
-
-  const kG = { cam: contratos.reduce((s: number, c: any) => s + parseInt(c.camiones || 0), 0), km: contratos.reduce((s: number, c: any) => s + parseFloat(c.km_mes || 0), 0), vj: contratos.reduce((s: number, c: any) => s + parseInt(c.viajes || 0), 0) };
-
-  return (
-    <div style={{ background: "#020508" }}>
-      {/* ═══ CONTRACT SELECTOR ═══ */}
-      <div className="flex items-center gap-0 border-b overflow-x-auto" style={{ borderColor: "#0d2035" }}>
-        <button onClick={() => setSel(null)} className="px-4 py-2.5 font-space text-[9px] font-bold tracking-wider cursor-pointer flex-shrink-0"
-          style={{ color: !sel ? "#a855f7" : "#3a6080", borderBottom: !sel ? "2px solid #a855f7" : "2px solid transparent", background: !sel ? "#a855f708" : "transparent" }}>TODOS</button>
-        {conGps.map((c: any) => (
-          <button key={c.contrato} onClick={() => { setSel(c.contrato); setSelRuta(null); }} className="px-3 py-2.5 font-space text-[9px] font-bold tracking-wider cursor-pointer flex-shrink-0"
-            style={{ color: sel === c.contrato ? CC(c.contrato) : "#3a6080", borderBottom: sel === c.contrato ? `2px solid ${CC(c.contrato)}` : "2px solid transparent", background: sel === c.contrato ? `${CC(c.contrato)}08` : "transparent" }}>
-            {c.contrato.substring(0, 12)} <span className="ml-1 opacity-60">{c.viajes}</span>
-          </button>
-        ))}
-      </div>
-
-      {!sel ? (
-        /* ═══ VISTA TODOS: Grid de contratos ═══ */
-        <div className="p-4">
-          <div className="grid grid-cols-4 gap-3 mb-4">
-            {[{ l: "CONTRATOS", v: conGps.length, c: "#a855f7" }, { l: "CAMIONES", v: kG.cam, c: "#00d4ff" }, { l: "KM MES", v: fN(kG.km), c: "#00ff88" }, { l: "VIAJES", v: fN(kG.vj), c: "#c8e8ff" }].map(k => (
-              <div key={k.l} className="px-4 py-3 text-center" style={{ background: "#060d14", borderTop: `3px solid ${k.c}`, borderRadius: 8 }}>
-                <div className="font-space text-[24px] font-bold" style={{ color: k.c }}>{k.v}</div>
-                <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
-              </div>
-            ))}
-          </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-            {conGps.map((c: any) => {
-              const color = CC(c.contrato); const rend = parseFloat(c.km_l || 0); const diasMes = new Date().getDate(); const pct = diasMes > 0 ? Math.min(100, Math.round((parseInt(c.dias_activos || 0) / diasMes) * 100)) : 0;
-              return (
-                <button key={c.contrato} onClick={() => { setSel(c.contrato); setSelRuta(null); }} className="text-left p-4 cursor-pointer transition-all hover:scale-[1.01]"
-                  style={{ background: "#060d14", border: `1px solid ${color}20`, borderTop: `3px solid ${color}`, borderRadius: 8 }}>
-                  <div className="flex items-start justify-between mb-3">
-                    <div><div className="font-space text-[12px] font-bold" style={{ color }}>{c.contrato}</div><div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{c.camiones} camiones</div></div>
-                    <span className="font-space text-[14px] font-bold" style={{ color: RC(rend) }}>{rend > 0 ? rend.toFixed(2) : "--"}<span className="text-[8px] ml-0.5" style={{ color: "#3a6080" }}>km/L</span></span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mb-2">
-                    <div><div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>KM</div><div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{fN(parseFloat(c.km_mes || 0))}</div></div>
-                    <div><div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>VIAJES</div><div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{c.viajes}</div></div>
-                    <div><div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>ACTIV.</div><div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{pct}%</div></div>
-                  </div>
-                  <div className="h-1.5 w-full" style={{ background: "#0d2035", borderRadius: 3 }}><div className="h-full" style={{ width: `${pct}%`, background: color, borderRadius: 3, opacity: 0.7 }} /></div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        /* ═══ VISTA CONTRATO: TMS Layout ═══ */
-        <div style={{ height: "calc(100vh - 115px)" }}>
-          {/* KPIs del contrato */}
-          {contDet?.kpis && (
-            <div className="grid grid-cols-8 gap-0 border-b" style={{ borderColor: "#0d2035" }}>
-              {[
-                { l: "CAMIONES", v: contDet.kpis.camiones, c: CC(sel) },
-                { l: "VIAJES", v: fN(contDet.kpis.viajes), c: "#c8e8ff" },
-                { l: "KM TOTAL", v: fN(parseFloat(contDet.kpis.km_total || 0)), c: "#a855f7" },
-                { l: "KM/L ECU", v: contDet.kpis.rend_promedio || "--", c: RC(parseFloat(contDet.kpis.rend_promedio || 0)) },
-                { l: "HORAS", v: fN(parseFloat(contDet.kpis.horas_total || 0)), c: "#c8e8ff" },
-                { l: "DÍAS", v: `${contDet.kpis.dias_activos}/${contDet.kpis.dias_mes}`, c: "#c8e8ff" },
-                { l: "DOBLE CHECK", v: contDet.kpis.doble_validados || 0, c: "#00ffcc" },
-                { l: "CONDUCTOR", v: `${Math.round((contDet.kpis.con_conductor || 0) / Math.max(contDet.kpis.viajes, 1) * 100)}%`, c: "#c8e8ff" },
-              ].map(k => (
-                <div key={k.l} className="px-3 py-2.5 text-center" style={{ background: "#060d14", borderRight: "1px solid #0d2035" }}>
-                  <div className="font-space text-[16px] font-bold" style={{ color: k.c }}>{k.v}</div>
-                  <div className="font-exo text-[6px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 3 columnas: Rutas | Detalle | Camiones */}
-          <div className="flex" style={{ height: "calc(100% - 55px)" }}>
-            {/* COL 1: Circuitos (viajes agrupados por camion+dia) */}
-            <div className="w-[35%] overflow-auto border-r" style={{ borderColor: "#0d2035" }}>
-              <div className="px-3 py-2 sticky top-0 z-10" style={{ background: "#0a1520", borderBottom: "1px solid #0d2035" }}>
-                <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: "#3a6080" }}>CIRCUITOS · {circuitos.length} rutas · {totalCircuitos} viajes/día</span>
-              </div>
-              {circuitos.map((circ: any, i: number) => {
-                const activa = selRuta?.origen === circ.origen && selRuta?.destino === circ.destino;
-                return (
-                  <div key={i} onClick={() => setSelRuta(activa ? null : { origen: circ.origen || "?", destino: circ.destino || "?" })}
-                    className="px-3 py-2.5 cursor-pointer transition-all hover:bg-[rgba(255,255,255,0.02)] border-b" style={{ borderColor: "#0a1520", background: activa ? "#00d4ff06" : "transparent", borderLeft: activa ? "3px solid #00d4ff" : "3px solid transparent" }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-exo text-[9px] font-bold" style={{ color: activa ? "#00d4ff" : "#c8e8ff" }}>{(circ.origen || "?").substring(0, 25)}</span>
-                      <span className="font-space text-[11px] font-bold" style={{ color: RC(circ.rend_promedio) }}>{circ.rend_promedio || "--"}</span>
-                    </div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>→</span>
-                      <span className="font-exo text-[9px]" style={{ color: "#5a8090" }}>{(circ.destino || "?").substring(0, 25)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{circ.total}x · {circ.camiones}cam · {circ.km_promedio}km prom</span>
-                      <span className="font-exo text-[8px] font-bold" style={{ color: CC(sel || "") }}>{totalCircuitos > 0 ? Math.round(circ.total / totalCircuitos * 100) : 0}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-              {circuitos.length === 0 && <div className="text-center py-8 font-exo text-[10px]" style={{ color: "#3a6080" }}>Cargando circuitos...</div>}
-            </div>
-
-            {/* COL 2: Detalle circuito seleccionado */}
-            <div className="w-[35%] overflow-auto border-r" style={{ borderColor: "#0d2035" }}>
-              {!selRuta ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center"><MapPin className="w-8 h-8 mx-auto mb-2" style={{ color: "#0d2035" }} /><div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Selecciona un circuito para ver detalle</div></div>
-                </div>
-              ) : (() => {
-                const circ = circuitos.find((c: any) => c.origen === selRuta.origen && c.destino === selRuta.destino);
-                if (!circ) return <div className="text-center py-8 font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin datos</div>;
-                return (
-                  <>
-                    <div className="px-3 py-2 sticky top-0 z-10 flex items-center justify-between" style={{ background: "#0a1520", borderBottom: "1px solid #0d2035" }}>
-                      <div>
-                        <div className="font-exo text-[9px] font-bold" style={{ color: "#00d4ff" }}>{selRuta.origen} → {selRuta.destino}</div>
-                        <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{circ.total}x este mes · {circ.camiones} camiones · {circ.km_promedio}km prom</div>
-                      </div>
-                      <button onClick={() => setSelRuta(null)} className="cursor-pointer"><X className="w-3 h-3" style={{ color: "#3a6080" }} /></button>
-                    </div>
-                    {/* Viajes del circuito */}
-                    <div className="px-3 py-1.5" style={{ background: "#060d14", borderBottom: "1px solid #0d2035" }}>
-                      <span className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#3a6080" }}>DETALLE POR DÍA</span>
-                    </div>
-                    {circ.viajes.map((v: any, i: number) => (
-                      <div key={i} className="px-3 py-2.5 border-b" style={{ borderColor: "#0a1520" }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{v.patente}</span>
-                            <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{v.fecha}</span>
-                          </div>
-                          <span className="font-space text-[12px] font-bold" style={{ color: RC(parseFloat(v.rend_promedio || 0)) }}>{v.rend_promedio || "--"} km/L</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{v.km_total}km · {v.paradas} paradas · {v.horas_total}h</span>
-                          {v.vel_max > 105 && <span className="font-exo text-[8px] font-bold" style={{ color: "#ff2244" }}>{v.vel_max}km/h</span>}
-                        </div>
-                        {v.hora_salida && <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>{v.hora_salida?.substring(11, 16)} → {v.hora_llegada?.substring(11, 16)} · {v.conductor?.split(",")[0] || ""}</div>}
-                      </div>
-                    ))}
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* COL 3: Camiones del contrato */}
-            <div className="w-[30%] overflow-auto">
-              <div className="px-3 py-2 sticky top-0 z-10" style={{ background: "#0a1520", borderBottom: "1px solid #0d2035" }}>
-                <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: "#3a6080" }}>CAMIONES · {det?.camiones?.length || 0}</span>
-              </div>
-              {(det?.camiones || []).map((cam: any, i: number) => {
-                const rend = parseFloat(cam.rend_promedio || 0); const pct = Math.min(100, (rend / 4.5) * 100);
-                return (
-                  <div key={cam.patente} className="flex items-center gap-2 px-3 py-2 border-b transition-all hover:bg-[rgba(255,255,255,0.02)]" style={{ borderColor: "#0a1520" }}>
-                    <span className="font-space text-[11px] font-bold w-16" style={{ color: "#c8e8ff" }}>{cam.patente}</span>
-                    <div className="flex-1 h-1.5" style={{ background: "#0d2035", borderRadius: 2 }}><div className="h-full" style={{ width: `${pct}%`, background: RC(rend), borderRadius: 2 }} /></div>
-                    <span className="font-space text-[11px] font-bold w-10 text-right" style={{ color: RC(rend) }}>{rend > 0 ? rend.toFixed(2) : "--"}</span>
-                    <span className="font-exo text-[8px] w-8 text-right" style={{ color: "#3a6080" }}>{cam.viajes}v</span>
-                    <span className="text-[9px] w-4">{cam.estado === "OK" ? "✅" : cam.estado === "CRITICO" ? "🔴" : "⚠️"}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Control Center (alerts + speed + fuel deviations) ──
-function MiniMapaGoogle({ lat, lng, titulo, velocidad }: { lat?: number; lng?: number; titulo: string; velocidad?: number }) {
-  if (!lat || !lng) return <div className="flex items-center justify-center" style={{ height: 200, background: "#0a1520", borderRadius: 6 }}><span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin ubicación GPS</span></div>;
-  return (
-    <div style={{ height: 220, borderRadius: 6, overflow: "hidden", border: "1px solid #0d2035" }}>
-      <GMap defaultCenter={{ lat, lng }} defaultZoom={13} mapId="sotraser-alert" style={{ height: "100%", width: "100%" }} disableDefaultUI gestureHandling="greedy">
-        <AdvancedMarker position={{ lat, lng }}>
-          <div style={{ width: 24, height: 24, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", boxShadow: "0 0 12px #ff2244", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: "bold" }}>!</div>
-        </AdvancedMarker>
-      </GMap>
-    </div>
-  );
-}
-
-function ControlCenter({ onFocoAlerta }: { onFocoAlerta?: (a: any) => void }) {
-  const { navigateTo, setTab } = useNavigation();
-  const [subTab, setSubTab] = useState<"resumen" | "velocidad" | "combustible" | "historial">("resumen");
-  const [selAlerta, setSelAlerta] = useState<any>(null);
-  const { data: ubicAlerta } = useQuery<any>({ queryKey: ["/api/control/ubicacion-alerta", selAlerta?.patente, selAlerta?.tipo], queryFn: () => fetch(`/api/control/ubicacion-alerta?patente=${selAlerta.patente}&tipo=${selAlerta.tipo}`).then(r => r.json()), enabled: !!selAlerta });
-  const { data: alertas } = useQuery<any[]>({ queryKey: ["/api/cerebro/camiones-alerta"], queryFn: () => fetch("/api/cerebro/camiones-alerta").then(r => r.json()), refetchInterval: 60000 });
-  const { data: irregularidades } = useQuery<any>({ queryKey: ["/api/estaciones/irregularidades"], queryFn: () => fetch("/api/estaciones/irregularidades?dias=30").then(r => r.json()), staleTime: 5 * 60000 });
-  const { data: anomalias } = useQuery<any>({ queryKey: ["/api/brain/anomalias-macro"], queryFn: () => fetch("/api/brain/anomalias-macro").then(r => r.json()), staleTime: 10 * 60000 });
-
-  const excesos = alertas?.filter((a: any) => a.tipo === "VELOCIDAD") || [];
-  const sinGps = alertas?.filter((a: any) => a.tipo === "SIN_GPS") || [];
-  const irregResumen = irregularidades?.resumen || {};
-  const anomaliasArr = anomalias?.anomalias || anomalias || [];
-
-  const SUB_TABS = [
-    { id: "resumen", label: "RESUMEN", count: (excesos.length + (irregResumen.total || 0) + (Array.isArray(anomaliasArr) ? anomaliasArr.length : 0)) },
-    { id: "velocidad", label: "VELOCIDAD", count: excesos.length },
-    { id: "combustible", label: "COMBUSTIBLE", count: irregResumen.total || 0 },
-    { id: "historial", label: "HISTORIAL", count: 0 },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {/* KPIs */}
-      <div className="grid grid-cols-5 gap-3">
-        {[
-          { label: "EXCESO\nVELOCIDAD", value: excesos.length, color: "#ff2244" },
-          { label: "DESVIACIÓN\nCOMBUSTIBLE", value: irregResumen.total || 0, color: "#ff6b35" },
-          { label: "RUTA\nANÓMALA", value: Array.isArray(anomaliasArr) ? anomaliasArr.length : 0, color: "#ffcc00" },
-          { label: "SIN GPS\n>2 HORAS", value: sinGps.length, color: "#3a6080" },
-          { label: "TOTAL\nALERTAS", value: (excesos.length + (irregResumen.total || 0) + sinGps.length), color: "#ff2244" },
-        ].map(k => (
-          <div key={k.label} className="px-3 py-3 text-center" style={{ background: "#060d14", border: "1px solid #0d2035", borderTop: `2px solid ${k.color}` }}>
-            <div className="font-space text-[24px] font-bold" style={{ color: k.color }}>{k.value}</div>
-            <div className="font-exo text-[7px] tracking-wider uppercase whitespace-pre-line" style={{ color: "#3a6080" }}>{k.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex gap-1">
-        {SUB_TABS.map(t => (
-          <button key={t.id} onClick={() => setSubTab(t.id as any)}
-            className="px-4 py-2 font-exo text-[10px] font-bold tracking-wider cursor-pointer transition-all"
-            style={{ background: subTab === t.id ? "#ff224415" : "transparent", border: `1px solid ${subTab === t.id ? "#ff224440" : "#0d2035"}`, borderTop: subTab === t.id ? "2px solid #ff2244" : "2px solid transparent", color: subTab === t.id ? "#ff2244" : "#3a6080" }}>
-            {t.label} {t.count > 0 && <span className="ml-1 px-1.5 py-0.5 text-[8px]" style={{ background: "#ff224420", borderRadius: 3 }}>{t.count}</span>}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      {subTab === "resumen" && (
-        <div className="space-y-2">
-          {excesos.slice(0, 5).map((a: any, i: number) => (
-            <div key={`vel-${i}`} onClick={() => setSelAlerta({ ...a, tipo: "VELOCIDAD" })} className="flex items-center justify-between px-4 py-3 cursor-pointer transition-all hover:bg-[rgba(255,255,255,0.02)]" style={{ background: "#060d14", border: "1px solid #0d2035", borderLeft: "3px solid #ff2244", borderRadius: "0 6px 6px 0" }}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-exo text-[8px] px-1.5 py-0.5 font-bold" style={{ color: "#ff2244", background: "#ff224415", borderRadius: 3 }}>VELOCIDAD</span>
-                  <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</span>
-                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{a.contrato}</span>
-                </div>
-                <div className="font-exo text-[10px] mt-1" style={{ color: "#c8e8ff" }}>{a.descripcion}</div>
-                {a.conductor && <div className="font-exo text-[9px] mt-0.5" style={{ color: "#3a6080" }}>Conductor: {a.conductor}</div>}
-              </div>
-              <span className="font-space text-[16px] font-bold" style={{ color: "#ff2244" }}>{a.dato}</span>
-            </div>
-          ))}
-          {Array.isArray(anomaliasArr) && anomaliasArr.slice(0, 3).map((a: any, i: number) => (
-            <div key={`anom-${i}`} className="flex items-center justify-between px-4 py-3" style={{ background: "#060d14", border: "1px solid #0d2035", borderLeft: "3px solid #ffcc00", borderRadius: "0 6px 6px 0" }}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-exo text-[8px] px-1.5 py-0.5 font-bold" style={{ color: "#ffcc00", background: "#ffcc0015", borderRadius: 3 }}>{a.tipo === "RUTA_ANOMALA" ? "RUTA" : "VELOCIDAD"}</span>
-                  <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</span>
-                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{a.contrato}</span>
-                </div>
-                <div className="font-exo text-[10px] mt-1" style={{ color: "#c8e8ff" }}>
-                  {a.detalle?.destino_habitual && `Habitual: ${a.detalle.destino_habitual} → Hoy: ${a.detalle.destino_actual}`}
-                  {a.detalle?.vel_hoy && `Velocidad hoy: ${a.detalle.vel_hoy}km/h vs histórico ${a.detalle.vel_historica}km/h (${a.detalle.diff_pct}%)`}
-                </div>
-              </div>
-              <button onClick={() => navigateTo("camiones", a.patente)} className="px-2 py-1 font-exo text-[8px] cursor-pointer" style={{ color: "#ffcc00", border: "1px solid #ffcc0030", borderRadius: 3 }}>VER FICHA</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {subTab === "velocidad" && (
-        <div className="space-y-2">
-          {excesos.length === 0 && <div className="text-center py-8 font-exo text-[11px]" style={{ color: "#3a6080" }}>Sin excesos de velocidad hoy</div>}
-          {excesos.map((a: any, i: number) => (
-            <div key={i} onClick={() => setSelAlerta({ ...a, tipo: "VELOCIDAD" })} className="flex items-center justify-between px-4 py-3 cursor-pointer transition-all hover:bg-[rgba(255,255,255,0.02)]" style={{ background: "#060d14", border: "1px solid #0d2035", borderLeft: "3px solid #ff2244", borderRadius: "0 6px 6px 0" }}>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-space text-[13px] font-bold" style={{ color: "#ff2244" }}>{a.dato}</span>
-                  <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</span>
-                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{a.contrato}</span>
-                </div>
-                <div className="font-exo text-[10px] mt-1" style={{ color: "#c8e8ff" }}>{a.descripcion}</div>
-                {a.conductor && <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Conductor: {a.conductor}</div>}
-              </div>
-              <span className="font-space text-[18px] font-bold" style={{ color: "#ff2244" }}>{a.dato}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {subTab === "combustible" && (
-        <div className="space-y-2">
-          {!irregularidades && <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto" style={{ color: "#3a6080" }} /></div>}
-          {irregularidades && Object.entries(irregularidades.irregularidades || {}).map(([tipo, items]: [string, any]) => (
-            Array.isArray(items) && items.slice(0, 5).map((ir: any, i: number) => (
-              <div key={`${tipo}-${i}`} className="flex items-center justify-between px-4 py-3" style={{ background: "#060d14", border: "1px solid #0d2035", borderLeft: "3px solid #ff6b35", borderRadius: "0 6px 6px 0" }}>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-exo text-[8px] px-1.5 py-0.5 font-bold" style={{ color: "#ff6b35", background: "#ff6b3515", borderRadius: 3 }}>{tipo.toUpperCase().replace(/_/g, " ")}</span>
-                    <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{ir.patente}</span>
-                  </div>
-                  <div className="font-exo text-[10px] mt-1" style={{ color: "#c8e8ff" }}>
-                    {ir.km_ant && `km: ${Math.round(ir.km_ant)} → ${Math.round(ir.km_act)}`}
-                    {ir.litros && ` · ${ir.litros}lt`}
-                    {ir.estacion && ` · ${ir.estacion}`}
-                  </div>
-                </div>
-                <button onClick={() => navigateTo("camiones", ir.patente)} className="px-2 py-1 font-exo text-[8px] cursor-pointer" style={{ color: "#06b6d4", border: "1px solid #06b6d430", borderRadius: 3 }}>FICHA</button>
-              </div>
-            ))
-          ))}
-        </div>
-      )}
-
-      {subTab === "historial" && (
-        <div className="text-center py-12 font-exo text-[11px]" style={{ color: "#3a6080" }}>
-          Historial de alertas gestionadas — próximamente
-        </div>
-      )}
-
-      {/* Panel detalle alerta */}
-      {selAlerta && (
-        <div className="fixed inset-0 z-[100] flex">
-          <div className="flex-1" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setSelAlerta(null)} />
-          <div className="w-[400px] overflow-y-auto" style={{ background: "#060d14", borderLeft: "1px solid #0d2035" }}>
-            <div className="px-4 py-3 flex items-center justify-between sticky top-0 z-10" style={{ background: "#060d14", borderBottom: "1px solid #0d2035" }}>
-              <div className="flex items-center gap-2">
-                <span className="font-exo text-[8px] font-bold px-2 py-1" style={{ color: "#ff2244", background: "#ff224415", borderRadius: 4 }}>{selAlerta.tipo}</span>
-                <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{selAlerta.patente}</span>
-              </div>
-              <button onClick={() => setSelAlerta(null)} className="cursor-pointer"><X className="w-4 h-4" style={{ color: "#3a6080" }} /></button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              {/* Mini mapa Google */}
-              <MiniMapaGoogle lat={ubicAlerta?.lat} lng={ubicAlerta?.lng} titulo={selAlerta.patente} velocidad={selAlerta.tipo === "VELOCIDAD" ? parseFloat(selAlerta.dato) : undefined} />
-
-              {/* Detalle */}
-              <div className="space-y-2">
-                {selAlerta.tipo === "VELOCIDAD" && (
-                  <>
-                    <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                      <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Velocidad máxima</span>
-                      <span className="font-space text-[14px] font-bold" style={{ color: "#ff2244" }}>{selAlerta.dato}</span>
-                    </div>
-                    <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                      <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Límite</span>
-                      <span className="font-space text-[11px]" style={{ color: "#c8e8ff" }}>105 km/h</span>
-                    </div>
-                    {ubicAlerta?.velocidad && (
-                      <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                        <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Exceso</span>
-                        <span className="font-space text-[11px] font-bold" style={{ color: "#ff2244" }}>+{Math.round(ubicAlerta.velocidad - 105)} km/h</span>
-                      </div>
-                    )}
-                    {ubicAlerta?.hora && (
-                      <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                        <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Hora</span>
-                        <span className="font-exo text-[10px]" style={{ color: "#c8e8ff" }}>{ubicAlerta.hora.substring(0, 19)}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Contrato</span>
-                  <span className="font-exo text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{selAlerta.contrato}</span>
-                </div>
-                {selAlerta.conductor && (
-                  <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                    <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Conductor</span>
-                    <span className="font-exo text-[10px]" style={{ color: "#c8e8ff" }}>{selAlerta.conductor}</span>
-                  </div>
-                )}
-                {ubicAlerta?.lat && (
-                  <div className="flex justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 4 }}>
-                    <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Coordenadas</span>
-                    <a href={`https://www.google.com/maps?q=${ubicAlerta.lat},${ubicAlerta.lng}`} target="_blank" rel="noopener" className="font-space text-[10px]" style={{ color: "#00d4ff" }}>{ubicAlerta.lat.toFixed(4)}, {ubicAlerta.lng.toFixed(4)}</a>
-                  </div>
-                )}
-              </div>
-
-              {/* Acciones */}
-              <div className="flex gap-2 pt-2" style={{ borderTop: "1px solid #0d2035" }}>
-                <button onClick={() => { onFocoAlerta?.({ ...selAlerta, lat: ubicAlerta?.lat, lng: ubicAlerta?.lng, velocidad: ubicAlerta?.velocidad, hora: ubicAlerta?.hora }); setSelAlerta(null); setTab("foco"); }}
-                  className="flex-1 py-2.5 font-exo text-[10px] font-bold cursor-pointer text-center" style={{ color: "#fff", background: "#ff2244", borderRadius: 6 }}>VER EN MAPA</button>
-                <button onClick={() => { navigateTo("camiones", selAlerta.patente); setSelAlerta(null); }}
-                  className="flex-1 py-2.5 font-exo text-[10px] font-bold cursor-pointer text-center" style={{ color: "#06b6d4", border: "1px solid #06b6d430", borderRadius: 6 }}>VER FICHA</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ── (ContratosUnificado removed — Cencosud has its own dedicated view) ──
+// ── (ControlCenter removed — fuel deviations required Sigetra) ──
 
 // ── Sistema ──
 function SistemaTab() {
@@ -702,12 +282,10 @@ function SistemaTab() {
             <div className="grid grid-cols-4 gap-2">
               {[
                 { tab: "FLOTA", desc: "Mapa en vivo 72 camiones, estado, posición, velocidad" },
-                { tab: "VIAJES", desc: "Viajes por día/mes, ranking km/L, alertas rendimiento" },
-                { tab: "CONTRATOS", desc: "KPIs por faena, tendencias, top/bottom camiones" },
-                { tab: "COMBUSTIBLE", desc: "Consumo ECU Volvo, estaciones, irregularidades" },
                 { tab: "CAMIONES", desc: "Ficha completa: calendario, rendimiento, conductores" },
-                { tab: "CONTROL", desc: "Alertas velocidad, desviaciones combustible, rutas anómalas" },
                 { tab: "BRAIN", desc: "Chat IA con datos reales, predicciones, anomalías macro" },
+                { tab: "CONDUCTORES", desc: "Gestión de conductores, asignación, historial" },
+                { tab: "APP CONDUCTOR", desc: "Hub del conductor, GPS, cámara, paradas" },
                 { tab: "SISTEMA", desc: "Esta página - estado syncs, motor aprendizaje, geocercas" },
               ].map(t => (
                 <div key={t.tab} className="p-2" style={{ background: "#0a1520", borderRadius: 4 }}>
@@ -1108,7 +686,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor }: { onTower: (
           <div className="text-[32px] mb-3">🗼</div>
           <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>TOWER</div>
           <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Control Operacional</div>
-          {["GPS en tiempo real · 72 camiones Volvo", "Viajes, contratos y rendimiento", "Alertas y control de flota"].map(item => (
+          {["GPS en tiempo real · 72 camiones Volvo", "Ficha técnica por camión + calendario", "Conductores · Geocercas · Sistema"].map(item => (
             <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#5a8090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#00d4ff" }} />{item}</div>
           ))}
           <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
@@ -1155,11 +733,8 @@ function AppShell() {
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
   const [selectedContrato, setSelectedContrato] = useState<string | null>(null);
-  const [focoAlerta, setFocoAlerta] = useState<any>(null);
 
   const { data: kpiData } = useQuery<any>({ queryKey: ["/api/cerebro/estado-general"], refetchInterval: 120000 });
-  const { data: alertas } = useQuery<any[]>({ queryKey: ["/api/cerebro/camiones-alerta"], refetchInterval: 120000 });
-  const alertCount = useMemo(() => alertas?.filter((a: any) => a.severidad === "ALTA" || a.severidad === "CRITICA").length || 0, [alertas]);
 
   const navigateTo = (t: MainTab, patente?: string, contrato?: string) => {
     if (patente) setSelectedPatente(patente);
@@ -1211,11 +786,6 @@ function AppShell() {
                 <>
                   <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{kpiData.camiones_activos} activos</span>
                   <span className="font-space text-[10px]" style={{ color: kpiData.rendimiento_promedio >= 2.85 ? "#00ff88" : "#ffcc00" }}>{kpiData.rendimiento_promedio} km/L</span>
-                  {alertCount > 0 && (
-                    <span className="font-space text-[10px] px-1.5 py-0.5" style={{ color: "#ff2244", background: "#ff224415", borderRadius: 3 }}>
-                      {alertCount} alertas
-                    </span>
-                  )}
                 </>
               )}
               <LiveClock />
@@ -1238,9 +808,6 @@ function AppShell() {
                   }}>
                   <Icon className="w-3.5 h-3.5" />
                   {t.label}
-                  {t.id === "control" && alertCount > 0 && (
-                    <span className="ml-1 w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded-full" style={{ background: "#ff2244", color: "#fff" }}>{alertCount}</span>
-                  )}
                 </button>
               );
             })}
@@ -1251,52 +818,11 @@ function AppShell() {
         <div style={{ paddingTop: "72px" }}>
           <div className="p-4 max-w-[1600px] mx-auto">
             {tab === "flota" && <Flota />}
-            {tab === "viajes" && <ViajesTMS />}
-            {tab === "contratos" && <ContratosUnificado />}
-            {tab === "combustible" && <EstacionesTab />}
             {tab === "camiones" && <CamionesUnificado />}
-            {tab === "control" && <ControlCenter onFocoAlerta={setFocoAlerta} />}
             {tab === "brain" && <OperativeBrain />}
             {tab === "conductores" && <ConductoresPanel />}
             {tab === "app-conductor" && <AppConductorHub onBack={() => setTab("flota")} />}
             {tab === "sistema" && <SistemaTab />}
-            {tab === "foco" && focoAlerta && (
-              <div style={{ height: "calc(100vh - 80px)", display: "flex", flexDirection: "column" }}>
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3" style={{ background: "#060d14", borderBottom: "1px solid #ff224440" }}>
-                  <div className="flex items-center gap-3">
-                    <span className="font-exo text-[9px] font-bold px-2 py-1" style={{ color: "#ff2244", background: "#ff224420", borderRadius: 4 }}>{focoAlerta.tipo}</span>
-                    <span className="font-space text-[16px] font-bold" style={{ color: "#c8e8ff" }}>{focoAlerta.patente}</span>
-                    <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{focoAlerta.contrato}</span>
-                    {focoAlerta.conductor && <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>· {focoAlerta.conductor}</span>}
-                    {focoAlerta.tipo === "VELOCIDAD" && <span className="font-space text-[18px] font-bold ml-3" style={{ color: "#ff2244" }}>{focoAlerta.dato || (focoAlerta.velocidad ? Math.round(focoAlerta.velocidad) + " km/h" : "")}</span>}
-                    {focoAlerta.hora && <span className="font-exo text-[9px] ml-3" style={{ color: "#3a6080" }}>{typeof focoAlerta.hora === "string" ? focoAlerta.hora.substring(0, 19) : ""}</span>}
-                  </div>
-                  <button onClick={() => { setTab("control"); setFocoAlerta(null); }} className="px-4 py-2 font-exo text-[10px] font-bold cursor-pointer" style={{ color: "#3a6080", border: "1px solid #0d2035", borderRadius: 6 }}>← VOLVER A CONTROL</button>
-                </div>
-
-                {/* Mapa full screen */}
-                <div style={{ flex: 1 }}>
-                  <GMap defaultCenter={{ lat: focoAlerta.lat || -33.45, lng: focoAlerta.lng || -70.65 }} defaultZoom={focoAlerta.lat ? 15 : 6} mapId="sotraser-foco"
-                    style={{ width: "100%", height: "100%" }} gestureHandling="greedy" mapTypeControl streetViewControl zoomControl>
-                    {focoAlerta.lat && focoAlerta.lng && (
-                      <>
-                        <AdvancedMarker position={{ lat: focoAlerta.lat, lng: focoAlerta.lng }}>
-                          <div style={{ width: 40, height: 40, background: "#ff2244", border: "3px solid #fff", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff", fontWeight: "bold", boxShadow: "0 0 20px rgba(255,34,68,0.6)", animation: "pulse 2s infinite" }}>!</div>
-                        </AdvancedMarker>
-                        <div style={{ position: "absolute", bottom: 20, left: 20, background: "rgba(6,13,20,0.95)", border: "1px solid #ff224440", borderRadius: 8, padding: "12px 16px", zIndex: 10, backdropFilter: "blur(8px)" }}>
-                          <div className="font-space text-[14px] font-bold" style={{ color: "#ff2244" }}>{focoAlerta.tipo === "VELOCIDAD" ? (focoAlerta.dato || Math.round(focoAlerta.velocidad || 0) + " km/h") : focoAlerta.tipo}</div>
-                          <div className="font-space text-[12px] font-bold mt-1" style={{ color: "#c8e8ff" }}>{focoAlerta.patente} · {focoAlerta.contrato}</div>
-                          {focoAlerta.conductor && <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{focoAlerta.conductor}</div>}
-                          {focoAlerta.descripcion && <div className="font-exo text-[9px] mt-1" style={{ color: "#c8e8ff" }}>{focoAlerta.descripcion}</div>}
-                          <div className="font-exo text-[8px] mt-1" style={{ color: "#3a6080" }}>{focoAlerta.lat?.toFixed(5)}, {focoAlerta.lng?.toFixed(5)}</div>
-                        </div>
-                      </>
-                    )}
-                  </GMap>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
