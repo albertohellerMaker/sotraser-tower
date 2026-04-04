@@ -662,7 +662,7 @@ function buildViajesFromSnapshots(
     const litrosEcu = (fuelE - fuelS) / 1000;
     const kmEcu = (distE - distS) / 1000;
     if (kmEcu < MIN_TRIP_KM || litrosEcu <= 0) return;
-    if (kmEcu > 1000) return;
+    if (kmEcu > 2500) return;
     const rendimiento = kmEcu / litrosEcu;
     if (rendimiento > 6 || rendimiento < 0.5) return;
     const fechaInicio = new Date(tripStart.captured_at);
