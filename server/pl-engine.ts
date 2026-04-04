@@ -139,6 +139,8 @@ export async function calcularPLResumenMes(anioMes: string) {
       ROUND(SUM(km_ecu)::numeric)::int as km_total,
       ROUND(SUM(litros_consumidos_ecu)::numeric)::int as litros_total,
       ROUND(AVG(rendimiento_real) FILTER(WHERE rendimiento_real > 0 AND rendimiento_real < 10)::numeric, 2) as rend_promedio,
+      ROUND(SUM(costo_diesel)::numeric)::int as costo_diesel_total,
+      ROUND(SUM(costo_cvm)::numeric)::int as costo_cvm_total,
       ROUND(SUM(costo_total)::numeric)::int as costo_total,
       ROUND(SUM(ingreso_tarifa)::numeric)::int as ingreso_total,
       ROUND(SUM(margen_bruto)::numeric)::int as margen_total,
