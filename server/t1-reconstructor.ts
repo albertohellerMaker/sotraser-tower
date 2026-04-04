@@ -271,7 +271,7 @@ function construirViajes(
   visitas: Visita[],
   puntos: GpsPoint[]
 ): ViajeT1[] {
-  const visitasDestino = visitas.filter(v => v.tipo !== "PARADA");
+  const visitasDestino = visitas.filter(v => v.tipo !== "PARADA" && v.nombre_contrato !== null);
   if (visitasDestino.length < 2) return [];
 
   const viajes: ViajeT1[] = [];

@@ -89,11 +89,17 @@ migrations/                # SQL migration files
 | ANGLO-CAL | 5 |
 
 ## Cencosud TMS — Trip Detection & Billing
-- **96 KML geocercas** imported to `cencosud_geocercas_kml`
+- **96 KML geocercas** imported to `cencosud_geocercas_kml` (primary source)
 - **Point-in-polygon** (ray-casting) detection in `geocerca-inteligente.ts`
-- **10-minute dwell time** required to activate a geocerca
-- **Billing flow**: GPS → KML polygon → geocerca name → alias → tarifa → facturación
-- **T-1 Reconstructor** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from previous day GPS data
+- **T-1 Reconstructor v2** (`t1-reconstructor.ts`): Post-hoc trip reconstruction from GPS data
+  - Radios: CDs 2km, ciudades 3km, paradas 1.5km, bases 2km (reduced from 15km generic)
+  - Dwell: CDs 15min, other 10min (reduced from 30min)
+  - Only creates trips between geocercas WITH confirmed alias (no noise from unmapped geocercas)
+  - Saves ALL trips: FACTURADO (with tarifa) or PENDIENTE (without)
+  - Loads KML geocercas first, then geocercas_operacionales (no duplicates)
+  - ~67-76% facturable rate on real data
+- **Anglo data purged**: All Anglo geocercas, aliases, tarifas, trips, and GPS removed (April 2026)
+- **Billing flow**: GPS → geocerca → alias → tarifa → facturación
 - **Super Agente Cencosud** (`super-agente-cencosud.ts`): runs every 30 min
 - **P&L Engine** (`pl-engine.ts`): Per-trip cost/revenue/margin calculation
   - `calcularPLViajes()`: Backfills all trips with cost_diesel, cost_cvm, ingreso_tarifa, margen_bruto
