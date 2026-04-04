@@ -300,7 +300,7 @@ function CalendarioMes({ calendario, mes, anio, onDayClick, selectedDay }: {
                 borderRadius: 4,
                 animation: isToday ? "todayPulse 2s infinite" : undefined,
               }}
-              title={dia ? `${dia.fecha}${dia.fuente ? ` [${dia.fuente}]` : ""}\n${dia.km} km | ${dia.rendimiento} km/L\n${dia.viajes} ${dia.fuente === "sigetra" ? "cargas" : "viajes"}${dia.horas_ruta ? ` | ${dia.horas_ruta}h ruta` : ""}${dia.litros_dia ? `\n${dia.litros_dia}L cargados` : ""}` : ""}
+              title={dia ? `${dia.fecha}${dia.fuente ? ` [${dia.fuente}]` : ""}\n${dia.km} km | ${dia.rendimiento} km/L\n${dia.viajes} viajes${dia.horas_ruta ? ` | ${dia.horas_ruta}h ruta` : ""}${dia.litros_dia ? `\n${dia.litros_dia}L consumidos` : ""}` : ""}
               onClick={() => dia && onDayClick(dia.fecha)}>
               {dia && (
                 <>
@@ -603,7 +603,7 @@ function DayDetailPanel({ patente, fecha, onClose }: { patente: string; fecha: s
               ))}
             </div>
           ) : (
-            <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Sin viajes detallados (datos Sigetra)</div>
+            <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Sin viajes detallados</div>
           )}
         </div>
 
@@ -798,7 +798,7 @@ function CamionDetalle({ patente, onDayFilter, onPointHighlight, viajesDelDia, o
                     {data.acumulado.dias_volvo}d Volvo ECU
                   </span>
                 )}
-                {data.acumulado?.dias_sigetra > 0 && (
+                {false && data.acumulado?.dias_sigetra > 0 && (
                   <span className="font-exo text-xs px-1.5 py-0.5 rounded" style={{ background: "#ffcc0012", border: "1px solid #ffcc0025", color: "#ffcc00" }}>
                     {data.acumulado.dias_sigetra}d Sigetra
                   </span>
@@ -1105,7 +1105,7 @@ function ResumenMesPanel({ onClose }: { onClose: () => void }) {
           <Calendar className="w-5 h-5" style={{ color: "#00d4ff" }} />
           <div>
             <div className="font-space text-[15px] font-bold" style={{ color: "#00d4ff" }}>RESUMEN {data.mes_nombre?.toUpperCase()} {data.anio}</div>
-            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Acumulado flota Cencosud · Fuente: Sigetra + Volvo ECU</div>
+            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Acumulado flota Cencosud · Fuente: Volvo Connect ECU</div>
           </div>
         </div>
         <button onClick={onClose} className="flex items-center gap-1 px-3 py-1.5 rounded cursor-pointer font-exo text-[9px] font-bold"

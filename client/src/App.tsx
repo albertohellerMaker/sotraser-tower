@@ -6,8 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import OperativeBrain from "@/pages/operative-brain";
 import ViajesTMS from "@/pages/viajes-tms";
 import EstacionesTab from "@/pages/geo-tabs/estaciones-tab";
-import CombustibleTMS from "@/pages/combustible-tms";
-import GeoValidator from "@/pages/geovalidator";
 import CencosudView from "@/pages/cencosud";
 
 import Flota from "@/pages/flota";
@@ -518,7 +516,6 @@ function ControlCenter({ onFocoAlerta }: { onFocoAlerta?: (a: any) => void }) {
 // ── Sistema ──
 function SistemaTab() {
   const { data: estado } = useQuery<any>({ queryKey: ["/api/brain/estado-sistema"], queryFn: () => fetch("/api/brain/estado-sistema").then(r => r.json()), refetchInterval: 60000 });
-  const { data: matching } = useQuery<any>({ queryKey: ["/api/cruzado/resumen"], queryFn: () => fetch("/api/cruzado/resumen").then(r => r.json()), staleTime: 5 * 60000 });
   const { data: sistemaEstado } = useQuery<any>({ queryKey: ["/api/sistema/estado"], queryFn: () => fetch("/api/sistema/estado").then(r => r.json()), staleTime: 60000 });
   const { data: comparacion } = useQuery<any>({ queryKey: ["/api/brain/comparacion-fuentes"], queryFn: () => fetch("/api/brain/comparacion-fuentes").then(r => r.json()), staleTime: 10 * 60000 });
   const { data: geocercasData, refetch: refetchGeo } = useQuery<any>({ queryKey: ["/api/viajes-tms/geocercas"], queryFn: () => fetch("/api/viajes-tms/geocercas").then(r => r.json()), staleTime: 60000 });
@@ -606,7 +603,6 @@ function SistemaTab() {
         <div className="p-4 space-y-3">
           {estado && [
             { name: "Volvo Connect", status: estado.volvo?.estado, ago: estado.volvo?.hace_minutos + " min", detail: `${estado.volvo?.vins_activos} VINs` },
-            { name: "Sigetra Cargas", status: estado.sigetra?.estado, ago: estado.sigetra?.hace_minutos + " min", detail: "816 patentes" },
           ].map(s => (
             <div key={s.name} className="flex items-center justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 6 }}>
               <div className="flex items-center gap-3">
@@ -622,26 +618,6 @@ function SistemaTab() {
         </div>
       </div>
 
-      {/* Matching */}
-      {matching && (
-        <div style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
-          <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-            <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>MATCHING VOLVO + SIGETRA</span>
-          </div>
-          <div className="p-4 grid grid-cols-3 gap-3">
-            {[
-              { label: "CRUZADOS", value: matching.camiones_volvo_sigetra, color: "#00ff88" },
-              { label: "VOLVO TOTAL", value: matching.volvo_total, color: "#00d4ff" },
-              { label: "SIGETRA", value: matching.sig_total, color: "#ff6b35" },
-            ].map(k => (
-              <div key={k.label} className="text-center px-3 py-3" style={{ background: "#0a1520", borderRadius: 6, borderTop: `2px solid ${k.color}` }}>
-                <div className="font-space text-[20px] font-bold" style={{ color: k.color }}>{k.value}</div>
-                <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Sistema estado */}
       {sistemaEstado && (
@@ -675,25 +651,15 @@ function SistemaTab() {
           {/* Flujo de datos */}
           <div className="space-y-3">
             <div className="font-exo text-[10px] font-bold tracking-wider uppercase" style={{ color: "#3a6080" }}>FUENTES DE DATOS (entrada)</div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3" style={{ maxWidth: "400px" }}>
               <div className="p-3" style={{ background: "#0a1520", borderRadius: 6, borderLeft: "3px solid #00d4ff" }}>
                 <div className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>VOLVO CONNECT</div>
                 <div className="font-exo text-[9px] mt-1 space-y-1" style={{ color: "#4a7090" }}>
-                  <div>API oficial Volvo RFMS</div>
+                  <div>API oficial Volvo rFMS</div>
                   <div>Sync cada 90 segundos</div>
-                  <div>Datos: GPS, velocidad, odometro, combustible consumido, distancia total</div>
-                  <div>Solo camiones Volvo con VIN registrado</div>
-                  <div style={{ color: "#00ff88" }}>100 VINs activos · datos ECU precisos</div>
-                </div>
-              </div>
-              <div className="p-3" style={{ background: "#0a1520", borderRadius: 6, borderLeft: "3px solid #ff6b35" }}>
-                <div className="font-space text-[11px] font-bold" style={{ color: "#ff6b35" }}>SIGETRA CARGAS</div>
-                <div className="font-exo text-[9px] mt-1 space-y-1" style={{ color: "#4a7090" }}>
-                  <div>API Sigetra combustible</div>
-                  <div>Sync cada 1 hora</div>
-                  <div>Datos: litros cargados, estacion, km odometro, conductor, guia</div>
-                  <div>Todas las cargas de combustible de la empresa</div>
-                  <div style={{ color: "#ff6b35" }}>816 patentes · 106 estaciones</div>
+                  <div>Datos: GPS, velocidad, odómetro, combustible consumido, distancia total</div>
+                  <div>72 camiones Volvo con VIN registrado</div>
+                  <div style={{ color: "#00ff88" }}>Fuente única GPS + ECU</div>
                 </div>
               </div>
             </div>
@@ -706,37 +672,25 @@ function SistemaTab() {
               <div className="p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
                 <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>GPS UNIFICADO</div>
                 <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>
-                  Datos GPS de Volvo Connect rFMS almacenados en tabla unificada. Deduplicacion por hash (1 punto por camion por minuto). Camiones con VIN registrado.
+                  Datos GPS de Volvo Connect rFMS almacenados en tabla unificada. Deduplicación por hash (1 punto por camión por minuto). 72 camiones con VIN registrado.
                 </div>
               </div>
               <div className="p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
-                <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>DETECCION DE VIAJES</div>
+                <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>DETECCIÓN DE VIAJES</div>
                 <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>
-                  Analiza puntos GPS consecutivos. Cuando un camion se mueve &gt;20km entre paradas de &gt;10min, se crea un viaje. Busca origen/destino en 209 geocercas operacionales. Calcula km, rendimiento, duracion.
+                  Analiza puntos GPS consecutivos. Cuando un camión se mueve &gt;20km entre paradas de &gt;10min, se crea un viaje. Busca origen/destino en geocercas operacionales. Calcula km, rendimiento, duración.
                 </div>
               </div>
               <div className="p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
                 <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>GEOCERCAS INTELIGENTES</div>
                 <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>
-                  209 zonas operacionales detectadas automaticamente desde patrones reales de parada. 26 confirmadas manualmente (minas, plantas, CDs). Radio 1-3km segun tipo. Minimo 10 minutos dentro para validar. Se actualizan solas con nueva data.
-                </div>
-              </div>
-              <div className="p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
-                <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>MATCHING IDENTIDADES</div>
-                <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>
-                  Tabla camion_identidades vincula patentes numericas (Volvo) con alfanumericas (Sigetra). Ejemplo: 1614 = KZZX38 (mismo camion). 176 VINs con multiples IDs. Permite cruzar datos de ambas fuentes sin duplicados.
+                  Zonas operacionales detectadas automáticamente desde patrones reales de parada. Confirmadas manualmente (minas, plantas, CDs Cencosud). Radio 1-3km según tipo. Mínimo 10 minutos dentro para validar.
                 </div>
               </div>
               <div className="p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
                 <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>CORREDORES OPERACIONALES</div>
                 <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>
-                  Agrupa viajes similares (mismo origen/destino, mismo contrato) en corredores. Calcula rendimiento promedio, km promedio, desviacion tipica. Se usa para detectar anomalias (viaje fuera del corredor habitual).
-                </div>
-              </div>
-              <div className="p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
-                <div className="font-space text-[10px] font-bold mb-1" style={{ color: "#a855f7" }}>CUADRATURA SIGETRA</div>
-                <div className="font-exo text-[9px]" style={{ color: "#4a7090" }}>
-                  Cruza viajes GPS con cargas Sigetra. Para cada par de cargas (A y B) calcula km reales vs km declarados, litros consumidos vs cargados. Detecta desviaciones de combustible y errores de digitacion de km.
+                  Agrupa viajes similares (mismo origen/destino, mismo contrato) en corredores. Calcula rendimiento promedio, km promedio, desviación típica. Detecta anomalías de ruta.
                 </div>
               </div>
             </div>
@@ -747,14 +701,14 @@ function SistemaTab() {
             <div className="font-exo text-[10px] font-bold tracking-wider uppercase" style={{ color: "#3a6080" }}>SALIDAS (que se muestra)</div>
             <div className="grid grid-cols-4 gap-2">
               {[
-                { tab: "FLOTA", desc: "Mapa en vivo 581 camiones, estado, posicion, velocidad" },
-                { tab: "VIAJES", desc: "Viajes por dia/mes, ranking km/L, alertas rendimiento" },
+                { tab: "FLOTA", desc: "Mapa en vivo 72 camiones, estado, posición, velocidad" },
+                { tab: "VIAJES", desc: "Viajes por día/mes, ranking km/L, alertas rendimiento" },
                 { tab: "CONTRATOS", desc: "KPIs por faena, tendencias, top/bottom camiones" },
-                { tab: "COMBUSTIBLE", desc: "Estaciones, cargas, irregularidades, gestion fraude" },
-                { tab: "CAMIONES", desc: "Ficha completa: calendario, cargas, conductores, Volvo+Sigetra" },
-                { tab: "CONTROL", desc: "Alertas velocidad, desviaciones combustible, rutas anomalas" },
-                { tab: "BRAIN", desc: "Chat IA con datos reales, predicciones, anomalias macro" },
-                { tab: "SISTEMA", desc: "Esta pagina - estado syncs, matching, motor aprendizaje" },
+                { tab: "COMBUSTIBLE", desc: "Consumo ECU Volvo, estaciones, irregularidades" },
+                { tab: "CAMIONES", desc: "Ficha completa: calendario, rendimiento, conductores" },
+                { tab: "CONTROL", desc: "Alertas velocidad, desviaciones combustible, rutas anómalas" },
+                { tab: "BRAIN", desc: "Chat IA con datos reales, predicciones, anomalías macro" },
+                { tab: "SISTEMA", desc: "Esta página - estado syncs, motor aprendizaje, geocercas" },
               ].map(t => (
                 <div key={t.tab} className="p-2" style={{ background: "#0a1520", borderRadius: 4 }}>
                   <div className="font-space text-[9px] font-bold" style={{ color: "#00d4ff" }}>{t.tab}</div>
@@ -768,13 +722,13 @@ function SistemaTab() {
           <div className="p-3 text-center" style={{ background: "#0a1520", borderRadius: 6 }}>
             <div className="font-exo text-[9px] font-bold mb-2" style={{ color: "#3a6080" }}>FLUJO DE DATOS</div>
             <div className="font-space text-[10px] leading-relaxed" style={{ color: "#c8e8ff" }}>
-              <span style={{ color: "#00d4ff" }}>VOLVO CONNECT rFMS</span> + <span style={{ color: "#ff6b35" }}>SIGETRA</span>
+              <span style={{ color: "#00d4ff" }}>VOLVO CONNECT rFMS</span>
               <br />
-              <span style={{ color: "#3a6080" }}>cada 90s &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; cada 1h</span>
+              <span style={{ color: "#3a6080" }}>cada 90s · 72 camiones</span>
               <br />
-              <span style={{ color: "#3a6080" }}>↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ↓</span>
+              <span style={{ color: "#3a6080" }}>↓</span>
               <br />
-              <span style={{ color: "#a855f7" }}>GPS UNIFICADO</span> (Volvo Connect)
+              <span style={{ color: "#a855f7" }}>GPS UNIFICADO</span> (posición + ECU)
               <br />
               <span style={{ color: "#3a6080" }}>↓</span>
               <br />
@@ -782,11 +736,11 @@ function SistemaTab() {
               <br />
               <span style={{ color: "#3a6080" }}>↓</span>
               <br />
-              <span style={{ color: "#a855f7" }}>CORREDORES + CUADRATURA</span> (agrupa rutas, cruza Sigetra)
+              <span style={{ color: "#a855f7" }}>CORREDORES + ALERTAS</span> (agrupa rutas, detecta anomalías)
               <br />
               <span style={{ color: "#3a6080" }}>↓</span>
               <br />
-              <span style={{ color: "#00ff88" }}>APP</span> (7 tabs con datos en tiempo real)
+              <span style={{ color: "#00ff88" }}>DASHBOARD</span> (tiempo real)
             </div>
           </div>
         </div>
@@ -799,31 +753,17 @@ function SistemaTab() {
           <span className="font-exo text-[9px] ml-3" style={{ color: "#3a6080" }}>Cada punto GPS capturado se guarda como snapshot. Es la base de todo el sistema.</span>
         </div>
         <div className="p-4 space-y-3">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3" style={{ maxWidth: "400px" }}>
             <div className="p-3" style={{ background: "#0a1520", borderRadius: 6, borderLeft: "3px solid #00d4ff" }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>VOLVO CONNECT</span>
                 <span className="font-exo text-[8px]" style={{ color: estado?.volvo?.estado === "OK" ? "#00ff88" : "#ffcc00" }}>{estado?.volvo?.estado || "?"}</span>
               </div>
               <div className="space-y-1">
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Snapshots totales</span><span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>22,076</span></div>
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>VINs activos</span><span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{estado?.volvo?.vins_activos || 100}</span></div>
+                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>VINs activos</span><span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{estado?.volvo?.vins_activos || 72}</span></div>
                 <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Frecuencia</span><span className="font-exo text-[9px]" style={{ color: "#00d4ff" }}>cada 90 seg</span></div>
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Ultimo sync</span><span className="font-exo text-[9px]" style={{ color: "#00ff88" }}>{estado?.volvo?.hace_minutos || "?"} min</span></div>
+                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Último sync</span><span className="font-exo text-[9px]" style={{ color: "#00ff88" }}>{estado?.volvo?.hace_minutos || "?"} min</span></div>
                 <div className="font-exo text-[7px] mt-1" style={{ color: "#3a6080" }}>Captura: fuel_used, distance, lat, lng, speed, heading, odometer, fuel_level</div>
-              </div>
-            </div>
-            <div className="p-3" style={{ background: "#0a1520", borderRadius: 6, borderLeft: "3px solid #ff6b35" }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-space text-[10px] font-bold" style={{ color: "#ff6b35" }}>SIGETRA CARGAS</span>
-                <span className="font-exo text-[8px]" style={{ color: estado?.sigetra?.estado === "OK" ? "#00ff88" : "#ffcc00" }}>{estado?.sigetra?.estado || "?"}</span>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Cargas totales</span><span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>13,510</span></div>
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Patentes</span><span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>817</span></div>
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Frecuencia</span><span className="font-exo text-[9px]" style={{ color: "#ff6b35" }}>cada 1 hora</span></div>
-                <div className="flex justify-between"><span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Estaciones</span><span className="font-exo text-[9px]" style={{ color: "#ff6b35" }}>106</span></div>
-                <div className="font-exo text-[7px] mt-1" style={{ color: "#3a6080" }}>Captura: litros, km_anterior, km_actual, conductor, proveedor, guia, faena, rend_real</div>
               </div>
             </div>
           </div>
@@ -834,14 +774,12 @@ function SistemaTab() {
               <span className="font-space text-[10px] font-bold" style={{ color: "#a855f7" }}>GPS UNIFICADO (tabla maestra)</span>
               <span className="font-exo text-[8px]" style={{ color: "#00ff88" }}>ACTIVO</span>
             </div>
-            <div className="grid grid-cols-4 gap-3">
-              <div className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: "#a855f7" }}>420,294</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>REGISTROS TOTALES</div></div>
-              <div className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: "#c8e8ff" }}>581</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>CAMIONES UNICOS</div></div>
-              <div className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: "#00d4ff" }}>Volvo</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>PRIORIDAD SI &lt;30min</div></div>
-              <div className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: "#10b981" }}>WT</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>FALLBACK</div></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: "#c8e8ff" }}>72</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>CAMIONES ACTIVOS</div></div>
+              <div className="text-center"><div className="font-space text-[18px] font-bold" style={{ color: "#00d4ff" }}>Volvo rFMS</div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>FUENTE ÚNICA</div></div>
             </div>
             <div className="font-exo text-[8px] mt-2" style={{ color: "#3a6080" }}>
-              Fusiona ambas fuentes GPS. Deduplicacion por hash (1 punto/camion/minuto). Vista ultima_posicion_camion da la mejor posicion disponible para cada camion. Alimenta el mapa de FLOTA (581 camiones) y el motor de viajes.
+              GPS Volvo Connect con deduplicación por hash (1 punto/camión/minuto). Vista última_posición_camión da la mejor posición disponible. Alimenta el mapa de FLOTA y el motor de viajes.
             </div>
           </div>
 
@@ -850,12 +788,12 @@ function SistemaTab() {
             <div className="font-exo text-[9px] font-bold mb-2" style={{ color: "#3a6080" }}>PIPELINE DE PROCESAMIENTO</div>
             <div className="grid grid-cols-6 gap-1 text-center">
               {[
-                { label: "SNAPSHOT", desc: "GPS raw", color: "#00d4ff", n: "420K" },
-                { label: "VIAJES", desc: "Detectados", color: "#00ff88", n: "3,344+3,215" },
-                { label: "GEOCERCAS", desc: "5 niveles", color: "#a855f7", n: "248" },
-                { label: "CORREDORES", desc: "Rutas agrupadas", color: "#ffcc00", n: "919" },
-                { label: "CUADRATURA", desc: "Cruce Sigetra", color: "#ff6b35", n: "243 ops" },
-                { label: "KPIs", desc: "Dashboard", color: "#00ffcc", n: "7 tabs" },
+                { label: "SNAPSHOT", desc: "GPS Volvo", color: "#00d4ff", n: "72 cam" },
+                { label: "VIAJES", desc: "Detectados", color: "#00ff88", n: "auto" },
+                { label: "GEOCERCAS", desc: "5 niveles", color: "#a855f7", n: "CDs + minas" },
+                { label: "CORREDORES", desc: "Rutas agrupadas", color: "#ffcc00", n: "auto" },
+                { label: "ALERTAS", desc: "Vel + desvío", color: "#ff2244", n: "24/7" },
+                { label: "KPIs", desc: "Dashboard", color: "#00ffcc", n: "8 tabs" },
               ].map(s => (
                 <div key={s.label} className="p-2" style={{ background: "#060d14", borderRadius: 4, borderTop: `2px solid ${s.color}` }}>
                   <div className="font-space text-[10px] font-bold" style={{ color: s.color }}>{s.n}</div>
@@ -989,38 +927,9 @@ function SistemaTab() {
       {comparacion && (
         <div style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
           <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-            <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>COMPARACION DE PRECISION ENTRE FUENTES</span>
+            <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>PRECISIÓN DEL SISTEMA</span>
           </div>
           <div className="p-4 space-y-4">
-            {/* KM Volvo ECU vs Sigetra */}
-            {comparacion.km_comparacion?.length > 0 && (
-              <div>
-                <div className="font-exo text-[10px] font-bold tracking-wider uppercase mb-2" style={{ color: "#3a6080" }}>KM: VOLVO ECU vs SIGETRA DECLARADO (7 dias)</div>
-                <div className="overflow-auto" style={{ maxHeight: "250px" }}>
-                  <table className="w-full">
-                    <thead><tr style={{ borderBottom: "1px solid #0d2035" }}>
-                      <th className="text-left px-3 py-1 font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>CAMION</th>
-                      <th className="text-left px-3 py-1 font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>KM VOLVO</th>
-                      <th className="text-left px-3 py-1 font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>KM SIGETRA</th>
-                      <th className="text-left px-3 py-1 font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>DIFF</th>
-                    </tr></thead>
-                    <tbody>
-                      {comparacion.km_comparacion.map((c: any) => (
-                        <tr key={c.patente} style={{ borderBottom: "1px solid #0a1520" }}>
-                          <td className="px-3 py-1.5 font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{c.patente}</td>
-                          <td className="px-3 py-1.5 font-space text-[11px]" style={{ color: "#00d4ff" }}>{c.km_volvo?.toLocaleString("es-CL")}</td>
-                          <td className="px-3 py-1.5 font-space text-[11px]" style={{ color: "#ff6b35" }}>{c.km_sigetra?.toLocaleString("es-CL")}</td>
-                          <td className="px-3 py-1.5 font-space text-[11px] font-bold" style={{ color: c.diff_pct !== null && Math.abs(c.diff_pct) < 5 ? "#00ff88" : Math.abs(c.diff_pct || 0) < 15 ? "#ffcc00" : "#ff2244" }}>
-                            {c.diff_pct !== null ? `${c.diff_pct > 0 ? "+" : ""}${c.diff_pct}%` : "--"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
             {/* Geocercas inteligentes */}
             {comparacion.geocercas && (
               <div>
@@ -1199,7 +1108,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor }: { onTower: (
           <div className="text-[32px] mb-3">🗼</div>
           <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#00d4ff" }}>TOWER</div>
           <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>Control Operacional</div>
-          {["GPS en tiempo real · 581 vehículos", "Viajes, contratos y rendimiento", "Alertas y control de flota"].map(item => (
+          {["GPS en tiempo real · 72 camiones Volvo", "Viajes, contratos y rendimiento", "Alertas y control de flota"].map(item => (
             <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#5a8090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#00d4ff" }} />{item}</div>
           ))}
           <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>

@@ -407,10 +407,9 @@ export default function ViajesTMS() {
                     </div>
                   )}
 
-                  {/* Combustible Sigetra */}
                   {contratoDetalle?.combustible && (
                     <div className="p-3" style={{ background: "#060d14", border: "1px solid #0d2035", borderLeft: "3px solid #ff6b35", borderRadius: 6 }}>
-                      <div className="flex items-center gap-2 mb-2"><Fuel className="w-3.5 h-3.5" style={{ color: "#ff6b35" }} /><span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#ff6b35" }}>COMBUSTIBLE SIGETRA</span></div>
+                      <div className="flex items-center gap-2 mb-2"><Fuel className="w-3.5 h-3.5" style={{ color: "#ff6b35" }} /><span className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#ff6b35" }}>COMBUSTIBLE</span></div>
                       <div className="grid grid-cols-5 gap-3">
                         {[
                           { l: "CARGAS", v: contratoDetalle.combustible.cargas },

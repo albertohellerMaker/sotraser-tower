@@ -1153,9 +1153,9 @@ function AprendizajeTab() {
                 : (rend >= 3.5 ? "#00c97a" : rend >= 2.5 ? "#ffcc00" : "#ff2244");
               const score = a.score_anomalia || 0;
               const scoreColor = score >= 50 ? "#ff2244" : score >= 20 ? "#ffcc00" : "#00c97a";
-              const litrosSigetra = parseFloat(a.litros_cargados_sigetra || 0);
-              const delta = a.delta_cuadratura != null ? parseFloat(a.delta_cuadratura) : null;
-              const cruzado = a.sigetra_cruzado === true;
+              const litrosSigetra = 0;
+              const delta: number | null = null;
+              const cruzado = false;
               return (
                 <div key={i} className="grid grid-cols-[70px_90px_80px_65px_65px_65px_85px_1fr_40px] gap-2 py-1.5 items-center"
                   data-testid={`row-anomalia-${i}`}
@@ -1173,14 +1173,8 @@ function AprendizajeTab() {
                       <span className="font-exo text-xs ml-0.5" style={{ color: "#3a6080" }}>/{corrRend.toFixed(1)}</span>
                     )}
                   </div>
-                  <div className="font-exo text-[11px]" style={{ color: !cruzado ? "#3a6080" : delta != null && delta > 15 ? "#ff2244" : delta != null && delta > 0 ? "#ffcc00" : "#4a7090" }}>
-                    {!cruzado ? (
-                      <span style={{ color: "#3a608060" }}>PENDIENTE</span>
-                    ) : litrosSigetra > 0 ? (
-                      <span>{litrosSigetra.toFixed(0)}L surt {delta != null ? (delta > 0 ? `+${delta.toFixed(0)}` : delta.toFixed(0)) + "L" : ""}</span>
-                    ) : (
-                      <span style={{ color: "#3a608060" }}>SIN MATCH</span>
-                    )}
+                  <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>
+                    <span style={{ color: "#3a608060" }}>—</span>
                   </div>
                   <div className="font-exo text-[11px] truncate" style={{ color: a.corredor_nombre ? "#4a7090" : "#1e3a50" }}>
                     {a.corredor_nombre || (a.origen_nombre && a.destino_nombre ? `${a.origen_nombre} → ${a.destino_nombre}` : "--")}

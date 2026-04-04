@@ -1,18 +1,15 @@
 import { useState, useMemo } from "react";
 import Volvo from "@/pages/volvo";
 import Camiones from "@/pages/camiones";
-import RankingConductores from "@/pages/ranking-conductores";
 import MicroCargas from "@/pages/micro-cargas";
-import Errores from "@/pages/errores";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Info, Truck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-type FlotaSub = "envivo" | "conductores" | "combustible";
+type FlotaSub = "envivo" | "combustible";
 
 const FLOTA_TABS: { id: FlotaSub; label: string }[] = [
   { id: "envivo", label: "EN VIVO" },
-  { id: "conductores", label: "CONDUCTORES" },
   { id: "combustible", label: "COMBUSTIBLE" },
 ];
 
@@ -255,19 +252,14 @@ export default function Flota({ initialSub }: { initialSub?: string }) {
             </div>
           )}
 
-          {activeSub === "conductores" && <RankingConductores />}
-
           {activeSub === "combustible" && (
             <div className="space-y-0">
               <AccordionSection title="CARGAS SOSPECHOSAS"
-                tooltip="Carga de poco combustible con senales que podrian indicar desvio. Requiere verificacion.">
+                tooltip="Carga de poco combustible con señales que podrían indicar desvío. Requiere verificación.">
                 <MicroCargas />
               </AccordionSection>
               <AccordionSection title="RENDIMIENTO">
                 <RendimientoTable />
-              </AccordionSection>
-              <AccordionSection title="CALIDAD DE DATOS">
-                <Errores />
               </AccordionSection>
             </div>
           )}
