@@ -424,13 +424,17 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           const ruta = ev?.en_ruta || [];
           const cd = ev?.en_cd || [];
           const sg = ev?.sin_gps || [];
+          const geos = ev?.geocercas || [];
           const selCam = seguir ? ruta.find((c: any) => c.patente === seguir) || cd.find((c: any) => c.patente === seguir) : null;
           const trail = trailData?.puntos || [];
+          const isEnRuta = selCam && ruta.some((c: any) => c.patente === seguir);
+          const origenObj = selCam?.origen;
+          const destObj = selCam?.destino_probable;
 
           return (
-            <div className="flex gap-4" style={{ height: "calc(100vh - 140px)" }}>
+            <div className="flex gap-3" style={{ height: "calc(100vh - 140px)" }}>
               {/* LEFT: List */}
-              <div className="w-[360px] flex-shrink-0 flex flex-col overflow-hidden" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
+              <div className="w-[380px] flex-shrink-0 flex flex-col overflow-hidden" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
                 {/* KPIs */}
                 <div className="grid grid-cols-3 gap-0 border-b" style={{ borderColor: "#0d2035" }}>
                   {[
@@ -454,31 +458,38 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                       </div>
                       {ruta.map((cam: any) => (
                         <div key={cam.patente} onClick={() => setSeguir(seguir === cam.patente ? null : cam.patente)}
-                          className="px-3 py-2.5 cursor-pointer transition-all hover:bg-[rgba(0,255,136,0.03)] border-b"
-                          style={{ borderColor: "#0a1520", background: seguir === cam.patente ? "#00ff8808" : "transparent", borderLeft: seguir === cam.patente ? "3px solid #00ff88" : "3px solid transparent" }}>
+                          className="px-3 py-2.5 cursor-pointer transition-all border-b"
+                          style={{
+                            borderColor: "#0a1520",
+                            background: seguir === cam.patente ? "linear-gradient(90deg, #00ff8812 0%, transparent 100%)" : "transparent",
+                            borderLeft: seguir === cam.patente ? "3px solid #00ff88" : "3px solid transparent",
+                          }}>
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              <Truck className="w-3 h-3" style={{ color: "#00ff88" }} />
+                              <div className="relative">
+                                <Truck className="w-3.5 h-3.5" style={{ color: "#00ff88" }} />
+                                {cam.velocidad > 0 && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", animation: "blink 1.5s infinite" }} />}
+                              </div>
                               <span className="font-space text-[12px] font-bold" style={{ color: "#c8e8ff" }}>{cam.patente}</span>
-                              <span className="font-space text-[10px] font-bold" style={{ color: cam.velocidad > 0 ? "#00ff88" : "#3a6080" }}>{Math.round(cam.velocidad)} km/h</span>
+                              <span className="font-space text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: cam.velocidad > 0 ? "#00ff88" : "#ff6b35", background: cam.velocidad > 0 ? "#00ff8812" : "#ff6b3512" }}>{Math.round(cam.velocidad)} km/h</span>
                             </div>
                             <span className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{cam.km_recorridos} km</span>
                           </div>
                           {cam.origen && (
-                            <div className="flex items-center gap-1 mb-0.5">
-                              <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>Salió de</span>
-                              <span className="font-exo text-[9px] font-bold" style={{ color: "#00d4ff" }}>{cam.origen}</span>
-                              {cam.hora_salida && <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>a las {String(cam.hora_salida).substring(11, 16)}</span>}
+                            <div className="flex items-center gap-1 mb-0.5 ml-5">
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#00d4ff", border: "1.5px solid #00d4ff80" }} />
+                              <span className="font-exo text-[9px] font-bold" style={{ color: "#00d4ff" }}>{cam.origen.nombre || cam.origen}</span>
+                              {cam.hora_salida && <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>{String(cam.hora_salida).substring(11, 16)}</span>}
                             </div>
                           )}
                           {cam.destino_probable && (
-                            <div className="flex items-center gap-1">
-                              <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>→</span>
-                              <span className="font-exo text-[9px]" style={{ color: "#a855f7" }}>{cam.destino_probable.nombre}</span>
-                              <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>~{cam.destino_probable.km_restante} km</span>
+                            <div className="flex items-center gap-1 ml-5">
+                              <span className="w-2 h-2 flex-shrink-0" style={{ background: "#a855f7", clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }} />
+                              <span className="font-exo text-[9px] font-bold" style={{ color: "#a855f7" }}>{cam.destino_probable.nombre}</span>
+                              <span className="font-exo text-[8px]" style={{ color: "#5a8090" }}>~{cam.destino_probable.km_restante} km</span>
                             </div>
                           )}
-                          {cam.conductor && <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>{cam.conductor}</div>}
+                          {cam.conductor && <div className="font-exo text-[8px] mt-0.5 ml-5" style={{ color: "#3a6080" }}>{cam.conductor}</div>}
                         </div>
                       ))}
                     </>
@@ -491,16 +502,20 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                       </div>
                       {cd.map((cam: any) => (
                         <div key={cam.patente} onClick={() => setSeguir(seguir === cam.patente ? null : cam.patente)}
-                          className="px-3 py-2 cursor-pointer transition-all hover:bg-[rgba(0,212,255,0.03)] border-b"
-                          style={{ borderColor: "#0a1520", background: seguir === cam.patente ? "#00d4ff08" : "transparent", borderLeft: seguir === cam.patente ? "3px solid #00d4ff" : "3px solid transparent" }}>
+                          className="px-3 py-2 cursor-pointer transition-all border-b"
+                          style={{
+                            borderColor: "#0a1520",
+                            background: seguir === cam.patente ? "linear-gradient(90deg, #00d4ff08 0%, transparent 100%)" : "transparent",
+                            borderLeft: seguir === cam.patente ? "3px solid #00d4ff" : "3px solid transparent",
+                          }}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-3 h-3" style={{ color: "#00d4ff" }} />
                               <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{cam.patente}</span>
                             </div>
-                            <span className="font-exo text-[9px] font-bold" style={{ color: "#00d4ff" }}>{cam.geocerca}</span>
+                            <span className="font-exo text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ color: "#00d4ff", background: "#00d4ff12" }}>{cam.geocerca}</span>
                           </div>
-                          {cam.conductor && <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>{cam.conductor}</div>}
+                          {cam.conductor && <div className="font-exo text-[8px] mt-0.5 ml-5" style={{ color: "#3a6080" }}>{cam.conductor}</div>}
                         </div>
                       ))}
                     </>
@@ -542,75 +557,169 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                   gestureHandling="greedy"
                 >
                   <MapPanner lat={selCam?.lat || null} lng={selCam?.lng || null} zoom={selCam ? 10 : 6} />
+
+                  {/* Geocercas Cencosud — subtle diamonds */}
+                  {(!seguir) && geos.map((g: any) => (
+                    <AdvancedMarker key={`geo-${g.nombre}`} position={{ lat: g.lat, lng: g.lng }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <div style={{ width: 8, height: 8, background: "#00d4ff30", border: "1px solid #00d4ff50", transform: "rotate(45deg)" }} />
+                        <span style={{ fontSize: 7, color: "#00d4ff60", fontFamily: "Space Grotesk", fontWeight: 600, whiteSpace: "nowrap", textShadow: "0 0 3px #000" }}>{g.nombre}</span>
+                      </div>
+                    </AdvancedMarker>
+                  ))}
+
                   {/* Trucks en ruta */}
-                  {ruta.map((cam: any) => (
-                    <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(cam.patente)}>
-                      <div style={{
-                        background: seguir === cam.patente ? "#00ff88" : "#060d14",
-                        border: `2px solid ${seguir === cam.patente ? "#00ff88" : "#00ff88"}`,
-                        borderRadius: 6, padding: "2px 6px",
-                        boxShadow: seguir === cam.patente ? "0 0 12px rgba(0,255,136,0.5)" : "0 1px 4px rgba(0,0,0,0.5)",
-                        display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
-                      }}>
-                        <Truck style={{ width: 10, height: 10, color: seguir === cam.patente ? "#060d14" : "#00ff88" }} />
-                        <span style={{ fontSize: 9, fontWeight: 700, color: seguir === cam.patente ? "#060d14" : "#00ff88", fontFamily: "Space Grotesk" }}>{cam.patente}</span>
-                      </div>
-                    </AdvancedMarker>
-                  ))}
-
-                  {/* Trucks en CD */}
-                  {cd.map((cam: any) => (
-                    <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(cam.patente)}>
-                      <div style={{
-                        background: seguir === cam.patente ? "#00d4ff" : "#060d14",
-                        border: `2px solid #00d4ff`,
-                        borderRadius: 6, padding: "2px 6px",
-                        display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
-                      }}>
-                        <MapPin style={{ width: 10, height: 10, color: seguir === cam.patente ? "#060d14" : "#00d4ff" }} />
-                        <span style={{ fontSize: 9, fontWeight: 700, color: seguir === cam.patente ? "#060d14" : "#00d4ff", fontFamily: "Space Grotesk" }}>{cam.patente}</span>
-                      </div>
-                    </AdvancedMarker>
-                  ))}
-
-                  {/* Trail for followed truck */}
-                  {seguir && trail.length > 1 && trail.map((p: any, i: number) => {
-                    if (i === 0 || i % 3 !== 0) return null;
+                  {ruta.map((cam: any) => {
+                    const sel = seguir === cam.patente;
                     return (
-                      <AdvancedMarker key={`trail-${i}`} position={{ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }}>
-                        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#00ff8860" }} />
+                      <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(sel ? null : cam.patente)} zIndex={sel ? 100 : 10}>
+                        <div style={{
+                          background: sel ? "#00ff88" : "#060d14",
+                          border: `2px solid #00ff88`,
+                          borderRadius: 6, padding: sel ? "4px 8px" : "2px 6px",
+                          boxShadow: sel ? "0 0 20px rgba(0,255,136,0.6), 0 0 40px rgba(0,255,136,0.2)" : "0 1px 4px rgba(0,0,0,0.5)",
+                          display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
+                          transition: "all 0.3s ease",
+                          transform: sel ? "scale(1.2)" : "scale(1)",
+                        }}>
+                          <Truck style={{ width: sel ? 12 : 10, height: sel ? 12 : 10, color: sel ? "#060d14" : "#00ff88" }} />
+                          <span style={{ fontSize: sel ? 10 : 9, fontWeight: 700, color: sel ? "#060d14" : "#00ff88", fontFamily: "Space Grotesk" }}>{cam.patente}</span>
+                          {sel && cam.velocidad > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#060d14", fontFamily: "Space Grotesk" }}>{Math.round(cam.velocidad)}km/h</span>}
+                        </div>
                       </AdvancedMarker>
                     );
                   })}
 
+                  {/* Trucks en CD */}
+                  {cd.map((cam: any) => {
+                    const sel = seguir === cam.patente;
+                    return (
+                      <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(sel ? null : cam.patente)} zIndex={sel ? 100 : 5}>
+                        <div style={{
+                          background: sel ? "#00d4ff" : "#060d14",
+                          border: `2px solid #00d4ff`,
+                          borderRadius: 6, padding: sel ? "4px 8px" : "2px 6px",
+                          boxShadow: sel ? "0 0 20px rgba(0,212,255,0.5)" : "0 1px 3px rgba(0,0,0,0.5)",
+                          display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
+                          transition: "all 0.3s ease",
+                          transform: sel ? "scale(1.2)" : "scale(1)",
+                        }}>
+                          <MapPin style={{ width: sel ? 12 : 10, height: sel ? 12 : 10, color: sel ? "#060d14" : "#00d4ff" }} />
+                          <span style={{ fontSize: sel ? 10 : 9, fontWeight: 700, color: sel ? "#060d14" : "#00d4ff", fontFamily: "Space Grotesk" }}>{cam.patente}</span>
+                        </div>
+                      </AdvancedMarker>
+                    );
+                  })}
+
+                  {/* Trail for followed truck — denser dots with opacity gradient */}
+                  {seguir && trail.length > 1 && trail.map((p: any, i: number) => {
+                    if (i % 2 !== 0) return null;
+                    const opacity = 0.15 + (i / trail.length) * 0.7;
+                    return (
+                      <AdvancedMarker key={`trail-${i}`} position={{ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: `rgba(0,255,136,${opacity})`, border: "0.5px solid rgba(0,255,136,0.3)" }} />
+                      </AdvancedMarker>
+                    );
+                  })}
+
+                  {/* Origin marker — where truck started */}
+                  {seguir && isEnRuta && origenObj?.lat && (
+                    <AdvancedMarker position={{ lat: origenObj.lat, lng: origenObj.lng }} zIndex={50}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <div style={{
+                          background: "#00d4ff", border: "3px solid #fff", borderRadius: "50%",
+                          width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 12, color: "#060d14", fontWeight: 900, fontFamily: "Space Grotesk",
+                          boxShadow: "0 0 12px rgba(0,212,255,0.6), 0 2px 8px rgba(0,0,0,0.5)",
+                        }}>O</div>
+                        <div style={{
+                          background: "rgba(6,13,20,0.9)", border: "1px solid #00d4ff60", borderRadius: 4,
+                          padding: "2px 6px", whiteSpace: "nowrap",
+                        }}>
+                          <span style={{ fontSize: 8, color: "#00d4ff", fontWeight: 700, fontFamily: "Space Grotesk" }}>{origenObj.nombre}</span>
+                        </div>
+                      </div>
+                    </AdvancedMarker>
+                  )}
+
                   {/* Destination marker */}
-                  {seguir && selCam?.destino_probable && (
-                    <AdvancedMarker position={{ lat: selCam.destino_probable.lat, lng: selCam.destino_probable.lng }}>
-                      <div style={{
-                        background: "#a855f7", border: "2px solid #fff", borderRadius: "50%",
-                        width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10, color: "#fff", fontWeight: 700, boxShadow: "0 0 8px rgba(168,85,247,0.5)",
-                      }}>D</div>
+                  {seguir && isEnRuta && destObj && (
+                    <AdvancedMarker position={{ lat: destObj.lat, lng: destObj.lng }} zIndex={50}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <div style={{
+                          background: "#a855f7", border: "3px solid #fff", borderRadius: "50%",
+                          width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 12, color: "#fff", fontWeight: 900, fontFamily: "Space Grotesk",
+                          boxShadow: "0 0 12px rgba(168,85,247,0.6), 0 2px 8px rgba(0,0,0,0.5)",
+                        }}>D</div>
+                        <div style={{
+                          background: "rgba(6,13,20,0.9)", border: "1px solid #a855f760", borderRadius: 4,
+                          padding: "2px 6px", whiteSpace: "nowrap",
+                        }}>
+                          <span style={{ fontSize: 8, color: "#a855f7", fontWeight: 700, fontFamily: "Space Grotesk" }}>{destObj.nombre}</span>
+                          <span style={{ fontSize: 7, color: "#5a8090", fontFamily: "Exo 2", marginLeft: 4 }}>~{destObj.km_restante} km</span>
+                        </div>
+                      </div>
+                    </AdvancedMarker>
+                  )}
+
+                  {/* Geocerca for CD truck when selected */}
+                  {seguir && selCam?.geocerca && !isEnRuta && (
+                    <AdvancedMarker position={{ lat: selCam.lat, lng: selCam.lng }} zIndex={1}>
+                      <div style={{ position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap" }}>
+                        <div style={{ background: "rgba(6,13,20,0.9)", border: "1px solid #00d4ff60", borderRadius: 4, padding: "2px 6px" }}>
+                          <span style={{ fontSize: 8, color: "#00d4ff", fontWeight: 700, fontFamily: "Space Grotesk" }}>{selCam.geocerca}</span>
+                        </div>
+                      </div>
                     </AdvancedMarker>
                   )}
                 </GMap>
 
-                {/* Info panel for followed truck */}
+                {/* Route info panel for followed truck */}
                 {seguir && selCam && (
-                  <div style={{ position: "absolute", bottom: 20, left: 20, background: "rgba(6,13,20,0.95)", border: "1px solid #00ff8840", borderRadius: 8, padding: "12px 16px", zIndex: 10, backdropFilter: "blur(8px)", minWidth: 220 }}>
-                    <div className="flex items-center justify-between mb-2">
+                  <div style={{ position: "absolute", bottom: 16, left: 16, background: "rgba(6,13,20,0.95)", border: `1px solid ${isEnRuta ? "#00ff8840" : "#00d4ff40"}`, borderRadius: 10, padding: "14px 18px", zIndex: 10, backdropFilter: "blur(10px)", minWidth: 260, maxWidth: 320 }}>
+                    <div className="flex items-center justify-between mb-2.5">
                       <div className="flex items-center gap-2">
-                        <Truck className="w-4 h-4" style={{ color: "#00ff88" }} />
-                        <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{selCam.patente}</span>
-                        <span className="font-space text-[12px] font-bold" style={{ color: selCam.velocidad > 0 ? "#00ff88" : "#3a6080" }}>{Math.round(selCam.velocidad)} km/h</span>
+                        <Truck className="w-4 h-4" style={{ color: isEnRuta ? "#00ff88" : "#00d4ff" }} />
+                        <span className="font-space text-[15px] font-bold" style={{ color: "#c8e8ff" }}>{selCam.patente}</span>
+                        {isEnRuta && <span className="font-space text-[11px] font-bold px-2 py-0.5 rounded" style={{ color: selCam.velocidad > 0 ? "#060d14" : "#ff6b35", background: selCam.velocidad > 0 ? "#00ff88" : "#ff6b3520" }}>{Math.round(selCam.velocidad)} km/h</span>}
                       </div>
-                      <button onClick={() => setSeguir(null)} className="cursor-pointer"><X className="w-3 h-3" style={{ color: "#3a6080" }} /></button>
+                      <button onClick={() => setSeguir(null)} className="cursor-pointer p-1 rounded hover:bg-[#ffffff10] transition-all"><X className="w-3.5 h-3.5" style={{ color: "#5a8090" }} /></button>
                     </div>
-                    {selCam.origen && <div className="font-exo text-[9px] mb-1" style={{ color: "#c8e8ff" }}>Salió de <span style={{ color: "#00d4ff" }}>{selCam.origen}</span> {selCam.hora_salida && <span style={{ color: "#3a6080" }}>a las {String(selCam.hora_salida).substring(11, 16)}</span>}</div>}
-                    {selCam.destino_probable && <div className="font-exo text-[9px] mb-1" style={{ color: "#c8e8ff" }}>→ <span style={{ color: "#a855f7" }}>{selCam.destino_probable.nombre}</span> <span style={{ color: "#3a6080" }}>~{selCam.destino_probable.km_restante} km</span></div>}
-                    {selCam.km_recorridos > 0 && <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{selCam.km_recorridos} km recorridos hoy</div>}
-                    {selCam.conductor && <div className="font-exo text-[8px] mt-1" style={{ color: "#3a6080" }}>{selCam.conductor}</div>}
-                    {selCam.geocerca && <div className="font-exo text-[9px] mt-1" style={{ color: "#00d4ff" }}>En: {selCam.geocerca}</div>}
+
+                    {isEnRuta && (
+                      <div className="flex items-start gap-2 mb-2" style={{ marginLeft: 2 }}>
+                        <div className="flex flex-col items-center gap-0.5 pt-0.5">
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00d4ff", border: "1.5px solid #fff" }} />
+                          <div style={{ width: 1, height: 20, background: "linear-gradient(#00d4ff40, #a855f740)" }} />
+                          <div style={{ width: 8, height: 8, background: "#a855f7", clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)", border: "1.5px solid #fff" }} />
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-1">
+                          <div>
+                            <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>Origen</div>
+                            <div className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{origenObj?.nombre || "Desconocido"}</div>
+                            {selCam.hora_salida && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>Salió {String(selCam.hora_salida).substring(11, 16)}</div>}
+                          </div>
+                          <div>
+                            <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>Destino probable</div>
+                            <div className="font-space text-[11px] font-bold" style={{ color: "#a855f7" }}>{destObj?.nombre || "—"}</div>
+                            {destObj && <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>~{destObj.km_restante} km restantes</div>}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isEnRuta && selCam.geocerca && (
+                      <div className="mb-2">
+                        <div className="font-exo text-[7px] uppercase tracking-wider" style={{ color: "#5a8090" }}>Estacionado en</div>
+                        <div className="font-space text-[12px] font-bold" style={{ color: "#00d4ff" }}>{selCam.geocerca}</div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid #0d2035" }}>
+                      {selCam.km_recorridos > 0 && <span className="font-exo text-[9px]" style={{ color: "#5a8090" }}>{selCam.km_recorridos} km hoy</span>}
+                      {selCam.conductor && <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{selCam.conductor}</span>}
+                    </div>
                   </div>
                 )}
               </div>

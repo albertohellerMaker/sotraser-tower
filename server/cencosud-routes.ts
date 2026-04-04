@@ -894,7 +894,11 @@ router.get("/en-vivo", async (req, res) => {
           timestamp_gps: cam.timestamp_gps,
           conductor: cam.conductor,
           odometro: cam.odometro ? parseFloat(cam.odometro) : null,
-          origen: origenGeo ? (origenGeo.nombre_contrato || origenGeo.nombre) : null,
+          origen: origenGeo ? {
+            nombre: origenGeo.nombre_contrato || origenGeo.nombre,
+            lat: origenGeo.lat,
+            lng: origenGeo.lng,
+          } : null,
           hora_salida: horaSalida,
           km_recorridos: Math.round(kmRecorridos),
           destino_probable: destinoProb ? {
@@ -909,6 +913,10 @@ router.get("/en-vivo", async (req, res) => {
 
     enRuta.sort((a, b) => (b.km_recorridos || 0) - (a.km_recorridos || 0));
 
+    const geocercasMap = geocercas
+      .filter(g => g.nombre_contrato)
+      .map(g => ({ nombre: g.nombre_contrato || g.nombre, lat: g.lat, lng: g.lng }));
+
     res.json({
       timestamp: ahora.toISOString(),
       fecha: hoyStr,
@@ -921,6 +929,7 @@ router.get("/en-vivo", async (req, res) => {
       en_ruta: enRuta,
       en_cd: enCD,
       sin_gps: sinGps,
+      geocercas: geocercasMap,
     });
   } catch (e: any) {
     console.error("[EN-VIVO]", e);
