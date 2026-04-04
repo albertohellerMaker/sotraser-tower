@@ -93,11 +93,11 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
 
     await pool.query(`
       UPDATE viajes_aprendizaje SET
-        costo_diesel = $1, costo_cvm = $2, costo_total = $3,
-        ingreso_tarifa = $4, margen_bruto = $5,
+        costo_diesel = $1::numeric, costo_cvm = $2::numeric, costo_total = $3::numeric,
+        ingreso_tarifa = $4::numeric, margen_bruto = $5::numeric,
         tarifa_id = $6, tarifa_clase = $7,
         origen_contrato = $8, destino_contrato = $9,
-        estado = CASE WHEN $4 > 0 THEN 'FACTURADO' ELSE estado END
+        estado = CASE WHEN $4::numeric > 0 THEN 'FACTURADO' ELSE estado END
       WHERE id = $10
     `, [costoDiesel, costoCvm, costoTotal, ingresoTarifa, margenBruto, tarifaId, tarifaClase, origenC, destinoC, v.id]);
 

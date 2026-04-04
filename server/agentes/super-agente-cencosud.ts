@@ -1,5 +1,6 @@
 import { pool } from "../db";
 import { reconstruirAyer, reconstruirDiaT1 } from "../t1-reconstructor";
+import { calcularPLViajes } from "../pl-engine";
 
 async function getParams(): Promise<Record<string, number>> {
   const r = await pool.query("SELECT clave, valor::float as valor FROM cencosud_parametros");
@@ -116,6 +117,12 @@ export const superAgenteCencosud = {
           `T-1 completado: ${result.viajes_creados} viajes reconstruidos`,
           `Camiones: ${result.camiones_procesados}, Viajes: ${result.viajes_creados} (${result.viajes_round_trip} round-trip, ${result.viajes_ida} ida), Descanso: ${result.camiones_descanso}`,
           result);
+        try {
+          const plResult = await calcularPLViajes();
+          console.log(`[SUPER-CENCOSUD] P&L recalculado: ${plResult.procesados} viajes (${plResult.conTarifa} con tarifa)`);
+        } catch (plErr: any) {
+          console.error("[SUPER-CENCOSUD] P&L post-T1 error:", plErr.message);
+        }
       } catch (e: any) {
         console.error("[SUPER-CENCOSUD] T-1 error:", e.message);
       }
@@ -132,6 +139,12 @@ export const superAgenteCencosud = {
           const result = await reconstruirDiaT1(fecha);
           console.log(`[SUPER-CENCOSUD] T-1 inicial (${fecha}): ${result.viajes_creados} viajes`);
           this._t1Ejecutado = true;
+          try {
+            const plResult = await calcularPLViajes();
+            console.log(`[SUPER-CENCOSUD] P&L inicial: ${plResult.procesados} viajes (${plResult.conTarifa} con tarifa)`);
+          } catch (plErr: any) {
+            console.error("[SUPER-CENCOSUD] P&L inicial error:", plErr.message);
+          }
         } catch (e: any) {
           console.error("[SUPER-CENCOSUD] T-1 inicial error:", e.message);
         }

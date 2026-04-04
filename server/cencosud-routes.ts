@@ -235,7 +235,10 @@ router.get("/viajes-mes", async (_req, res) => {
         va.km_ecu::float as km, va.rendimiento_real::float as rend,
         va.duracion_minutos::int as min, va.velocidad_maxima::float as vel_max,
         ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato,
-        crt.tarifa, crt.lote, crt.clase
+        crt.tarifa, crt.lote, crt.clase,
+        va.ingreso_tarifa::int as ingreso_tarifa, va.costo_total::int as costo_total,
+        va.costo_diesel::int as costo_diesel, va.costo_cvm::int as costo_cvm,
+        va.margen_bruto::int as margen_bruto
       FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
       LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
       LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'

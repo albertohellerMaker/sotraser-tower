@@ -332,6 +332,9 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
 
   const { data: mes } = useQuery<any>({ queryKey: ["/api/cencosud/resumen-mes"], queryFn: () => fetch("/api/cencosud/resumen-mes").then(r => r.json()), staleTime: 120000 });
   const { data: dash } = useQuery<any>({ queryKey: ["/api/cencosud/dashboard", fecha], queryFn: () => fetch(`/api/cencosud/dashboard?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
+  const mesActual = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const { data: plMes } = useQuery<any>({ queryKey: ["/api/cencosud/pl/mes", mesActual], queryFn: () => fetch(`/api/cencosud/pl/mes?mes=${mesActual}`).then(r => r.json()), staleTime: 120000 });
+  const { data: plDia } = useQuery<any>({ queryKey: ["/api/cencosud/pl/dia", fecha], queryFn: () => fetch(`/api/cencosud/pl/dia?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
   const { data: errData } = useQuery<any>({ queryKey: ["/api/cencosud/err", fecha], queryFn: () => fetch(`/api/cencosud/err?fecha=${fecha}`).then(r => r.json()), staleTime: 60000, enabled: tab === "ERR" });
   const { data: viajesMes } = useQuery<any>({ queryKey: ["/api/cencosud/viajes-mes"], queryFn: () => fetch("/api/cencosud/viajes-mes").then(r => r.json()), staleTime: 120000, enabled: tab === "VIAJES" });
   const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
@@ -361,11 +364,18 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
         <div className="flex items-center gap-3">
           <div className="text-right">
             <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>INGRESO MES</div>
-            <div className="font-space text-[16px] font-bold" style={{ color: "#00ff88" }}>{fP(fi.ingreso_acumulado || 0)}</div>
+            <div className="font-space text-[14px] font-bold" style={{ color: "#00ff88" }}>{fP(plMes?.ingreso_total || fi.ingreso_acumulado || 0)}</div>
           </div>
           <div className="text-right">
-            <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>PROYECTADO</div>
-            <div className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>{fP(fi.ingreso_proyectado || 0)}</div>
+            <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>COSTO MES</div>
+            <div className="font-space text-[14px] font-bold" style={{ color: "#ff6b35" }}>{fP(plMes?.costo_total || 0)}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>MARGEN</div>
+            <div className="font-space text-[14px] font-bold" style={{ color: (plMes?.margen_total || 0) >= 0 ? "#00ff88" : "#ff2244" }}>
+              {fP(plMes?.margen_total || 0)}
+              {plMes?.margen_pct != null && <span className="text-[9px] ml-1" style={{ color: "#3a6080" }}>({plMes.margen_pct}%)</span>}
+            </div>
           </div>
         </div>
       </div>
@@ -435,25 +445,38 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                 )}
               </div>
 
-              {/* Hoy */}
+              {/* P&L MES */}
               <div className="rounded-lg p-4" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
-                <div className="font-exo text-[8px] tracking-wider uppercase mb-3" style={{ color: "#00d4ff" }}>HOY · {new Date(fecha + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}</div>
-                {dash?.resumen && (
+                <div className="font-exo text-[8px] tracking-wider uppercase mb-3" style={{ color: "#00ff88" }}>P&L DEL MES</div>
+                {plMes && (
                   <div className="space-y-2">
                     {[
-                      { l: "Camiones", v: dash.resumen.camiones },
-                      { l: "Viajes", v: dash.resumen.viajes },
-                      { l: "KM", v: fN(parseFloat(dash.resumen.km_total) || 0) },
-                      { l: "KM/L", v: dash.resumen.rend, c: RC(parseFloat(dash.resumen.rend) || 0) },
-                      { l: "Horas ruta", v: dash.resumen.horas_total },
-                      { l: "Cruzados", v: `${dash.viajes_cruzados}/${dash.resumen.viajes} (${dash.pct_cruzados}%)` },
-                      { l: "Ingreso estimado", v: fP(dash.ingreso_estimado || 0), c: "#00ff88" },
+                      { l: "Viajes facturables", v: `${plMes.viajes_facturables || 0} / ${plMes.total_viajes || 0}`, c: "#c8e8ff" },
+                      { l: "KM total", v: fN(plMes.km_total || 0), c: "#c8e8ff" },
+                      { l: "KM/L promedio", v: plMes.rend_promedio || "--", c: RC(parseFloat(plMes.rend_promedio) || 0) },
+                      { l: "Ingreso tarifa", v: fP(plMes.ingreso_total || 0), c: "#00ff88" },
+                      { l: "Costo diesel", v: fP(plMes.costo_diesel_total || 0), c: "#ff6b35" },
+                      { l: "Costo CVM", v: fP(plMes.costo_cvm_total || 0), c: "#ff6b35" },
+                      { l: "Costo total", v: fP(plMes.costo_total || 0), c: "#ff6b35" },
                     ].map(k => (
                       <div key={k.l} className="flex justify-between">
                         <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{k.l}</span>
-                        <span className="font-space text-[10px] font-bold" style={{ color: k.c || "#c8e8ff" }}>{k.v}</span>
+                        <span className="font-space text-[10px] font-bold" style={{ color: k.c }}>{k.v}</span>
                       </div>
                     ))}
+                    <div className="pt-2 mt-1" style={{ borderTop: "1px solid #0d2035" }}>
+                      <div className="flex justify-between">
+                        <span className="font-exo text-[10px] font-bold" style={{ color: "#3a6080" }}>MARGEN BRUTO</span>
+                        <span className="font-space text-[13px] font-bold" style={{ color: (plMes.margen_total || 0) >= 0 ? "#00ff88" : "#ff2244" }}>
+                          {fP(plMes.margen_total || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-end">
+                        <span className="font-space text-[10px]" style={{ color: (plMes.margen_pct || 0) >= 0 ? "#00ff88" : "#ff2244" }}>
+                          {plMes.margen_pct || 0}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -488,16 +511,19 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           return (
             <>
               {/* KPIs viajes */}
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-8 gap-2">
                 {[
                   { l: "TOTAL VIAJES", v: viajesMes.total, c: "#a855f7" },
                   { l: "CON TARIFA", v: viajesMes.con_tarifa, c: "#00ff88" },
                   { l: "SIN TARIFA", v: viajesMes.sin_tarifa, c: "#ffcc00" },
                   { l: "% CRUZADOS", v: `${viajesMes.pct_cruzados}%`, c: viajesMes.pct_cruzados > 50 ? "#00ff88" : "#ffcc00" },
-                  { l: "INGRESO MES", v: fP(viajesMes.ingreso_total), c: "#00ff88" },
+                  { l: "INGRESO MES", v: fP(plMes?.ingreso_total || viajesMes.ingreso_total || 0), c: "#00ff88" },
+                  { l: "COSTO MES", v: fP(plMes?.costo_total || 0), c: "#ff6b35" },
+                  { l: "MARGEN", v: fP(plMes?.margen_total || 0), c: (plMes?.margen_total || 0) >= 0 ? "#00ff88" : "#ff2244" },
+                  { l: "MARGEN %", v: `${plMes?.margen_pct || 0}%`, c: (plMes?.margen_pct || 0) >= 0 ? "#00ff88" : "#ff2244" },
                 ].map(k => (
                   <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
-                    <div className="font-space text-[18px] font-bold" style={{ color: k.c }}>{k.v}</div>
+                    <div className="font-space text-[14px] font-bold" style={{ color: k.c }}>{k.v}</div>
                     <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
                   </div>
                 ))}
@@ -513,7 +539,7 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                 <div className="overflow-auto" style={{ maxHeight: 300 }}>
                   <table className="w-full">
                     <thead><tr style={{ background: "#0a1520" }}>
-                      {["FECHA", "PATENTE", "CONDUCTOR", "RUTA CONTRATO", "LOTE", "KM", "KM/L", "TARIFA"].map(h => (
+                      {["FECHA", "PATENTE", "CONDUCTOR", "RUTA CONTRATO", "LOTE", "KM", "KM/L", "INGRESO", "COSTO", "MARGEN"].map(h => (
                         <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-1.5" style={{ color: "#00ff88" }}>{h}</th>
                       ))}
                     </tr></thead>
@@ -527,7 +553,9 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                           <td className="font-space text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>L{v.lote}</td>
                           <td className="font-space text-[9px] px-3 py-1" style={{ color: "#c8e8ff" }}>{Math.round(v.km || 0)}</td>
                           <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: RC(v.rend || 0) }}>{v.rend?.toFixed(2) || "--"}</td>
-                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00ff88" }}>{fP(v.tarifa)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#00ff88" }}>{fP(v.tarifa || v.ingreso_tarifa || 0)}</td>
+                          <td className="font-space text-[9px] px-3 py-1" style={{ color: "#ff6b35" }}>{fP(v.costo_total || 0)}</td>
+                          <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: (v.margen_bruto || 0) >= 0 ? "#00ff88" : "#ff2244" }}>{fP(v.margen_bruto || 0)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -555,15 +583,13 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
               </div>
 
               {/* KPIs ERR */}
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 {[
                   { l: "CAMIONES", v: e.camiones || 0, c: "#00d4ff" },
                   { l: "VIAJES", v: e.viajes || 0, c: "#a855f7" },
                   { l: "CRUZADOS", v: `${e.viajes_cruzados || 0} (${e.pct_cruzados || 0}%)`, c: (e.pct_cruzados || 0) > 50 ? "#00ff88" : "#ffcc00" },
                   { l: "KM TOTAL", v: fN(e.km_total || 0), c: "#00ff88" },
                   { l: "KM/L", v: e.rend_promedio || "--", c: RC(e.rend_promedio || 0) },
-                  { l: "INGRESO", v: fP(e.ingreso_estimado || 0), c: "#00ff88" },
-                  { l: "$/KM", v: e.km_total > 0 ? fP(Math.round(e.ingreso_estimado / e.km_total)) : "--", c: "#fbbf24" },
                 ].map(k => (
                   <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
                     <div className="font-space text-[14px] font-bold" style={{ color: k.c }}>{k.v}</div>
@@ -571,6 +597,24 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
                   </div>
                 ))}
               </div>
+
+              {/* P&L del dia */}
+              {plDia && (
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    { l: "INGRESO DIA", v: fP(plDia.ingreso_total || 0), c: "#00ff88" },
+                    { l: "COSTO DIESEL", v: fP(plDia.costo_diesel_total || 0), c: "#ff6b35" },
+                    { l: "COSTO CVM", v: fP(plDia.costo_cvm_total || 0), c: "#ff6b35" },
+                    { l: "COSTO TOTAL", v: fP(plDia.costo_total || 0), c: "#ff6b35" },
+                    { l: "MARGEN", v: `${fP(plDia.margen_total || 0)} (${plDia.margen_pct || 0}%)`, c: (plDia.margen_total || 0) >= 0 ? "#00ff88" : "#ff2244" },
+                  ].map(k => (
+                    <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
+                      <div className="font-space text-[12px] font-bold" style={{ color: k.c }}>{k.v}</div>
+                      <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Por ruta contrato */}
               {(errData.por_ruta || []).length > 0 && (
