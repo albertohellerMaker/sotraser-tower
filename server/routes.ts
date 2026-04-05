@@ -25,6 +25,7 @@ import agentesRoutes from "./agentes-routes";
 import gerenteRoutes from "./gerente-routes";
 import welcomeRoutes from "./welcome-routes";
 import cencosudRoutes from "./cencosud-routes";
+import wisetrackRoutes from "./wisetrack-routes";
 
 import conductorRoutes from "./conductor-routes";
 import conductorPanelRoutes from "./conductor-panel-routes";
@@ -1049,6 +1050,7 @@ export async function registerRoutes(
   app.use("/api/gerente", gerenteRoutes);
   app.use("/api/welcome", welcomeRoutes);
   app.use("/api/cencosud", cencosudRoutes);
+  app.use(wisetrackRoutes);
 
   app.use("/api/conductor", conductorRoutes);
   app.use("/api/conductor-panel", conductorPanelRoutes);

@@ -9,6 +9,7 @@ import { db } from "./db";
 import { geoBases } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { inicializarContratos } from "./faena-filter";
+import { startWiseTrackSync } from "./wisetrack-scraper";
 import crypto from "crypto";
 
 const app = express();
@@ -169,6 +170,7 @@ app.use((req, res, next) => {
       iniciarGitSync();
 
       iniciarWorkers();
+      startWiseTrackSync(120_000);
 
       setTimeout(async () => {
         try {

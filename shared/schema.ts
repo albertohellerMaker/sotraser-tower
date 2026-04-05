@@ -833,6 +833,27 @@ export const estadoCamionEsperado = pgTable("estado_camion_esperado", {
 // ═══════════════════════════════════════════════════
 // IDENTIDADES DE CAMIONES — Matching Volvo ↔ Sigetra
 // ═══════════════════════════════════════════════════
+export const wisetrackPosiciones = pgTable("wisetrack_posiciones", {
+  id: serial("id").primaryKey(),
+  patente: text("patente").notNull(),
+  etiqueta: text("etiqueta"),
+  fecha: text("fecha").notNull(),
+  lat: real("lat").notNull(),
+  lng: real("lng").notNull(),
+  velocidad: real("velocidad").default(0),
+  direccion: integer("direccion").default(0),
+  ignicion: boolean("ignicion").default(false),
+  grupo1: text("grupo1"),
+  conductor: text("conductor"),
+  kmsTotal: real("kms_total"),
+  consumoLitros: real("consumo_litros"),
+  nivelEstanque: real("nivel_estanque"),
+  rpm: integer("rpm"),
+  tempMotor: real("temp_motor"),
+  estadoOperacion: text("estado_operacion"),
+  creadoAt: timestamp("creado_at").defaultNow(),
+}, (t) => [unique().on(t.patente, t.fecha)]);
+
 export const camionIdentidades = pgTable("camion_identidades", {
   vin: text("vin").primaryKey(),
   numeroInterno: text("numero_interno"),
