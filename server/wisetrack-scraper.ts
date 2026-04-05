@@ -138,7 +138,7 @@ export async function fetchSeguimiento(soloGrupo1?: string): Promise<WiseTrackVe
 
   if (resp.status !== 200) {
     invalidateSession();
-    throw new Error(`WiseTrack Seguimiento failed: ${resp.status}`);
+    throw new Error("WiseTrack: unable to fetch vehicle data");
   }
 
   let raw: any[];
@@ -146,7 +146,7 @@ export async function fetchSeguimiento(soloGrupo1?: string): Promise<WiseTrackVe
     raw = JSON.parse(resp.data);
   } catch {
     invalidateSession();
-    throw new Error("WiseTrack: invalid JSON response");
+    throw new Error("WiseTrack: unable to parse response");
   }
 
   let vehicles: WiseTrackVehicle[] = raw.map((v) => ({

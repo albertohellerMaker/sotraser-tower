@@ -41,10 +41,15 @@ export default function WiseTrackView({ onBack }: { onBack: () => void }) {
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
 
-  const { data, isLoading, refetch, dataUpdatedAt } = useQuery<WTResponse>({
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<WTResponse>({
     queryKey: ["/api/wisetrack/en-vivo"],
-    queryFn: () => fetch("/api/wisetrack/en-vivo").then((r) => r.json()),
+    queryFn: async () => {
+      const r = await fetch("/api/wisetrack/en-vivo");
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      return r.json();
+    },
     refetchInterval: 30000,
+    retry: 2,
   });
 
   const filtered = useMemo(() => {

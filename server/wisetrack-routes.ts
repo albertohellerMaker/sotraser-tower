@@ -14,7 +14,9 @@ router.get("/api/wisetrack/en-vivo", async (_req, res) => {
       else if (v.estadoOperacion === "Detenido" || v.velocidad === 0) estado = "detenido";
       if (v.estadoOperacion === "Sin Lectura") estado = "sin_senal";
 
-      const fechaMs = new Date(v.fecha.replace(" ", "T") + "-04:00").getTime();
+      const chileTz = Intl.DateTimeFormat("en", { timeZone: "America/Santiago", timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value || "GMT-4";
+      const offset = chileTz.replace("GMT", "");
+      const fechaMs = new Date(v.fecha.replace(" ", "T") + offset).getTime();
       const minutosAgo = (Date.now() - fechaMs) / 60000;
       if (minutosAgo > 60) estado = "sin_senal";
 
@@ -54,7 +56,8 @@ router.get("/api/wisetrack/en-vivo", async (_req, res) => {
 
     res.json({ vehiculos: enriched, resumen, timestamp: new Date().toISOString() });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[WISETRACK-API] en-vivo error:", err.message);
+    res.status(500).json({ error: "Error al obtener datos WiseTrack" });
   }
 });
 

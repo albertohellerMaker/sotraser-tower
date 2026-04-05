@@ -41,6 +41,7 @@ client/                    # React frontend (Vite)
     pages/                 # Active pages
       flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
       cencosud.tsx         # Dedicated Cencosud TMS view (EN VIVO real-time tracking, P&L, viajes, tarifas, mapeo)
+      wisetrack.tsx        # WiseTrack GPS view — live Cencosud fleet tracking from WiseTrack portal
       operative-brain.tsx  # AI brain with multi-agent chat
       conductores-panel.tsx # Conductores management
       app-conductor-hub.tsx # Driver app management hub
@@ -120,6 +121,7 @@ migrations/                # SQL migration files
 - `DATABASE_URL` - PostgreSQL connection
 - `ANTHROPIC_API_KEY` - For Claude AI features
 - `VOLVO_CONNECT_USER`, `VOLVO_CONNECT_PASSWORD` - Volvo Connect rFMS API
+- `WISETRACK_USER`, `WISETRACK_PASS`, `WISETRACK_COMPANY` - WiseTrack portal credentials
 - `GITHUB_TOKEN` - For auto-sync to GitHub
 - `VITE_GOOGLE_MAPS_KEY` - Google Maps API key
 - `SESSION_SECRET` - Express session secret
