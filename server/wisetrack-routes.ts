@@ -102,12 +102,19 @@ router.get("/api/wisetrack/historial/:patente", async (req, res) => {
 });
 
 router.get("/api/wisetrack/status", async (_req, res) => {
-  const status = getWiseTrackStatus();
-  const countResult = await pool.query("SELECT COUNT(*) as total FROM wisetrack_posiciones");
-  res.json({
-    ...status,
-    totalRegistros: parseInt(countResult.rows[0].total),
-  });
+  try {
+    const status = getWiseTrackStatus();
+    let totalRegistros = 0;
+    try {
+      const countResult = await pool.query("SELECT COUNT(*) as total FROM wisetrack_posiciones");
+      totalRegistros = parseInt(countResult.rows[0].total);
+    } catch {
+      // table may not exist yet
+    }
+    res.json({ ...status, totalRegistros });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get("/api/wisetrack/grupos", async (_req, res) => {

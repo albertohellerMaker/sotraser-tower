@@ -3,8 +3,9 @@
 ## Overview
 Fleet management system for Chilean trucking company SOTRASER. **72 active trucks** with GPS Volvo Connect (rFMS), focused on Cencosud TMS (~95%+ tariff billing) with Anglo American mining contracts. Single data source: Volvo Connect GPS + ECU telemetry.
 
-## Data Sources (1 active)
+## Data Sources (2 active)
 - **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s). 72 camiones with VIN.
+- **WiseTrack GPS**: Portal scraping (`telemetria.wisetrack.cl`). ASP.NET login + AJAX endpoint `Seguimiento`. Sync every 120s. 63 Cencosud trucks with patente, lat/lng, velocidad, RPM, estanque, conductor. Parallel system — completely isolated from Volvo pipeline.
 
 ## Architecture
 - **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`. Root has devDependencies and scripts.
