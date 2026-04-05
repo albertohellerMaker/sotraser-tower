@@ -5,17 +5,19 @@ interface Parametros {
   cvm_km: number;
   costo_conductor_dia: number;
   costo_fijo_dia: number;
+  rendimiento_base: number;
 }
 
 async function getParametros(): Promise<Parametros> {
-  const r = await pool.query(`SELECT clave, valor FROM cencosud_parametros WHERE clave IN ('precio_diesel','cvm_km','costo_conductor_dia','costo_fijo_dia')`);
+  const r = await pool.query(`SELECT clave, valor FROM cencosud_parametros WHERE clave IN ('precio_diesel','cvm_km','costo_conductor_dia','costo_fijo_dia','rendimiento_base')`);
   const map: Record<string, number> = {};
   r.rows.forEach((row: any) => { map[row.clave] = parseFloat(row.valor); });
   return {
-    precio_diesel: map.precio_diesel || 1110,
-    cvm_km: map.cvm_km || 450,
+    precio_diesel: map.precio_diesel || 1100,
+    cvm_km: map.cvm_km || 30,
     costo_conductor_dia: map.costo_conductor_dia || 45000,
-    costo_fijo_dia: map.costo_fijo_dia || 35000,
+    costo_fijo_dia: map.costo_fijo_dia || 55000,
+    rendimiento_base: map.rendimiento_base || 2.45,
   };
 }
 
@@ -96,7 +98,8 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
 
   for (const v of viajes.rows) {
     const km = v.km || 0;
-    const litros = v.litros || 0;
+    const litrosEcu = v.litros || 0;
+    const litros = litrosEcu > 0 ? litrosEcu : (km / params.rendimiento_base);
 
     const costoDiesel = Math.round(litros * params.precio_diesel);
     const costoCvm = Math.round(km * params.cvm_km);
