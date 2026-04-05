@@ -1,4 +1,6 @@
 import { pool } from "./db";
+import https from "https";
+import { parse as parseUrl } from "url";
 
 const BASE_URL = "https://telemetria.wisetrack.cl/Portal";
 
@@ -17,9 +19,7 @@ function httpRequest(
   cookies?: string
 ): Promise<{ data: string; status: number; cookies: string[]; headers: Record<string, any> }> {
   return new Promise((resolve, reject) => {
-    const https = require("https");
-    const url = require("url");
-    const opts = url.parse(urlStr);
+    const opts: any = parseUrl(urlStr);
     opts.method = method;
     opts.headers = {
       Cookie: cookies || "",
