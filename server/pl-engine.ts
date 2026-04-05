@@ -32,9 +32,9 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
   const viajes = await pool.query(`
     SELECT va.id, va.km_ecu::float as km, va.litros_consumidos_ecu::float as litros,
       va.origen_nombre, va.destino_nombre, va.duracion_minutos::int as dur,
-      va.camion_id,
-      gao.nombre_contrato as origen_c,
-      gad.nombre_contrato as destino_c
+      va.camion_id, va.paradas,
+      COALESCE(gao.nombre_contrato, va.origen_nombre) as origen_c,
+      COALESCE(gad.nombre_contrato, va.destino_nombre) as destino_c
     FROM viajes_aprendizaje va
     LEFT JOIN geocerca_alias_contrato gao ON gao.geocerca_nombre = va.origen_nombre AND gao.contrato = 'CENCOSUD'
     LEFT JOIN geocerca_alias_contrato gad ON gad.geocerca_nombre = va.destino_nombre AND gad.contrato = 'CENCOSUD'
@@ -58,6 +58,38 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
     }
   }
 
+  const EQUIVALENCIAS: Record<string, string[]> = {
+    "Chillán": ["CD Chillán", "CD LTS CHILLAN camino Nahueltoro 230"],
+    "CD Chillán": ["Chillán"],
+    "CD LTS CHILLAN camino Nahueltoro 230": ["CD Chillán", "Chillán"],
+    "CT Concepción": ["Concepción"],
+    "Concepción": ["CT Concepción"],
+    "Coquimbo": ["CT Coquimbo"],
+    "CT Coquimbo": ["Coquimbo"],
+    "CD Noviciado": ["Noviciado"],
+    "Noviciado": ["CD Noviciado"],
+    "CD Vespucio": ["Vespucio"],
+    "Vespucio": ["CD Vespucio"],
+    "CD Lo Aguirre": ["Lo Aguirre"],
+    "Lo Aguirre": ["CD Lo Aguirre"],
+  };
+
+  function buscarTarifaFlex(origen: string, destino: string): { id: number; tarifa: number; clase: string } | null {
+    const direct = tarifaMap.get(`${origen}|${destino}`);
+    if (direct) return direct;
+    const reverse = tarifaMap.get(`${destino}|${origen}`);
+    if (reverse) return reverse;
+    const origenAlts = [origen, ...(EQUIVALENCIAS[origen] || [])];
+    const destinoAlts = [destino, ...(EQUIVALENCIAS[destino] || [])];
+    for (const o of origenAlts) {
+      for (const d of destinoAlts) {
+        const t = tarifaMap.get(`${o}|${d}`) || tarifaMap.get(`${d}|${o}`);
+        if (t) return t;
+      }
+    }
+    return null;
+  }
+
   let procesados = 0;
   let conTarifa = 0;
   let sinTarifa = 0;
@@ -73,16 +105,23 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
     const costoFijo = Math.round(params.costo_fijo_dia * (horas / 24));
     const costoTotal = costoDiesel + costoCvm + costoConductor + costoFijo;
 
-    const origenC = v.origen_c || null;
-    const destinoC = v.destino_c || null;
+    const origenC = v.origen_c || v.origen_nombre;
+    const destinoC = v.destino_c || v.destino_nombre;
 
     let ingresoTarifa = 0;
     let tarifaId: number | null = null;
     let tarifaClase: string | null = null;
 
-    if (origenC && destinoC) {
-      const key = `${origenC}|${destinoC}`;
-      const t = tarifaMap.get(key);
+    let paradas: any = null;
+    try { paradas = typeof v.paradas === 'string' ? JSON.parse(v.paradas) : v.paradas; } catch {}
+    const tarifaT1 = paradas?.tarifa_encontrada;
+
+    if (tarifaT1 && tarifaT1 > 0) {
+      ingresoTarifa = tarifaT1;
+      tarifaClase = paradas?.tipo || 'T1';
+      conTarifa++;
+    } else if (origenC && destinoC) {
+      const t = buscarTarifaFlex(origenC, destinoC);
       if (t) {
         ingresoTarifa = t.tarifa;
         tarifaId = t.id;
