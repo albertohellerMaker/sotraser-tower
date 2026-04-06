@@ -457,7 +457,7 @@ const WT_TABS: { id: WTTab; label: string; icon: typeof MapIcon; color: string }
   { id: "sistema", label: "SISTEMA", icon: Settings, color: "#3a6080" },
 ];
 
-export default function WiseTrackApp({ onBack }: { onBack: () => void }) {
+export default function WiseTrackApp({ onBack }: { onBack?: () => void } = {}) {
   const [tab, setTab] = useState<WTTab>("flota");
 
   const { data: wtData } = useQuery<WTResponse>({
@@ -476,7 +476,7 @@ export default function WiseTrackApp({ onBack }: { onBack: () => void }) {
       <div className="fixed top-0 left-0 right-0 z-50" style={{ background: "rgba(2,5,8,0.97)", backdropFilter: "blur(12px)", borderBottom: "1px solid #0d2035" }}>
         <div className="flex items-center justify-between px-4 h-[36px]">
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="font-space text-[14px] font-bold tracking-[0.2em] cursor-pointer hover:opacity-80" style={{ color: "#06b6d4", background: "none", border: "none" }}>SOTRASER</button>
+            <button onClick={() => onBack ? onBack() : setTab("flota")} className="font-space text-[14px] font-bold tracking-[0.2em] cursor-pointer hover:opacity-80" style={{ color: "#06b6d4", background: "none", border: "none" }}>SOTRASER</button>
             <span className="font-exo text-[9px] tracking-wider" style={{ color: "#3a6080" }}>WISETRACK</span>
             <div className="w-px h-4 mx-1" style={{ background: "#0d2035" }} />
             <div className="flex items-center gap-1">
