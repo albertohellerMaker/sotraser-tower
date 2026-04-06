@@ -26,20 +26,20 @@ interface FusionTruck {
   fleetNum: string;
   patenteReal: string | null;
   vin: string | null;
-  modeloVolvo: string;
-  faenaSigetra: string | null;
-  conductorSigetra: string | null;
-  totalLitrosSigetra: number;
+  modelo: string;
+  faena: string | null;
+  conductor: string | null;
+  totalLitrosSurtidor: number;
   totalCargas: number;
   rendPromedio: number;
-  odometroSigetra: number | null;
-  odometroVolvo: number | null;
+  odometroSurtidor: number | null;
+  odometroGps: number | null;
   deltaOdometro: number | null;
-  fuelLevelVolvo: number | null;
-  totalFuelUsedVolvo: number | null;
-  litrosVolvoPeriodo: number | null;
-  engineHoursVolvo: number | null;
-  gpsVolvo: { latitude: number | null; longitude: number | null } | null;
+  fuelLevel: number | null;
+  totalFuelUsed: number | null;
+  litrosPeriodo: number | null;
+  engineHours: number | null;
+  gps: { latitude: number | null; longitude: number | null } | null;
   alertLevel: "ok" | "alerta" | "critico";
   cargas: FusionCarga[];
 }
@@ -121,8 +121,8 @@ interface ConductorDetalle {
     velMax: number;
     scoreAnomalia: number;
     estado: string;
-    kmSigetra: number;
-    litrosSigetra: number;
+    kmSurtidor: number;
+    litrosSurtidor: number;
   }>;
   cargas: Array<{
     fecha: string;
@@ -403,7 +403,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                         return (
                           <div key={m.mes} className="flex-1 flex flex-col items-center gap-0.5" data-testid={`bar-historial-${i}`}>
                             <div className="w-full flex gap-0.5 items-end" style={{ height: "100px" }}>
-                              <div className="flex-1 rounded-t transition-all" style={{ height: `${hSig}%`, background: "#ff660080", minHeight: m.litrosSig > 0 ? "4px" : "0" }} title={`Sigetra: ${fN(m.litrosSig)} L`} />
+                              <div className="flex-1 rounded-t transition-all" style={{ height: `${hSig}%`, background: "#ff660080", minHeight: m.litrosSig > 0 ? "4px" : "0" }} title={`Surtidor: ${fN(m.litrosSig)} L`} />
                               <div className="flex-1 rounded-t transition-all" style={{ height: `${hEcu}%`, background: "#00d4ff80", minHeight: m.litrosEcu > 0 ? "4px" : "0" }} title={`ECU: ${fN(m.litrosEcu)} L`} />
                             </div>
                             <span className="text-xs font-mono text-[#3a6080]">{meses[parseInt(mo) - 1]}</span>
@@ -414,11 +414,11 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                     <div className="flex items-center gap-4 justify-center">
                       <div className="flex items-center gap-1.5">
                         <div className="w-3 h-2 rounded" style={{ background: "#ff660080" }} />
-                        <span className="text-xs font-mono text-[#3a6080]">SIGETRA</span>
+                        <span className="text-xs font-mono text-[#3a6080]">SURTIDOR</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-3 h-2 rounded" style={{ background: "#00d4ff80" }} />
-                        <span className="text-xs font-mono text-[#3a6080]">ECU VOLVO</span>
+                        <span className="text-xs font-mono text-[#3a6080]">TELEMETRIA</span>
                       </div>
                     </div>
                   </div>
@@ -463,7 +463,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                   ))}
                 </div>
                 {data.cargas.length === 0 ? (
-                  <div className="py-6 text-center text-[11px] font-mono text-[#3a6080]">Sin cargas Sigetra registradas</div>
+                  <div className="py-6 text-center text-[11px] font-mono text-[#3a6080]">Sin cargas registradas</div>
                 ) : data.cargas.map((c, i) => {
                   const badRend = c.rendimiento > 0 && c.rendimiento < 2.0;
                   const highLt = c.litros > 400;
@@ -558,7 +558,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                         <div className="mt-2 flex items-center gap-2 bg-red-500/10 border border-red-500/30 px-3 py-1.5">
                           <AlertTriangle className="w-3.5 h-3.5 text-[#ff2244] flex-shrink-0" />
                           <span className="text-[11px] font-mono text-[#ff2244]">
-                            Sigetra registra {fN(Math.round(pc.litrosSig))} L cargados vs {fN(Math.round(pc.litrosEcu))} L consumidos por ECU.
+                            Surtidor registra {fN(Math.round(pc.litrosSig))} L cargados vs {fN(Math.round(pc.litrosEcu))} L consumidos por telemetria.
                             Diferencia de +{fN(diffLt)} L ({diffPct}%) en camion {pc.patente}.
                           </span>
                         </div>
@@ -806,14 +806,14 @@ export default function RankingConductores() {
 
   const range = useMemo(() => getDateRange(days), [days]);
   const { data, isLoading, isError } = useQuery<FusionResponse>({
-    queryKey: [`/api/sigetra/fusion?from=${range.from}&to=${range.to}`],
+    queryKey: [`/api/wisetrack/fusion?from=${range.from}&to=${range.to}`],
   });
 
   const allFaenas = useMemo(() => {
     if (!data) return [];
     const faenaSet = new Set<string>();
     for (const truck of data.trucks) {
-      const faena = truck.faenaSigetra || "Sin Faena";
+      const faena = truck.faena || "Sin Faena";
       faenaSet.add(faena);
     }
     return Array.from(faenaSet).sort();
@@ -840,13 +840,13 @@ export default function RankingConductores() {
       if (errorNums.has(truck.fleetNum)) continue;
       trucksTotal++;
 
-      if (truck.litrosVolvoPeriodo != null && truck.litrosVolvoPeriodo > 0 && truck.totalLitrosSigetra > 0) {
-        const avg = (truck.litrosVolvoPeriodo + truck.totalLitrosSigetra) / 2;
-        const pctDiff = Math.abs(truck.litrosVolvoPeriodo - truck.totalLitrosSigetra) / avg * 100;
+      if (truck.litrosPeriodo != null && truck.litrosPeriodo > 0 && truck.totalLitrosSurtidor > 0) {
+        const avg = (truck.litrosPeriodo + truck.totalLitrosSurtidor) / 2;
+        const pctDiff = Math.abs(truck.litrosPeriodo - truck.totalLitrosSurtidor) / avg * 100;
         if (pctDiff > 5) { trucksFiltered++; continue; }
       }
 
-      const faena = truck.faenaSigetra || "Sin Faena";
+      const faena = truck.faena || "Sin Faena";
 
       for (const c of truck.cargas) {
         if (!c.conductor || c.conductor.trim() === "") continue;
@@ -984,7 +984,7 @@ export default function RankingConductores() {
             Eficiencia de combustible por conductor y faena &mdash; datos desde 01-03-2026
             {trucksFiltered > 0 && (
               <span className="ml-2 text-amber-400">
-                ({trucksFiltered} de {trucksTotal} camiones excluidos por dif. Volvo/Sigetra &gt;5%)
+                ({trucksFiltered} de {trucksTotal} camiones excluidos por dif. telemetria/surtidor &gt;5%)
               </span>
             )}
           </p>
@@ -1078,8 +1078,8 @@ export default function RankingConductores() {
         <Card>
           <CardContent className="py-10 text-center">
             <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-            <p className="text-sm font-mono text-red-400">Error al cargar datos de Sigetra Fusion</p>
-            <p className="text-xs font-mono text-muted-foreground mt-1">Verifique la conexion con el portal Sigetra</p>
+            <p className="text-sm font-mono text-red-400">Error al cargar datos de Fusion</p>
+            <p className="text-xs font-mono text-muted-foreground mt-1">Verifique la conexion con WiseTrack</p>
           </CardContent>
         </Card>
       ) : rankingGroups.length === 0 ? (
@@ -1114,7 +1114,7 @@ export default function RankingConductores() {
             <span className="text-blue-400">P50-P74 = Sobre promedio</span>,{" "}
             <span className="text-amber-400">P25-P49 = Bajo promedio</span>,{" "}
             <span className="text-red-400">Bajo P25 = Bajo rendimiento</span>.{" "}
-            <span className="font-bold text-emerald-300">Filtro de calidad:</span> solo se incluyen camiones donde la diferencia entre litros Volvo ECU y litros Sigetra sea &le;5%.{" "}
+            <span className="font-bold text-emerald-300">Filtro de calidad:</span> solo se incluyen camiones donde la diferencia entre litros telemetria y litros surtidor sea &le;5%.{" "}
             Se excluyen conductores con &lt;2 cargas validas y rendimiento &gt;15 km/L o &le;0.{" "}
             <span className="font-bold text-amber-300">Sistema de medicion activo desde 01-03-2026.</span>
           </div>

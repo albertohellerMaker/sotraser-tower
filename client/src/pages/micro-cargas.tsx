@@ -86,7 +86,7 @@ function ExpandedDetail({ record }: { record: MicroCargaRecord }) {
           )}
           {record.signals.includes("TANQUE_LLENO") && (
             <div className="font-exo text-xs" style={{ color: "#ff6b35" }}>
-              El nivel de combustible Volvo indica tanque sobre 80% al momento de consulta. Carga posiblemente no ingreso al tanque.
+              El nivel de combustible indica tanque sobre 80% al momento de consulta. Carga posiblemente no ingreso al tanque.
             </div>
           )}
         </div>
@@ -221,7 +221,7 @@ export default function MicroCargas() {
       )}
 
       <div className="text-[11px] font-space tracking-[0.15em]" style={{ color: "#3a6080" }}>
-        Senales: MULTIPLE DIA = 2+ cargas &lt;100L en distintos puntos mismo dia &middot; SIN MOVIMIENTO = sin GPS activo &middot; TANQUE LLENO = nivel Volvo &gt;80%
+        Senales: MULTIPLE DIA = 2+ cargas &lt;100L en distintos puntos mismo dia &middot; SIN MOVIMIENTO = sin GPS activo &middot; TANQUE LLENO = nivel &gt;80%
       </div>
     </div>
   );

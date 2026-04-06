@@ -75,20 +75,21 @@ export function registerRutasGpsRoutes(app: Express) {
         patenteToConductor.set(r.patente, r.conductor || null);
       }
 
-      const vins = [...patenteToVin.values()];
+      const patentes = [...patenteToVin.keys()];
       const fuelMap = new Map<string, { litrosEcu: number }>();
-      if (vins.length > 0) {
+      if (patentes.length > 0) {
         const fuelResult = await pool.query(`
-          SELECT vin, 
-            (MAX(total_fuel_used) - MIN(total_fuel_used)) / 1000.0 as litros_ecu
-          FROM volvo_fuel_snapshots
-          WHERE captured_at::timestamp >= ($1::date) AND captured_at::timestamp < ($1::date + interval '1 day')
-            AND vin = ANY($2)
-          GROUP BY vin
-          HAVING MAX(total_fuel_used) > MIN(total_fuel_used)
-        `, [fecha, vins]);
+          SELECT patente, 
+            MAX(consumo_litros) - MIN(consumo_litros) as litros_ecu
+          FROM wisetrack_posiciones
+          WHERE DATE(creado_at) = $1::date
+            AND patente = ANY($2)
+          GROUP BY patente
+          HAVING MAX(consumo_litros) > MIN(consumo_litros)
+        `, [fecha, patentes]);
         for (const r of fuelResult.rows) {
-          fuelMap.set(r.vin, { litrosEcu: parseFloat(r.litros_ecu) || 0 });
+          const vin = patenteToVin.get(r.patente);
+          if (vin) fuelMap.set(vin, { litrosEcu: parseFloat(r.litros_ecu) || 0 });
         }
       }
 
@@ -233,14 +234,14 @@ export function registerRutasGpsRoutes(app: Express) {
         }
         const rendResult = await pool.query(`
           SELECT AVG(
-            CASE WHEN vd.km_total > 0 AND c.vin IS NOT NULL THEN
+            CASE WHEN vd.km_total > 0 THEN
               vd.km_total::float / NULLIF(
-                (SELECT (MAX(total_fuel_used) - MIN(total_fuel_used)) / 1000.0
-                 FROM volvo_fuel_snapshots
-                 WHERE vin = c.vin
-                   AND captured_at::timestamp >= vd.fecha AND captured_at::timestamp < vd.fecha + interval '1 day'
-                   AND total_fuel_used > 0
-                 HAVING MAX(total_fuel_used) > MIN(total_fuel_used)
+                (SELECT MAX(consumo_litros) - MIN(consumo_litros)
+                 FROM wisetrack_posiciones
+                 WHERE patente = vd.patente
+                   AND DATE(creado_at) = vd.fecha
+                   AND consumo_litros > 0
+                 HAVING MAX(consumo_litros) > MIN(consumo_litros)
                 ), 0)
             END
           )::numeric(6,2) as rend_prom
@@ -447,8 +448,8 @@ export function registerRutasGpsRoutes(app: Express) {
 
   // ═══════════════════════════════════════════════════
   // GET /api/camion/mes-completo/:patente
-  // V2: Híbrido Sigetra (todo el mes) + Volvo ECU (donde exista)
-  // Sigetra cargas = fuente primaria de actividad y rendimiento
+  // V2: Híbrido Cargas (todo el mes) + WiseTrack (donde exista)
+  // Cargas surtidor = fuente primaria de actividad y rendimiento
   // viajes_aprendizaje = complemento con detalle GPS
   // ═══════════════════════════════════════════════════
   app.get("/api/camion/mes-completo/:patente", async (req, res) => {
@@ -471,7 +472,7 @@ export function registerRutasGpsRoutes(app: Express) {
       const camionId = camionResult.rows[0]?.id;
       const conductor = camionResult.rows[0]?.conductor || null;
 
-      // ─── FUENTE 1: Cargas Sigetra (todo el mes, fuente primaria) ───
+      // ─── FUENTE 1: Cargas surtidor (todo el mes, fuente primaria) ───
       const cargasResult = await pool.query(`
         SELECT c.id, c.fecha, c.litros_surtidor::float as litros, c.lugar_consumo as estacion,
                c.faena as contrato, c.km_anterior::float as km_anterior, c.km_actual::float as km_actual,
@@ -589,40 +590,37 @@ export function registerRutasGpsRoutes(app: Express) {
       const calendario = [];
       for (let d = 1; d <= diasEnMes; d++) {
         const fechaStr = `${anio}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const sigetra = calendarioMap.get(fechaStr);
-        const volvo = viajesPorDia.get(fechaStr);
+        const cargaDia = calendarioMap.get(fechaStr);
+        const viajeDia = viajesPorDia.get(fechaStr);
 
-        // Prefer Volvo ECU data when available, fallback to Sigetra-derived
-        const km = volvo && volvo.kmEcu > 0 ? volvo.kmEcu : (sigetra?.km || 0);
-        const litros = volvo && volvo.litrosEcu > 0 ? volvo.litrosEcu : (sigetra?.litros || 0);
-        const activo = km > 5 || (sigetra?.cargas || 0) > 0 || (volvo?.viajes || 0) > 0;
-        const rendimiento = litros > 0 ? km / litros : (sigetra?.rendimiento_count ? sigetra.rendimiento_sum / sigetra.rendimiento_count : 0);
+        const km = viajeDia && viajeDia.kmEcu > 0 ? viajeDia.kmEcu : (cargaDia?.km || 0);
+        const litros = viajeDia && viajeDia.litrosEcu > 0 ? viajeDia.litrosEcu : (cargaDia?.litros || 0);
+        const activo = km > 5 || (cargaDia?.cargas || 0) > 0 || (viajeDia?.viajes || 0) > 0;
+        const rendimiento = litros > 0 ? km / litros : (cargaDia?.rendimiento_count ? cargaDia.rendimiento_sum / cargaDia.rendimiento_count : 0);
 
-        // Fuente de datos para este día
-        let fuente: "volvo" | "sigetra" | "sin_datos" = "sin_datos";
-        if (volvo && volvo.viajes > 0) fuente = "volvo";
-        else if (sigetra && (sigetra.cargas > 0 || sigetra.km > 0)) fuente = "sigetra";
+        let fuente: "wisetrack" | "carga" | "sin_datos" = "sin_datos";
+        if (viajeDia && viajeDia.viajes > 0) fuente = "wisetrack";
+        else if (cargaDia && (cargaDia.cargas > 0 || cargaDia.km > 0)) fuente = "carga";
 
         calendario.push({
           fecha: fechaStr,
           dia: d,
           km: Math.round(km * 10) / 10,
           rendimiento: Math.round(rendimiento * 100) / 100,
-          viajes: volvo?.viajes || sigetra?.cargas || 0,
-          horas_ruta: Math.round((volvo?.horasRuta || 0) * 10) / 10,
+          viajes: viajeDia?.viajes || cargaDia?.cargas || 0,
+          horas_ruta: Math.round((viajeDia?.horasRuta || 0) * 10) / 10,
           activo,
           fuente,
-          cargas_dia: sigetra?.cargas || 0,
-          litros_dia: Math.round((sigetra?.litros || 0) * 10) / 10,
+          cargas_dia: cargaDia?.cargas || 0,
+          litros_dia: Math.round((cargaDia?.litros || 0) * 10) / 10,
         });
       }
 
-      // ─── Acumulado del mes ───
       const totalKm = calendario.reduce((s, d) => s + d.km, 0);
       const totalLitros = cargas.reduce((s: number, c: any) => s + (c.litros || 0), 0);
       const diasActivos = calendario.filter(d => d.activo).length;
-      const diasConVolvo = calendario.filter(d => d.fuente === "volvo").length;
-      const diasConSigetra = calendario.filter(d => d.fuente === "sigetra").length;
+      const diasConWisetrack = calendario.filter(d => d.fuente === "wisetrack").length;
+      const diasConCarga = calendario.filter(d => d.fuente === "carga").length;
 
       // Dias laborales = L-V hasta hoy
       let diasLaborales = 0;
@@ -639,8 +637,8 @@ export function registerRutasGpsRoutes(app: Express) {
         cargas_mes: cargas.length,
         dias_activos: diasActivos,
         dias_mes: diasLaborales,
-        dias_volvo: diasConVolvo,
-        dias_sigetra: diasConSigetra,
+        dias_wisetrack: diasConWisetrack,
+        dias_carga: diasConCarga,
         conductor,
       };
 
@@ -655,7 +653,7 @@ export function registerRutasGpsRoutes(app: Express) {
           fuente: d.fuente,
         }));
 
-      // ─── Promedio histórico (Sigetra + Volvo) ───
+      // ─── Promedio histórico (Cargas + WiseTrack) ───
       const promedioResult = await pool.query(`
         SELECT AVG(rend) as promedio FROM (
           SELECT rend_real::float as rend FROM cargas
@@ -711,7 +709,7 @@ export function registerRutasGpsRoutes(app: Express) {
         ORDER BY va.fecha_inicio
       `, [camionId || -1, fecha]);
 
-      // Cargas del día (sigetra)
+      // Cargas del día (surtidor)
       const cargasResult = await pool.query(`
         SELECT fecha, litros_surtidor::float as litros, lugar_consumo as estacion,
                EXTRACT(HOUR FROM fecha::timestamp) || ':' || LPAD(EXTRACT(MINUTE FROM fecha::timestamp)::text, 2, '0') as hora
@@ -831,7 +829,7 @@ export function registerRutasGpsRoutes(app: Express) {
 
   // ═══════════════════════════════════════════════════
   // GET /api/camion/conductores/:patente
-  // Conductores asociados a un camión (BETA - fuente: cargas Sigetra)
+  // Conductores asociados a un camión (BETA - fuente: cargas surtidor)
   // ═══════════════════════════════════════════════════
   app.get("/api/camion/conductores/:patente", async (req, res) => {
     try {

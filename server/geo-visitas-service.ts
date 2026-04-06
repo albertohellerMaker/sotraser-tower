@@ -49,7 +49,7 @@ interface VisitaDetectada {
   origenNombre: string | null;
   origenLat: number | null;
   origenLng: number | null;
-  metodo: "GPS" | "ODOMETRO" | "SIGETRA";
+  metodo: "GPS" | "ODOMETRO" | "CARGA";
   tarifaClp: number | null;
   tmsViajeId: number | null;
 }

@@ -5,7 +5,7 @@ Fleet management system for Chilean trucking company SOTRASER. **WiseTrack offic
 
 ## Data Source
 - **WiseTrack Official API**: `https://ei.wisetrack.cl/Sotraser/TelemetriaDetalle` — GET with Bearer token, SSL self-signed cert (`rejectUnauthorized: false`). Buffer empties after read — poll every 60s. Rich telemetry: GPS, fuel, RPM, torque, engine temp, horometer, consumption breakdown.
-- **DB Tables**: `wisetrack_telemetria` (raw API data by wt_id), `wisetrack_vehiculos` (movil→patente mapping, 476 entries), `wisetrack_posiciones` (processed GPS + fuel positions, auto-created by scraper)
+- **DB Tables**: `wisetrack_telemetria` (raw API data by wt_id), `wisetrack_vehiculos` (movil→patente mapping, 476 entries), `wisetrack_posiciones` (processed GPS + fuel positions, auto-created by API client)
 - **TMS Trip Detection**: Fully automatic using `wisetrack_posiciones`. `viajes-historico.ts` builds trips from GPS positions using sustained-stop segmentation (30min dwell threshold) and odometer/fuel deltas. `t1-reconstructor.ts` reconstructs T-1 daily trips.
 - **WiseTrack Token**: stored as `WISETRACK_API_TOKEN` env var
 
@@ -43,7 +43,7 @@ server/
   routes.ts                # Main route registration (all API endpoints)
   tower-routes.ts          # /api/tower/* — fuel analysis, stops, fleet summary (100% WiseTrack)
   brain-routes.ts          # /api/brain/* — AI executive assistant, anomaly detection, predictions
-  wisetrack-scraper.ts     # WiseTrack API client + DB sync (tables auto-created)
+  wisetrack-api.ts         # WiseTrack API client + DB sync (tables auto-created)
   wisetrack-routes.ts      # /api/wisetrack/* — en-vivo, historial, TMS en-vivo
   combustible-routes.ts    # /api/combustible/* — fuel validation, ADN, fraud detection
   viajes-historico.ts      # Trip reconstruction from GPS positions
@@ -93,11 +93,11 @@ Login → SplashScreen → WiseTrackApp
 - **Fixed**: `saveTelemetria` now uses `ConsumoLitros_Total` instead of `ConsumoLitros_Conduccion` — fuel data was under-reported
 - **Fixed**: `wisetrack_posiciones` table auto-created by scraper on startup
 - **Fixed**: `fetchSeguimiento` handles Date objects from PostgreSQL (was crashing with `.replace is not a function`)
-- **Fixed**: `/api/camiones` no longer filters by VIN (was hiding non-Volvo trucks)
+- **Fixed**: `/api/camiones` no longer filters by VIN (was hiding trucks)
 - **Fixed**: `/api/dashboard/hero` now pulls real km/litros from wisetrack_posiciones instead of returning zeros
 - **Fixed**: `/api/datos/excesos-velocidad` now queries wisetrack_posiciones for speed events instead of returning empty
 - **Fixed**: `/api/faenas/en-movimiento` now returns real counts from wisetrack_posiciones
 - **Fixed**: `/api/brain/comparacion-fuentes` SQL — window function moved to CTE (was invalid nested aggregate)
-- **Fixed**: Sigetra status message updated from "Volvo Connect" to "WiseTrack API"
+- **Fixed**: Status message updated to "WiseTrack API"
 - **Added**: PARADAS sub-tab in FLOTA dashboard
 - **Added**: Tower API endpoints: `/api/tower/combustible`, `/api/tower/paradas`, `/api/tower/resumen-flota`

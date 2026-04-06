@@ -314,12 +314,12 @@ export async function generarAnalisisIA(): Promise<{ resumen: string; datos: any
   })).filter(l => (l.vecesVisitado || 0) > 0).sort((a, b) => (b.vecesVisitado || 0) - (a.vecesVisitado || 0));
 
   const anomaliasKm = cencosudViajes
-    .filter(v => v.sigetraKmDeltaPct && Math.abs(parseFloat(v.sigetraKmDeltaPct)) > 10)
+    .filter(v => v.cargaKmDeltaPct && Math.abs(parseFloat(v.cargaKmDeltaPct)) > 10)
     .map(v => ({
       patente: v.patente,
       fecha: v.origenTimestamp,
       kmGps: v.kmGps,
-      deltaPct: v.sigetraKmDeltaPct,
+      deltaPct: v.cargaKmDeltaPct,
     }));
 
   const validacionResumen = {
@@ -357,7 +357,7 @@ TIEMPOS DE PERMANENCIA:
 Hay locales donde los camiones pasan demasiado tiempo? Cual es el tiempo normal?
 
 ANOMALIAS DETECTADAS:
-Hay viajes con km muy distintos entre GPS y Sigetra? Hay patrones sospechosos?
+Hay viajes con km muy distintos entre GPS y carga? Hay patrones sospechosos?
 
 RECOMENDACIONES:
 3 acciones concretas para optimizar la operacion basadas en los datos.

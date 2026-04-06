@@ -545,9 +545,9 @@ export async function obtenerHistorialCamion(patente: string, desde: Date, hasta
     }
   }
 
-  let cargasSigetra: any[] = [];
+  let cargasSurtidor: any[] = [];
   try {
-    cargasSigetra = await db.select().from(cargas)
+    cargasSurtidor = await db.select().from(cargas)
       .where(eq(cargas.camionId, camion.id));
   } catch {}
 
@@ -585,7 +585,7 @@ export async function obtenerHistorialCamion(patente: string, desde: Date, hasta
       tiempo_detenido_min: v.tiempoDetenidoMin || 0,
       paradas: v.paradas || [],
       validacion_estado: v.validacionEstado || "PENDIENTE",
-      sigetra_match: v.sigetraCargaId ? {
+      carga_match: v.sigetraCargaId ? {
         encontrado: true,
         litros: parseFloat(v.sigetraLitros as string) || 0,
         km_delta_pct: parseFloat(v.sigetraKmDeltaPct as string) || 0,
@@ -595,10 +595,10 @@ export async function obtenerHistorialCamion(patente: string, desde: Date, hasta
       destino_lat: parseFloat(v.destinoLat as string),
       destino_lng: parseFloat(v.destinoLng as string),
     })),
-    sigetra: cargasSigetra.length > 0 ? {
-      total_cargas: cargasSigetra.length,
-      total_litros: cargasSigetra.reduce((s, c) => s + (c.litrosSurtidor || 0), 0),
-      proveedores: [...new Set(cargasSigetra.map(c => c.proveedor).filter(Boolean))],
+    cargas: cargasSurtidor.length > 0 ? {
+      total_cargas: cargasSurtidor.length,
+      total_litros: cargasSurtidor.reduce((s, c) => s + (c.litrosSurtidor || 0), 0),
+      proveedores: [...new Set(cargasSurtidor.map(c => c.proveedor).filter(Boolean))],
     } : null,
     resumen: {
       total_viajes: viajesDB.length,
@@ -705,12 +705,12 @@ export async function obtenerResumenFlota(desde: Date) {
     }, {});
     const topDestino = Object.entries(destinoFrec).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-    let cargasSigetra = 0;
-    let litrosSigetra = 0;
+    let totalCargas = 0;
+    let totalLitrosCarga = 0;
     try {
       const cResult = await db.select().from(cargas).where(eq(cargas.camionId, cam.id));
-      cargasSigetra = cResult.length;
-      litrosSigetra = cResult.reduce((s, c) => s + (c.litrosSurtidor || 0), 0);
+      totalCargas = cResult.length;
+      totalLitrosCarga = cResult.reduce((s, c) => s + (c.litrosSurtidor || 0), 0);
     } catch {}
 
     resumen.push({
@@ -725,8 +725,8 @@ export async function obtenerResumenFlota(desde: Date) {
       destino_top: topDestino,
       validados: viajes.filter(v => v.validacionEstado === "VALIDADO").length,
       anomalias: viajes.filter(v => v.validacionEstado === "ANOMALIA").length,
-      sigetra_cargas: cargasSigetra,
-      sigetra_litros: Math.round(litrosSigetra),
+      total_cargas: totalCargas,
+      total_litros_carga: Math.round(totalLitrosCarga),
     });
   }
 

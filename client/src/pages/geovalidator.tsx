@@ -41,9 +41,9 @@ interface GeoViaje {
   velocidadPromedio: string | null;
   validacionEstado: string;
   validacionDetalle: any;
-  sigetraKmDeltaPct: string | null;
-  sigetraLitros: string | null;
-  sigetraSurtidorEnRuta: boolean | null;
+  cargaKmDeltaPct: string | null;
+  cargaLitros: string | null;
+  cargaSurtidorEnRuta: boolean | null;
   validadoManualmente: boolean;
   notas: string | null;
 }
@@ -150,7 +150,7 @@ function CamionesTab() {
       patente: (a, b) => a.patente.localeCompare(b.patente),
       diffLt: (a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia),
       diffPct: (a, b) => Math.abs(b.diferenciaPct) - Math.abs(a.diferenciaPct),
-      litrosSig: (a, b) => b.litrosSigetra - a.litrosSigetra,
+      litrosSig: (a, b) => b.litrosSurtidor - a.litrosSurtidor,
       litrosEcu: (a, b) => b.litrosEcu - a.litrosEcu,
     };
     const sorted = [...list].sort(sortFns[sortBy] || sortFns.diffLt);
@@ -162,9 +162,9 @@ function CamionesTab() {
   const totals = useMemo(() => {
     const t = { camiones: filtered.length, litrosSig: 0, litrosEcu: 0, cargas: 0, viajes: 0, km: 0 };
     for (const c of filtered) {
-      t.litrosSig += c.litrosSigetra || 0;
+      t.litrosSig += c.litrosSurtidor || 0;
       t.litrosEcu += c.litrosEcu || 0;
-      t.cargas += c.cargasSigetra || 0;
+      t.cargas += c.cargasSurtidor || 0;
       t.viajes += c.viajesEcu || 0;
       t.km += c.kmEcu || 0;
     }
@@ -185,7 +185,7 @@ function CamionesTab() {
   const barMax = useMemo(() => {
     let max = 0;
     for (const c of filtered) {
-      if (c.litrosSigetra > max) max = c.litrosSigetra;
+      if (c.litrosSurtidor > max) max = c.litrosSurtidor;
       if (c.litrosEcu > max) max = c.litrosEcu;
     }
     return max || 1;
@@ -1153,7 +1153,7 @@ function AprendizajeTab() {
                 : (rend >= 3.5 ? "#00c97a" : rend >= 2.5 ? "#ffcc00" : "#ff2244");
               const score = a.score_anomalia || 0;
               const scoreColor = score >= 50 ? "#ff2244" : score >= 20 ? "#ffcc00" : "#00c97a";
-              const litrosSigetra = 0;
+              const litrosSurtidor = 0;
               const delta: number | null = null;
               const cruzado = false;
               return (

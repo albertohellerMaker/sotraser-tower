@@ -74,7 +74,7 @@ export function CargaModal({ camionId, open, onClose }: CargaModalProps) {
                 placeholder="410" className="font-mono bg-background" data-testid="input-litros-surtidor" />
             </div>
             <div>
-              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Litros ECU Volvo</Label>
+              <Label className="text-[11px] font-mono text-muted-foreground tracking-[0.15em] uppercase">Litros Telemetria</Label>
               <Input type="number" value={form.litrosEcu} onChange={e => set("litrosEcu", e.target.value)}
                 placeholder="280" className="font-mono bg-background" data-testid="input-litros-ecu" />
             </div>

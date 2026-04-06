@@ -24,20 +24,20 @@ interface FusionTruck {
   fleetNum: string;
   patenteReal: string | null;
   vin: string | null;
-  modeloVolvo: string;
-  faenaSigetra: string | null;
-  conductorSigetra: string | null;
-  totalLitrosSigetra: number;
+  modelo: string;
+  faena: string | null;
+  conductor: string | null;
+  totalLitrosSurtidor: number;
   totalCargas: number;
   rendPromedio: number;
-  odometroSigetra: number | null;
-  odometroVolvo: number | null;
+  odometroSurtidor: number | null;
+  odometroGps: number | null;
   deltaOdometro: number | null;
-  fuelLevelVolvo: number | null;
-  totalFuelUsedVolvo: number | null;
-  litrosVolvoPeriodo: number | null;
-  engineHoursVolvo: number | null;
-  gpsVolvo: { latitude: number | null; longitude: number | null } | null;
+  fuelLevel: number | null;
+  totalFuelUsed: number | null;
+  litrosPeriodo: number | null;
+  engineHours: number | null;
+  gps: { latitude: number | null; longitude: number | null } | null;
   alertLevel: "ok" | "alerta" | "critico";
   cargas: FusionCarga[];
 }
@@ -168,16 +168,16 @@ function detectErrors(t: FusionTruck): ErrorRecord[] {
     }
   }
 
-  if (t.litrosVolvoPeriodo != null && t.litrosVolvoPeriodo > 0 && t.totalLitrosSigetra > 0) {
-    const volvo = t.litrosVolvoPeriodo;
-    const sigetra = t.totalLitrosSigetra;
-    const cuadratura = (Math.min(volvo, sigetra) / Math.max(volvo, sigetra)) * 100;
+  if (t.litrosPeriodo != null && t.litrosPeriodo > 0 && t.totalLitrosSurtidor > 0) {
+    const litrosTelemetria = t.litrosPeriodo;
+    const litrosSurtidor = t.totalLitrosSurtidor;
+    const cuadratura = (Math.min(litrosTelemetria, litrosSurtidor) / Math.max(litrosTelemetria, litrosSurtidor)) * 100;
     if (cuadratura < 95) {
-      const diff = Math.abs(volvo - sigetra);
+      const diff = Math.abs(litrosTelemetria - litrosSurtidor);
       errors.push({
         truck: t, carga: null, errorType: "CUADRATURA_BAJA",
         errorLabel: ERROR_LABELS.CUADRATURA_BAJA,
-        detail: `Cuadratura ${cuadratura.toFixed(1)}% — Volvo: ${fN(Math.round(volvo))} L vs Sigetra: ${fN(Math.round(sigetra))} L. Diferencia de ${fN(Math.round(diff))} L. Los litros reportados por Volvo y Sigetra no coinciden (umbral: 95%).`,
+        detail: `Cuadratura ${cuadratura.toFixed(1)}% — Telemetria: ${fN(Math.round(litrosTelemetria))} L vs Surtidor: ${fN(Math.round(litrosSurtidor))} L. Diferencia de ${fN(Math.round(diff))} L. Los litros no coinciden (umbral: 95%).`,
       });
     }
   }
@@ -227,8 +227,8 @@ function exportErrorsToCSV(errors: ErrorRecord[]) {
     } else if (e.errorType === "MICRO_CARGA") {
       valor = e.carga ? `${e.carga.litros.toFixed(2)} L` : "";
     } else if (e.errorType === "CUADRATURA_BAJA") {
-      const v = e.truck.litrosVolvoPeriodo;
-      const s = e.truck.totalLitrosSigetra;
+      const v = e.truck.litrosPeriodo;
+      const s = e.truck.totalLitrosSurtidor;
       if (v != null && v > 0 && s > 0) {
         valor = `${((Math.min(v, s) / Math.max(v, s)) * 100).toFixed(1)}%`;
       }
@@ -255,7 +255,7 @@ export default function Errores() {
   const range = useMemo(() => getDateRange(period), [period]);
 
   const { data: fusion, isLoading } = useQuery<FusionResponse>({
-    queryKey: [`/api/sigetra/fusion?from=${range.from}&to=${range.to}`],
+    queryKey: [`/api/wisetrack/fusion?from=${range.from}&to=${range.to}`],
     refetchInterval: 600000,
   });
 
@@ -296,8 +296,8 @@ export default function Errores() {
       list = list.filter(([num, errs]) =>
         num.includes(q) ||
         errs[0]?.truck.patenteReal?.toLowerCase().includes(q) ||
-        errs[0]?.truck.faenaSigetra?.toLowerCase().includes(q) ||
-        errs[0]?.truck.conductorSigetra?.toLowerCase().includes(q)
+        errs[0]?.truck.faena?.toLowerCase().includes(q) ||
+        errs[0]?.truck.conductor?.toLowerCase().includes(q)
       );
     }
 
@@ -336,7 +336,7 @@ export default function Errores() {
             </h1>
           </div>
           <span className="text-xs font-mono text-muted-foreground">
-            Registros con datos imposibles o inconsistentes en Sigetra — ultimos {period === "7D" ? "7" : period === "14D" ? "14" : "30"} dias
+            Registros con datos imposibles o inconsistentes — ultimos {period === "7D" ? "7" : period === "14D" ? "14" : "30"} dias
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -368,7 +368,7 @@ export default function Errores() {
       <div className="bg-amber-500/5 border border-amber-500/20 p-3 flex items-center gap-2">
         <AlertOctagon className="w-4 h-4 text-amber-400 flex-shrink-0" />
         <span className="text-xs font-mono text-amber-400">
-          Estos registros tienen datos que no son fisicamente posibles (rendimiento &gt;15 km/L, odometros que retroceden, saltos de 100.000+ km, micro-cargas con miles de km) o cuadratura baja (&lt;95% match entre litros Volvo y Sigetra). Son excluidos del analisis de Fusion, Desviaciones y Performance IA.
+          Estos registros tienen datos que no son fisicamente posibles (rendimiento &gt;15 km/L, odometros que retroceden, saltos de 100.000+ km, micro-cargas con miles de km) o cuadratura baja (&lt;95% match entre litros telemetria y surtidor). Son excluidos del analisis.
         </span>
       </div>
 
@@ -391,7 +391,7 @@ export default function Errores() {
             <span className="text-xs font-mono text-muted-foreground tracking-[0.2em]">CUADRATURA BAJA</span>
           </div>
           <div className="text-2xl font-mono font-bold text-amber-400" data-testid="text-err-cuadratura">{stats.byType.get("CUADRATURA_BAJA") || 0}</div>
-          <div className="text-xs font-mono text-muted-foreground">&lt;95% Volvo vs Sigetra</div>
+          <div className="text-xs font-mono text-muted-foreground">&lt;95% Telemetria vs Surtidor</div>
         </button>
         <button onClick={() => setFilterType("REND_IMPOSIBLE")}
           data-testid="btn-err-filter-rend"
@@ -460,7 +460,7 @@ export default function Errores() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-mono font-bold text-foreground">{fleetNum}</span>
                       <span className="text-xs font-mono text-muted-foreground">{t.patenteReal || ""}</span>
-                      <span className="text-xs font-mono text-muted-foreground">{t.faenaSigetra || ""}</span>
+                      <span className="text-xs font-mono text-muted-foreground">{t.faena || ""}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-mono font-bold text-amber-400">{errors.length} error{errors.length > 1 ? "es" : ""}</span>
@@ -480,13 +480,13 @@ export default function Errores() {
                   <div className="bg-background border-b border-border p-4 space-y-3">
                     <div className="grid grid-cols-3 gap-4 mb-3">
                       <div className="text-[11px] font-mono">
-                        <span className="text-muted-foreground">Modelo:</span> <span className="text-foreground">{t.modeloVolvo}</span>
+                        <span className="text-muted-foreground">Modelo:</span> <span className="text-foreground">{t.modelo}</span>
                       </div>
                       <div className="text-[11px] font-mono">
-                        <span className="text-muted-foreground">Conductor:</span> <span className="text-foreground">{t.conductorSigetra || "\u2014"}</span>
+                        <span className="text-muted-foreground">Conductor:</span> <span className="text-foreground">{t.conductor || "\u2014"}</span>
                       </div>
                       <div className="text-[11px] font-mono">
-                        <span className="text-muted-foreground">Total cargas:</span> <span className="text-foreground">{t.totalCargas} ({fN(Math.round(t.totalLitrosSigetra))} L)</span>
+                        <span className="text-muted-foreground">Total cargas:</span> <span className="text-foreground">{t.totalCargas} ({fN(Math.round(t.totalLitrosSurtidor))} L)</span>
                       </div>
                     </div>
 
@@ -525,18 +525,18 @@ export default function Errores() {
                         ) : e.errorType === "CUADRATURA_BAJA" && (
                           <div className="grid grid-cols-3 gap-4 mb-2 text-xs font-mono">
                             <div>
-                              <span className="text-muted-foreground">Volvo: </span>
-                              <span className="text-amber-400 font-bold">{e.truck.litrosVolvoPeriodo != null ? fN(Math.round(e.truck.litrosVolvoPeriodo)) : "\u2014"} L</span>
+                              <span className="text-muted-foreground">Telemetria: </span>
+                              <span className="text-amber-400 font-bold">{e.truck.litrosPeriodo != null ? fN(Math.round(e.truck.litrosPeriodo)) : "\u2014"} L</span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground">Sigetra: </span>
-                              <span className="text-amber-400 font-bold">{fN(Math.round(e.truck.totalLitrosSigetra))} L</span>
+                              <span className="text-muted-foreground">Surtidor: </span>
+                              <span className="text-amber-400 font-bold">{fN(Math.round(e.truck.totalLitrosSurtidor))} L</span>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Cuadratura: </span>
                               <span className="text-red-400 font-bold">
-                                {e.truck.litrosVolvoPeriodo != null && e.truck.litrosVolvoPeriodo > 0 && e.truck.totalLitrosSigetra > 0
-                                  ? ((Math.min(e.truck.litrosVolvoPeriodo, e.truck.totalLitrosSigetra) / Math.max(e.truck.litrosVolvoPeriodo, e.truck.totalLitrosSigetra)) * 100).toFixed(1)
+                                {e.truck.litrosPeriodo != null && e.truck.litrosPeriodo > 0 && e.truck.totalLitrosSurtidor > 0
+                                  ? ((Math.min(e.truck.litrosPeriodo, e.truck.totalLitrosSurtidor) / Math.max(e.truck.litrosPeriodo, e.truck.totalLitrosSurtidor)) * 100).toFixed(1)
                                   : "\u2014"}%
                               </span>
                             </div>

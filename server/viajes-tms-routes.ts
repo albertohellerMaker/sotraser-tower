@@ -226,7 +226,7 @@ router.get("/camion-dia/:patente", validate({ params: PatenteParam, query: Fecha
         va.duracion_minutos as duracion,
         ROUND(va.velocidad_promedio::numeric, 1) as vel_prom,
         ROUND(va.velocidad_maxima::numeric, 1) as vel_max,
-        va.validacion_doble, va.validado_wt, va.validado_volvo
+        va.validacion_doble, va.validado_wt, va.validado_gps
       FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
       WHERE c.patente = $1 AND DATE(va.fecha_inicio) = $2
       ORDER BY va.fecha_inicio ASC

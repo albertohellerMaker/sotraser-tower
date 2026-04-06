@@ -80,19 +80,6 @@ export const insertDesviacionCheckSchema = createInsertSchema(desviacionChecks).
 export type InsertDesviacionCheck = z.infer<typeof insertDesviacionCheckSchema>;
 export type DesviacionCheck = typeof desviacionChecks.$inferSelect;
 
-export const volvoFuelSnapshots = pgTable("volvo_fuel_snapshots", {
-  id: serial("id").primaryKey(),
-  vin: text("vin").notNull(),
-  totalFuelUsed: real("total_fuel_used").notNull(),
-  totalDistance: real("total_distance"),
-  capturedAt: text("captured_at").notNull(),
-}, (table) => [
-  unique("volvo_fuel_snap_vin_hour").on(table.vin, table.capturedAt),
-]);
-
-export const insertVolvoFuelSnapshotSchema = createInsertSchema(volvoFuelSnapshots).omit({ id: true });
-export type InsertVolvoFuelSnapshot = z.infer<typeof insertVolvoFuelSnapshotSchema>;
-export type VolvoFuelSnapshot = typeof volvoFuelSnapshots.$inferSelect;
 
 export const parametros = pgTable("parametros", {
   clave: varchar("clave", { length: 50 }).primaryKey(),
@@ -263,7 +250,7 @@ export const geoPuntos = pgTable("geo_puntos", {
   velocidadKmh: numeric("velocidad_kmh", { precision: 6, scale: 1 }).default("0"),
   rumboGrados: numeric("rumbo_grados", { precision: 5, scale: 1 }),
   kmOdometro: numeric("km_odometro", { precision: 10, scale: 1 }),
-  fuente: varchar("fuente", { length: 20 }).default("VOLVO"),
+  fuente: varchar("fuente", { length: 20 }).default("WISETRACK"),
   creadoAt: timestamp("creado_at").defaultNow(),
 });
 
@@ -451,7 +438,7 @@ export const viajesAprendizaje = pgTable("viajes_aprendizaje", {
   duracionMinutos: integer("duracion_minutos"),
   velocidadPromedio: numeric("velocidad_promedio", { precision: 6, scale: 1 }),
   velocidadMaxima: numeric("velocidad_maxima", { precision: 6, scale: 1 }),
-  fuenteViaje: varchar("fuente_viaje", { length: 20 }).default("VOLVO_ECU"),
+  fuenteViaje: varchar("fuente_viaje", { length: 20 }).default("WISETRACK"),
   procesadoAprendizaje: boolean("procesado_aprendizaje").default(false),
   creadoAt: timestamp("creado_at").defaultNow(),
   sigetraCruzado: boolean("sigetra_cruzado").default(false),
@@ -831,7 +818,7 @@ export const estadoCamionEsperado = pgTable("estado_camion_esperado", {
 }, (t) => [unique().on(t.patente, t.fecha)]);
 
 // ═══════════════════════════════════════════════════
-// IDENTIDADES DE CAMIONES — Matching Volvo ↔ Sigetra
+// IDENTIDADES DE CAMIONES
 // ═══════════════════════════════════════════════════
 export const wisetrackPosiciones = pgTable("wisetrack_posiciones", {
   id: serial("id").primaryKey(),

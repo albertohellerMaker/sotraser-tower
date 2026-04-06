@@ -591,7 +591,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
       if (cam.vin) {
         const snapRes = await pool.query(`
           SELECT total_fuel_used, total_distance, captured_at
-          FROM volvo_fuel_snapshots
+          FROM wisetrack_posiciones
           WHERE vin = $1
           ORDER BY captured_at DESC
           LIMIT 2
@@ -750,9 +750,9 @@ Sin formato adicional. Solo las 4 lineas.`;
 
       const { rows: operaciones } = await pool.query(query, params);
 
-      function getCalidadCierre(litrosEcu: number, litrosSigetra: number): string {
-        if (litrosEcu <= 0 || litrosSigetra <= 0) return "PENDIENTE";
-        const deltaPct = Math.abs(litrosSigetra - litrosEcu) / litrosEcu * 100;
+      function getCalidadCierre(litrosEcu: number, litrosSurtidor: number): string {
+        if (litrosEcu <= 0 || litrosSurtidor <= 0) return "PENDIENTE";
+        const deltaPct = Math.abs(litrosSurtidor - litrosEcu) / litrosEcu * 100;
         if (deltaPct < 5) return "PERFECTA";
         if (deltaPct < 15) return "BUENA";
         if (deltaPct < 25) return "ACEPTABLE";
@@ -768,7 +768,7 @@ Sin formato adicional. Solo las 4 lineas.`;
         operaciones: any[];
         km_total: number;
         litros_ecu_total: number;
-        litros_sigetra_total: number;
+        litros_surtidor_total: number;
         rendimiento_promedio: number | null;
         operaciones_perfectas: number;
         operaciones_buenas: number;
@@ -784,13 +784,13 @@ Sin formato adicional. Solo las 4 lineas.`;
 
       for (const op of operaciones) {
         const litrosEcu = parseFloat(op.litros_consumidos_ecu) || 0;
-        const litrosSigetra = parseFloat(op.litros_cargados_sigetra) || 0;
+        const litrosSurtidor = parseFloat(op.litros_cargados_sigetra) || 0;
         const kmEcu = parseFloat(op.km_ecu) || 0;
         const rend = parseFloat(op.rendimiento_real) || 0;
-        const calidad = getCalidadCierre(litrosEcu, litrosSigetra);
+        const calidad = getCalidadCierre(litrosEcu, litrosSurtidor);
 
         if (calidad === "PENDIENTE" && litrosEcu <= 0) continue;
-        verificadas.push({ ...op, calidad, litrosEcu, litrosSigetra, kmEcu, rend });
+        verificadas.push({ ...op, calidad, litrosEcu, litrosSurtidor, kmEcu, rend });
 
         const key = op.patente;
         if (!porCamion[key]) {
@@ -803,7 +803,7 @@ Sin formato adicional. Solo las 4 lineas.`;
             operaciones: [],
             km_total: 0,
             litros_ecu_total: 0,
-            litros_sigetra_total: 0,
+            litros_surtidor_total: 0,
             rendimiento_promedio: null,
             operaciones_perfectas: 0,
             operaciones_buenas: 0,
@@ -820,7 +820,7 @@ Sin formato adicional. Solo las 4 lineas.`;
         c.operaciones.push({ ...op, calidad });
         c.km_total += kmEcu;
         c.litros_ecu_total += litrosEcu;
-        c.litros_sigetra_total += litrosSigetra;
+        c.litros_surtidor_total += litrosSurtidor;
 
         if (calidad === "PERFECTA") c.operaciones_perfectas++;
         else if (calidad === "BUENA") c.operaciones_buenas++;
@@ -836,7 +836,7 @@ Sin formato adicional. Solo las 4 lineas.`;
         if (cam.litros_ecu_total > 0 && cam.km_total > 0) {
           cam.rendimiento_promedio = Math.round((cam.km_total / cam.litros_ecu_total) * 100) / 100;
         }
-        cam.balance_total = Math.round(cam.litros_sigetra_total - cam.litros_ecu_total);
+        cam.balance_total = Math.round(cam.litros_surtidor_total - cam.litros_ecu_total);
 
         const mitad = Math.floor(cam.operaciones.length / 2);
         if (mitad >= 2) {
@@ -856,7 +856,7 @@ Sin formato adicional. Solo las 4 lineas.`;
       const camionesArr = Object.values(porCamion);
       const totalKm = camionesArr.reduce((s, c) => s + c.km_total, 0);
       const totalLitrosEcu = camionesArr.reduce((s, c) => s + c.litros_ecu_total, 0);
-      const totalLitrosSigetra = camionesArr.reduce((s, c) => s + c.litros_sigetra_total, 0);
+      const totalLitrosSurtidor = camionesArr.reduce((s, c) => s + c.litros_surtidor_total, 0);
 
       const resumen = {
         periodo: {
@@ -870,8 +870,8 @@ Sin formato adicional. Solo las 4 lineas.`;
         camiones_activos: camionesArr.length,
         km_total: Math.round(totalKm),
         litros_ecu_total: Math.round(totalLitrosEcu),
-        litros_sigetra_total: Math.round(totalLitrosSigetra),
-        balance_total: Math.round(totalLitrosSigetra - totalLitrosEcu),
+        litros_surtidor_total: Math.round(totalLitrosSurtidor),
+        balance_total: Math.round(totalLitrosSurtidor - totalLitrosEcu),
         rendimiento_promedio: totalLitrosEcu > 0 ? Math.round((totalKm / totalLitrosEcu) * 100) / 100 : null,
         calidad_distribucion: {
           perfectas: verificadas.filter(o => o.calidad === "PERFECTA").length,
@@ -923,9 +923,9 @@ Sin formato adicional. Solo las 4 lineas.`;
         [patente]
       );
 
-      function getCalidadCierre(litrosEcu: number, litrosSigetra: number): string {
-        if (litrosEcu <= 0 || litrosSigetra <= 0) return "PENDIENTE";
-        const deltaPct = Math.abs(litrosSigetra - litrosEcu) / litrosEcu * 100;
+      function getCalidadCierre(litrosEcu: number, litrosSurtidor: number): string {
+        if (litrosEcu <= 0 || litrosSurtidor <= 0) return "PENDIENTE";
+        const deltaPct = Math.abs(litrosSurtidor - litrosEcu) / litrosEcu * 100;
         if (deltaPct < 5) return "PERFECTA";
         if (deltaPct < 15) return "BUENA";
         if (deltaPct < 25) return "ACEPTABLE";
@@ -934,15 +934,15 @@ Sin formato adicional. Solo las 4 lineas.`;
 
       const opsProcesadas = operaciones.map(op => {
         const litrosEcu = parseFloat(op.litros_consumidos_ecu) || 0;
-        const litrosSigetra = parseFloat(op.litros_cargados_sigetra) || 0;
-        return { ...op, litrosEcu, litrosSigetra, calidad: getCalidadCierre(litrosEcu, litrosSigetra) };
+        const litrosSurtidor = parseFloat(op.litros_cargados_sigetra) || 0;
+        return { ...op, litrosEcu, litrosSurtidor, calidad: getCalidadCierre(litrosEcu, litrosSurtidor) };
       });
 
       const conAlerta = opsProcesadas.filter(o => o.calidad === "CON_ALERTA");
 
       const kmTotal = opsProcesadas.reduce((s, o) => s + (parseFloat(o.km_ecu) || 0), 0);
       const litrosEcuTotal = opsProcesadas.reduce((s, o) => s + o.litrosEcu, 0);
-      const litrosSigetraTotal = opsProcesadas.reduce((s, o) => s + o.litrosSigetra, 0);
+      const litrosSurtidorTotal = opsProcesadas.reduce((s, o) => s + o.litrosSurtidor, 0);
 
       function getSemanaLabel(fecha: Date): string {
         return `S${Math.ceil(fecha.getDate() / 7)}`;
@@ -981,9 +981,9 @@ Sin formato adicional. Solo las 4 lineas.`;
           operaciones_con_alerta: conAlerta.length,
           km_total: Math.round(kmTotal),
           litros_ecu_total: Math.round(litrosEcuTotal),
-          litros_sigetra_total: Math.round(litrosSigetraTotal),
-          balance_litros: Math.round(litrosSigetraTotal - litrosEcuTotal),
-          balance_pct: litrosEcuTotal > 0 ? Math.round(((litrosSigetraTotal - litrosEcuTotal) / litrosEcuTotal) * 100) : null,
+          litros_surtidor_total: Math.round(litrosSurtidorTotal),
+          balance_litros: Math.round(litrosSurtidorTotal - litrosEcuTotal),
+          balance_pct: litrosEcuTotal > 0 ? Math.round(((litrosSurtidorTotal - litrosEcuTotal) / litrosEcuTotal) * 100) : null,
           rendimiento_promedio: rendimientoPromedio,
           vs_meta: metaKmL && litrosEcuTotal > 0
             ? Math.round(((kmTotal / litrosEcuTotal - metaKmL) / metaKmL) * 100)
@@ -1006,12 +1006,12 @@ Sin formato adicional. Solo las 4 lineas.`;
           destino: op.destino_nombre,
           km_ecu: parseFloat(op.km_ecu) || 0,
           litros_ecu: op.litrosEcu,
-          litros_sigetra: op.litrosSigetra,
+          litros_surtidor: op.litrosSurtidor,
           rendimiento: parseFloat(op.rendimiento_real) || 0,
           duracion_horas: op.duracion_minutos ? Math.round((op.duracion_minutos / 60) * 10) / 10 : null,
           calidad: op.calidad,
-          balance: op.litrosSigetra > 0 && op.litrosEcu > 0
-            ? Math.round(op.litrosSigetra - op.litrosEcu)
+          balance: op.litrosSurtidor > 0 && op.litrosEcu > 0
+            ? Math.round(op.litrosSurtidor - op.litrosEcu)
             : null,
         })),
       });
@@ -1037,7 +1037,7 @@ Sin formato adicional. Solo las 4 lineas.`;
         FROM camiones c
         JOIN faenas f ON c.faena_id = f.id
         WHERE f.nombre = $1 AND c.vin IS NOT NULL AND c.vin != ''
-          AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at::timestamp >= NOW() - INTERVAL '30 days')
+          AND c.patente IN (SELECT DISTINCT patente FROM wisetrack_posiciones WHERE creado_at >= NOW() - INTERVAL '30 days')
         ORDER BY c.patente
       `, [contrato]);
 

@@ -124,7 +124,7 @@ ${context}`
         max_tokens: 2000,
         messages: [{
           role: "user",
-          content: `Eres un analista experto en flotas de camiones en Chile. Analiza estos datos GPS y ECU (Volvo Connect) de la flota Sotraser y genera un JSON con exactamente esta estructura (sin texto adicional, solo JSON). Sistema de medicion activo desde 01-03-2026. No incluyas referencias a costos, CLP, Sigetra ni cargas manuales. Enfocate en rendimiento km/L ECU, velocidad, rutas GPS y estado de camiones.
+          content: `Eres un analista experto en flotas de camiones en Chile. Analiza estos datos GPS y telemetria (WiseTrack) de la flota Sotraser y genera un JSON con exactamente esta estructura (sin texto adicional, solo JSON). Sistema de medicion activo desde 01-03-2026. No incluyas referencias a costos ni CLP. Enfocate en rendimiento km/L, velocidad, rutas GPS y estado de camiones.
 {
   "resumen": "Resumen ejecutivo de 2-3 oraciones sobre el estado actual de la flota",
   "litros_en_riesgo": "Litros estimados en riesgo por desvios y cuadraturas bajas. Formato: X.XXX L",

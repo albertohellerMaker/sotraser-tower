@@ -180,7 +180,7 @@ async function main() {
     const camionesConVin = await db.select()
       .from(camiones)
       .where(isNotNull(camiones.vin));
-    const patentesVolvo = new Set(camionesConVin.filter(c => c.patente && c.vin).map(c => c.patente!));
+    const patentesActivas = new Set(camionesConVin.filter(c => c.patente && c.vin).map(c => c.patente!));
 
     const allCargasRaw = await db.select({
       patente: cargas.patente,
@@ -196,7 +196,7 @@ async function main() {
       )
     );
 
-    const allCargas = allCargasRaw.filter(c => c.patente && patentesVolvo.has(c.patente));
+    const allCargas = allCargasRaw.filter(c => c.patente && patentesActivas.has(c.patente));
 
     const porCamion = new Map<string, { litros: number[], contrato: string | null, ultimaFecha: string }>();
     const porCamionEstacion = new Map<string, { litros: number[], patente: string, estacion: string, contrato: string | null, ultimaFecha: string }>();

@@ -18,7 +18,7 @@ function calcularConfianza(semanas: number): string {
 
 /**
  * Calcular expectativas diarias para cada camión.
- * Usa cargas Sigetra como fuente primaria (cobertura 100%).
+ * Usa cargas de surtidor como fuente primaria (cobertura 100%).
  *
  * VALIDACIÓN 1: No predecir con menos de 2 semanas de historial.
  * VALIDACIÓN 3: Guardar nivel de confianza por predicción.

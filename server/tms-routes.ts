@@ -160,14 +160,14 @@ export function registerTMSRoutes(app: Express) {
 
         const gpsPoints: GpsPoint[] = [];
 
-        const volvoStatus = fleetStatus.find((v: any) => v.vin === camion.vin);
-        if (volvoStatus?.gps?.latitude && volvoStatus?.gps?.longitude) {
+        const gpsStatus = fleetStatus.find((v: any) => v.vin === camion.vin);
+        if (gpsStatus?.gps?.latitude && gpsStatus?.gps?.longitude) {
           gpsPoints.push({
-            lat: volvoStatus.gps.latitude,
-            lng: volvoStatus.gps.longitude,
-            time: new Date(volvoStatus.gps.positionDateTime || volvoStatus.createdDateTime || Date.now()),
-            speed: volvoStatus.gps.speed || 0,
-            km: volvoStatus.totalDistance ? volvoStatus.totalDistance / 1000 : (camion.odometro || 0),
+            lat: gpsStatus.gps.latitude,
+            lng: gpsStatus.gps.longitude,
+            time: new Date(gpsStatus.gps.positionDateTime || gpsStatus.createdDateTime || Date.now()),
+            speed: gpsStatus.gps.speed || 0,
+            km: gpsStatus.totalDistance ? gpsStatus.totalDistance / 1000 : (camion.odometro || 0),
           });
         }
 
