@@ -358,7 +358,7 @@ export async function fetchSeguimiento(_grupo?: string): Promise<SeguimientoVehi
     rpm: parseInt(r.rpm) || 0,
     tempMotor: parseFloat(r.temp_motor) || 0,
     estadoOperacion: r.estado_operacion || "Sin Lectura",
-    fecha: r.fecha || "",
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().replace("T", " ").substring(0, 19) : (r.fecha || ""),
     fechaInicioUltViaje: null,
     fechaFinUltViaje: null,
     kms: 0,
