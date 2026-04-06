@@ -212,8 +212,8 @@ export function registerCEORoutes(app: Express) {
       const camionesDetalleRaw = await Promise.all(fCamiones.map(async c => {
         const st = fStats.find(s => s.patente === c.patente);
         const online = c.vin ? vinsOnline.has(c.vin) : false;
-        const volvo = fleet.find((v: any) => v.vin === c.vin);
-        const speed = volvo ? ((volvo as any).wheelBasedSpeed ?? (volvo as any).gps?.speed ?? 0) : 0;
+        const gpsData = fleet.find((v: any) => v.vin === c.vin);
+        const speed = gpsData ? ((gpsData as any).wheelBasedSpeed ?? (gpsData as any).gps?.speed ?? 0) : 0;
 
         const fuelCam = fuelHoy.filter((r: any) => {
           return String(r.numVeh || "") === c.patente;
@@ -564,7 +564,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
       const viajesRes = await pool.query(`
         SELECT va.fecha_inicio, va.fecha_fin, va.origen_nombre, va.destino_nombre,
                va.km_ecu::float, va.litros_consumidos_ecu::float as litros_ecu,
-               va.litros_cargados_sigetra::float as litros_sigetra,
+               va.litros_cargados_sigetra::float as litros_surtidor,
                va.rendimiento_real::float as rendimiento, va.conductor,
                va.score_anomalia::int as score, va.estado,
                va.duracion_minutos::int as duracion_min,
@@ -615,7 +615,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
         ORDER BY conductor
       `, [cam.id]);
 
-      const conductoresSigetra = [...new Set(cargasFiltradas.map(c => c.nombreConductor).filter(Boolean))];
+      const conductoresCarga = [...new Set(cargasFiltradas.map(c => c.nombreConductor).filter(Boolean))];
 
       const totalCargas = cargasFiltradas.length;
       const totalLitrosCargados = cargasFiltradas.reduce((s, c) => s + (c.cantidadLt || 0), 0);
@@ -629,7 +629,7 @@ Indica si hay algo preocupante o si la operacion esta normal.`
           contrato: cam.contrato,
           ultimaSync: cam.sync_at,
         },
-        conductores: [...new Set([...conductoresRes.rows.map((r: any) => r.conductor), ...conductoresSigetra])].filter(Boolean),
+        conductores: [...new Set([...conductoresRes.rows.map((r: any) => r.conductor), ...conductoresCarga])].filter(Boolean),
         cargas: cargasFiltradas.map(c => ({
           fecha: c.fechaConsumo,
           litros: c.cantidadLt || 0,

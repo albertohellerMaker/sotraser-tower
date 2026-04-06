@@ -98,7 +98,7 @@ export function registerTMSRoutes(app: Express) {
       const puntos = await storage.getTmsPuntos(id);
 
       const totalKm = viajes.reduce((s, v) => s + (parseFloat(v.kmRecorridos || "0") || 0), 0);
-      const totalLitros = viajes.reduce((s, v) => s + (parseFloat(v.litrosSigetra || "0") || 0), 0);
+      const totalLitros = viajes.reduce((s, v) => s + (parseFloat(v.litrosCarga || "0") || 0), 0);
       const rendimientos = viajes.filter(v => v.rendimientoReal).map(v => parseFloat(v.rendimientoReal!));
       const rendimientoProm = rendimientos.length > 0 ? rendimientos.reduce((a, b) => a + b, 0) / rendimientos.length : 0;
 
@@ -145,14 +145,8 @@ export function registerTMSRoutes(app: Express) {
       const to = new Date();
 
       let fleetStatus: any[] = [];
-      fleetStatus = [];
-
       let fuelData: any[] = [];
-
-      const snapshots = await storage.getVolvoFuelSnapshotsInRange(
-        camiones.map(c => c.vin).filter((v): v is string => !!v),
-        from, to
-      );
+      const snapshots: any[] = [];
 
       interface GpsPoint { lat: number; lng: number; time: Date; speed: number; km: number }
       interface DetectedStop { lat: number; lng: number; arrivalTime: Date; departureTime: Date; durationMin: number }
@@ -283,7 +277,7 @@ export function registerTMSRoutes(app: Express) {
           return fecha >= trip.startTime && fecha <= trip.endTime;
         });
 
-        const litrosSigetra = truckFuel.reduce((s: number, c: any) => s + (c.cantidadLt || 0), 0);
+        const litrosCarga = truckFuel.reduce((s: number, c: any) => s + (c.cantidadLt || 0), 0);
 
         const camionSnaps = snapshots.filter(s => {
           const cam = camiones.find(c => c.id === trip.camionId);
@@ -298,7 +292,7 @@ export function registerTMSRoutes(app: Express) {
           litrosEcu = Math.round((camionSnaps[camionSnaps.length - 1].totalFuelUsed - camionSnaps[0].totalFuelUsed) / 1000 * 100) / 100;
         }
 
-        const diferenciaLitros = (litrosSigetra > 0 && litrosEcu != null) ? Math.round((litrosSigetra - litrosEcu) * 100) / 100 : null;
+        const diferenciaLitros = (litrosCarga > 0 && litrosEcu != null) ? Math.round((litrosCarga - litrosEcu) * 100) / 100 : null;
         const rendimiento = (trip.kmDist > 0 && litrosEcu && litrosEcu > 0) ? Math.round((trip.kmDist / litrosEcu) * 100) / 100 : null;
 
         const viaje = await storage.createTmsViaje({
@@ -318,7 +312,7 @@ export function registerTMSRoutes(app: Express) {
           kmInicio: String(Math.round(trip.kmStart)),
           kmCierre: String(Math.round(trip.kmEnd)),
           kmRecorridos: String(trip.kmDist),
-          litrosSigetra: litrosSigetra > 0 ? String(Math.round(litrosSigetra * 100) / 100) : null,
+          litrosCarga: litrosCarga > 0 ? String(Math.round(litrosCarga * 100) / 100) : null,
           litrosEcu: litrosEcu != null ? String(litrosEcu) : null,
           diferenciaLitros: diferenciaLitros != null ? String(diferenciaLitros) : null,
           rendimientoReal: rendimiento != null ? String(rendimiento) : null,
@@ -343,7 +337,7 @@ export function registerTMSRoutes(app: Express) {
         }
 
         totalKmSaved += trip.kmDist;
-        totalLitrosSaved += litrosSigetra;
+        totalLitrosSaved += litrosCarga;
       }
 
       for (const cluster of allStopClusters) {
@@ -487,7 +481,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
         const anteriores = viajesOrdenados.slice(1);
         const kmValues = anteriores.map(v => parseFloat(v.kmRecorridos || "0") || 0).filter(k => k > 0);
         const rendValues = anteriores.map(v => parseFloat(v.rendimientoReal || "0") || 0).filter(r => r > 0);
-        const litrosValues = anteriores.map(v => parseFloat(v.litrosSigetra || "0") || 0).filter(l => l > 0);
+        const litrosValues = anteriores.map(v => parseFloat(v.litrosCarga || "0") || 0).filter(l => l > 0);
 
         const avgKm = kmValues.length > 0 ? kmValues.reduce((s, v) => s + v, 0) / kmValues.length : 0;
         const avgRend = rendValues.length > 0 ? rendValues.reduce((s, v) => s + v, 0) / rendValues.length : 0;
@@ -536,7 +530,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
             fecha: viajeMasSimilar.fechaSalida,
             km: parseFloat(viajeMasSimilar.kmRecorridos || "0"),
             rendimiento: parseFloat(viajeMasSimilar.rendimientoReal || "0"),
-            litros: parseFloat(viajeMasSimilar.litrosSigetra || "0"),
+            litros: parseFloat(viajeMasSimilar.litrosCarga || "0"),
           } : null,
           mejorViaje: {
             codigo: mejorViaje.codigo,
@@ -572,7 +566,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
 
         const kmVals = viajesOrdenados.map(v => parseFloat(v.kmRecorridos || "0") || 0).filter(k => k > 0);
         const rendVals = viajesOrdenados.map(v => parseFloat(v.rendimientoReal || "0") || 0).filter(r => r > 0);
-        const litVals = viajesOrdenados.map(v => parseFloat(v.litrosSigetra || "0") || 0).filter(l => l > 0);
+        const litVals = viajesOrdenados.map(v => parseFloat(v.litrosCarga || "0") || 0).filter(l => l > 0);
         const avgKmP = kmVals.length > 0 ? kmVals.reduce((s, v) => s + v, 0) / kmVals.length : 0;
         const avgRendP = rendVals.length > 0 ? rendVals.reduce((s, v) => s + v, 0) / rendVals.length : 0;
         const avgLitP = litVals.length > 0 ? litVals.reduce((s, v) => s + v, 0) / litVals.length : 0;
@@ -613,7 +607,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
               fecha: yaExiste.fechaSalida,
               km: parseFloat(yaExiste.kmRecorridos || "0") || 0,
               rendimiento: parseFloat(yaExiste.rendimientoReal || "0") || 0,
-              litros: parseFloat(yaExiste.litrosSigetra || "0") || 0,
+              litros: parseFloat(yaExiste.litrosCarga || "0") || 0,
               estado: yaExiste.estado,
               viajeId: yaExiste.id,
             });
@@ -662,7 +656,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
         resumen: {
           totalViajes: viajesOrdenados.length,
           totalKm: Math.round(viajesOrdenados.reduce((s, v) => s + (parseFloat(v.kmRecorridos || "0") || 0), 0) * 10) / 10,
-          totalLitros: Math.round(viajesOrdenados.reduce((s, v) => s + (parseFloat(v.litrosSigetra || "0") || 0), 0) * 100) / 100,
+          totalLitros: Math.round(viajesOrdenados.reduce((s, v) => s + (parseFloat(v.litrosCarga || "0") || 0), 0) * 100) / 100,
           rendimientoProm: (() => {
             const rends = viajesOrdenados.map(v => parseFloat(v.rendimientoReal || "0") || 0).filter(r => r > 0);
             return rends.length > 0 ? Math.round(rends.reduce((s, v) => s + v, 0) / rends.length * 100) / 100 : 0;
@@ -745,7 +739,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       const camiones = allCamiones.filter(c => c.faenaId === contrato.faenaId);
 
       const totalKm = viajes.reduce((s, v) => s + (parseFloat(v.kmRecorridos || "0") || 0), 0);
-      const totalLitros = viajes.reduce((s, v) => s + (parseFloat(v.litrosSigetra || "0") || 0), 0);
+      const totalLitros = viajes.reduce((s, v) => s + (parseFloat(v.litrosCarga || "0") || 0), 0);
       const rendimientos = viajes.filter(v => v.rendimientoReal).map(v => ({ camionId: v.camionId, rend: parseFloat(v.rendimientoReal!) }));
       const rendProm = rendimientos.length > 0 ? rendimientos.reduce((s, r) => s + r.rend, 0) / rendimientos.length : 0;
       const kmPorViaje = viajes.length > 0 ? totalKm / viajes.length : 0;
@@ -936,8 +930,8 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       const to = new Date();
 
       const summaries: any[] = [];
-      const sigetraFaenas: string[] = [];
-      console.log("[tms-auto-sync] Sigetra removed — using existing data only");
+      const fuenteFaenas: string[] = [];
+      console.log("[tms-auto-sync] Usando datos existentes");
 
       const existingFaenas = await storage.getFaenas();
       const existingContratos = await storage.getTmsContratos();
@@ -951,7 +945,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       let contratosCreados = 0;
       const contratosParaAnalizar: number[] = [];
 
-      for (const faenaName of sigetraFaenas) {
+      for (const faenaName of fuenteFaenas) {
         const key = faenaName.toLowerCase().trim();
         let faena = faenaNameMap.get(key);
 
@@ -988,7 +982,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
               faenaId: faena.id,
               nombre: faena.nombre,
               cliente: faena.nombre,
-              descripcion: `Auto-creado desde Sigetra`,
+              descripcion: `Auto-creado desde datos de carga`,
               fechaInicio: DATA_START_STR,
               activo: true,
             });
@@ -1015,8 +1009,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       const updatedCamiones = await storage.getCamiones();
       const allVins = updatedCamiones.map(c => c.vin).filter((v): v is string => !!v);
       const snapshots = allVins.length > 0
-        ? await storage.getVolvoFuelSnapshotsInRange(allVins, from, to)
-        : [];
+        ? [] : [];
 
       const resultados: { contratoId: number; nombre: string; viajes: number; puntos: number }[] = [];
 
@@ -1044,18 +1037,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
 
           const gpsPoints: GpsPoint[] = [];
 
-          const volvoStatus = fleetStatus.find((v: any) => v.vin === camion.vin);
-          if (volvoStatus?.gps?.latitude && volvoStatus?.gps?.longitude) {
-            gpsPoints.push({
-              lat: volvoStatus.gps.latitude,
-              lng: volvoStatus.gps.longitude,
-              time: new Date(volvoStatus.gps.positionDateTime || volvoStatus.createdDateTime || Date.now()),
-              speed: volvoStatus.gps.speed || 0,
-              km: volvoStatus.totalDistance ? volvoStatus.totalDistance / 1000 : (camion.odometro || 0),
-            });
-          }
-
-          const camionSnapshots = snapshots.filter(s => s.vin === camion.vin).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+          const camionSnapshots = snapshots.filter((s: any) => s.vin === camion.vin).sort((a: any, b: any) => a.capturedAt.localeCompare(b.capturedAt));
 
           for (let i = 0; i < camionSnapshots.length; i++) {
             const snap = camionSnapshots[i];
@@ -1160,7 +1142,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
             return fecha >= trip.startTime && fecha <= trip.endTime;
           });
 
-          const litrosSigetra = truckFuel.reduce((s: number, c: any) => s + (c.cantidadLt || 0), 0);
+          const litrosCarga = truckFuel.reduce((s: number, c: any) => s + (c.cantidadLt || 0), 0);
 
           const camionSnaps = snapshots.filter(s => {
             const cam = camionesContrato.find(c => c.id === trip.camionId);
@@ -1175,7 +1157,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
             litrosEcu = Math.round((camionSnaps[camionSnaps.length - 1].totalFuelUsed - camionSnaps[0].totalFuelUsed) / 1000 * 100) / 100;
           }
 
-          const diferenciaLitros = (litrosSigetra > 0 && litrosEcu != null) ? Math.round((litrosSigetra - litrosEcu) * 100) / 100 : null;
+          const diferenciaLitros = (litrosCarga > 0 && litrosEcu != null) ? Math.round((litrosCarga - litrosEcu) * 100) / 100 : null;
           const rendimiento = (trip.kmDist > 0 && litrosEcu && litrosEcu > 0) ? Math.round((trip.kmDist / litrosEcu) * 100) / 100 : null;
 
           const viaje = await storage.createTmsViaje({
@@ -1195,7 +1177,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
             kmInicio: String(Math.round(trip.kmStart)),
             kmCierre: String(Math.round(trip.kmEnd)),
             kmRecorridos: String(trip.kmDist),
-            litrosSigetra: litrosSigetra > 0 ? String(Math.round(litrosSigetra * 100) / 100) : null,
+            litrosCarga: litrosCarga > 0 ? String(Math.round(litrosCarga * 100) / 100) : null,
             litrosEcu: litrosEcu != null ? String(litrosEcu) : null,
             diferenciaLitros: diferenciaLitros != null ? String(diferenciaLitros) : null,
             rendimientoReal: rendimiento != null ? String(rendimiento) : null,
@@ -1220,7 +1202,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
           }
 
           totalKmSaved += trip.kmDist;
-          totalLitrosSaved += litrosSigetra;
+          totalLitrosSaved += litrosCarga;
         }
 
         for (const cluster of allStopClusters) {
@@ -1258,7 +1240,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       console.log(`[tms-auto-sync] Completado: ${faenasCreadas} faenas, ${contratosCreados} contratos, ${totalViajes} viajes`);
 
       res.json({
-        faenasSigetra: sigetraFaenas.length,
+        faenasFuente: fuenteFaenas.length,
         faenasCreadas,
         contratosCreados,
         contratosAnalizados: contratosParaAnalizar.length,

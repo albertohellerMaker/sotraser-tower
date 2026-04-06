@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db, pool } from "./db";
-import { camiones, cargas, volvoFuelSnapshots, patronesCargaCombustible } from "@shared/schema";
+import { camiones, cargas, patronesCargaCombustible } from "@shared/schema";
 import { count } from "drizzle-orm";
 import { eq, desc, and, gte, lte, sql, asc, isNotNull, ne } from "drizzle-orm";
 import { ESTACIONES_COMBUSTIBLE } from "./geo-routes";
@@ -31,28 +31,20 @@ export function registerEstacionesRoutes(app: Express) {
         if (c.patente && c.vin) vinPorPatente[c.patente] = c.vin;
       }
 
-      const patentesVolvo = new Set(Object.keys(vinPorPatente));
+      const patentesRegistradas = new Set(Object.keys(vinPorPatente));
 
-      const cargasSigetraAll = await db.select()
+      const todasLasCargas = await db.select()
         .from(cargas)
         .where(and(gte(cargas.fecha, desdeStr), lte(cargas.fecha, hastaStr)))
         .orderBy(desc(cargas.fecha));
 
-      const cargasVolvo = cargasSigetraAll.filter(c => c.patente && patentesVolvo.has(c.patente));
-      const cargasExcluidas = cargasSigetraAll.length - cargasVolvo.length;
+      const cargasFiltradas = todasLasCargas.filter(c => c.patente && patentesRegistradas.has(c.patente));
+      const cargasExcluidas = todasLasCargas.length - cargasFiltradas.length;
 
       const ECU_VENTANA_ANTES_MS = 45 * 60 * 1000;
       const ECU_VENTANA_DESPUES_MS = 45 * 60 * 1000;
 
-      const snapDesde = new Date(desde.getTime() - ECU_VENTANA_ANTES_MS).toISOString();
-      const snapHasta = new Date(hasta.getTime() + ECU_VENTANA_DESPUES_MS).toISOString();
-      const snapshotsData = await db.select()
-        .from(volvoFuelSnapshots)
-        .where(and(
-          gte(volvoFuelSnapshots.capturedAt, snapDesde),
-          lte(volvoFuelSnapshots.capturedAt, snapHasta)
-        ))
-        .orderBy(asc(volvoFuelSnapshots.capturedAt));
+      const snapshotsData: any[] = [];
 
       const snapsByVin: Record<string, typeof snapshotsData> = {};
       for (const s of snapshotsData) {
@@ -60,9 +52,9 @@ export function registerEstacionesRoutes(app: Express) {
         snapsByVin[s.vin].push(s);
       }
 
-      const cargasSigetra = cargasVolvo;
+      
       let cargasConCruceCount = 0;
-      for (const c of cargasSigetra) {
+      for (const c of cargasFiltradas) {
         const vin = c.patente ? vinPorPatente[c.patente] : null;
         if (!vin) continue;
         const vinSnaps = snapsByVin[vin] || [];
@@ -73,7 +65,7 @@ export function registerEstacionesRoutes(app: Express) {
         const tieneDespues = vinSnaps.some(s => new Date(s.capturedAt) > fechaCarga && new Date(s.capturedAt) <= ventanaDespues);
         if (tieneAntes && tieneDespues) cargasConCruceCount++;
       }
-      const cargasSinCruceCount = cargasVolvo.length - cargasConCruceCount;
+      const cargasSinCruceCount = cargasFiltradas.length - cargasConCruceCount;
 
       const patronesResult = await pool.query(
         `SELECT scope_tipo, scope_id, patente, estacion_nombre, contrato, carga_tipica, carga_desviacion, total_cargas
@@ -188,7 +180,7 @@ export function registerEstacionesRoutes(app: Express) {
         criterio_tipo: string[];
       }
 
-      function analizarCarga(carga: typeof cargasSigetra[0], todasCargasDia: typeof cargasSigetra): CargaAnomalia {
+      function analizarCarga(carga: typeof cargasFiltradas[0], todasCargasDia: typeof cargasFiltradas): CargaAnomalia {
         const vin = carga.patente ? vinPorPatente[carga.patente] : null;
         const fechaCarga = new Date(carga.fecha);
         const ventanaAntes = new Date(fechaCarga.getTime() - ECU_VENTANA_ANTES_MS);
@@ -239,15 +231,15 @@ export function registerEstacionesRoutes(app: Express) {
                 const pctExceso = (litrosDelta / carga.litrosSurtidor) * 100;
                 if (litrosDelta > 50 && pctExceso > 20) {
                   nivelAlerta = "CRITICO";
-                  criterioTipo.push("ECU_VS_SIGETRA");
+                  criterioTipo.push("ECU_VS_CARGA");
                   razones.push(
-                    `ECU reporta ${consumoEntrePeriodo.toFixed(0)}L consumidos entre snapshots, pero Sigetra solo registro ${carga.litrosSurtidor}L cargados. Posible desvio de ${litrosDelta.toFixed(0)}L`
+                    `ECU reporta ${consumoEntrePeriodo.toFixed(0)}L consumidos entre snapshots, pero carga solo registro ${carga.litrosSurtidor}L cargados. Posible desvio de ${litrosDelta.toFixed(0)}L`
                   );
                 } else if (litrosDelta > 25 && pctExceso > 10) {
                   nivelAlerta = "SOSPECHOSO";
-                  criterioTipo.push("ECU_VS_SIGETRA");
+                  criterioTipo.push("ECU_VS_CARGA");
                   razones.push(
-                    `Alto consumo ECU (${consumoEntrePeriodo.toFixed(0)}L) vs carga Sigetra (${carga.litrosSurtidor}L) con solo ${kmEntrePeriodo.toFixed(0)}km recorridos`
+                    `Alto consumo ECU (${consumoEntrePeriodo.toFixed(0)}L) vs carga registrada (${carga.litrosSurtidor}L) con solo ${kmEntrePeriodo.toFixed(0)}km recorridos`
                   );
                 }
               }
@@ -345,7 +337,7 @@ export function registerEstacionesRoutes(app: Express) {
 
         if (!carga.lugarConsumo || carga.lugarConsumo.trim() === "") {
           nivelAlerta = nivelAlerta === "NORMAL" ? "REVISAR" : nivelAlerta;
-          razones.push("Carga sin lugar de consumo registrado en Sigetra");
+          razones.push("Carga sin lugar de consumo registrado");
         }
 
         return {
@@ -380,7 +372,7 @@ export function registerEstacionesRoutes(app: Express) {
         alertas_count: number;
       }> = {};
 
-      for (const carga of cargasSigetra) {
+      for (const carga of cargasFiltradas) {
         const lugar = carga.lugarConsumo || "Desconocido";
 
         if (!porEstacion[lugar]) {
@@ -399,7 +391,7 @@ export function registerEstacionesRoutes(app: Express) {
           };
         }
 
-        const anomalia = analizarCarga(carga, cargasSigetra);
+        const anomalia = analizarCarga(carga, cargasFiltradas);
         porEstacion[lugar].cargas.push(anomalia);
         porEstacion[lugar].total_litros += carga.litrosSurtidor || 0;
         porEstacion[lugar].total_cargas++;
@@ -497,8 +489,8 @@ export function registerEstacionesRoutes(app: Express) {
 
       const resumen = {
         total_estaciones: estaciones.length,
-        total_cargas: cargasSigetra.length,
-        total_litros: cargasSigetra.reduce((s, c) => s + (c.litrosSurtidor || 0), 0),
+        total_cargas: cargasFiltradas.length,
+        total_litros: cargasFiltradas.reduce((s, c) => s + (c.litrosSurtidor || 0), 0),
         estaciones_con_anomalias: estaciones.filter(e => e.tiene_anomalias).length,
         cargas_anomalas: estaciones.reduce((s, e) => s + e.alertas_count, 0),
         cargas_criticas: estaciones.reduce((s, e) =>
@@ -509,11 +501,11 @@ export function registerEstacionesRoutes(app: Express) {
           criticos: balancesDia.filter(b => b.nivel === "CRITICO").length,
         },
         cobertura: {
-          camiones_volvo: patentesVolvo.size,
-          cargas_con_cruce_ecu: cargasConCruceCount,
-          cargas_volvo_sin_cruce: cargasSinCruceCount,
-          cargas_total_sigetra: cargasSigetraAll.length,
-          cargas_no_volvo: cargasExcluidas,
+          camiones_registrados: patentesRegistradas.size,
+          cargas_con_cruce: cargasConCruceCount,
+          cargas_sin_cruce: cargasSinCruceCount,
+          cargas_total: todasLasCargas.length,
+          cargas_excluidas: cargasExcluidas,
         },
         periodo: {
           desde: desde.toISOString(),
@@ -534,7 +526,7 @@ export function registerEstacionesRoutes(app: Express) {
       const camionesConVin = await db.select()
         .from(camiones)
         .where(isNotNull(camiones.vin));
-      const patentesVolvo = new Set(camionesConVin.filter(c => c.patente && c.vin).map(c => c.patente!));
+      const patentesRegistradas = new Set(camionesConVin.filter(c => c.patente && c.vin).map(c => c.patente!));
 
       const allCargasRaw = await db.select({
         patente: cargas.patente,
@@ -550,7 +542,7 @@ export function registerEstacionesRoutes(app: Express) {
         )
       );
 
-      const allCargas = allCargasRaw.filter(c => c.patente && patentesVolvo.has(c.patente));
+      const allCargas = allCargasRaw.filter(c => c.patente && patentesRegistradas.has(c.patente));
 
       const porCamion = new Map<string, { litros: number[], contrato: string | null, ultimaFecha: string }>();
       const porCamionEstacion = new Map<string, { litros: number[], patente: string, estacion: string, contrato: string | null, ultimaFecha: string }>();
@@ -811,12 +803,12 @@ export function registerEstacionesRoutes(app: Express) {
       const camionesConVinA = await db.select()
         .from(camiones)
         .where(isNotNull(camiones.vin));
-      const patentesVolvoA = new Set(camionesConVinA.filter(c => c.patente && c.vin).map(c => c.patente!));
+      const patentesRegistradasA = new Set(camionesConVinA.filter(c => c.patente && c.vin).map(c => c.patente!));
 
       const totalCargasRaw = await db.select({
         patente: cargas.patente,
       }).from(cargas).where(and(isNotNull(cargas.patente), sql`${cargas.litrosSurtidor} > 0`));
-      const totalCargasHistoricasCount = totalCargasRaw.filter(c => c.patente && patentesVolvoA.has(c.patente)).length;
+      const totalCargasHistoricasCount = totalCargasRaw.filter(c => c.patente && patentesRegistradasA.has(c.patente)).length;
 
       const topCamiones = await db.select()
         .from(patronesCargaCombustible)
@@ -1056,7 +1048,7 @@ export function registerEstacionesRoutes(app: Express) {
       for (const c of camionesConVin) {
         if (c.patente && c.vin) vinPorPatente[c.patente] = c.vin;
       }
-      const patentesVolvo = new Set(Object.keys(vinPorPatente));
+      const patentesRegistradas = new Set(Object.keys(vinPorPatente));
 
       const desdePrevio = new Date(desdeAyer);
       desdePrevio.setDate(desdePrevio.getDate() - 2);
@@ -1069,10 +1061,10 @@ export function registerEstacionesRoutes(app: Express) {
         .where(and(gte(cargas.fecha, desdePrevio.toISOString()), lte(cargas.fecha, hastaPost.toISOString())))
         .orderBy(asc(cargas.fecha));
 
-      const cargasVolvoAll = cargasAmpliadas.filter(c => c.patente && patentesVolvo.has(c.patente));
+      const cargasFiltradasAll = cargasAmpliadas.filter(c => c.patente && patentesRegistradas.has(c.patente));
 
-      const porPatente = new Map<string, typeof cargasVolvoAll>();
-      for (const c of cargasVolvoAll) {
+      const porPatente = new Map<string, typeof cargasFiltradasAll>();
+      for (const c of cargasFiltradasAll) {
         if (!c.patente) continue;
         if (!porPatente.has(c.patente)) porPatente.set(c.patente, []);
         porPatente.get(c.patente)!.push(c);

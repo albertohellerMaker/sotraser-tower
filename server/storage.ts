@@ -4,7 +4,6 @@ import {
   type Camion, type InsertCamion,
   type Carga, type InsertCarga,
   type DesviacionCheck, type InsertDesviacionCheck,
-  type VolvoFuelSnapshot, type InsertVolvoFuelSnapshot,
   type Parametro,
   type PuntoRuta, type InsertPuntoRuta,
   type TarifaRuta, type InsertTarifaRuta,
@@ -12,7 +11,7 @@ import {
   type TmsViaje, type InsertTmsViaje,
   type TmsParada, type InsertTmsParada,
   type TmsPunto, type InsertTmsPunto,
-  users, faenas, camiones, cargas, desviacionChecks, volvoFuelSnapshots,
+  users, faenas, camiones, cargas, desviacionChecks,
   parametros, puntosRuta, tarifasRuta, tmsContratos, tmsViajes, tmsParadas, tmsPuntos,
 } from "@shared/schema";
 import { db } from "./db";
@@ -44,9 +43,6 @@ export interface IStorage {
 
   getDesviacionChecks(): Promise<DesviacionCheck[]>;
   upsertDesviacionCheck(fleetNum: string, tipo: string, gestionado: boolean, nota?: string): Promise<DesviacionCheck>;
-
-  saveVolvoFuelSnapshots(snapshots: InsertVolvoFuelSnapshot[]): Promise<void>;
-  getVolvoFuelSnapshotsInRange(vins: string[], from: Date, to: Date): Promise<VolvoFuelSnapshot[]>;
 
   getParametros(): Promise<Parametro[]>;
   getParametro(clave: string): Promise<Parametro | undefined>;
@@ -204,21 +200,6 @@ export class DatabaseStorage implements IStorage {
       .values({ fleetNum, tipo, gestionado, gestionadoAt: gestionado ? now : null, nota: nota ?? null })
       .returning();
     return created;
-  }
-
-  async saveVolvoFuelSnapshots(snapshots: InsertVolvoFuelSnapshot[]): Promise<void> {
-    if (snapshots.length === 0) return;
-    await db.insert(volvoFuelSnapshots).values(snapshots).onConflictDoNothing();
-  }
-
-  async getVolvoFuelSnapshotsInRange(vins: string[], from: Date, to: Date): Promise<VolvoFuelSnapshot[]> {
-    if (vins.length === 0) return [];
-    return db.select().from(volvoFuelSnapshots)
-      .where(and(
-        inArray(volvoFuelSnapshots.vin, vins),
-        gte(volvoFuelSnapshots.capturedAt, from.toISOString()),
-        lte(volvoFuelSnapshots.capturedAt, to.toISOString()),
-      ));
   }
 
   async getParametros(): Promise<Parametro[]> {

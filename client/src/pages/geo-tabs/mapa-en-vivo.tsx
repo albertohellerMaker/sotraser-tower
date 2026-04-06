@@ -31,7 +31,7 @@ export default function MapaEnVivo() {
   });
 
   const ingestMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/geo/ingest-volvo"),
+    mutationFn: () => apiRequest("POST", "/api/geo/sync-gps"),
     onSuccess: () => { refetch(); },
   });
 
@@ -207,7 +207,7 @@ export default function MapaEnVivo() {
           </button>
         ))}
         <button onClick={() => ingestMutation.mutate()} disabled={ingestMutation.isPending}
-          data-testid="btn-ingest-volvo"
+          data-testid="btn-sync-gps"
           className="font-exo text-xs font-bold px-3 py-1.5 rounded cursor-pointer"
           style={{ background: "#00d4ff20", border: "1px solid #00d4ff", color: "#00d4ff" }}>
           <RefreshCw className={`w-3 h-3 inline mr-1 ${ingestMutation.isPending ? "animate-spin" : ""}`} />

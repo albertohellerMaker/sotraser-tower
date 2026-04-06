@@ -958,95 +958,12 @@ export function registerGeoRoutes(app: Express) {
       const desde = req.query.desde as string || getDefaultDesde().toISOString().slice(0,10);
       const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
 
-      const allFuel: any[] = [];
-      const filteredFuel = allFuel;
-
-      const sigetraPorCamion: Record<string, { litros: number; cargas: number; conductores: Set<string>; odoMin: number; odoMax: number }> = {};
-      for (const r of filteredFuel) {
-        const p = r.patente || numVehToPatente.get(String(r.numVeh)) || String(r.numVeh);
-        if (!sigetraPorCamion[p]) sigetraPorCamion[p] = { litros: 0, cargas: 0, conductores: new Set(), odoMin: Infinity, odoMax: 0 };
-        sigetraPorCamion[p].litros += r.cantidadLt || 0;
-        sigetraPorCamion[p].cargas++;
-        if (r.nombreConductor) sigetraPorCamion[p].conductores.add(r.nombreConductor);
-        const odo = r.odometroActual || 0;
-        if (odo > 0) {
-          if (odo < sigetraPorCamion[p].odoMin) sigetraPorCamion[p].odoMin = odo;
-          if (odo > sigetraPorCamion[p].odoMax) sigetraPorCamion[p].odoMax = odo;
-        }
-      }
-
-      const patenteList = [...patentes];
-      const pPlaceholders = patenteList.map((_, i) => `$${i + 1}`).join(",");
-      const ecuResult = await pool.query(`
-        SELECT c.patente,
-          MIN(s.total_fuel_used) as min_fuel,
-          MAX(s.total_fuel_used) as max_fuel,
-          MIN(s.total_distance) as min_dist,
-          MAX(s.total_distance) as max_dist,
-          COUNT(*) as snapshots
-        FROM volvo_fuel_snapshots s
-        JOIN camiones c ON c.vin = s.vin
-        WHERE c.patente IN (${pPlaceholders})
-          AND s.captured_at >= $${patenteList.length + 1}
-          AND s.captured_at <= $${patenteList.length + 2}
-        GROUP BY c.patente
-      `, [...patenteList, desde, hasta + "T23:59:59"]);
-
-      const ecuPorCamion: Record<string, { litrosEcu: number; km: number; viajes: number }> = {};
-      for (const row of ecuResult.rows) {
-        const deltaFuelMl = (parseFloat(row.max_fuel) || 0) - (parseFloat(row.min_fuel) || 0);
-        const deltaDistM = (parseFloat(row.max_dist) || 0) - (parseFloat(row.min_dist) || 0);
-        ecuPorCamion[row.patente] = {
-          litrosEcu: deltaFuelMl / 1000,
-          km: deltaDistM / 1000,
-          viajes: parseInt(row.snapshots) || 0,
-        };
-      }
-
-      let allPatentes = new Set([...Object.keys(sigetraPorCamion), ...Object.keys(ecuPorCamion)]);
-      const volvoPatentes = new Set(Object.keys(ecuPorCamion));
-      allPatentes = new Set([...allPatentes].filter(p => volvoPatentes.has(p)));
-      const cruce = [...allPatentes].sort((a, b) => parseInt(a) - parseInt(b)).map(p => {
-        const sig = sigetraPorCamion[p] || { litros: 0, cargas: 0, conductores: new Set(), odoMin: 0, odoMax: 0 };
-        const ecu = ecuPorCamion[p] || { litrosEcu: 0, km: 0, viajes: 0 };
-        const diff = sig.litros - ecu.litrosEcu;
-        const diffPct = ecu.litrosEcu > 0 ? (diff / ecu.litrosEcu) * 100 : 0;
-        const kmOdometro = sig.odoMax > sig.odoMin && sig.odoMin !== Infinity ? sig.odoMax - sig.odoMin : 0;
-        const rendSigetra = kmOdometro > 0 && sig.litros > 0 ? kmOdometro / sig.litros : 0;
-        const rendEcu = ecu.km > 0 && ecu.litrosEcu > 0 ? ecu.km / ecu.litrosEcu : 0;
-        const snapshots = ecu.viajes;
-        const confianza = snapshots >= 20 ? "ALTA" : snapshots >= 5 ? "MEDIA" : "BAJA";
-        return {
-          patente: p,
-          conductores: [...sig.conductores],
-          litrosSigetra: Math.round(sig.litros * 100) / 100,
-          cargasSigetra: sig.cargas,
-          litrosEcu: Math.round(ecu.litrosEcu * 100) / 100,
-          kmEcu: Math.round(ecu.km * 100) / 100,
-          kmOdometro,
-          odoInicio: sig.odoMin !== Infinity ? sig.odoMin : 0,
-          odoFin: sig.odoMax,
-          viajesEcu: ecu.viajes,
-          snapshots,
-          confianza,
-          diferencia: Math.round(diff * 100) / 100,
-          diferenciaPct: Math.round(diffPct * 10) / 10,
-          rendimientoSigetra: Math.round(rendSigetra * 100) / 100,
-          rendimientoEcu: Math.round(rendEcu * 100) / 100,
-        };
-      });
-
-      const totalSigetra = cruce.reduce((s, c) => s + c.litrosSigetra, 0);
-      const totalEcu = cruce.reduce((s, c) => s + c.litrosEcu, 0);
-
       res.json({
         desde,
         hasta,
-        totalCamiones: cruce.length,
-        totalSigetra: Math.round(totalSigetra),
-        totalEcu: Math.round(totalEcu),
-        diferencia: Math.round(totalSigetra - totalEcu),
-        camiones: cruce,
+        totalCamiones: 0,
+        camiones: [],
+        message: "Cruce mensual migrado a WiseTrack — usar /api/tower/combustible",
       });
     } catch (error: any) {
       console.error("[geo] Error cruce mensual:", error);
@@ -1181,8 +1098,8 @@ export function registerGeoRoutes(app: Express) {
         velMax: parseFloat(v.velocidad_maxima) || 0,
         scoreAnomalia: parseInt(v.score_anomalia) || 0,
         estado: v.estado,
-        kmSigetra: parseFloat(v.km_declarado_sigetra) || 0,
-        litrosSigetra: parseFloat(v.litros_sigetra) || 0,
+        kmDeclarado: parseFloat(v.km_declarado_sigetra) || 0,
+        litrosCargados: parseFloat(v.litros_sigetra) || 0,
       }));
 
       const allFuel: any[] = [];
@@ -1341,7 +1258,7 @@ export function registerGeoRoutes(app: Express) {
           v.origen_nombre, v.destino_nombre,
           v.fecha_salida, v.fecha_llegada, v.fecha_cierre,
           v.km_inicio, v.km_cierre, v.km_recorridos,
-          v.litros_sigetra, v.litros_ecu, v.diferencia_litros,
+          v.litros_sigetra as litros_carga, v.litros_ecu, v.diferencia_litros,
           v.rendimiento_real, v.detectado_por_ia, v.notas
         FROM tms_viajes v
         JOIN camiones c ON v.camion_id = c.id
@@ -1370,7 +1287,7 @@ export function registerGeoRoutes(app: Express) {
         kmInicio: parseFloat(v.km_inicio) || 0,
         kmCierre: parseFloat(v.km_cierre) || 0,
         kmRecorridos: parseFloat(v.km_recorridos) || 0,
-        litrosSigetra: parseFloat(v.litros_sigetra) || null,
+        litrosCarga: parseFloat(v.litros_carga) || null,
         litrosEcu: parseFloat(v.litros_ecu) || null,
         diferenciaLitros: parseFloat(v.diferencia_litros) || null,
         rendimiento: parseFloat(v.rendimiento_real) || null,
@@ -1407,7 +1324,7 @@ export function registerGeoRoutes(app: Express) {
           va.destino_nombre,
           va.km_ecu::float as km_ecu,
           va.litros_consumidos_ecu::float as litros_ecu,
-          va.litros_cargados_sigetra::float as litros_sigetra,
+          va.litros_cargados_sigetra::float as litros_cargados,
           va.rendimiento_real::float as rendimiento,
           va.score_anomalia::int as score,
           va.estado, va.conductor,

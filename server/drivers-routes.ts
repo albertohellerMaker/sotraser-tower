@@ -84,7 +84,7 @@ interface VinInfo {
   contrato: string;
 }
 
-async function getVolvoVinsWithInfo(): Promise<Map<string, VinInfo>> {
+async function getCamionesWithInfo(): Promise<Map<string, VinInfo>> {
   const vinMap = new Map<string, VinInfo>();
   try {
     const result = await pool.query(
@@ -115,8 +115,8 @@ async function buildDriverData(): Promise<{
   kpis: any;
   porContrato: any[];
 }> {
-  const vinInfoMap = await getVolvoVinsWithInfo();
-  const volvoEvals: any[] = [];
+  const vinInfoMap = await getCamionesWithInfo();
+  const telemetryEvals: any[] = [];
   const fleetStatus: any[] = [];
 
   const baselines = loadBaselines();
@@ -131,9 +131,9 @@ async function buildDriverData(): Promise<{
 
   const drivers: any[] = [];
 
-  if (volvoEvals.length > 0) {
+  if (telemetryEvals.length > 0) {
     const pilotVins = new Set(vinInfoMap.keys());
-    for (const ev of volvoEvals) {
+    for (const ev of telemetryEvals) {
       if (!pilotVins.has(ev.vin)) continue;
       const info = vinInfoMap.get(ev.vin)!;
       const score = ev.overallScore || 0;
@@ -171,9 +171,9 @@ async function buildDriverData(): Promise<{
       drivers.push(driver);
     }
   } else {
-    const volvoCamiones = Array.from(vinInfoMap.entries()).filter(([vin]) => activeVins.has(vin));
+    const activeCamiones = Array.from(vinInfoMap.entries()).filter(([vin]) => activeVins.has(vin));
 
-    for (const [vin, info] of volvoCamiones) {
+    for (const [vin, info] of activeCamiones) {
       const vs = fleetStatus.find(f => f.vin === vin);
 
       const fuelRaw = deriveFuelScore(vs);

@@ -6,7 +6,7 @@ export interface SistemaEstado {
   total_corredores_conocidos: number;
   total_conductores_analizados: number;
   total_camiones_perfilados: number;
-  total_snapshots_volvo: number;
+  total_registros_wisetrack: number;
   alertas_patron_activas: number;
   parametros_calibrados: number;
   confianza_global: string;
@@ -26,25 +26,21 @@ export async function getSistemaEstado(): Promise<SistemaEstado> {
   }
 
   try {
-    const primerSnapshotR = await pool.query(`
-      SELECT captured_at FROM volvo_fuel_snapshots ORDER BY captured_at ASC LIMIT 1
-    `);
-
     const primerViajeR = await pool.query(`
       SELECT fecha_inicio FROM viajes_aprendizaje ORDER BY fecha_inicio ASC LIMIT 1
     `);
 
-    const primerFecha = primerSnapshotR.rows[0]?.captured_at || primerViajeR.rows[0]?.fecha_inicio || null;
+    const primerFecha = primerViajeR.rows[0]?.fecha_inicio || null;
     const diasAprendiendo = primerFecha
       ? Math.floor((Date.now() - new Date(primerFecha).getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
-    const [totalViajesR, totalCorredoresR, totalConductoresR, totalCamionesR, totalSnapshotsR, alertasActivasR, parametrosAltaR] = await Promise.all([
+    const [totalViajesR, totalCorredoresR, totalConductoresR, totalCamionesR, totalWtR, alertasActivasR, parametrosAltaR] = await Promise.all([
       pool.query(`SELECT COUNT(*)::int as count FROM viajes_aprendizaje`),
       pool.query(`SELECT COUNT(*)::int as count FROM corredores WHERE total_viajes_base >= 3`),
       pool.query(`SELECT COUNT(*)::int as count FROM conductores_perfil`),
       pool.query(`SELECT COUNT(*)::int as count FROM camiones_perfil`),
-      pool.query(`SELECT COUNT(*)::int as count FROM volvo_fuel_snapshots`),
+      pool.query(`SELECT COUNT(*)::int as count FROM wisetrack_posiciones`),
       pool.query(`SELECT COUNT(*)::int as count FROM alertas_aprendizaje WHERE gestionado = false`),
       pool.query(`SELECT COUNT(*)::int as count FROM parametros_adaptativos WHERE confianza IN ('ALTA', 'EXPERTA')`),
     ]);
@@ -53,7 +49,7 @@ export async function getSistemaEstado(): Promise<SistemaEstado> {
     const totalCorredores = totalCorredoresR.rows[0]?.count || 0;
     const totalConductores = totalConductoresR.rows[0]?.count || 0;
     const totalCamiones = totalCamionesR.rows[0]?.count || 0;
-    const totalSnapshots = totalSnapshotsR.rows[0]?.count || 0;
+    const totalWt = totalWtR.rows[0]?.count || 0;
     const alertasActivas = alertasActivasR.rows[0]?.count || 0;
     const parametrosCal = parametrosAltaR.rows[0]?.count || 0;
 
@@ -80,7 +76,7 @@ export async function getSistemaEstado(): Promise<SistemaEstado> {
       total_corredores_conocidos: totalCorredores,
       total_conductores_analizados: totalConductores,
       total_camiones_perfilados: totalCamiones,
-      total_snapshots_volvo: totalSnapshots,
+      total_registros_wisetrack: totalWt,
       alertas_patron_activas: alertasActivas,
       parametros_calibrados: parametrosCal,
       confianza_global: confianzaGlobal,
@@ -104,7 +100,7 @@ export async function getSistemaEstado(): Promise<SistemaEstado> {
 }
 
 function generarMensajeEstado(dias: number, viajes: number, confianza: string): string {
-  if (dias === 0) return "Sistema iniciando — recopilando primeros datos de Volvo Connect";
+  if (dias === 0) return "Sistema iniciando — recopilando primeros datos de WiseTrack";
   if (confianza === "BAJA") return `${dias} dias activo con ${viajes} viajes — acumulando datos para calibrar parametros`;
   if (confianza === "MEDIA") return `${dias} dias activo — ${viajes} viajes procesados, parametros tomando forma por contrato`;
   if (confianza === "ALTA") return `Sistema calibrado — ${viajes} viajes analizados en ${dias} dias, deteccion confiable activa`;

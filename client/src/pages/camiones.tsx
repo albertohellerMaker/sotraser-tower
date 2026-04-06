@@ -18,7 +18,7 @@ export default function Camiones() {
   const [cargaId, setCargaId] = useState<number | null>(null);
 
   const { data: faenas = [], isLoading: loadingFaenas } = useQuery<Faena[]>({ queryKey: ["/api/faenas"] });
-  const { data: camionesRaw = [], isLoading: loadingCamiones } = useQuery<Camion[]>({ queryKey: ["/api/camiones", "volvo"], queryFn: () => fetch("/api/camiones?soloVolvo=true").then(r => r.json()) });
+  const { data: camionesRaw = [], isLoading: loadingCamiones } = useQuery<Camion[]>({ queryKey: ["/api/camiones"], queryFn: () => fetch("/api/camiones").then(r => r.json()) });
   const { data: cargasRaw = [], isLoading: loadingCargas } = useQuery<Carga[]>({ queryKey: ["/api/cargas"] });
 
   const isLoading = loadingFaenas || loadingCamiones || loadingCargas;
@@ -112,7 +112,7 @@ export default function Camiones() {
                   </div>
                   <div className="text-xl text-red-400 font-bold">/=</div>
                   <div className="text-center">
-                    <div className="text-xs font-mono text-muted-foreground mb-0.5">ECU VOLVO</div>
+                    <div className="text-xs font-mono text-muted-foreground mb-0.5">TELEMETRIA</div>
                     <div className="text-base font-mono text-emerald-400">{criticCarga?.litrosEcu}L</div>
                   </div>
                   <div className="text-center">

@@ -24,83 +24,42 @@ async function getFusionContext(days: number = 7): Promise<string> {
   ]);
 
   const allCamiones = allCamionesRaw.filter((c: any) => c.vin != null);
-  const volvoByVin = new Map(fleetStatus.map((s: any) => [s.vin, s]));
-
-  const allVins = allCamiones.map((c: any) => c.vin).filter((v: any): v is string => v != null);
-  const historicalSnapshots = allVins.length > 0
-    ? await storage.getVolvoFuelSnapshotsInRange(allVins, from, to)
-    : [];
-
-  const snapshotsByVin = new Map<string, typeof historicalSnapshots>();
-  for (const snap of historicalSnapshots) {
-    const arr = snapshotsByVin.get(snap.vin) || [];
-    arr.push(snap);
-    snapshotsByVin.set(snap.vin, arr);
-  }
-  for (const [vin, snaps] of snapshotsByVin) {
-    snapshotsByVin.set(vin, snaps.sort((a: any, b: any) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()));
-  }
-
+  const gpsByVin = new Map(fleetStatus.map((s: any) => [s.vin, s]));
   const faenaMap = new Map(faenas.map((f: any) => [f.id, f.nombre]));
   const hace2h = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
-  const porContrato = new Map<string, { activos: number; total: number; rendimientos: number[]; alertas: string[] }>();
+  const porContrato = new Map<string, { activos: number; total: number; alertas: string[] }>();
   const camionesActivos: string[] = [];
   const sinGps: string[] = [];
   const alertasActivas: string[] = [];
-  let kmTotal = 0;
 
   for (const cam of allCamiones) {
     const contratoNombre = faenaMap.get(cam.faenaId) || "N/A";
     if (!porContrato.has(contratoNombre)) {
-      porContrato.set(contratoNombre, { activos: 0, total: 0, rendimientos: [], alertas: [] });
+      porContrato.set(contratoNombre, { activos: 0, total: 0, alertas: [] });
     }
     const grupo = porContrato.get(contratoNombre)!;
     grupo.total++;
 
-    const volvo = cam.vin ? volvoByVin.get(cam.vin) : null;
-    const volvoTimestamp = volvo?.createdDateTime || volvo?.gps?.positionDateTime || null;
-    const isActive = volvoTimestamp && new Date(volvoTimestamp) >= hace2h;
+    const gpsData = cam.vin ? gpsByVin.get(cam.vin) : null;
+    const gpsTimestamp = gpsData?.createdDateTime || gpsData?.gps?.positionDateTime || null;
+    const isActive = gpsTimestamp && new Date(gpsTimestamp) >= hace2h;
     if (isActive) {
       grupo.activos++;
       camionesActivos.push(cam.patente);
     } else {
       sinGps.push(cam.patente);
     }
-
-    const snaps = cam.vin ? snapshotsByVin.get(cam.vin) : null;
-    if (snaps && snaps.length >= 2) {
-      const deltaFuel = snaps[snaps.length - 1].totalFuelUsed - snaps[0].totalFuelUsed;
-      const deltaKm = ((snaps[snaps.length - 1] as any).totalDistance || 0) - ((snaps[0] as any).totalDistance || 0);
-      const litros = deltaFuel / 1000;
-      const km = deltaKm / 1000;
-      kmTotal += km;
-      if (litros > 0 && km > 0) {
-        const rend = km / litros;
-        grupo.rendimientos.push(rend);
-        if (rend < (cam.metaKmL || 2.1) * 0.7) {
-          const alerta = `${cam.patente}: Rendimiento ${rend.toFixed(2)} km/L (meta ${cam.metaKmL} km/L, ${Math.round(((rend - cam.metaKmL) / cam.metaKmL) * 100)}%)`;
-          grupo.alertas.push(alerta);
-          alertasActivas.push(alerta);
-        }
-      }
-    }
   }
 
-  const rendTotal = Array.from(porContrato.values()).flatMap(g => g.rendimientos);
-  const rendProm = rendTotal.length > 0 ? rendTotal.reduce((s, r) => s + r, 0) / rendTotal.length : 0;
-
   let ctx = `DATOS DE FLOTA SOTRASER (ultimos ${days} dias):
-- Total camiones con telemetria Volvo: ${allCamiones.length}
+- Total camiones con telemetria WiseTrack: ${allCamiones.length}
 - Camiones activos hoy (GPS en ultimas 2h): ${camionesActivos.length}
-- Km totales recorridos: ${Math.round(kmTotal).toLocaleString("es-CL")}
-- Rendimiento promedio ECU: ${rendProm.toFixed(2)} km/L
 
 POR CONTRATO:\n`;
 
   for (const [nombre, datos] of porContrato) {
-    const rendAvg = datos.rendimientos.length > 0 ? datos.rendimientos.reduce((s, r) => s + r, 0) / datos.rendimientos.length : 0;
-    ctx += `- ${nombre}: ${datos.activos}/${datos.total} activos, ${rendAvg.toFixed(2)} km/L promedio, ${datos.alertas.length} bajo meta\n`;
+    ctx += `- ${nombre}: ${datos.activos}/${datos.total} activos, ${datos.alertas.length} alertas\n`;
   }
 
   ctx += `\nALERTAS ACTIVAS:\n`;
@@ -137,7 +96,7 @@ export function registerIARoutes(app: Express) {
         max_tokens: 300,
         messages: [{
           role: "user",
-          content: `Eres un analista de flotas de camiones de Sotraser en Chile. Tu fuente son GPS y Volvo Connect ECU. Genera exactamente 2 oraciones cortas resumiendo el estado actual de la flota basandote en los datos. Se directo, usa numeros concretos. No uses emojis. No menciones Sigetra ni cargas manuales. Responde solo con las 2 oraciones, sin formato adicional.
+          content: `Eres un analista de flotas de camiones de Sotraser en Chile. Tu fuente son GPS WiseTrack y telemetria. Genera exactamente 2 oraciones cortas resumiendo el estado actual de la flota basandote en los datos. Se directo, usa numeros concretos. No uses emojis. Responde solo con las 2 oraciones, sin formato adicional.
 
 Datos:
 ${context}`
@@ -204,7 +163,7 @@ ${context}`
       const context = await getFusionContext(14);
       const client = getClient();
 
-      const systemPrompt = `Eres SOTRA IA, el asistente inteligente de SOTRASER, empresa de transporte de carga en Chile. Tienes acceso a datos reales de la flota enfocada en el contrato CENCOSUD con Volvo Connect. Tu fuente de datos principal son GPS y Volvo Connect (ECU). Manejas rutas GPS, viajes diarios, rendimiento km/L desde ECU, velocidades y patrones de ruta historicos.
+      const systemPrompt = `Eres SOTRA IA, el asistente inteligente de SOTRASER, empresa de transporte de carga en Chile. Tienes acceso a datos reales de la flota enfocada en el contrato CENCOSUD. Tu fuente de datos principal es WiseTrack (GPS y telemetria). Manejas rutas GPS, viajes diarios, rendimiento km/L, velocidades y patrones de ruta historicos.
 
 Cuando el usuario pregunte sobre la flota, responde con datos concretos si los tienes. Cuando no tengas datos exactos, dilo claramente. Siempre responde en espanol. Se directo y ejecutivo — maximo 4 parrafos.
 
@@ -243,11 +202,11 @@ ${context}`;
         max_tokens: 1500,
         messages: [{
           role: "user",
-          content: `Eres un analista experto en flotas de camiones de la empresa Sotraser en Chile. Tu fuente de datos principal son los sistemas GPS y Volvo Connect (ECU). Tienes acceso a rutas GPS, viajes diarios, rendimiento km/L desde ECU, velocidades, y patrones de ruta historicos. Responde la pregunta del usuario basandote en estos datos reales. Responde en espanol, con datos concretos (numeros, porcentajes, patentes). Se directo y conciso. No hagas referencias a Sigetra ni a cargas manuales.
+          content: `Eres un analista experto en flotas de camiones de la empresa Sotraser en Chile. Tu fuente de datos principal es WiseTrack (GPS y telemetria). Tienes acceso a rutas GPS, viajes diarios, rendimiento km/L, velocidades, y patrones de ruta historicos. Responde la pregunta del usuario basandote en estos datos reales. Responde en espanol, con datos concretos (numeros, porcentajes, patentes). Se directo y conciso.
 
 Pregunta del usuario: ${pregunta}
 
-Datos actuales de la flota (GPS + Volvo Connect):
+Datos actuales de la flota (WiseTrack):
 ${context}`
         }],
       });
@@ -379,11 +338,6 @@ ${context14}`
         all => all.filter(c => c.camionId === camion.id)
       ).catch(() => []);
 
-      let volvoSnaps: any[] = [];
-      if (camion.vin) {
-        volvoSnaps = await storage.getVolvoFuelSnapshotsInRange([camion.vin], from, to);
-      }
-
       const weeklyData: any[] = [];
       for (let w = 0; w < 8; w++) {
         const weekEnd = new Date(to.getTime() - w * 7 * 24 * 60 * 60 * 1000);
@@ -396,22 +350,11 @@ ${context14}`
         const validRend = weekCargas.filter((c: any) => c.rendReal != null && c.rendReal > 0 && c.rendReal < 100);
         const rendPromedio = validRend.length > 0 ? validRend.reduce((s: number, c: any) => s + c.rendReal, 0) / validRend.length : null;
 
-        const weekSnaps = volvoSnaps.filter(s => {
-          const d = new Date(s.capturedAt);
-          return d >= weekStart && d < weekEnd;
-        }).sort((a: any, b: any) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
-        let litrosEcu = null;
-        if (weekSnaps.length >= 2) {
-          const delta = weekSnaps[weekSnaps.length - 1].totalFuelUsed - weekSnaps[0].totalFuelUsed;
-          if (delta > 0) litrosEcu = Math.round(delta / 1000);
-        }
-
         weeklyData.unshift({
           semana: `S${8 - w}`,
           desde: weekStart.toISOString().slice(0, 10),
           hasta: weekEnd.toISOString().slice(0, 10),
           litrosSurtidor: Math.round(litrosSurtidor),
-          litrosEcu,
           rendimiento: rendPromedio ? Math.round(rendPromedio * 100) / 100 : null,
           cargas: weekCargas.length,
         });
@@ -785,7 +728,7 @@ ${context}`
       codigo: string;
       fecha: string;
       kmRecorridos: number;
-      litrosSigetra: number;
+      litrosSurtidor: number;
       litrosEcu: number;
       rendimiento: number;
       desviacionPct: number;
@@ -817,7 +760,7 @@ ${context}`
       const validTrips = allTrips.filter(v =>
         v.origenLat && v.origenLng && v.destinoLat && v.destinoLng &&
         Number(v.kmRecorridos) > 10 &&
-        (Number(v.litrosEcu) > 0 || Number(v.litrosSigetra) > 0) &&
+        (Number(v.litrosEcu) > 0 || Number(v.litrosSurtidor) > 0) &&
         Number(v.rendimientoReal) > 0 && Number(v.rendimientoReal) < 15
       );
 
@@ -868,7 +811,7 @@ ${context}`
           const rendimientos = group.map(v => Number(v.rendimientoReal));
           const avgRend = rendimientos.reduce((a, b) => a + b, 0) / rendimientos.length;
           const avgKm = group.reduce((a, v) => a + Number(v.kmRecorridos), 0) / group.length;
-          const avgLitros = group.reduce((a, v) => a + Number(v.litrosEcu || v.litrosSigetra), 0) / group.length;
+          const avgLitros = group.reduce((a, v) => a + Number(v.litrosEcu || v.litrosSurtidor || 0), 0) / group.length;
 
           const viajesDetail = group.map(v => {
             const rend = Number(v.rendimientoReal);
@@ -878,7 +821,7 @@ ${context}`
               codigo: v.codigo,
               fecha: v.fechaSalida ? new Date(v.fechaSalida).toISOString().split("T")[0] : "",
               kmRecorridos: Math.round(Number(v.kmRecorridos)),
-              litrosSigetra: Math.round(Number(v.litrosSigetra || 0)),
+              litrosSurtidor: Math.round(Number(v.litrosSurtidor || 0)),
               litrosEcu: Math.round(Number(v.litrosEcu || 0)),
               rendimiento: Math.round(rend * 100) / 100,
               desviacionPct: Math.round(desvPct * 10) / 10,
@@ -960,14 +903,14 @@ ${context}`
 
       const validTrips = allTrips.filter(v =>
         Number(v.kmRecorridos) > 10 &&
-        (Number(v.litrosEcu) > 0 || Number(v.litrosSigetra) > 0) &&
+        (Number(v.litrosEcu) > 0 || Number(v.litrosSurtidor) > 0) &&
         Number(v.rendimientoReal) > 0
       );
 
       const tripSummaries = validTrips.slice(0, 200).map(v => {
         const cam = camionMap.get(v.camionId);
         const faena = cam ? faenaMap.get(cam.faenaId) : null;
-        return `Patente:${cam?.patente||"?"} Faena:${faena?.nombre||"?"} Ruta:${v.origenNombre||"?"}>${v.destinoNombre||"?"} Km:${Number(v.kmRecorridos).toFixed(0)} Lt_Surtidor:${Number(v.litrosSigetra||0).toFixed(0)} Lt_ECU:${Number(v.litrosEcu||0).toFixed(0)} Rend:${Number(v.rendimientoReal).toFixed(2)}km/L Fecha:${v.fechaSalida ? new Date(v.fechaSalida).toISOString().split("T")[0] : "?"}`;
+        return `Patente:${cam?.patente||"?"} Faena:${faena?.nombre||"?"} Ruta:${v.origenNombre||"?"}>${v.destinoNombre||"?"} Km:${Number(v.kmRecorridos).toFixed(0)} Lt_Surtidor:${Number(v.litrosSurtidor||0).toFixed(0)} Lt_ECU:${Number(v.litrosEcu||0).toFixed(0)} Rend:${Number(v.rendimientoReal).toFixed(2)}km/L Fecha:${v.fechaSalida ? new Date(v.fechaSalida).toISOString().split("T")[0] : "?"}`;
       });
 
       const fusionCtx = await getFusionContext(14);

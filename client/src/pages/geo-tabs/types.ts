@@ -28,9 +28,9 @@ export interface GeoViaje {
   velocidadPromedio: string | null;
   validacionEstado: string;
   validacionDetalle: any;
-  sigetraKmDeltaPct: string | null;
-  sigetraLitros: string | null;
-  sigetraSurtidorEnRuta: boolean | null;
+  cargaKmDeltaPct: string | null;
+  cargaLitros: string | null;
+  cargaSurtidorEnRuta: boolean | null;
   validadoManualmente: boolean;
   notas: string | null;
 }

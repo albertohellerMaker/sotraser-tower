@@ -337,7 +337,7 @@ function MapeoInteractivo() {
   );
 }
 
-export default function CencosudView({ onBack, gpsSource = "volvo" }: { onBack: () => void; gpsSource?: "volvo" | "wisetrack" }) {
+export default function CencosudView({ onBack, gpsSource = "wisetrack" }: { onBack: () => void; gpsSource?: "wisetrack" }) {
   const [tab, setTab] = useState<Tab>("EN_VIVO");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
 
@@ -378,8 +378,7 @@ export default function CencosudView({ onBack, gpsSource = "volvo" }: { onBack: 
           <div>
             <div className="flex items-center gap-2">
               <div className="font-space text-[14px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>CENCOSUD RETAIL</div>
-              {gpsSource === "wisetrack" && <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#06b6d420", border: "1px solid #06b6d440", color: "#06b6d4" }}>GPS: WISETRACK</span>}
-              {gpsSource === "volvo" && <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#00d4ff20", border: "1px solid #00d4ff40", color: "#00d4ff" }}>GPS: VOLVO</span>}
+              <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#06b6d420", border: "1px solid #06b6d440", color: "#06b6d4" }}>GPS: WISETRACK</span>
             </div>
             <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Contrato Ago 2025 - Jul 2029 · 83 camiones · 7 lotes</div>
           </div>

@@ -45,7 +45,7 @@ Datos del sistema:
 - Rutas conocidas: ${estado.total_corredores_conocidos}
 - Conductores analizados: ${estado.total_conductores_analizados}
 - Camiones perfilados: ${estado.total_camiones_perfilados}
-- Snapshots Volvo: ${estado.total_snapshots_volvo}
+- Posiciones WiseTrack: ${estado.total_posiciones_wisetrack || 0}
 - Confianza global: ${estado.confianza_global}
 - Alertas de patron activas: ${estado.alertas_patron_activas}
 
@@ -292,12 +292,11 @@ Maximo 3 parrafos.`;
         ) sub
       `);
 
-      // Rendimiento from Volvo ECU (still best source for fuel)
       const rendR = await pool.query(`
-        SELECT AVG(CASE WHEN km_d > 0 AND lt_d > 0 THEN km_d / lt_d END)::numeric(6,2) as rend FROM (
-          SELECT vin, (MAX(total_distance)-MIN(total_distance))/1000.0 as km_d, (MAX(total_fuel_used)-MIN(total_fuel_used))/1000.0 as lt_d
-          FROM volvo_fuel_snapshots WHERE captured_at::timestamp >= $1::date AND captured_at::timestamp < ($1::date + INTERVAL '1 day')
-          GROUP BY vin HAVING MAX(total_distance) > MIN(total_distance) AND MAX(total_fuel_used) > MIN(total_fuel_used)
+        SELECT AVG(CASE WHEN kms_total > 0 AND consumo_litros > 0 THEN kms_total / consumo_litros END)::numeric(6,2) as rend FROM (
+          SELECT patente, MAX(kms_total) - MIN(kms_total) as kms_total, MAX(consumo_litros) - MIN(consumo_litros) as consumo_litros
+          FROM wisetrack_posiciones WHERE DATE(creado_at) = $1::date
+          GROUP BY patente HAVING MAX(kms_total) > MIN(kms_total) AND MAX(consumo_litros) > MIN(consumo_litros)
         ) sub
       `, [hoyStr]);
 
@@ -428,19 +427,18 @@ Maximo 3 parrafos.`;
       }
 
       const rendBajoResult = await pool.query(`
-        SELECT c.patente, f.nombre as contrato,
-          (MAX(v.total_distance) - MIN(v.total_distance)) / 1000.0 as km_delta,
-          (MAX(v.total_fuel_used) - MIN(v.total_fuel_used)) / 1000.0 as litros_delta
-        FROM volvo_fuel_snapshots v
-        JOIN camiones c ON v.vin = c.vin
+        SELECT w.patente, COALESCE(f.nombre, 'N/A') as contrato,
+          MAX(w.kms_total) - MIN(w.kms_total) as km_delta,
+          MAX(w.consumo_litros) - MIN(w.consumo_litros) as litros_delta
+        FROM wisetrack_posiciones w
+        JOIN camiones c ON w.patente = c.patente
         JOIN faenas f ON c.faena_id = f.id
-        WHERE v.captured_at::timestamp >= $1::date AND v.captured_at::timestamp < ($1::date + interval '1 day')
-         
-        GROUP BY c.patente, f.nombre
-        HAVING MAX(v.total_distance) > MIN(v.total_distance)
-          AND MAX(v.total_fuel_used) > MIN(v.total_fuel_used)
-          AND (MAX(v.total_distance) - MIN(v.total_distance)) / NULLIF(MAX(v.total_fuel_used) - MIN(v.total_fuel_used), 0) < 1.5
-        ORDER BY (MAX(v.total_distance) - MIN(v.total_distance)) / NULLIF(MAX(v.total_fuel_used) - MIN(v.total_fuel_used), 0)
+        WHERE DATE(w.creado_at) = $1::date
+        GROUP BY w.patente, f.nombre
+        HAVING MAX(w.kms_total) > MIN(w.kms_total)
+          AND MAX(w.consumo_litros) > MIN(w.consumo_litros)
+          AND (MAX(w.kms_total) - MIN(w.kms_total)) / NULLIF(MAX(w.consumo_litros) - MIN(w.consumo_litros), 0) < 1.5
+        ORDER BY (MAX(w.kms_total) - MIN(w.kms_total)) / NULLIF(MAX(w.consumo_litros) - MIN(w.consumo_litros), 0)
         LIMIT 10
       `, [hoyStr]);
       for (const r of rendBajoResult.rows) {
@@ -538,15 +536,15 @@ Maximo 3 parrafos.`;
         kmHoy = Math.round(parseFloat(kmRes.rows[0]?.km || 0));
 
         let rendHoy: number | null = null;
-        if (cam.vin) {
+        if (cam.patente) {
           const rendRes = await pool.query(`
             SELECT
-              (MAX(total_distance) - MIN(total_distance)) / 1000.0 as km_d,
-              (MAX(total_fuel_used) - MIN(total_fuel_used)) / 1000.0 as l_d
-            FROM volvo_fuel_snapshots
-            WHERE vin = $1
-              AND captured_at::timestamp >= $2::date AND captured_at::timestamp < ($2::date + interval '1 day')
-          `, [cam.vin, hoyStr]);
+              MAX(kms_total) - MIN(kms_total) as km_d,
+              MAX(consumo_litros) - MIN(consumo_litros) as l_d
+            FROM wisetrack_posiciones
+            WHERE patente = $1
+              AND DATE(creado_at) = $2::date
+          `, [cam.patente, hoyStr]);
           const kd = parseFloat(rendRes.rows[0]?.km_d || 0);
           const ld = parseFloat(rendRes.rows[0]?.l_d || 0);
           if (kd > 0 && ld > 0) rendHoy = Math.round((kd / ld) * 100) / 100;

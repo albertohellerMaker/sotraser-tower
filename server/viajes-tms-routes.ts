@@ -319,7 +319,7 @@ router.get("/contrato-detalle/:contrato", validate({ params: ContratoParam }), a
         WHERE va.contrato = $1 AND va.fecha_inicio >= $2 AND va.km_ecu > 0
       `, [contrato, inicioMes]),
 
-      // Litros Sigetra
+      // Litros Surtidor
       pool.query(`
         SELECT COUNT(*)::int as cargas, ROUND(COALESCE(SUM(litros_surtidor),0)::numeric) as litros_total,
           COUNT(DISTINCT patente)::int as camiones_cargaron, COUNT(DISTINCT proveedor)::int as estaciones
