@@ -337,7 +337,7 @@ function MapeoInteractivo() {
   );
 }
 
-export default function CencosudView({ onBack, gpsSource = "wisetrack" }: { onBack: () => void; gpsSource?: "wisetrack" }) {
+export default function CencosudView({ onBack, gpsSource = "wisetrack", onNavigate }: { onBack: () => void; gpsSource?: "wisetrack"; onNavigate?: (tab: string) => void }) {
   const [tab, setTab] = useState<Tab>("EN_VIVO");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
 
@@ -373,7 +373,6 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack" }: { onBa
       {/* HEADER */}
       <div className="flex items-center justify-between px-5 py-3" style={{ background: "#060d14", borderBottom: "2px solid #00d4ff" }}>
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="cursor-pointer p-1" style={{ color: "#3a6080" }}><ChevronLeft className="w-5 h-5" /></button>
           <div className="w-8 h-8 rounded flex items-center justify-center font-space text-[11px] font-bold" style={{ background: "#00d4ff15", border: "1px solid #00d4ff30", color: "#00d4ff" }}>C</div>
           <div>
             <div className="flex items-center gap-2">
@@ -382,6 +381,21 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack" }: { onBa
             </div>
             <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Contrato Ago 2025 - Jul 2029 · 83 camiones · 7 lotes</div>
           </div>
+          {onNavigate && (
+            <div className="flex items-center gap-1 ml-4 border-l pl-4" style={{ borderColor: "#0d2035" }}>
+              {[
+                { id: "flota", label: "FLOTA" },
+                { id: "camiones", label: "CAMIONES" },
+                { id: "sistema", label: "SISTEMA" },
+              ].map(t => (
+                <button key={t.id} onClick={() => onNavigate(t.id)}
+                  className="px-2.5 py-1 font-exo text-[8px] font-bold tracking-wider cursor-pointer rounded"
+                  style={{ color: "#3a6080", background: "transparent", border: "1px solid #0d2035" }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">

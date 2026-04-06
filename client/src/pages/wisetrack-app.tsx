@@ -861,14 +861,14 @@ function WTSistema() {
 }
 
 const WT_TABS: { id: WTTab; label: string; icon: typeof MapIcon; color: string }[] = [
-  { id: "flota", label: "FLOTA", icon: MapIcon, color: "#06b6d4" },
-  { id: "camiones", label: "CAMIONES", icon: Truck, color: "#06b6d4" },
-  { id: "tms", label: "TMS CENCOSUD", icon: BarChart3, color: "#00ff88" },
+  { id: "tms", label: "CENCOSUD", icon: BarChart3, color: "#00ff88" },
+  { id: "flota", label: "FLOTA", icon: MapIcon, color: "#3a6080" },
+  { id: "camiones", label: "CAMIONES", icon: Truck, color: "#3a6080" },
   { id: "sistema", label: "SISTEMA", icon: Settings, color: "#3a6080" },
 ];
 
 export default function WiseTrackApp({ onBack }: { onBack?: () => void } = {}) {
-  const [tab, setTab] = useState<WTTab>("flota");
+  const [tab, setTab] = useState<WTTab>("tms");
 
   const { data: wtData } = useQuery<WTResponse>({
     queryKey: ["/api/wisetrack/en-vivo"],
@@ -877,7 +877,7 @@ export default function WiseTrackApp({ onBack }: { onBack?: () => void } = {}) {
   });
 
   if (tab === "tms") {
-    return <CencosudView onBack={() => setTab("flota")} gpsSource="wisetrack" />;
+    return <CencosudView onBack={() => setTab("tms")} gpsSource="wisetrack" onNavigate={(t: string) => setTab(t as WTTab)} />;
   }
 
   return (
@@ -885,7 +885,7 @@ export default function WiseTrackApp({ onBack }: { onBack?: () => void } = {}) {
       <div className="fixed top-0 left-0 right-0 z-50" style={{ background: "rgba(2,5,8,0.97)", backdropFilter: "blur(12px)", borderBottom: "1px solid #0d2035" }}>
         <div className="flex items-center justify-between px-4 h-[36px]">
           <div className="flex items-center gap-3">
-            <button onClick={() => onBack ? onBack() : setTab("flota")} className="font-space text-[14px] font-bold tracking-[0.2em] cursor-pointer hover:opacity-80" style={{ color: "#06b6d4", background: "none", border: "none" }}>SOTRASER</button>
+            <button onClick={() => onBack ? onBack() : setTab("tms")} className="font-space text-[14px] font-bold tracking-[0.2em] cursor-pointer hover:opacity-80" style={{ color: "#06b6d4", background: "none", border: "none" }}>SOTRASER</button>
             <span className="font-exo text-[9px] tracking-wider" style={{ color: "#3a6080" }}>TOWER</span>
             <div className="w-px h-4 mx-1" style={{ background: "#0d2035" }} />
             <div className="flex items-center gap-1">
