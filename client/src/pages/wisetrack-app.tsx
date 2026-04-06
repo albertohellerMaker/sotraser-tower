@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Map as MapIcon, Truck, Settings, Search, Fuel, Gauge, Activity, ThermometerSun } from "lucide-react";
+import { Map as MapIcon, Truck, Settings, Search, Fuel, Gauge, Activity, ThermometerSun, BarChart3 } from "lucide-react";
 import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import CencosudView from "./cencosud";
 
 interface WTVehicle {
   patente: string;
@@ -37,7 +38,7 @@ const ESTADO_CFG: Record<string, { color: string; label: string; dotColor: strin
   sin_senal: { color: "#ff2244", label: "SIN SEÑAL", dotColor: "#ff2244" },
 };
 
-type WTTab = "flota" | "camiones" | "sistema";
+type WTTab = "flota" | "camiones" | "tms" | "sistema";
 
 function LiveClock() {
   const [time, setTime] = useState("");
@@ -452,6 +453,7 @@ function WTSistema() {
 const WT_TABS: { id: WTTab; label: string; icon: typeof MapIcon; color: string }[] = [
   { id: "flota", label: "FLOTA", icon: MapIcon, color: "#06b6d4" },
   { id: "camiones", label: "CAMIONES", icon: Truck, color: "#06b6d4" },
+  { id: "tms", label: "TMS CENCOSUD", icon: BarChart3, color: "#00ff88" },
   { id: "sistema", label: "SISTEMA", icon: Settings, color: "#3a6080" },
 ];
 
@@ -463,6 +465,10 @@ export default function WiseTrackApp({ onBack }: { onBack: () => void }) {
     queryFn: async () => { const r = await fetch("/api/wisetrack/en-vivo"); if (!r.ok) throw new Error(`Error ${r.status}`); return r.json(); },
     staleTime: 30000,
   });
+
+  if (tab === "tms") {
+    return <CencosudView onBack={() => setTab("flota")} gpsSource="wisetrack" />;
+  }
 
   return (
     <div className="min-h-screen" style={{ background: "#020508", color: "#c8e8ff" }}>

@@ -337,20 +337,23 @@ function MapeoInteractivo() {
   );
 }
 
-export default function CencosudView({ onBack }: { onBack: () => void }) {
+export default function CencosudView({ onBack, gpsSource = "volvo" }: { onBack: () => void; gpsSource?: "volvo" | "wisetrack" }) {
   const [tab, setTab] = useState<Tab>("EN_VIVO");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+
+  const enVivoUrl = gpsSource === "wisetrack" ? "/api/wisetrack/tms/en-vivo" : "/api/cencosud/en-vivo";
+  const trailUrlBase = gpsSource === "wisetrack" ? "/api/wisetrack/tms/en-vivo/trail" : "/api/cencosud/en-vivo/trail";
 
   const { data: mes } = useQuery<any>({ queryKey: ["/api/cencosud/resumen-mes"], queryFn: () => fetch("/api/cencosud/resumen-mes").then(r => r.json()), staleTime: 120000 });
   const { data: dash } = useQuery<any>({ queryKey: ["/api/cencosud/dashboard", fecha], queryFn: () => fetch(`/api/cencosud/dashboard?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
   const mesActual = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const { data: plMes } = useQuery<any>({ queryKey: ["/api/cencosud/pl/mes", mesActual], queryFn: () => fetch(`/api/cencosud/pl/mes?mes=${mesActual}`).then(r => r.json()), staleTime: 120000 });
   const { data: plDia } = useQuery<any>({ queryKey: ["/api/cencosud/pl/dia", fecha], queryFn: () => fetch(`/api/cencosud/pl/dia?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
-  const { data: enVivoData } = useQuery<any>({ queryKey: ["/api/cencosud/en-vivo"], queryFn: () => fetch("/api/cencosud/en-vivo").then(r => r.json()), refetchInterval: 30000, enabled: tab === "EN_VIVO" });
+  const { data: enVivoData } = useQuery<any>({ queryKey: [enVivoUrl], queryFn: () => fetch(enVivoUrl).then(r => r.json()), refetchInterval: 30000, enabled: tab === "EN_VIVO" });
   const [seguir, setSeguir] = useState<string | null>(null);
   const prevTab = useRef<Tab>("EN_VIVO");
   useEffect(() => { if (prevTab.current === "EN_VIVO" && tab !== "EN_VIVO") setSeguir(null); prevTab.current = tab; }, [tab]);
-  const { data: trailData } = useQuery<any>({ queryKey: ["/api/cencosud/en-vivo/trail", seguir], queryFn: () => fetch(`/api/cencosud/en-vivo/trail/${seguir}`).then(r => r.json()), refetchInterval: 30000, enabled: !!seguir && tab === "EN_VIVO" });
+  const { data: trailData } = useQuery<any>({ queryKey: [trailUrlBase, seguir], queryFn: () => fetch(`${trailUrlBase}/${seguir}`).then(r => r.json()), refetchInterval: 30000, enabled: !!seguir && tab === "EN_VIVO" });
   const { data: errData } = useQuery<any>({ queryKey: ["/api/cencosud/err", fecha], queryFn: () => fetch(`/api/cencosud/err?fecha=${fecha}`).then(r => r.json()), staleTime: 60000, enabled: tab === "ERR" });
   const { data: viajesMes } = useQuery<any>({ queryKey: ["/api/cencosud/viajes-mes"], queryFn: () => fetch("/api/cencosud/viajes-mes").then(r => r.json()), staleTime: 120000, enabled: tab === "VIAJES" });
   const { data: flotaData } = useQuery<any>({ queryKey: ["/api/cencosud/flota"], queryFn: () => fetch("/api/cencosud/flota").then(r => r.json()), staleTime: 300000, enabled: tab === "FLOTA" });
@@ -373,7 +376,11 @@ export default function CencosudView({ onBack }: { onBack: () => void }) {
           <button onClick={onBack} className="cursor-pointer p-1" style={{ color: "#3a6080" }}><ChevronLeft className="w-5 h-5" /></button>
           <div className="w-8 h-8 rounded flex items-center justify-center font-space text-[11px] font-bold" style={{ background: "#00d4ff15", border: "1px solid #00d4ff30", color: "#00d4ff" }}>C</div>
           <div>
-            <div className="font-space text-[14px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>CENCOSUD RETAIL</div>
+            <div className="flex items-center gap-2">
+              <div className="font-space text-[14px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>CENCOSUD RETAIL</div>
+              {gpsSource === "wisetrack" && <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#06b6d420", border: "1px solid #06b6d440", color: "#06b6d4" }}>GPS: WISETRACK</span>}
+              {gpsSource === "volvo" && <span className="font-exo text-[7px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#00d4ff20", border: "1px solid #00d4ff40", color: "#00d4ff" }}>GPS: VOLVO</span>}
+            </div>
             <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Contrato Ago 2025 - Jul 2029 · 83 camiones · 7 lotes</div>
           </div>
         </div>
