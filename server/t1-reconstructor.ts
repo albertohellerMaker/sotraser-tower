@@ -487,11 +487,10 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 
   const camionesResult = await pool.query(`
     SELECT DISTINCT patente, 
-           (SELECT id FROM camiones WHERE camiones.patente = gps_unificado.patente LIMIT 1) as camion_id
-    FROM gps_unificado
-    WHERE contrato = 'CENCOSUD'
-      AND timestamp_gps >= $1::date
-      AND timestamp_gps < ($1::date + interval '1 day')
+           (SELECT id FROM camiones WHERE camiones.patente = wp.patente LIMIT 1) as camion_id
+    FROM wisetrack_posiciones wp
+    WHERE creado_at >= $1::date
+      AND creado_at < ($1::date + interval '1 day')
     ORDER BY patente
   `, [fecha]);
 
@@ -514,12 +513,12 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 
     try {
       const puntosResult = await pool.query(`
-        SELECT lat, lng, timestamp_gps, velocidad, odometro
-        FROM gps_unificado
+        SELECT lat, lng, creado_at as timestamp_gps, velocidad, kms_total as odometro
+        FROM wisetrack_posiciones
         WHERE patente = $1
-          AND timestamp_gps >= $2::date
-          AND timestamp_gps < ($2::date + interval '1 day')
-        ORDER BY timestamp_gps ASC
+          AND creado_at >= $2::date
+          AND creado_at < ($2::date + interval '1 day')
+        ORDER BY creado_at ASC
       `, [cam.patente, fecha]);
 
       const puntos: GpsPoint[] = (puntosResult.rows as any[]).map((r: any) => ({

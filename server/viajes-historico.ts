@@ -1,6 +1,5 @@
 import { pool } from "./db";
-import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
-import { resolverGeocerca, resolverNombreViaje } from "./geocerca-inteligente";
+import { resolverNombreViaje } from "./geocerca-inteligente";
 
 interface LugarConocido {
   nombre: string;
@@ -170,7 +169,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncProgress> {
+export async function syncViajesHistorico(diasAtras: number = 3): Promise<SyncProgress> {
   if (syncProgress.status === "running") {
     return syncProgress;
   }
@@ -188,81 +187,41 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
   try {
     const desde = new Date();
     desde.setDate(desde.getDate() - diasAtras);
-    const desdeStr = desde.toISOString().split("T")[0];
-    const hastaStr = new Date().toISOString().split("T")[0];
+    const desdeStr = desde.toISOString();
 
-    const faenaPlaceholders = CONTRATOS_VOLVO_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
     const camionesResult = await pool.query(`
-      SELECT c.id, c.patente, c.vin, f.nombre as faena_nombre
-      FROM camiones c
-      JOIN faenas f ON c.faena_id = f.id
-      WHERE c.vin IS NOT NULL AND c.vin != ''
-        AND f.nombre IN (${faenaPlaceholders})
-    `, CONTRATOS_VOLVO_ACTIVOS);
-    const camiones = camionesResult.rows;
-    syncProgress.totalCamiones = camiones.length;
-    console.log(`[viajes-hist] Iniciando sync historico: ${camiones.length} camiones (solo CENCOSUD), desde ${desdeStr}`);
-
-    const snapsResult = await pool.query(`
-      SELECT vin, total_fuel_used, total_distance, captured_at
-      FROM volvo_fuel_snapshots
-      WHERE captured_at >= $1
-      ORDER BY vin, captured_at
+      SELECT DISTINCT ON (patente) patente,
+        (SELECT id FROM camiones WHERE camiones.patente = wp.patente LIMIT 1) as camion_id,
+        (SELECT f.nombre FROM camiones c JOIN faenas f ON c.faena_id = f.id WHERE c.patente = wp.patente LIMIT 1) as faena_nombre,
+        (SELECT vin FROM camiones WHERE camiones.patente = wp.patente LIMIT 1) as vin
+      FROM wisetrack_posiciones wp
+      WHERE creado_at >= $1
+      ORDER BY patente
     `, [desdeStr]);
 
-    const snapsByVin = new Map<string, any[]>();
-    for (const snap of snapsResult.rows) {
-      if (!snapsByVin.has(snap.vin)) snapsByVin.set(snap.vin, []);
-      snapsByVin.get(snap.vin)!.push(snap);
-    }
-
-    let sigetraData: any[] = [];
-    try {
-      sigetraData = [];
-    } catch (err: any) {
-      console.error("[viajes-hist] Error cargando Sigetra:", err.message);
-      syncProgress.errores.push("Error cargando datos Sigetra: " + err.message);
-    }
-
-    const numVehToPatente = new Map<string, string>();
-    const allCamResult = await pool.query(`SELECT patente, num_veh FROM camiones WHERE num_veh IS NOT NULL`);
-    for (const row of allCamResult.rows) {
-      numVehToPatente.set(String(row.num_veh), row.patente);
-    }
-
-    const sigetraByPatente = new Map<string, any[]>();
-    for (const carga of sigetraData) {
-      const numVeh = String(carga.numVeh || "");
-      const pat = carga.patente || numVehToPatente.get(numVeh) || numVeh;
-      if (!sigetraByPatente.has(pat)) sigetraByPatente.set(pat, []);
-      sigetraByPatente.get(pat)!.push(carga);
-    }
-
-    const geoResult = await pool.query(`
-      SELECT camion_id, lat, lng, timestamp_punto, velocidad_kmh, km_odometro
-      FROM geo_puntos
-      WHERE timestamp_punto >= $1
-      ORDER BY camion_id, timestamp_punto
-    `, [desde]);
-
-    const geoByCamion = new Map<number, any[]>();
-    for (const p of geoResult.rows) {
-      if (!geoByCamion.has(p.camion_id)) geoByCamion.set(p.camion_id, []);
-      geoByCamion.get(p.camion_id)!.push(p);
-    }
+    const camiones = camionesResult.rows.filter((c: any) => c.camion_id);
+    syncProgress.totalCamiones = camiones.length;
+    console.log(`[viajes-hist] Iniciando sync historico WiseTrack: ${camiones.length} camiones, desde ${desdeStr}`);
 
     for (const cam of camiones) {
       try {
-        const snaps = snapsByVin.get(cam.vin) || [];
-        if (snaps.length < 2) {
+        const posResult = await pool.query(`
+          SELECT patente, lat, lng, velocidad, kms_total, consumo_litros, nivel_estanque,
+                 fecha, conductor, estado_operacion, creado_at
+          FROM wisetrack_posiciones
+          WHERE patente = $1 AND creado_at >= $2
+          ORDER BY creado_at ASC
+        `, [cam.patente, desdeStr]);
+
+        const puntos = posResult.rows;
+        if (puntos.length < 10) {
           syncProgress.procesados++;
           continue;
         }
 
-        const viajes = buildViajesFromSnapshots(cam, snaps, sigetraByPatente.get(cam.patente) || [], geoByCamion.get(cam.id) || []);
+        const viajes = buildViajesFromWiseTrack(cam, puntos);
 
         for (const viaje of viajes) {
-          if (viaje.contrato === "CENCOSUD") continue;
           const result = await pool.query(`
             INSERT INTO viajes_aprendizaje (
               camion_id, vin, contrato, fecha_inicio, fecha_fin,
@@ -285,14 +244,14 @@ export async function syncViajesHistorico(diasAtras: number = 90): Promise<SyncP
             )
             ON CONFLICT (camion_id, fecha_inicio) DO NOTHING
           `, [
-            cam.id, cam.vin, viaje.contrato, viaje.fechaInicio, viaje.fechaFin,
+            cam.camion_id, cam.vin || null, viaje.contrato, viaje.fechaInicio, viaje.fechaFin,
             viaje.origenLat, viaje.origenLng, viaje.origenNombre,
             viaje.destinoLat, viaje.destinoLng, viaje.destinoNombre,
             viaje.kmEcu, viaje.kmDeclaradoSigetra,
             viaje.litrosConsumidosEcu, viaje.litrosCargadosSigetra,
             viaje.rendimientoReal, viaje.conductor, JSON.stringify(viaje.paradas),
             viaje.scoreAnomalia, viaje.estado, viaje.duracionMinutos,
-            viaje.velocidadPromedio, viaje.velocidadMaxima, "VOLVO_ECU",
+            viaje.velocidadPromedio, viaje.velocidadMaxima, "WISETRACK_GPS",
           ]);
 
           if (result.rowCount && result.rowCount > 0) syncProgress.viajesCreados++;
@@ -383,17 +342,15 @@ function getClusterRadius(kmViaje: number, contrato: string): number {
 export async function clusterizarCorredores(): Promise<{ total: number; nuevos: number; actualizados: number }> {
   console.log("[corredores] Iniciando clusterizacion de corredores...");
 
-  const fp = CONTRATOS_VOLVO_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
   const result = await pool.query(`
     SELECT va.id, va.contrato, va.origen_lat, va.origen_lng, va.destino_lat, va.destino_lng,
            va.km_ecu, va.litros_consumidos_ecu, va.rendimiento_real, va.duracion_minutos,
            c.patente
     FROM viajes_aprendizaje va
     JOIN camiones c ON va.camion_id = c.id
-    WHERE va.contrato IN (${fp})
-      AND va.origen_lat IS NOT NULL AND va.destino_lat IS NOT NULL
+    WHERE va.origen_lat IS NOT NULL AND va.destino_lat IS NOT NULL
       AND va.km_ecu > 20 AND va.rendimiento_real > 0 AND va.rendimiento_real < 20
-  `, CONTRATOS_VOLVO_ACTIVOS);
+  `);
 
   const clusters = new Map<string, CorredorCluster>();
 
@@ -557,12 +514,11 @@ export async function recalcularScoresConCorredor(): Promise<{ recalculados: num
     contratoFallback.set(r.contrato, r.rend_avg);
   }
 
-  const fp = CONTRATOS_VOLVO_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
   const viajes = await pool.query(`
     SELECT id, corredor_id, contrato, rendimiento_real, velocidad_maxima, km_ecu, duracion_minutos, score_anomalia, estado
     FROM viajes_aprendizaje
-    WHERE contrato IN (${fp}) AND rendimiento_real > 0
-  `, CONTRATOS_VOLVO_ACTIVOS);
+    WHERE rendimiento_real > 0
+  `);
 
   let recalculados = 0;
   for (const v of viajes.rows) {
@@ -604,7 +560,6 @@ export async function recalcularScoresConCorredor(): Promise<{ recalculados: num
 }
 
 export async function getCorredoresStats() {
-  const fp = CONTRATOS_VOLVO_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
   const result = await pool.query(`
     SELECT c.id, c.nombre, c.contrato, c.origen_nombre, c.destino_nombre,
            c.rendimiento_promedio, c.rendimiento_desviacion,
@@ -612,9 +567,9 @@ export async function getCorredoresStats() {
            c.origen_lat, c.origen_lng, c.destino_lat, c.destino_lng,
            (SELECT COUNT(DISTINCT camion_id) FROM viajes_aprendizaje WHERE corredor_id = c.id) as camiones_unicos
     FROM corredores c
-    WHERE c.activo = true AND c.contrato IN (${fp})
+    WHERE c.activo = true
     ORDER BY c.total_viajes_base DESC
-  `, CONTRATOS_VOLVO_ACTIVOS);
+  `);
 
   return result.rows.map((c: any) => ({
     id: c.id,
@@ -631,147 +586,139 @@ export async function getCorredoresStats() {
   }));
 }
 
-function buildViajesFromSnapshots(
+function buildViajesFromWiseTrack(
   cam: any,
-  snaps: any[],
-  _sigetraCargas: any[],
-  geoPuntos: any[]
+  puntos: any[]
 ): ViajeBuilt[] {
-  const rawViajes: Array<{
+  const MAX_GAP_MINUTES = 240;
+  const MIN_TRIP_KM = 20;
+  const MIN_SPEED_MOVING = 5;
+
+  interface RawTrip {
+    points: any[];
     fechaInicio: Date;
     fechaFin: Date;
-    litrosEcu: number;
-    kmEcu: number;
-    rendimiento: number;
-    duracionMin: number;
-  }> = [];
+  }
 
-  const MIN_KM_SEGMENT = 2;
-  const MAX_GAP_HOURS = 4;
-  const MIN_TRIP_KM = 20;
+  const rawTrips: RawTrip[] = [];
+  let currentTrip: any[] = [];
 
-  let tripStart: any = null;
-  let tripEnd: any = null;
+  for (let i = 0; i < puntos.length; i++) {
+    const p = puntos[i];
+    const vel = parseFloat(p.velocidad) || 0;
+    const ts = new Date(p.creado_at);
 
-  function flushTrip() {
-    if (!tripStart || !tripEnd || tripStart === tripEnd) return;
-    const fuelS = tripStart.total_fuel_used;
-    const fuelE = tripEnd.total_fuel_used;
-    const distS = tripStart.total_distance;
-    const distE = tripEnd.total_distance;
-    if (fuelS == null || fuelE == null || distS == null || distE == null) return;
-    const litrosEcu = (fuelE - fuelS) / 1000;
-    const kmEcu = (distE - distS) / 1000;
-    if (kmEcu < MIN_TRIP_KM || litrosEcu <= 0) return;
-    if (kmEcu > 2500) return;
-    const rendimiento = kmEcu / litrosEcu;
-    if (rendimiento > 6 || rendimiento < 0.5) return;
-    const fechaInicio = new Date(tripStart.captured_at);
-    const fechaFin = new Date(tripEnd.captured_at);
-    rawViajes.push({
-      fechaInicio,
-      fechaFin,
-      litrosEcu,
-      kmEcu,
-      rendimiento,
-      duracionMin: Math.round((fechaFin.getTime() - fechaInicio.getTime()) / 60000),
+    if (currentTrip.length > 0) {
+      const lastTs = new Date(currentTrip[currentTrip.length - 1].creado_at);
+      const gapMin = (ts.getTime() - lastTs.getTime()) / 60000;
+
+      if (gapMin > MAX_GAP_MINUTES) {
+        if (currentTrip.length >= 5) {
+          rawTrips.push({
+            points: [...currentTrip],
+            fechaInicio: new Date(currentTrip[0].creado_at),
+            fechaFin: new Date(currentTrip[currentTrip.length - 1].creado_at),
+          });
+        }
+        currentTrip = [];
+      }
+    }
+
+    if (vel >= MIN_SPEED_MOVING || currentTrip.length > 0) {
+      currentTrip.push(p);
+    }
+  }
+
+  if (currentTrip.length >= 5) {
+    rawTrips.push({
+      points: [...currentTrip],
+      fechaInicio: new Date(currentTrip[0].creado_at),
+      fechaFin: new Date(currentTrip[currentTrip.length - 1].creado_at),
     });
   }
-
-  for (let i = 0; i < snaps.length - 1; i++) {
-    const snapA = snaps[i];
-    const snapB = snaps[i + 1];
-    if (snapA.total_distance == null || snapB.total_distance == null ||
-        snapA.total_fuel_used == null || snapB.total_fuel_used == null) {
-      flushTrip();
-      tripStart = null;
-      tripEnd = null;
-      continue;
-    }
-
-    const deltaKm = (snapB.total_distance - snapA.total_distance) / 1000;
-    const gapHours = (new Date(snapB.captured_at).getTime() - new Date(snapA.captured_at).getTime()) / 3600000;
-
-    const continuityGap = tripEnd
-      ? (new Date(snapA.captured_at).getTime() - new Date(tripEnd.captured_at).getTime()) / 3600000
-      : 0;
-
-    const isMoving = deltaKm >= MIN_KM_SEGMENT;
-    const gapTooLong = gapHours > MAX_GAP_HOURS || continuityGap > MAX_GAP_HOURS;
-
-    if (isMoving && !gapTooLong) {
-      if (!tripStart) tripStart = snapA;
-      tripEnd = snapB;
-    } else {
-      flushTrip();
-      tripStart = null;
-      tripEnd = null;
-    }
-  }
-  flushTrip();
 
   const viajes: ViajeBuilt[] = [];
 
-  for (const rv of rawViajes) {
-    const puntosViaje = geoPuntos.filter(p => {
-      const t = new Date(p.timestamp_punto);
-      return t >= rv.fechaInicio && t <= rv.fechaFin;
-    });
-
-    let origenLat: number | null = null;
-    let origenLng: number | null = null;
-    let destinoLat: number | null = null;
-    let destinoLng: number | null = null;
+  for (const rt of rawTrips) {
+    const pts = rt.points;
+    let kmTotal = 0;
+    let litrosTotal = 0;
     let velMax = 0;
     let velSum = 0;
     let velCount = 0;
+    let conductor: string | null = null;
 
-    if (puntosViaje.length > 0) {
-      origenLat = parseFloat(puntosViaje[0].lat);
-      origenLng = parseFloat(puntosViaje[0].lng);
-      destinoLat = parseFloat(puntosViaje[puntosViaje.length - 1].lat);
-      destinoLng = parseFloat(puntosViaje[puntosViaje.length - 1].lng);
-      for (const p of puntosViaje) {
-        const vel = parseFloat(p.velocidad_kmh || 0);
-        if (vel > velMax) velMax = vel;
-        if (vel > 0) { velSum += vel; velCount++; }
+    const firstOdo = parseFloat(pts[0].kms_total) || 0;
+    const lastOdo = parseFloat(pts[pts.length - 1].kms_total) || 0;
+    if (lastOdo > firstOdo && lastOdo - firstOdo < 2500) {
+      kmTotal = lastOdo - firstOdo;
+    } else {
+      for (let i = 1; i < pts.length; i++) {
+        const d = haversineKm(
+          parseFloat(pts[i - 1].lat), parseFloat(pts[i - 1].lng),
+          parseFloat(pts[i].lat), parseFloat(pts[i].lng)
+        );
+        kmTotal += d;
       }
     }
+
+    const firstFuel = parseFloat(pts[0].consumo_litros) || 0;
+    const lastFuel = parseFloat(pts[pts.length - 1].consumo_litros) || 0;
+    if (lastFuel > firstFuel) {
+      litrosTotal = lastFuel - firstFuel;
+    }
+
+    for (const p of pts) {
+      const vel = parseFloat(p.velocidad) || 0;
+      if (vel > velMax) velMax = vel;
+      if (vel > 0) { velSum += vel; velCount++; }
+      if (!conductor && p.conductor) conductor = p.conductor;
+    }
+
+    if (kmTotal < MIN_TRIP_KM) continue;
+    if (kmTotal > 2500) continue;
+
+    const rendimiento = litrosTotal > 0 ? kmTotal / litrosTotal : null;
+    if (rendimiento !== null && (rendimiento > 6 || rendimiento < 0.3)) continue;
+
+    const origenLat = parseFloat(pts[0].lat);
+    const origenLng = parseFloat(pts[0].lng);
+    const destinoLat = parseFloat(pts[pts.length - 1].lat);
+    const destinoLng = parseFloat(pts[pts.length - 1].lng);
+    const duracionMin = Math.round((rt.fechaFin.getTime() - rt.fechaInicio.getTime()) / 60000);
 
     let scoreAnomalia = 0;
     let estado = "NORMAL";
 
-    if (rv.rendimiento < 1.5) { scoreAnomalia += 40; }
-    else if (rv.rendimiento < 2.0) { scoreAnomalia += 25; }
-    else if (rv.rendimiento < 2.5) { scoreAnomalia += 10; }
-
-    
-
-    if (velMax > 105) { scoreAnomalia += 10; }
-
+    if (rendimiento !== null) {
+      if (rendimiento < 1.5) scoreAnomalia += 40;
+      else if (rendimiento < 2.0) scoreAnomalia += 25;
+      else if (rendimiento < 2.5) scoreAnomalia += 10;
+    }
+    if (velMax > 105) scoreAnomalia += 10;
     if (scoreAnomalia >= 50) estado = "ANOMALIA";
     else if (scoreAnomalia >= 20) estado = "REVISAR";
 
     viajes.push({
-      contrato: cam.faena_nombre,
-      fechaInicio: rv.fechaInicio,
-      fechaFin: rv.fechaFin,
+      contrato: cam.faena_nombre || "CENCOSUD",
+      fechaInicio: rt.fechaInicio,
+      fechaFin: rt.fechaFin,
       origenLat,
       origenLng,
-      origenNombre: origenLat && origenLng ? (buscarLugarCercano(origenLat, origenLng, cam.faena_nombre)?.nombre || null) : null,
+      origenNombre: buscarLugarCercano(origenLat, origenLng, cam.faena_nombre)?.nombre || null,
       destinoLat,
       destinoLng,
-      destinoNombre: destinoLat && destinoLng ? (buscarLugarCercano(destinoLat, destinoLng, cam.faena_nombre)?.nombre || null) : null,
-      kmEcu: Math.round(rv.kmEcu * 10) / 10,
+      destinoNombre: buscarLugarCercano(destinoLat, destinoLng, cam.faena_nombre)?.nombre || null,
+      kmEcu: Math.round(kmTotal * 10) / 10,
       kmDeclaradoSigetra: 0,
-      litrosConsumidosEcu: Math.round(rv.litrosEcu * 100) / 100,
+      litrosConsumidosEcu: Math.round(litrosTotal * 100) / 100,
       litrosCargadosSigetra: 0,
-      rendimientoReal: Math.round(rv.rendimiento * 100) / 100,
-      conductor: null,
+      rendimientoReal: rendimiento ? Math.round(rendimiento * 100) / 100 : null,
+      conductor,
       paradas: [],
       scoreAnomalia: Math.min(scoreAnomalia, 100),
       estado,
-      duracionMinutos: rv.duracionMin,
+      duracionMinutos: duracionMin,
       velocidadPromedio: velCount > 0 ? Math.round(velSum / velCount * 10) / 10 : null,
       velocidadMaxima: velMax > 0 ? Math.round(velMax * 10) / 10 : null,
     });
@@ -781,23 +728,19 @@ function buildViajesFromSnapshots(
 }
 
 export async function getViajesStats() {
-  const fp = CONTRATOS_VOLVO_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
-  const params = CONTRATOS_VOLVO_ACTIVOS;
-  const whereActive = `WHERE contrato IN (${fp})`;
-  const totalResult = await pool.query(`SELECT COUNT(*) as cnt FROM viajes_aprendizaje ${whereActive}`, params);
+  const totalResult = await pool.query(`SELECT COUNT(*) as cnt FROM viajes_aprendizaje`);
   const byEstado = await pool.query(`
-    SELECT estado, COUNT(*) as cnt FROM viajes_aprendizaje ${whereActive} GROUP BY estado ORDER BY cnt DESC
-  `, params);
+    SELECT estado, COUNT(*) as cnt FROM viajes_aprendizaje GROUP BY estado ORDER BY cnt DESC
+  `);
   const byContrato = await pool.query(`
     SELECT contrato, COUNT(*) as cnt, 
            AVG(rendimiento_real::float) as rend_avg,
            AVG(km_ecu::float) as km_avg,
            AVG(litros_consumidos_ecu::float) as litros_avg
     FROM viajes_aprendizaje 
-    ${whereActive}
     GROUP BY contrato ORDER BY cnt DESC
-  `, params);
-  const totalCamiones = await pool.query(`SELECT COUNT(DISTINCT camion_id) as cnt FROM viajes_aprendizaje ${whereActive}`, params);
+  `);
+  const totalCamiones = await pool.query(`SELECT COUNT(DISTINCT camion_id) as cnt FROM viajes_aprendizaje`);
   const anomalias = await pool.query(`
     SELECT va.id, c.patente, va.contrato, va.fecha_inicio, va.fecha_fin,
            va.km_ecu, va.litros_consumidos_ecu, va.litros_cargados_sigetra,
@@ -809,24 +752,24 @@ export async function getViajesStats() {
     FROM viajes_aprendizaje va
     JOIN camiones c ON va.camion_id = c.id
     LEFT JOIN corredores cor ON va.corredor_id = cor.id
-    WHERE va.contrato IN (${fp}) AND va.score_anomalia >= 20
+    WHERE va.score_anomalia >= 20
     ORDER BY va.score_anomalia DESC
     LIMIT 50
-  `, params);
+  `);
 
   const cuadraturaR = await pool.query(`
     SELECT
       COUNT(*) FILTER (WHERE sigetra_cruzado = true)::int as cruzados,
       COUNT(*) FILTER (WHERE sigetra_cruzado = false)::int as pendientes,
       COUNT(*) FILTER (WHERE delta_cuadratura IS NOT NULL AND delta_cuadratura > 15)::int as desvios
-    FROM viajes_aprendizaje ${whereActive}
-  `, params);
+    FROM viajes_aprendizaje
+  `);
   const fechas = await pool.query(`
-    SELECT MIN(fecha_inicio) as desde, MAX(fecha_fin) as hasta FROM viajes_aprendizaje ${whereActive}
-  `, params);
+    SELECT MIN(fecha_inicio) as desde, MAX(fecha_fin) as hasta FROM viajes_aprendizaje
+  `);
 
   const corredoresCount = await pool.query(`SELECT COUNT(*) as cnt FROM corredores WHERE activo = true`);
-  const viajesConCorredor = await pool.query(`SELECT COUNT(*) as cnt FROM viajes_aprendizaje ${whereActive} AND corredor_id IS NOT NULL`, params);
+  const viajesConCorredor = await pool.query(`SELECT COUNT(*) as cnt FROM viajes_aprendizaje WHERE corredor_id IS NOT NULL`);
 
   const cuadData = cuadraturaR.rows[0] || {};
 

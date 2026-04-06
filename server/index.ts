@@ -170,7 +170,7 @@ app.use((req, res, next) => {
       iniciarGitSync();
 
       iniciarWorkers();
-      startWiseTrackSync(120_000);
+      startWiseTrackSync(60_000);
 
       setTimeout(async () => {
         try {
