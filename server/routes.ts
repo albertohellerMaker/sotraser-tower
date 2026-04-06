@@ -46,8 +46,7 @@ export async function registerRoutes(
 
   app.get("/api/contratos", async (req, res) => {
     try {
-      const soloVolvo = req.query.soloVolvo === "true" || req.query.soloVolvo === "1";
-      const contracts = await getAllContracts(soloVolvo);
+      const contracts = await getAllContracts(false);
       res.json(contracts);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -80,10 +79,8 @@ export async function registerRoutes(
 
   app.get("/api/camiones", async (req, res) => {
     const cams = await storage.getCamiones();
-    const faenas = await storage.getFaenas();
     const faenaIdFilter = req.query.faenaId ? parseInt(req.query.faenaId as string) : null;
-    // All camiones with VIN (Volvo Connect)
-    let filtered = cams.filter(c => c.vin && c.vin.length > 0);
+    let filtered = cams.filter(c => c.activo !== false);
     if (faenaIdFilter) {
       filtered = filtered.filter(c => c.faenaId === faenaIdFilter);
     }
@@ -162,7 +159,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/sigetra/status", async (_req, res) => {
-    res.json({ connected: false, message: "Sigetra removed — only Volvo Connect active", user: "" });
+    res.json({ connected: false, message: "Sigetra removido — WiseTrack API activo", user: "" });
   });
 
   app.get("/api/parametros", async (_req, res) => {
@@ -338,49 +335,34 @@ export async function registerRoutes(
       const to = new Date();
       const from30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      let fuelData: any[] = [];
-      try {
-        fuelData = [];
-      } catch {}
+      const wtR = await pool.query(`
+        WITH deltas AS (
+          SELECT patente, kms_total - LAG(kms_total) OVER (PARTITION BY patente ORDER BY fecha) as dk,
+            consumo_litros - LAG(consumo_litros) OVER (PARTITION BY patente ORDER BY fecha) as dl
+          FROM wisetrack_posiciones WHERE fecha >= NOW() - INTERVAL '30 days' AND kms_total > 0 AND consumo_litros > 0
+        )
+        SELECT ROUND(SUM(GREATEST(dk,0))::numeric) as km, ROUND(SUM(GREATEST(dl,0))::numeric) as litros,
+          COUNT(DISTINCT patente) as camiones_con_datos
+        FROM deltas WHERE dk >= 0 AND dk < 500 AND dl >= 0 AND dl < 200
+      `);
+      const onlineR = await pool.query(`SELECT COUNT(DISTINCT patente) as online FROM wisetrack_posiciones WHERE fecha >= NOW() - INTERVAL '2 hours'`);
+      const conductoresR = await pool.query(`SELECT COUNT(DISTINCT conductor) as total FROM wisetrack_posiciones WHERE fecha >= NOW() - INTERVAL '7 days' AND conductor IS NOT NULL AND conductor != ''`);
 
-      let fleetStatus: any[] = [];
-
-      const totalCamiones = allCamiones.length;
-      const totalFaenas = allFaenas.length;
-      const litros30d = Math.round(fuelData.reduce((s: number, c: any) => s + c.cantidadLt, 0));
-      const cargas30d = fuelData.length;
-
-      let km30d = 0;
-      for (const rec of fuelData) {
-        if (rec.kmRecorrido != null && rec.kmRecorrido > 0 && rec.kmRecorrido < 10000) {
-          km30d += rec.kmRecorrido;
-        }
-      }
-      km30d = Math.round(km30d);
-
-      const validRend = fuelData.filter((c: any) => c.rendReal != null && c.rendReal > 0 && c.rendReal < 100);
-      const rendPromedio = validRend.length > 0
-        ? Math.round((validRend.reduce((s: number, c: any) => s + c.rendReal, 0) / validRend.length) * 100) / 100
-        : 0;
-
-      const camionesConVin = allCamiones.filter(c => c.vin).length;
-      const camionesOnline = fleetStatus.length;
-
-      const conductoresSet = new Set<string>();
-      for (const rec of fuelData) {
-        if (rec.nombreConductor) conductoresSet.add(rec.nombreConductor);
-      }
+      const wt = wtR.rows[0] || {};
+      const km30d = parseInt(wt.km || "0");
+      const litros30d = parseInt(wt.litros || "0");
+      const rendPromedio = litros30d > 0 ? +(km30d / litros30d).toFixed(2) : 0;
 
       res.json({
-        totalCamiones,
-        totalFaenas,
+        totalCamiones: allCamiones.length,
+        totalFaenas: allFaenas.length,
         litros30d,
         km30d,
-        cargas30d,
+        cargas30d: 0,
         rendPromedio,
-        camionesConVin,
-        camionesOnline,
-        conductores: conductoresSet.size,
+        camionesConVin: allCamiones.filter(c => c.vin).length,
+        camionesOnline: parseInt(onlineR.rows[0]?.online || "0"),
+        conductores: parseInt(conductoresR.rows[0]?.total || "0"),
       });
     } catch (error: any) {
       console.error("[dashboard/hero] Error:", error.message);
@@ -665,7 +647,24 @@ export async function registerRoutes(
 
   app.get("/api/faenas/en-movimiento", async (_req, res) => {
     try {
-      res.json({ faenas: [], totals: { totalOnline: 0, enRuta: 0, detenidos: 0, inactivos: 0, faenasActivas: 0 } });
+      const r = await pool.query(`
+        SELECT COUNT(DISTINCT patente) FILTER (WHERE fecha >= NOW() - INTERVAL '30 minutes') as total_online,
+          COUNT(DISTINCT patente) FILTER (WHERE fecha >= NOW() - INTERVAL '30 minutes' AND velocidad > 3) as en_ruta,
+          COUNT(DISTINCT patente) FILTER (WHERE fecha >= NOW() - INTERVAL '30 minutes' AND velocidad <= 3) as detenidos,
+          COUNT(DISTINCT patente) FILTER (WHERE fecha < NOW() - INTERVAL '2 hours') as inactivos
+        FROM wisetrack_posiciones WHERE fecha >= NOW() - INTERVAL '24 hours'
+      `);
+      const row = r.rows[0] || {};
+      res.json({
+        faenas: [],
+        totals: {
+          totalOnline: parseInt(row.total_online || "0"),
+          enRuta: parseInt(row.en_ruta || "0"),
+          detenidos: parseInt(row.detenidos || "0"),
+          inactivos: parseInt(row.inactivos || "0"),
+          faenasActivas: 1,
+        },
+      });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -837,11 +836,37 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════
   app.get("/api/datos/excesos-velocidad", async (_req, res) => {
     try {
+      const limiteKmh = 90;
+      const eventosR = await pool.query(`
+        SELECT patente, etiqueta, velocidad, fecha, lat, lng, conductor
+        FROM wisetrack_posiciones
+        WHERE fecha >= NOW() - INTERVAL '7 days' AND velocidad > $1
+        ORDER BY fecha DESC LIMIT 200
+      `, [limiteKmh]);
+      const porCamionR = await pool.query(`
+        SELECT patente, COUNT(*) as eventos, MAX(velocidad) as max_vel, MAX(fecha) as ultimo
+        FROM wisetrack_posiciones
+        WHERE fecha >= NOW() - INTERVAL '7 days' AND velocidad > $1
+        GROUP BY patente ORDER BY eventos DESC
+      `, [limiteKmh]);
+      const hoyR = await pool.query(`
+        SELECT COUNT(*) as total FROM wisetrack_posiciones
+        WHERE fecha >= CURRENT_DATE AND velocidad > $1
+      `, [limiteKmh]);
+
+      const totalCam = porCamionR.rows.length;
+      const totalEv = eventosR.rows.length;
+      const masGrave = eventosR.rows.length > 0 ? eventosR.rows.reduce((a: any, b: any) => a.velocidad > b.velocidad ? a : b) : null;
+
       res.json({
-        eventos: [],
-        porCamion: [],
-        totals: { camionesConExceso: 0, eventosTotal: 0, masGrave: null, hoy: 0, limiteKmh: 90 },
-        resumen: { nuncaExcedieron: 0, ocasionales: 0, frecuentes: 0 },
+        eventos: eventosR.rows,
+        porCamion: porCamionR.rows,
+        totals: { camionesConExceso: totalCam, eventosTotal: totalEv, masGrave, hoy: parseInt(hoyR.rows[0]?.total || "0"), limiteKmh },
+        resumen: {
+          nuncaExcedieron: 0,
+          ocasionales: porCamionR.rows.filter((r: any) => parseInt(r.eventos) <= 3).length,
+          frecuentes: porCamionR.rows.filter((r: any) => parseInt(r.eventos) > 3).length,
+        },
       });
     } catch (error: any) {
       console.error("[datos] excesos-velocidad error:", error.message);

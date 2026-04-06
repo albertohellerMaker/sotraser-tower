@@ -428,13 +428,20 @@ Si no tienes la info, dilo. No inventes.`;
   app.get("/api/brain/comparacion-fuentes", async (_req: Request, res: Response) => {
     try {
       const r3 = await pool.query(`
+        WITH deltas AS (
+          SELECT patente,
+            kms_total - LAG(kms_total) OVER (PARTITION BY patente ORDER BY fecha) as dk,
+            consumo_litros - LAG(consumo_litros) OVER (PARTITION BY patente ORDER BY fecha) as dl
+          FROM wisetrack_posiciones
+          WHERE fecha >= NOW() - INTERVAL '7 days' AND kms_total > 0
+        )
         SELECT patente,
-          ROUND(SUM(GREATEST(kms_total - LAG(kms_total) OVER (PARTITION BY patente ORDER BY fecha), 0))::numeric) as km_wisetrack,
-          ROUND(SUM(GREATEST(consumo_litros - LAG(consumo_litros) OVER (PARTITION BY patente ORDER BY fecha), 0))::numeric) as litros_wt
-        FROM wisetrack_posiciones
-        WHERE fecha >= NOW() - INTERVAL '7 days' AND kms_total > 0
+          ROUND(SUM(GREATEST(dk, 0))::numeric) as km_wisetrack,
+          ROUND(SUM(GREATEST(dl, 0))::numeric) as litros_wt
+        FROM deltas
+        WHERE dk >= 0 AND dk < 500
         GROUP BY patente
-        HAVING SUM(GREATEST(kms_total - LAG(kms_total) OVER (PARTITION BY patente ORDER BY fecha), 0)) > 100
+        HAVING SUM(GREATEST(dk, 0)) > 100
         ORDER BY km_wisetrack DESC
         LIMIT 20
       `);

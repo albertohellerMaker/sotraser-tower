@@ -156,7 +156,7 @@ export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<num
               r.Velocidad || 0, r.Direccion || 0, true,
               vehiculoMap.get(r.Movil)?.grupo1 || "",
               vehiculoMap.get(r.Movil)?.conductor || "",
-              r.Kms_Total, r.ConsumoLitros_Conduccion,
+              r.Kms_Total, r.ConsumoLitros_Total,
               r.NivelEstanque, r.RPM, r.TempMotor, "",
             ]
           );

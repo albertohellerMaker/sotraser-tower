@@ -3,6 +3,7 @@ import { pool } from "./db";
 
 // Dynamic — populated at startup from DB
 export let CONTRATOS_ACTIVOS: string[] = ["CENCOSUD"];
+export function getContratosActivos(): string[] { return CONTRATOS_ACTIVOS; }
 export { CONTRATOS_ACTIVOS as CONTRATOS_VOLVO_ACTIVOS };
 export const CONTRATO_DEFAULT = "CENCOSUD";
 
