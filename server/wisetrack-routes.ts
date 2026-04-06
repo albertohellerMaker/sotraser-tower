@@ -14,10 +14,16 @@ router.get("/api/wisetrack/en-vivo", async (_req, res) => {
       else if (v.estadoOperacion === "Detenido" || v.velocidad === 0) estado = "detenido";
       if (v.estadoOperacion === "Sin Lectura") estado = "sin_senal";
 
-      const chileTz = Intl.DateTimeFormat("en", { timeZone: "America/Santiago", timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value || "GMT-4";
-      const offset = chileTz.replace("GMT", "");
-      const fechaMs = new Date(v.fecha.replace(" ", "T") + offset).getTime();
-      const minutosAgo = (Date.now() - fechaMs) / 60000;
+      const santiago = new Date().toLocaleString("en-US", { timeZone: "America/Santiago" });
+      const localNow = new Date(santiago);
+      const utcNow = new Date();
+      const offsetMs = localNow.getTime() - utcNow.getTime();
+      const offsetHours = Math.round(offsetMs / 3600000);
+      const sign = offsetHours >= 0 ? "+" : "-";
+      const abs = Math.abs(offsetHours);
+      const isoOffset = `${sign}${String(abs).padStart(2, "0")}:00`;
+      const fechaMs = new Date(v.fecha.replace(" ", "T") + isoOffset).getTime();
+      const minutosAgo = isNaN(fechaMs) ? 9999 : (Date.now() - fechaMs) / 60000;
       if (minutosAgo > 60) estado = "sin_senal";
 
       return {
@@ -217,14 +223,25 @@ router.get("/api/wisetrack/tms/en-vivo", async (_req, res) => {
     const enCD: any[] = [];
     const sinGps: any[] = [];
 
-    const chileTz = Intl.DateTimeFormat("en", { timeZone: "America/Santiago", timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value || "GMT-4";
-    const offset = chileTz.replace("GMT", "");
+    function parseWTDate(fechaStr: string): number {
+      const santiago = new Date().toLocaleString("en-US", { timeZone: "America/Santiago" });
+      const localNow = new Date(santiago);
+      const utcNow = new Date();
+      const offsetMs = localNow.getTime() - utcNow.getTime();
+      const offsetHours = Math.round(offsetMs / 3600000);
+      const sign = offsetHours >= 0 ? "+" : "-";
+      const abs = Math.abs(offsetHours);
+      const isoOffset = `${sign}${String(abs).padStart(2, "0")}:00`;
+      const iso = fechaStr.replace(" ", "T") + isoOffset;
+      const ms = new Date(iso).getTime();
+      return isNaN(ms) ? 0 : ms;
+    }
 
     for (const v of vehicles) {
       const lat = v.lat;
       const lng = v.lng;
-      const fechaMs = new Date(v.fecha.replace(" ", "T") + offset).getTime();
-      const minutosDesde = (Date.now() - fechaMs) / 60000;
+      const fechaMs = parseWTDate(v.fecha);
+      const minutosDesde = fechaMs > 0 ? (Date.now() - fechaMs) / 60000 : 9999;
 
       if (!lat || !lng || minutosDesde > 120 || v.estadoOperacion === "Sin Lectura") {
         sinGps.push({
