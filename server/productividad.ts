@@ -1,6 +1,6 @@
 import { pool } from "./db";
 import type { Express, Request, Response } from "express";
-import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
+import { CONTRATOS_ACTIVOS } from "./faena-filter";
 
 export async function procesarProductividadDiaria(): Promise<number> {
   try {
@@ -15,7 +15,7 @@ export async function procesarProductividadDiaria(): Promise<number> {
         AND va.km_ecu::float > 0
       EXCEPT
       SELECT patente, vin, contrato, fecha FROM productividad_diaria
-    `, [CONTRATOS_VOLVO_ACTIVOS]);
+    `, [CONTRATOS_ACTIVOS]);
 
     let procesados = 0;
     for (const d of diasR.rows) {
@@ -99,7 +99,7 @@ export function registerProductividadRoutes(app: Express) {
         FROM productividad_diaria
         WHERE contrato = ANY($1) AND fecha >= $2 AND estuvo_activo = true
         GROUP BY patente ORDER BY rend DESC
-      `, [CONTRATOS_VOLVO_ACTIVOS, inicioMes]);
+      `, [CONTRATOS_ACTIVOS, inicioMes]);
 
       const rankMap: Record<string, number> = {};
       rankR.rows.forEach((r: any, i: number) => { rankMap[r.patente] = i + 1; });

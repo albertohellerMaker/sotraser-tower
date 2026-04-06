@@ -9,7 +9,7 @@ import { db } from "./db";
 import { geoBases } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { inicializarContratos } from "./faena-filter";
-import { startWiseTrackSync } from "./wisetrack-scraper";
+import { startWiseTrackSync } from "./wisetrack-api";
 import crypto from "crypto";
 
 const app = express();

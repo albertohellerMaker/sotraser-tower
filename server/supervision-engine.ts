@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "./db";
-import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
+import { CONTRATOS_ACTIVOS } from "./faena-filter";
 
 /**
  * Nivel de confianza basado en semanas de historial:
@@ -35,7 +35,7 @@ export async function calcularExpectativasDiarias() {
       WHERE c.vin IS NOT NULL AND c.vin != ''
         AND car.faena = ANY($1)
         AND car.fecha::text >= (NOW() - INTERVAL '30 days')::date::text
-    `, [CONTRATOS_VOLVO_ACTIVOS]);
+    `, [CONTRATOS_ACTIVOS]);
 
     let procesados = 0;
     let omitidosBajaConfianza = 0;
@@ -238,7 +238,7 @@ export function registerSupervisionRoutes(app: Express) {
             WHEN estado_supervision = 'NORMAL' THEN 5
             ELSE 6
           END
-      `, [hoy, CONTRATOS_VOLVO_ACTIVOS]);
+      `, [hoy, CONTRATOS_ACTIVOS]);
 
       const rows = supervision.rows;
       const resumen = {

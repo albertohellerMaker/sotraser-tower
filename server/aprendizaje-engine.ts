@@ -2,11 +2,6 @@ import { pool, db } from "./db";
 import { buscarLugarCercano } from "./viajes-historico";
 import { sql } from "drizzle-orm";
 
-export async function cruzarConSigetra(): Promise<number> {
-  console.log("[CUADRATURA] Sigetra removed — skipping cruce");
-  return 0;
-}
-
 
 export async function procesarViajesNuevos(): Promise<number> {
   const result = await pool.query(`

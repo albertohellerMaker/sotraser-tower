@@ -1,5 +1,5 @@
 /** Constantes globales del sistema */
-export { CONTRATOS_VOLVO_ACTIVOS } from "../faena-filter";
+export { CONTRATOS_ACTIVOS } from "../faena-filter";
 export const VELOCIDAD_MAX = 105;
 
 /** SQL: camión válido (VIN registrado) */

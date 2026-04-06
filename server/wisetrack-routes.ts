@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { fetchSeguimiento, getWiseTrackStatus, startWiseTrackSync, stopWiseTrackSync, fetchTelemetriaAPI, type SeguimientoVehicle } from "./wisetrack-scraper";
+import { fetchSeguimiento, getWiseTrackStatus, startWiseTrackSync, stopWiseTrackSync, fetchTelemetriaAPI, type SeguimientoVehicle } from "./wisetrack-api";
 import { pool } from "./db";
 
 const router = Router();

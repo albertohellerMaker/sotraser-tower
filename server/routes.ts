@@ -15,7 +15,6 @@ import { registerEstacionesRoutes } from "./estaciones-routes";
 import { registerDriversRoutes } from "./drivers-routes";
 import { registerSupervisionRoutes } from "./supervision-engine";
 import { registerBrainRoutes } from "./brain-routes";
-import { registerValidadorCruzadoRoutes } from "./validador-cruzado";
 import viajesTmsRoutes from "./viajes-tms-routes";
 import combustibleRoutes from "./combustible-routes";
 import biRoutes from "./bi-routes";
@@ -156,10 +155,6 @@ export async function registerRoutes(
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
-  });
-
-  app.get("/api/sigetra/status", async (_req, res) => {
-    res.json({ connected: false, message: "Sigetra removido — WiseTrack API activo", user: "" });
   });
 
   app.get("/api/parametros", async (_req, res) => {
@@ -486,7 +481,7 @@ export async function registerRoutes(
             estado: v.estado,
             km: parseFloat(v.kmRecorridos || "0") || 0,
             rendimiento: parseFloat(v.rendimientoReal || "0") || 0,
-            litros: parseFloat(v.litrosSigetra || "0") || 0,
+            litros: parseFloat(v.litrosCargadosSigetra || v.kmRecorridos || "0") || 0,
           }));
       }
 
@@ -672,7 +667,7 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/sistema", async (_req, res) => {
     try {
-      const { getWiseTrackStatus } = await import("./wisetrack-scraper");
+      const { getWiseTrackStatus } = await import("./wisetrack-api");
       const wtStatus = getWiseTrackStatus();
 
       const iaConfigured = !!process.env.ANTHROPIC_API_KEY;
@@ -712,7 +707,6 @@ export async function registerRoutes(
   registerProductividadRoutes(app);
   registerSupervisionRoutes(app);
   registerBrainRoutes(app);
-  registerValidadorCruzadoRoutes(app);
   app.use("/api/viajes-tms", viajesTmsRoutes);
   app.use("/api/combustible", combustibleRoutes);
   app.use("/api/bi", biRoutes);
@@ -725,12 +719,6 @@ export async function registerRoutes(
 
   app.use("/api/conductor", conductorRoutes);
   app.use("/api/conductor-panel", conductorPanelRoutes);
-
-  const fusionStub = (_req: any, res: any) => {
-    res.json([]);
-  };
-  app.get("/api/sigetra/fusion", fusionStub);
-  app.get("/api/datos/fusion", fusionStub);
 
   // ═══════════════════════════════════════════════════
   // DATOS — MICRO-CARGAS (suspicious fuel loads from DB cargas table)
@@ -897,31 +885,11 @@ export async function registerRoutes(
 
       const registros = conTara.map(c => {
         const faena = faenaMap.get(c.faenaId);
-        const pesoVolvo = c.vin ? vinWeight.get(c.vin) : null;
-        const cargasSigetra = fuelData.filter(f => f.patente === c.patente);
-        const ultimaCarga = cargasSigetra.length > 0
-          ? cargasSigetra.sort((a: any, b: any) => b.fechaConsumo.localeCompare(a.fechaConsumo))[0]
-          : null;
 
         const taraNum = parseFloat(c.taraKg as string);
         const pesoMaxNum = c.pesoMaximoKg ? parseFloat(c.pesoMaximoKg as string) : null;
-        const pesoVolvoKg = pesoVolvo != null ? Math.round(pesoVolvo) : null;
 
-        let cargaEstimada: number | null = null;
-        let pesoTotal: number | null = null;
         let cumple: string = "SIN_DATOS";
-
-        if (pesoVolvoKg != null) {
-          cargaEstimada = Math.max(0, pesoVolvoKg - taraNum);
-          pesoTotal = pesoVolvoKg;
-        }
-
-        if (pesoTotal != null && pesoMaxNum != null) {
-          const pct = (pesoTotal / pesoMaxNum) * 100;
-          if (pct > 100) cumple = "EXCEDE";
-          else if (pct >= 95) cumple = "AL_LIMITE";
-          else cumple = "CUMPLE";
-        }
 
         return {
           id: c.id,
@@ -932,15 +900,10 @@ export async function registerRoutes(
           taraKg: taraNum,
           pesoMaximoKg: pesoMaxNum,
           capacidadCargaKg: c.capacidadCargaKg ? parseFloat(c.capacidadCargaKg as string) : null,
-          cargaEstimada,
-          pesoTotal,
-          pesoVolvoKg,
+          cargaEstimada: null,
+          pesoTotal: null,
           cumple,
-          ultimaCarga: ultimaCarga ? {
-            fecha: ultimaCarga.fechaConsumo,
-            litros: ultimaCarga.cantidadLt,
-            lugar: ultimaCarga.lugarConsumo,
-          } : null,
+          ultimaCarga: null,
           anioFabricacion: c.anioFabricacion || null,
           configuracionEjes: c.configuracionEjes || null,
         };

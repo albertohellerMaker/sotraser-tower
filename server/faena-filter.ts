@@ -1,10 +1,8 @@
 import { storage } from "./storage";
 import { pool } from "./db";
 
-// Dynamic — populated at startup from DB
 export let CONTRATOS_ACTIVOS: string[] = ["CENCOSUD"];
 export function getContratosActivos(): string[] { return CONTRATOS_ACTIVOS; }
-export { CONTRATOS_ACTIVOS as CONTRATOS_VOLVO_ACTIVOS };
 export const CONTRATO_DEFAULT = "CENCOSUD";
 
 export async function inicializarContratos() {
@@ -30,7 +28,7 @@ export async function inicializarContratos() {
 export function isContratoActivo(contrato: string): boolean {
   if (!contrato) return false;
   const upper = contrato.toUpperCase();
-  return CONTRATOS_VOLVO_ACTIVOS.some(c => upper.includes(c.toUpperCase()));
+  return CONTRATOS_ACTIVOS.some(c => upper.includes(c.toUpperCase()));
 }
 
 export interface ContractConfig {
@@ -86,20 +84,17 @@ export async function getFaenaPatentes(faenaId: number): Promise<Set<string>> {
   return new Set(cachedCamiones.filter(c => c.faenaId === faenaId).map(c => c.patente));
 }
 
-export async function getAllContracts(soloVolvo = false): Promise<{ name: string; faenas: { id: number; nombre: string }[]; camiones: number }[]> {
+export async function getAllContracts(): Promise<{ name: string; faenas: { id: number; nombre: string }[]; camiones: number }[]> {
   await ensureCache();
   const faenas = await storage.getFaenas();
   const contracts: { name: string; faenas: { id: number; nombre: string }[]; camiones: number }[] = [];
 
-  const contratosActivos = CONTRATOS_VOLVO_ACTIVOS.length > 0 ? CONTRATOS_VOLVO_ACTIVOS : faenas.map(f => f.nombre);
+  const contratosActivos = CONTRATOS_ACTIVOS.length > 0 ? CONTRATOS_ACTIVOS : faenas.map(f => f.nombre);
   for (const contrato of contratosActivos) {
     const matchedFaenas = faenas.filter(f => f.nombre.toUpperCase() === contrato.toUpperCase());
     if (matchedFaenas.length === 0) continue;
     const faenaIdSet = new Set(matchedFaenas.map(f => f.id));
-    let camionesFiltered = cachedCamiones.filter(c => faenaIdSet.has(c.faenaId));
-    if (soloVolvo) {
-      camionesFiltered = camionesFiltered.filter(c => c.vin && c.vin.length > 0);
-    }
+    const camionesFiltered = cachedCamiones.filter(c => faenaIdSet.has(c.faenaId));
     contracts.push({
       name: contrato,
       faenas: matchedFaenas.map(f => ({ id: f.id, nombre: f.nombre })),

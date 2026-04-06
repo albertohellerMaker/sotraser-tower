@@ -3,7 +3,7 @@ import { storage } from "./storage";
 import { db, pool, DATA_START, getDefaultDesde } from "./db";
 import { geoPuntos, geoViajes, geoBases, geoTrayectorias, geoGeocache, camiones, geoLugares, geoVisitas, geoAnalisisIa, viajesAprendizaje, cargas } from "@shared/schema";
 import { eq, desc, and, gte, lte, sql, inArray, asc, or, isNull, isNotNull } from "drizzle-orm";
-import { getContractConfig, getContractPatentes, getContractCamiones, CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
+import { getContractConfig, getContractPatentes, getContractCamiones, CONTRATOS_ACTIVOS } from "./faena-filter";
 import { detectarLugar, registrarVisita, analizarHistoricoCompleto, generarAnalisisIA } from "./geo-lugares-service";
 import { obtenerHistorialCamion, procesarFlotaHistorico, obtenerResumenFlota } from "./geo-reconstruccion-service";
 import { detectarVisitasFlota, obtenerResumenVisitas, obtenerVisitasCamion, inicializarPerfilGPS } from "./geo-visitas-service";
@@ -67,7 +67,7 @@ export const ESTACIONES_COMBUSTIBLE: Record<string, { lat: number; lng: number; 
 
 export function registerGeoRoutes(app: Express) {
 
-  // Unified live fleet from gps_unificado (Volvo Connect)
+  // Live fleet positions
   app.get("/api/geo/camiones-live", async (_req: Request, res: Response) => {
     try {
       const r = await pool.query(`
@@ -589,78 +589,6 @@ export function registerGeoRoutes(app: Express) {
     }
   });
 
-  app.post("/api/geo/validar-sigetra", async (_req: Request, res: Response) => {
-    try {
-      const pendientes = await db.select().from(geoViajes)
-        .where(eq(geoViajes.validacionEstado, "PENDIENTE"))
-        .limit(50);
-
-      if (pendientes.length === 0) return res.json({ validated: 0 });
-
-      const from = getDefaultDesde();
-      const to = new Date();
-      let fuelData: any[] = [];
-      fuelData = [];
-
-      let validated = 0;
-
-      for (const viaje of pendientes) {
-        const viajeStart = viaje.origenTimestamp ? new Date(viaje.origenTimestamp) : null;
-        const viajeEnd = viaje.destinoTimestamp ? new Date(viaje.destinoTimestamp) : null;
-        if (!viajeStart) continue;
-
-        const dayBefore = new Date(viajeStart.getTime() - 24 * 60 * 60 * 1000);
-        const dayAfter = viajeEnd ? new Date(viajeEnd.getTime() + 24 * 60 * 60 * 1000) : new Date(viajeStart.getTime() + 48 * 60 * 60 * 1000);
-
-        const matchingCargas = fuelData.filter((c: any) => {
-          if (c.patente !== viaje.patente && String(c.numVeh) !== viaje.patente) return false;
-          const cargaDate = new Date(c.fechaConsumo);
-          return cargaDate >= dayBefore && cargaDate <= dayAfter;
-        });
-
-        if (matchingCargas.length === 0) {
-          continue;
-        }
-
-        const carga = matchingCargas[0];
-        const checks: any = {};
-        let estado = "VALIDADO";
-
-        const kmGps = parseFloat(viaje.kmGps as string) || 0;
-        const kmSigetra = carga.kmRecorrido || carga.kmAjustado || 0;
-        if (kmGps > 0 && kmSigetra > 0) {
-          const deltaPct = Math.abs(kmGps - kmSigetra) / kmGps * 100;
-          checks.kmDeltaPct = Math.round(deltaPct * 10) / 10;
-          if (deltaPct > 25) { checks.kmStatus = "ANOMALIA"; estado = "ANOMALIA"; }
-          else if (deltaPct > 10) { checks.kmStatus = "REVISAR"; if (estado !== "ANOMALIA") estado = "REVISAR"; }
-          else checks.kmStatus = "OK";
-        }
-
-        const cargaDate = new Date(carga.fechaConsumo);
-        const timeDiffH = Math.abs(cargaDate.getTime() - viajeStart.getTime()) / (1000 * 60 * 60);
-        if (timeDiffH <= 4) checks.timingStatus = "OK";
-        else { checks.timingStatus = "REVISAR"; if (estado === "VALIDADO") estado = "REVISAR"; }
-
-        checks.surtidorStatus = "OK";
-
-        await db.update(geoViajes).set({
-          validacionEstado: estado,
-          validacionDetalle: checks,
-          sigetraKmDeltaPct: checks.kmDeltaPct != null ? String(checks.kmDeltaPct) : null,
-          sigetraLitros: carga.cantidadLt ? String(carga.cantidadLt) : null,
-          sigetraSurtidorEnRuta: checks.surtidorStatus === "OK",
-          actualizadoAt: new Date(),
-        }).where(eq(geoViajes.id, viaje.id));
-
-        validated++;
-      }
-
-      res.json({ validated, pending: pendientes.length });
-    } catch (error: any) {
-      console.error("[geo] validar-sigetra error:", error.message);
-      res.status(500).json({ message: error.message });
-    }
-  });
 
   app.get("/api/geo/lugares", async (req, res) => {
     try {
@@ -1029,31 +957,6 @@ export function registerGeoRoutes(app: Express) {
     try {
       const desde = req.query.desde as string || getDefaultDesde().toISOString().slice(0,10);
       const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
-      const contrato = (req.query.contrato as string || "TODOS").toUpperCase();
-      const subfaena = req.query.subfaena as string || "";
-
-      let faenaIds: number[];
-      if (contrato === "TODOS") {
-        const faenas = await storage.getFaenas();
-        faenaIds = faenas.map(f => f.id);
-      } else {
-        const config = await getContractConfig(contrato);
-        if (subfaena) {
-          const subId = config.faenaIds.find((_, i) => config.faenaNames[i] === subfaena);
-          faenaIds = subId ? [subId] : config.faenaIds;
-        } else {
-          faenaIds = config.faenaIds;
-        }
-      }
-
-      const allCamiones = await storage.getCamiones();
-      const faenaIdSet = new Set(faenaIds);
-      const camionesContrato = allCamiones.filter(c => faenaIdSet.has(c.faenaId));
-      const patentes = new Set(camionesContrato.map(c => c.patente));
-      const numVehToPatente = new Map<string, string>();
-      for (const c of camionesContrato) {
-        if (c.numVeh) numVehToPatente.set(c.numVeh, c.patente);
-      }
 
       const allFuel: any[] = [];
       const filteredFuel = allFuel;
@@ -1488,8 +1391,8 @@ export function registerGeoRoutes(app: Express) {
     try {
       const contrato = req.query.contrato as string | undefined;
 
-      const params: any[] = [...CONTRATOS_VOLVO_ACTIVOS];
-      const activeFp = CONTRATOS_VOLVO_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
+      const params: any[] = [...CONTRATOS_ACTIVOS];
+      const activeFp = CONTRATOS_ACTIVOS.map((_, i) => `$${i + 1}`).join(",");
       let whereClause = `WHERE va.origen_lat IS NOT NULL AND va.destino_lat IS NOT NULL AND va.contrato IN (${activeFp})`;
       if (contrato) {
         params.push(contrato);
@@ -1730,92 +1633,6 @@ export function registerGeoRoutes(app: Express) {
     }
   });
 
-  app.get("/api/geo/rendimiento-contratos", async (_req: Request, res: Response) => {
-    try {
-      const camionesResult = await pool.query(`
-        SELECT c.id, c.patente, c.vin, c.meta_km_l, c.faena_id, f.nombre as contrato, f.color
-        FROM camiones c
-        JOIN faenas f ON c.faena_id = f.id
-        WHERE c.vin IS NOT NULL AND c.vin != ''
-      `);
-      const camiones = camionesResult.rows;
-      if (camiones.length === 0) {
-        return res.json([]);
-      }
-
-      const desde = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const hasta = new Date();
-
-      const snapshotsResult = await pool.query(`
-        SELECT vin, total_fuel_used, total_distance, captured_at
-        FROM volvo_fuel_snapshots
-        WHERE vin = ANY($1)
-          AND captured_at::timestamp >= $2 AND captured_at::timestamp <= $3
-        ORDER BY vin, captured_at
-      `, [camiones.map((c: any) => c.vin), desde.toISOString(), hasta.toISOString()]);
-
-      const snapsByVin = new Map<string, any[]>();
-      for (const s of snapshotsResult.rows) {
-        const arr = snapsByVin.get(s.vin) || [];
-        arr.push(s);
-        snapsByVin.set(s.vin, arr);
-      }
-
-      const contratos = new Map<string, { nombre: string; color: string; camiones: any[]; porCamion: any[] }>();
-      for (const cam of camiones) {
-        if (!contratos.has(cam.contrato)) {
-          contratos.set(cam.contrato, { nombre: cam.contrato, color: cam.color, camiones: [], porCamion: [] });
-        }
-        const grupo = contratos.get(cam.contrato)!;
-        grupo.camiones.push(cam);
-
-        const snaps = snapsByVin.get(cam.vin);
-        if (!snaps || snaps.length < 2) continue;
-
-        const deltaFuel = parseFloat(snaps[snaps.length - 1].total_fuel_used) - parseFloat(snaps[0].total_fuel_used);
-        const deltaKm = (parseFloat(snaps[snaps.length - 1].total_distance || 0)) - (parseFloat(snaps[0].total_distance || 0));
-        const litros = deltaFuel / 1000;
-        const km = deltaKm / 1000;
-        const rend = litros > 0 ? km / litros : null;
-        const meta = parseFloat(cam.meta_km_l) || 2.1;
-
-        grupo.porCamion.push({
-          patente: cam.patente,
-          contrato: cam.contrato,
-          meta,
-          rendimiento_real: rend ? Math.round(rend * 100) / 100 : null,
-          bajo_meta: rend != null && rend < meta * 0.7,
-          diferencia_pct: rend ? Math.round(((rend - meta) / meta) * 100) : null,
-        });
-      }
-
-      const resultado: any[] = [];
-      for (const [, grupo] of contratos) {
-        const conRend = grupo.porCamion.filter((c: any) => c.rendimiento_real != null);
-        const rendProm = conRend.length > 0
-          ? conRend.reduce((s: number, c: any) => s + c.rendimiento_real, 0) / conRend.length
-          : null;
-        const metaProm = grupo.camiones.reduce((s: number, c: any) => s + (parseFloat(c.meta_km_l) || 2.1), 0) / grupo.camiones.length;
-
-        resultado.push({
-          nombre: grupo.nombre,
-          color: grupo.color,
-          camiones_total: grupo.camiones.length,
-          camiones_con_datos: conRend.length,
-          rendimiento_promedio: rendProm ? Math.round(rendProm * 100) / 100 : null,
-          meta_kmL: Math.round(metaProm * 100) / 100,
-          bajo_meta: grupo.porCamion.filter((c: any) => c.bajo_meta),
-        });
-      }
-
-      console.log("[GEO-V2] rendimiento-contratos:", resultado.length, "contratos");
-      res.json(resultado);
-    } catch (error: any) {
-      console.error("[GEO-V2] rendimiento-contratos:", error.message);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   app.get("/api/geo/viaje-puntos/:patente", async (req: Request, res: Response) => {
     try {
       const { patente } = req.params;
@@ -1953,224 +1770,6 @@ export function registerGeoRoutes(app: Express) {
     } catch (error: any) {
       console.error("[mapa-mes] Error:", error.message);
       res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/debug/vin-patente-diagnostico", async (_req, res) => {
-    try {
-      res.json({ message: "VIN-Patente diagnostics removed (Volvo pipeline eliminated)" });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-  app.get("/api/debug/test-cruce-cargas", async (_req, res) => {
-    try {
-      res.json({ resumen: { total_testeadas: 0, con_vin: 0, sin_vin: 0 }, detalle: [] });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/admin/recalcular-cuadratura", async (_req, res) => {
-    try {
-      let totalProcesados = 0;
-      let totalActualizados = 0;
-      let totalSinCargas = 0;
-      const MAX_BATCHES = 10;
-
-      for (let batch = 0; batch < MAX_BATCHES; batch++) {
-        const sinCruzar = await pool.query(`
-          SELECT v.id, v.vin, v.fecha_inicio, v.fecha_fin, v.litros_consumidos_ecu,
-                 c.patente
-          FROM viajes_aprendizaje v
-          JOIN camiones c ON v.camion_id = c.id
-          WHERE v.sigetra_cruzado = false
-          LIMIT 200
-        `);
-
-        if (sinCruzar.rows.length === 0) break;
-        totalProcesados += sinCruzar.rows.length;
-        let batchActualizados = 0;
-
-        for (const viaje of sinCruzar.rows) {
-          const patente = viaje.patente;
-          if (!patente) continue;
-
-          const fechaInicio = new Date(viaje.fecha_inicio);
-          const fechaFin = new Date(viaje.fecha_fin || viaje.fecha_inicio);
-          const ventanaAntes = new Date(fechaInicio.getTime() - 2 * 60 * 60 * 1000);
-          const ventanaDespues = new Date(fechaFin.getTime() + 2 * 60 * 60 * 1000);
-
-          const cargasViaje = await pool.query(
-            `SELECT litros_surtidor, km_anterior, km_actual, fecha
-             FROM cargas
-             WHERE patente = $1 AND fecha >= $2 AND fecha <= $3
-             ORDER BY fecha ASC`,
-            [patente, ventanaAntes.toISOString(), ventanaDespues.toISOString()]
-          );
-
-          if (cargasViaje.rows.length === 0) {
-            totalSinCargas++;
-            await pool.query(
-              `UPDATE viajes_aprendizaje SET sigetra_cruzado = true, fecha_cruce_sigetra = NOW() WHERE id = $1`,
-              [viaje.id]
-            );
-            continue;
-          }
-
-          const totalLitrosSigetra = cargasViaje.rows.reduce(
-            (s: number, c: any) => s + (c.litros_surtidor || 0), 0
-          );
-
-          const litrosEcu = parseFloat(viaje.litros_consumidos_ecu) || 0;
-          const delta = totalLitrosSigetra > 0 && litrosEcu > 0
-            ? ((litrosEcu - totalLitrosSigetra) / totalLitrosSigetra) * 100
-            : null;
-
-          await pool.query(
-            `UPDATE viajes_aprendizaje SET
-              sigetra_cruzado = true,
-              delta_cuadratura = $1,
-              fecha_cruce_sigetra = NOW(),
-              litros_cargados_sigetra = $2
-            WHERE id = $3`,
-            [delta !== null ? Math.round(delta * 10) / 10 : null, totalLitrosSigetra, viaje.id]
-          );
-
-          if (delta !== null) batchActualizados++;
-        }
-
-        totalActualizados += batchActualizados;
-        if (sinCruzar.rows.length < 200) break;
-      }
-
-      const pendientesR = await pool.query(
-        `SELECT COUNT(*)::int as cnt FROM viajes_aprendizaje WHERE sigetra_cruzado = false`
-      );
-
-      res.json({
-        procesados: totalProcesados,
-        actualizados: totalActualizados,
-        sin_cargas: totalSinCargas,
-        pendientes_totales: pendientesR.rows[0]?.cnt || 0,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // ═══════════════════════════════════════════════════
-  // GET /api/recopilacion/cobertura
-  // Cobertura Volvo Connect: semáforo, estados, historial
-  // ═══════════════════════════════════════════════════
-  app.get("/api/recopilacion/cobertura", async (_req: Request, res: Response) => {
-    try {
-      // Total flota con VIN
-      const flotaTotal = await pool.query(`
-        SELECT DISTINCT c.patente, c.vin
-        FROM camiones c
-        JOIN faenas f ON c.faena_id = f.id
-        WHERE c.vin IS NOT NULL AND c.vin != ''
-      `);
-
-      // Último punto GPS por camión (from geo_puntos)
-      const ultimosPuntos = await pool.query(`
-        SELECT DISTINCT ON (g.patente)
-          g.patente,
-          g.timestamp_punto as ultimo_reporte,
-          g.lat::float as lat,
-          g.lng::float as lng,
-          g.velocidad_kmh::float as velocidad,
-          EXTRACT(EPOCH FROM (NOW() - g.timestamp_punto))/60 as minutos_sin_reporte
-        FROM geo_puntos g
-        WHERE g.patente IS NOT NULL
-        ORDER BY g.patente, g.timestamp_punto DESC
-      `);
-
-      // Puntos GPS por camión HOY
-      const coberturaPorCamion = await pool.query(`
-        SELECT
-          g.patente,
-          COUNT(g.id) as snapshots_hoy,
-          MAX(g.timestamp_punto) as ultimo_hoy,
-          MIN(g.timestamp_punto) as primero_hoy
-        FROM geo_puntos g
-        WHERE g.patente IS NOT NULL
-          AND g.timestamp_punto >= date_trunc('day', NOW())
-        GROUP BY g.patente
-      `);
-
-      // Historial 14 días
-      const historial = await pool.query(`
-        SELECT
-          DATE(timestamp_punto) as fecha,
-          COUNT(*) as puntos,
-          COUNT(DISTINCT patente) as camiones
-        FROM geo_puntos
-        WHERE timestamp_punto >= NOW() - INTERVAL '14 days'
-          AND patente IS NOT NULL
-        GROUP BY DATE(timestamp_punto)
-        ORDER BY fecha DESC
-      `);
-
-      // Cruzar datos
-      const puntosMap: Record<string, any> = {};
-      ultimosPuntos.rows.forEach((s: any) => { puntosMap[s.patente] = s; });
-
-      const coberturaMap: Record<string, any> = {};
-      coberturaPorCamion.rows.forEach((c: any) => { coberturaMap[c.patente] = c; });
-
-      const camionesDetalle = flotaTotal.rows.map((cam: any) => {
-        const ultimo = puntosMap[cam.patente];
-        const hoy = coberturaMap[cam.patente];
-        const minutos = parseFloat(ultimo?.minutos_sin_reporte || "9999");
-
-        let estado = "SIN_DATOS";
-        if (minutos <= 10) estado = "ACTIVO";
-        else if (minutos <= 120) estado = "RECIENTE";
-        else if (minutos <= 480) estado = "INACTIVO";
-        else estado = "PERDIDO";
-
-        return {
-          patente: cam.patente,
-          vin: cam.vin,
-          ultimo_reporte: ultimo?.ultimo_reporte || null,
-          minutos_sin_reporte: Math.round(minutos),
-          snapshots_hoy: parseInt(hoy?.snapshots_hoy || "0"),
-          lat: ultimo?.lat || null,
-          lng: ultimo?.lng || null,
-          velocidad: ultimo?.velocidad || 0,
-          estado,
-        };
-      });
-
-      const activos = camionesDetalle.filter((c: any) => c.estado === "ACTIVO").length;
-      const recientes = camionesDetalle.filter((c: any) => c.estado === "RECIENTE").length;
-      const inactivos = camionesDetalle.filter((c: any) => c.estado === "INACTIVO").length;
-      const perdidos = camionesDetalle.filter((c: any) => c.estado === "PERDIDO" || c.estado === "SIN_DATOS").length;
-
-      const totalFlota = camionesDetalle.length || 1;
-      const pctCobertura = Math.round((activos + recientes) / totalFlota * 100);
-
-      let semaforo = "VERDE";
-      if (perdidos > 3 || pctCobertura < 70) semaforo = "ROJO";
-      else if (perdidos > 0 || pctCobertura < 90) semaforo = "AMARILLO";
-
-      res.json({
-        semaforo,
-        pct_cobertura: pctCobertura,
-        total_flota: camionesDetalle.length,
-        activos,
-        recientes,
-        inactivos,
-        perdidos,
-        camiones: camionesDetalle.sort((a: any, b: any) => a.minutos_sin_reporte - b.minutos_sin_reporte),
-        historial: historial.rows,
-        total_puntos: historial.rows.reduce((s: number, r: any) => s + parseInt(r.puntos), 0),
-      });
-    } catch (error: any) {
-      console.error("[COBERTURA] Error:", error.message);
-      res.status(500).json({ error: error.message });
     }
   });
 
