@@ -56,16 +56,16 @@ shared/
 ```
 
 ## Navigation Flow
-Login → SplashScreen → WiseTrackApp
-- **FLOTA tab** sub-tabs: RESUMEN / COMBUSTIBLE / PARADAS / ANOMALIAS / MAPA EN VIVO
-  - RESUMEN: fleet count, en-ruta/detenidos/ralenti/sin_senal, operational alerts, anomaly preview
-  - COMBUSTIBLE: Tower API fuel analysis (7-day), worst/best 5 trucks, percentile table, low-tank alerts
-  - PARADAS: Tower API stop detection (48h), per-truck breakdown, recent stops timeline
-  - ANOMALIAS: trip anomaly scoring from viajes_aprendizaje (score ≥ 20)
-  - MAPA EN VIVO: Google Maps with live truck positions
-- **CAMIONES tab**: per-truck detail, GPS historial, telemetry
-- **TMS CENCOSUD tab**: dedicated Cencosud contract management
-- **SISTEMA tab**: WiseTrack API health, system status, sync info
+Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
+- **CENCOSUD tab** (HOME — primary focus): Cencosud contract control panel
+  - Sub-tabs: EN VIVO / RESUMEN / VIAJES / ERRORES / RUTAS / FLOTA / AGENTE / TARIFAS / MAPA
+  - Trip reconciliation (cuadratura): GPS trips matched to tarifario via geocerca aliases
+  - Interactive mapping: manual assignment of contract names to unmatched trips
+  - Geo-references: KML polygons, operational geofences, auto-detected points
+  - T1 Reconstructor: automatic trip detection from GPS dwell-time at geocercas
+- **FLOTA tab** (informational): general fleet overview with sub-tabs RESUMEN / COMBUSTIBLE / PARADAS / ANOMALIAS / MAPA EN VIVO
+- **CAMIONES tab** (informational): per-truck detail, GPS historial, telemetry
+- **SISTEMA tab** (informational): WiseTrack API health, system status, sync info
 
 ## Key API Routes
 | Route | Source | Purpose |
