@@ -1,7 +1,7 @@
 # SOTRASER - Fleet Intelligence Dashboard
 
 ## Overview
-Fleet management system for Chilean trucking company SOTRASER. **72 active trucks** with GPS Volvo Connect (rFMS), focused on Cencosud TMS (~95%+ tariff billing) with Anglo American mining contracts. Single data source: Volvo Connect GPS + ECU telemetry.
+Fleet management system for Chilean trucking company SOTRASER. **Dual-platform architecture**: Volvo Connect (rFMS) and WiseTrack GPS running as **independent, parallel systems** with identical architecture. App opens with a **Platform Selector** screen (VOLVO CONNECT vs WISETRACK) before entering either platform.
 
 ## Data Sources (2 active)
 - **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s). 72 camiones with VIN.

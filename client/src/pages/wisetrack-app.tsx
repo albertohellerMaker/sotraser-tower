@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Map as MapIcon, Truck, Brain, Settings, Users, Smartphone, Search, ArrowLeft, RefreshCw, Fuel, Gauge, Activity, ThermometerSun, MapPin, ChevronDown, ChevronRight, Navigation } from "lucide-react";
+import { Map as MapIcon, Truck, Settings, Search, Fuel, Gauge, Activity, ThermometerSun } from "lucide-react";
 import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 
 interface WTVehicle {
@@ -61,7 +61,7 @@ function WTFlota() {
   const [mapCenter, setMapCenter] = useState({ lat: -33.45, lng: -70.65 });
   const [mapZoom, setMapZoom] = useState(6);
 
-  const { data, isLoading, refetch } = useQuery<WTResponse>({
+  const { data, isLoading } = useQuery<WTResponse>({
     queryKey: ["/api/wisetrack/en-vivo"],
     queryFn: async () => { const r = await fetch("/api/wisetrack/en-vivo"); if (!r.ok) throw new Error(`Error ${r.status}`); return r.json(); },
     refetchInterval: 30000,
