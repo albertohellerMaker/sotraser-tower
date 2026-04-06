@@ -4,7 +4,8 @@
 Fleet management system for Chilean trucking company SOTRASER. **WiseTrack official API only** — all Volvo Connect and WiseTrack portal scraping code has been removed. Single data source via `ei.wisetrack.cl/Sotraser/TelemetriaDetalle`.
 
 ## Data Source
-- **WiseTrack Official API**: `https://ei.wisetrack.cl/Sotraser/TelemetriaDetalle` — GET with Bearer token, SSL self-signed cert (`rejectUnauthorized: false`). Buffer empties after read — poll every 120s. Rich telemetry: GPS, fuel, RPM, torque, engine temp, horometer, consumption breakdown. Tables: `wisetrack_telemetria` (API data by wt_id), `wisetrack_vehiculos` (movil→patente mapping), `wisetrack_posiciones` (GPS positions). 63 Cencosud trucks.
+- **WiseTrack Official API**: `https://ei.wisetrack.cl/Sotraser/TelemetriaDetalle` — GET with Bearer token, SSL self-signed cert (`rejectUnauthorized: false`). Buffer empties after read — poll every 60s. Rich telemetry: GPS, fuel, RPM, torque, engine temp, horometer, consumption breakdown. Tables: `wisetrack_telemetria` (API data by wt_id), `wisetrack_vehiculos` (movil→patente mapping), `wisetrack_posiciones` (GPS positions). 63 Cencosud trucks.
+- **TMS Trip Detection**: Fully automatic using `wisetrack_posiciones`. `viajes-historico.ts` builds trips from GPS positions using sustained-stop segmentation (30min dwell threshold) and odometer/fuel deltas. `t1-reconstructor.ts` reconstructs T-1 daily trips from WiseTrack data. No Volvo ECU dependency.
 - **WiseTrack Token**: stored as `WISETRACK_API_TOKEN` env var
 
 ## Architecture

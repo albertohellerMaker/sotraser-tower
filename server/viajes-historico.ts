@@ -603,6 +603,8 @@ function buildViajesFromWiseTrack(
   const rawTrips: RawTrip[] = [];
   let currentTrip: any[] = [];
 
+  const MIN_DWELL_MINUTES = 30;
+
   for (let i = 0; i < puntos.length; i++) {
     const p = puntos[i];
     const vel = parseFloat(p.velocidad) || 0;
@@ -621,6 +623,28 @@ function buildViajesFromWiseTrack(
           });
         }
         currentTrip = [];
+      } else if (vel < MIN_SPEED_MOVING && currentTrip.length >= 5) {
+        let dwellStart = currentTrip.length - 1;
+        while (dwellStart > 0) {
+          const prevVel = parseFloat(currentTrip[dwellStart].velocidad) || 0;
+          if (prevVel >= MIN_SPEED_MOVING) break;
+          dwellStart--;
+        }
+        const dwellStartTs = new Date(currentTrip[dwellStart + 1]?.creado_at || currentTrip[dwellStart].creado_at);
+        const dwellMinutes = (ts.getTime() - dwellStartTs.getTime()) / 60000;
+
+        if (dwellMinutes >= MIN_DWELL_MINUTES) {
+          const tripPoints = currentTrip.slice(0, dwellStart + 1);
+          if (tripPoints.length >= 5) {
+            rawTrips.push({
+              points: [...tripPoints],
+              fechaInicio: new Date(tripPoints[0].creado_at),
+              fechaFin: new Date(tripPoints[tripPoints.length - 1].creado_at),
+            });
+          }
+          currentTrip = [];
+          continue;
+        }
       }
     }
 
@@ -700,7 +724,7 @@ function buildViajesFromWiseTrack(
     else if (scoreAnomalia >= 20) estado = "REVISAR";
 
     viajes.push({
-      contrato: cam.faena_nombre || "CENCOSUD",
+      contrato: cam.faena_nombre || null,
       fechaInicio: rt.fechaInicio,
       fechaFin: rt.fechaFin,
       origenLat,
