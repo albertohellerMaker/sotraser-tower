@@ -204,6 +204,31 @@ async function ensureTables() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_wt_tel_movil ON wisetrack_telemetria (movil)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_wt_tel_fecha ON wisetrack_telemetria (fecha_hora)');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wisetrack_posiciones (
+        id SERIAL PRIMARY KEY,
+        patente TEXT NOT NULL,
+        etiqueta TEXT,
+        fecha TIMESTAMP NOT NULL,
+        lat REAL, lng REAL,
+        velocidad REAL DEFAULT 0,
+        direccion INTEGER DEFAULT 0,
+        ignicion BOOLEAN DEFAULT false,
+        grupo1 TEXT DEFAULT '',
+        conductor TEXT DEFAULT '',
+        kms_total REAL,
+        consumo_litros REAL,
+        nivel_estanque REAL,
+        rpm INTEGER,
+        temp_motor REAL,
+        estado_operacion TEXT DEFAULT '',
+        creado_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(patente, fecha)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wp_patente ON wisetrack_posiciones (patente)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wp_fecha ON wisetrack_posiciones (fecha)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wp_creado ON wisetrack_posiciones (creado_at)');
   } finally {
     client.release();
   }
