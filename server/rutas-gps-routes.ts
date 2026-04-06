@@ -75,9 +75,9 @@ export function registerRutasGpsRoutes(app: Express) {
         patenteToConductor.set(r.patente, r.conductor || null);
       }
 
-      const patentes = [...patenteToVin.keys()];
+      const patentesConVin = [...patenteToVin.keys()];
       const fuelMap = new Map<string, { litrosEcu: number }>();
-      if (patentes.length > 0) {
+      if (patentesConVin.length > 0) {
         const fuelResult = await pool.query(`
           SELECT patente, 
             MAX(consumo_litros) - MIN(consumo_litros) as litros_ecu
@@ -86,7 +86,7 @@ export function registerRutasGpsRoutes(app: Express) {
             AND patente = ANY($2)
           GROUP BY patente
           HAVING MAX(consumo_litros) > MIN(consumo_litros)
-        `, [fecha, patentes]);
+        `, [fecha, patentesConVin]);
         for (const r of fuelResult.rows) {
           const vin = patenteToVin.get(r.patente);
           if (vin) fuelMap.set(vin, { litrosEcu: parseFloat(r.litros_ecu) || 0 });

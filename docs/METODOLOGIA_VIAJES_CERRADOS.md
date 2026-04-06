@@ -25,9 +25,9 @@ Cada punto GPS contiene:
 - `lat`, `lng`: coordenadas GPS
 - `timestamp_punto`: momento exacto del registro
 - `velocidad_kmh`: velocidad al momento del registro
-- `km_odometro`: lectura del odometro ECU Volvo
+- `km_odometro`: lectura del odometro telemetria
 
-Los puntos se recopilan automaticamente cada 5 minutos desde la API rFMS de Volvo Connect para todos los contratos (CENCOSUD, ANGLO-COCU, ANGLO-CARGAS VARIAS, ANGLO-CAL).
+Los puntos se recopilan automaticamente cada 5 minutos desde la API de WiseTrack para todos los contratos (CENCOSUD, ANGLO-COCU, ANGLO-CARGAS VARIAS, ANGLO-CAL).
 
 ### 2.2 Informacion del Camion (tabla `camiones` + `faenas`)
 
@@ -253,7 +253,7 @@ El sistema requiere un minimo de 7 dias de datos acumulados antes de proponer pa
 | Funcion | Conexion con Viajes Cerrados |
 |---------|------------------------------|
 | **Paradas Detectadas** | Usa los mismos puntos GPS y `buscarLugarCercano()`. Las paradas se detectan dentro de un viaje |
-| **Cruce Sigetra-ECU** | Los km del viaje (odometro ECU) se pueden comparar contra las cargas Sigetra del mismo dia |
+| **Cruce Surtidor-Telemetria** | Los km del viaje (odometro) se pueden comparar contra las cargas surtidor del mismo dia |
 | **Micro-cargas sospechosas** | Una carga en estacion X se cruza con si el camion realmente paso por ahi segun el viaje |
 | **Viajes Aprendizaje** | Los viajes cerrados alimentan los corredores: rutas que se repiten sistematicamente |
 | **Conductores** | Los patrones revelan que conductor hace que ruta, detectando anomalias de asignacion |
@@ -286,7 +286,7 @@ DIA 30+:
 ## 11. LIMITACIONES ACTUALES
 
 1. **1 viaje por camion por dia**: No se separan multiples viajes dentro del mismo dia (ida y vuelta se tratan como un solo recorrido)
-2. **Dependencia de GPS Volvo**: Solo camiones con telemetria Volvo activa generan viajes (97 de 797 camiones)
+2. **Dependencia de GPS**: Solo camiones con telemetria activa generan viajes
 3. **Radio fijo por lugar**: No se adapta dinamicamente; un camion a 3.1 km de un lugar con radio 3 km no sera reconocido
 4. **Sin deteccion de desvios**: Actualmente no alerta si un camion toma una ruta inusual vs su patron historico (funcionalidad planificada post-7 dias)
 

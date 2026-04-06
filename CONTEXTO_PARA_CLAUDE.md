@@ -2,7 +2,7 @@
 
 ## Descripción General
 SOTRASER es un "Fleet Intelligence Dashboard" desarrollado para una empresa de transporte chilena con el objetivo de optimizar la operación de la flota de camiones y la toma de decisiones basada en datos. 
-El sistema gestiona cientos de camiones a través de distintos contratos (ej. CENCOSUD), integrando rastreo de GPS en vivo y telemetría avanzada importada desde **Volvo Connect**. 
+El sistema gestiona cientos de camiones a través de distintos contratos (ej. CENCOSUD), integrando rastreo de GPS en vivo y telemetría avanzada importada desde **WiseTrack**. 
 
 ## Stack Tecnológico 
 Aplicación Full-Stack en **TypeScript**:
@@ -19,7 +19,7 @@ La arquitectura se basa en un lanzador (launcher) principal que deriva en distin
 *   **SISTEMA INTELIGENTE**: Permite al usuario interactuar en texto natural con datos del camión (Diálogo IA) y ajustar las tolerancias detectadas (Calibración).
 
 ## Características Críticas del Dominio
-1.  **Cuadratura de Combustible**: Algoritmo central para reconciliar los consumos que reporta la ECU de Volvo contra las cargas reportadas en el portal Sigetra, detectando fugas de combustible y anomalías.
+1.  **Cuadratura de Combustible**: Algoritmo central para reconciliar los consumos que reporta la telemetria WiseTrack contra las cargas reportadas en surtidor, detectando fugas de combustible y anomalías.
 2.  **Aprendizaje Adaptativo**: Existen jobs en background encargados de re-procesar los viajes históricos, detectar los corredores habituales (rutas), calcular desviaciones de consumo y sugerir ajustes.
 3.  **Filtrados Especiales**: Lógicas especiales según contrato (como CENCOSUD), las cuales deben ser programadas de manera fácilmente reversible.
 
