@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { fetchSeguimiento, getWiseTrackStatus, startWiseTrackSync, stopWiseTrackSync, fetchTelemetriaAPI } from "./wisetrack-scraper";
+import { fetchSeguimiento, getWiseTrackStatus, startWiseTrackSync, stopWiseTrackSync, fetchTelemetriaAPI, type SeguimientoVehicle } from "./wisetrack-scraper";
 import { pool } from "./db";
 
 const router = Router();
@@ -7,7 +7,7 @@ const router = Router();
 router.get("/api/wisetrack/en-vivo", async (_req, res) => {
   try {
     const vehicles = await fetchSeguimiento("CENCOSUD");
-    const enriched = vehicles.map((v) => {
+    const enriched = vehicles.map((v: SeguimientoVehicle) => {
       let estado: "en_ruta" | "detenido" | "ralenti" | "sin_senal" = "sin_senal";
       if (v.estadoOperacion === "En Movimiento" || v.velocidad > 5) estado = "en_ruta";
       else if (v.estadoOperacion === "Ralenti") estado = "ralenti";

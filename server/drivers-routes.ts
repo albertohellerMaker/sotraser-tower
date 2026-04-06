@@ -116,7 +116,7 @@ async function buildDriverData(): Promise<{
   porContrato: any[];
 }> {
   const vinInfoMap = await getVolvoVinsWithInfo();
-  const volvoEvals = await getDriverEvaluations(START_DATE);
+  const volvoEvals: any[] = [];
   const fleetStatus: any[] = [];
 
   const baselines = loadBaselines();

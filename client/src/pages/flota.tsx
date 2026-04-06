@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import Volvo from "@/pages/volvo";
 import Camiones from "@/pages/camiones";
 import MicroCargas from "@/pages/micro-cargas";
 import { useQuery } from "@tanstack/react-query";
@@ -35,8 +34,7 @@ function AccordionSection({ title, defaultOpen, children, tooltip }: { title: st
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-3 cursor-pointer transition-all hover:bg-[rgba(0,212,255,0.03)]"
-        style={{ background: "#091018" }}
-        data-testid={`accordion-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+        style={{ background: "#091018" }}>
         <div className="flex items-center gap-2">
           <span className="font-space text-[11px] font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>{title}</span>
           {tooltip && <InfoTip text={tooltip} />}
@@ -92,8 +90,7 @@ function RendimientoTable() {
           <tbody>
             {trucks.slice(0, 50).map((t: any, i: number) => (
               <tr key={i} style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }}
-                className="hover:bg-[rgba(0,212,255,0.02)] transition-colors"
-                data-testid={`rend-row-${i}`}>
+                className="hover:bg-[rgba(0,212,255,0.02)] transition-colors">
                 <td className="py-2 px-3 font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{t.patente}</td>
                 <td className="py-2 px-3 font-exo text-xs" style={{ color: "#3a6080" }}>{t.faena}</td>
                 <td className="py-2 px-3 font-space text-[11px] font-bold text-right" style={{ color: getPercentilColor(t.rend) }}>{t.rend > 0 ? t.rend.toFixed(2) : "N/D"}</td>
@@ -118,152 +115,58 @@ function RendimientoTable() {
 
 export default function Flota({ initialSub }: { initialSub?: string }) {
   const [activeSub, setActiveSub] = useState<FlotaSub>((initialSub as FlotaSub) || "envivo");
-  const [vistaEnVivo, setVistaEnVivo] = useState<"telemetria" | "camiones">("telemetria");
-  const [activeContract, setActiveContract] = useState<string>("CENCOSUD");
-  const [soloVolvo, setSoloVolvo] = useState<boolean>(true);
 
-  const { data: contracts } = useQuery<any[]>({ queryKey: ["/api/contratos", soloVolvo ? "volvo" : "all"], queryFn: () => fetch(`/api/contratos${soloVolvo ? "?soloVolvo=true" : ""}`).then(r => r.json()) });
+  const { data: contracts } = useQuery<any[]>({ queryKey: ["/api/contratos"], queryFn: () => fetch("/api/contratos").then(r => r.json()) });
   const { data: microData } = useQuery<any>({ queryKey: ["/api/datos/micro-cargas"] });
   const microBadge = (microData?.totals?.criticos || 0) + (microData?.totals?.sospechosos || 0);
 
   const totalCamiones = useMemo(() => (contracts || []).reduce((s: number, c: any) => s + (c.camiones || 0), 0), [contracts]);
 
-  const contractColors: Record<string, string> = { "CENCOSUD": "#00d4ff" };
-  const contractIcons: Record<string, string> = { "CENCOSUD": "logistica" };
-
   return (
-    <div data-testid="page-flota">
+    <div>
       <div className="mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <Truck className="w-4 h-4" style={{ color: "#00d4ff" }} />
-            <span className="font-space text-[13px] font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>
-              FLOTA SOTRASER
-            </span>
-            <span className="font-exo text-xs px-2 py-0.5 rounded" style={{ background: "#00d4ff10", border: "1px solid #00d4ff25", color: "#00d4ff" }}>
-              {totalCamiones} camiones {soloVolvo ? "Volvo Connect" : "totales"}
-            </span>
-          </div>
-          <button
-            onClick={() => setSoloVolvo(!soloVolvo)}
-            data-testid="toggle-solo-volvo"
-            className="flex items-center gap-2 px-3 py-1.5 rounded cursor-pointer font-exo text-xs font-bold tracking-wider transition-all"
-            style={{
-              background: soloVolvo ? "rgba(0,212,255,0.12)" : "rgba(58,96,128,0.15)",
-              border: `1px solid ${soloVolvo ? "#00d4ff" : "#3a6080"}`,
-              color: soloVolvo ? "#00d4ff" : "#3a6080",
-            }}
-          >
-            <div className="w-3 h-3 rounded-sm flex items-center justify-center" style={{
-              background: soloVolvo ? "#00d4ff" : "transparent",
-              border: `1px solid ${soloVolvo ? "#00d4ff" : "#3a6080"}`,
-            }}>
-              {soloVolvo && <span style={{ color: "#020508", fontSize: 11, fontWeight: "bold" }}>V</span>}
-            </div>
-            SOLO VOLVO CONNECT
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {!contracts && (
-            <>
-              {[0, 1].map(i => (
-                <div key={i} className="p-4 animate-pulse" style={{ background: "#091018", border: "1px solid #0d2035" }}>
-                  <div className="h-3 w-24 rounded mb-3" style={{ background: "#0d2035" }} />
-                  <div className="h-6 w-12 rounded" style={{ background: "#0d2035" }} />
-                </div>
-              ))}
-            </>
-          )}
-          {(contracts || []).map(c => {
-            const col = contractColors[c.name] || "#00d4ff";
-            const isActive = activeContract === c.name;
-            return (
-              <button key={c.name} onClick={() => setActiveContract(c.name)}
-                data-testid={`contract-tab-${c.name}`}
-                className="relative p-4 cursor-pointer transition-all text-left group"
-                style={{
-                  background: isActive ? `${col}08` : "#091018",
-                  borderTop: `1px solid ${isActive ? col : "#0d2035"}`,
-                  borderRight: `1px solid ${isActive ? col : "#0d2035"}`,
-                  borderBottom: `1px solid ${isActive ? col : "#0d2035"}`,
-                  borderLeft: `3px solid ${isActive ? col : "#0d203580"}`,
-                }}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-space text-[12px] font-bold tracking-[0.1em]" style={{ color: isActive ? col : "#3a6080" }}>
-                    {c.name}
-                  </span>
-                  <span className="font-exo text-[11px] uppercase tracking-wider" style={{ color: "#3a6080" }}>
-                    {contractIcons[c.name] || ""}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-space text-[20px] font-bold" style={{ color: isActive ? col : "#c8e8ff" }}>
-                    {c.camiones}
-                  </span>
-                  <span className="font-exo text-xs" style={{ color: "#3a6080" }}>camiones</span>
-                </div>
-                {isActive && (
-                  <div className="absolute bottom-0 left-3 right-3 h-[2px]" style={{ background: col }} />
-                )}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-3 mb-3">
+          <Truck className="w-4 h-4" style={{ color: "#00d4ff" }} />
+          <span className="font-space text-[13px] font-bold tracking-[0.1em]" style={{ color: "#c8e8ff" }}>
+            FLOTA SOTRASER
+          </span>
+          <span className="font-exo text-xs px-2 py-0.5 rounded" style={{ background: "#00d4ff10", border: "1px solid #00d4ff25", color: "#00d4ff" }}>
+            {totalCamiones} camiones
+          </span>
         </div>
       </div>
 
-      {(
-        <>
-          <div className="flex items-center gap-1 mb-4 pb-2" style={{ borderBottom: "1px solid #0d2035" }}>
-            {FLOTA_TABS.map(t => (
-              <button key={t.id} onClick={() => setActiveSub(t.id)}
-                data-testid={`flota-tab-${t.id}`}
-                className={`px-4 py-2 font-exo text-xs font-bold tracking-[0.15em] cursor-pointer transition-all border-b-2 ${
-                  activeSub === t.id
-                    ? "border-[#00d4ff] text-[#00d4ff]"
-                    : "border-transparent text-[#3a6080] hover:text-[#c8e8ff]"
-                }`}>
-                {t.label}
-                {t.id === "combustible" && microBadge > 0 && (
-                  <span className="ml-1.5 font-space text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                    style={{ background: "#ff2244", color: "#020508" }}>
-                    {microBadge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+      <div className="flex items-center gap-1 mb-4 pb-2" style={{ borderBottom: "1px solid #0d2035" }}>
+        {FLOTA_TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveSub(t.id)}
+            className={`px-4 py-2 font-exo text-xs font-bold tracking-[0.15em] cursor-pointer transition-all border-b-2 ${
+              activeSub === t.id
+                ? "border-[#00d4ff] text-[#00d4ff]"
+                : "border-transparent text-[#3a6080] hover:text-[#c8e8ff]"
+            }`}>
+            {t.label}
+            {t.id === "combustible" && microBadge > 0 && (
+              <span className="ml-1.5 font-space text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
+                style={{ background: "#ff2244", color: "#020508" }}>
+                {microBadge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-          {activeSub === "envivo" && (
-            <div>
-              <div className="flex gap-1 mb-3">
-                <button onClick={() => setVistaEnVivo("telemetria")}
-                  data-testid="envivo-toggle-telemetria"
-                  className={`px-3 py-1 font-exo text-[11px] font-bold cursor-pointer border ${
-                    vistaEnVivo === "telemetria" ? "bg-[rgba(0,212,255,0.1)] text-[#00d4ff] border-[rgba(0,212,255,0.3)]" : "text-[#3a6080] border-[#0d2035]"
-                  }`}>LISTA</button>
-                <button onClick={() => setVistaEnVivo("camiones")}
-                  data-testid="envivo-toggle-camiones"
-                  className={`px-3 py-1 font-exo text-[11px] font-bold cursor-pointer border ${
-                    vistaEnVivo === "camiones" ? "bg-[rgba(0,212,255,0.1)] text-[#00d4ff] border-[rgba(0,212,255,0.3)]" : "text-[#3a6080] border-[#0d2035]"
-                  }`}>FICHA CAMIONES</button>
-              </div>
-              {vistaEnVivo === "telemetria" ? <Volvo /> : <Camiones />}
-            </div>
-          )}
+      {activeSub === "envivo" && <Camiones />}
 
-          {activeSub === "combustible" && (
-            <div className="space-y-0">
-              <AccordionSection title="CARGAS SOSPECHOSAS"
-                tooltip="Carga de poco combustible con señales que podrían indicar desvío. Requiere verificación.">
-                <MicroCargas />
-              </AccordionSection>
-              <AccordionSection title="RENDIMIENTO">
-                <RendimientoTable />
-              </AccordionSection>
-            </div>
-          )}
-        </>
+      {activeSub === "combustible" && (
+        <div className="space-y-0">
+          <AccordionSection title="CARGAS SOSPECHOSAS"
+            tooltip="Carga de poco combustible con señales que podrían indicar desvío. Requiere verificación.">
+            <MicroCargas />
+          </AccordionSection>
+          <AccordionSection title="RENDIMIENTO">
+            <RendimientoTable />
+          </AccordionSection>
+        </div>
       )}
     </div>
   );

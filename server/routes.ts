@@ -803,7 +803,7 @@ export async function registerRoutes(
           faena: faena?.nombre || r.faena || null,
           signals,
           riesgo: signals.length >= 2 ? "CRITICO" : "SOSPECHOSO",
-          fuelLevelActual: cam?.vin ? vinFuelLevel.get(cam.vin) ?? null : null,
+          fuelLevelActual: null,
         });
       }
 

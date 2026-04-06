@@ -1038,8 +1038,8 @@ export function registerEstacionesRoutes(app: Express) {
 
   app.get("/api/estaciones/periodos-entre-cargas", async (req: Request, res: Response) => {
     try {
-      const calcularPeriodoEntreCargas = async (_p: string, _a: any, _b: any) => ({ kmEcu: 0, litrosConsumidosEcu: 0, snapCount: 0, periodoAbierto: true });
-      const evaluarPeriodo = (_p: any) => ({ ok: false, detalle: "No disponible" });
+      const calcularPeriodoEntreCargas = async (_p: string, _a: any, _b: any): Promise<any> => ({ kmEcu: 0, litrosConsumidosEcu: 0, snapCount: 0, periodoAbierto: true, horasPeriodo: 0, rendimientoEcu: 0, coberturaPct: 0, calidadDatos: "SIN_DATOS" });
+      const evaluarPeriodo = (_p: any): any => ({ ok: false, detalle: "No disponible", nivel: "SIN_DATOS", razones: [], score: 0, evaluable: false, balanceLitros: 0, balancePct: 0, rendimientoReal: 0 });
 
       const hoy = new Date();
       const anteayer = new Date(hoy);

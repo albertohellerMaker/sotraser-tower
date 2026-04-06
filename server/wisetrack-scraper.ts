@@ -281,3 +281,63 @@ export function stopWiseTrackSync() {
     apiInterval = null;
   }
 }
+
+export interface SeguimientoVehicle {
+  patente: string;
+  etiqueta: string;
+  lat: number;
+  lng: number;
+  velocidad: number;
+  direccion: number;
+  ignicion: boolean;
+  grupo1: string;
+  conductor: string;
+  kmsTotal: number;
+  consumoLitros: number;
+  nivelEstanque: number;
+  rpm: number;
+  tempMotor: number;
+  estadoOperacion: string;
+  fecha: string;
+  fechaInicioUltViaje: string | null;
+  fechaFinUltViaje: string | null;
+  kms: number;
+  tiempoConduccion: number;
+  tiempoRalenti: number;
+}
+
+export async function fetchSeguimiento(_grupo?: string): Promise<SeguimientoVehicle[]> {
+  const result = await pool.query(`
+    SELECT DISTINCT ON (patente)
+      patente, etiqueta, lat, lng, velocidad, direccion, ignicion,
+      grupo1, conductor, kms_total, consumo_litros, nivel_estanque,
+      rpm, temp_motor, estado_operacion, fecha
+    FROM wisetrack_posiciones
+    WHERE creado_at > NOW() - INTERVAL '4 hours'
+    ORDER BY patente, creado_at DESC
+  `);
+
+  return result.rows.map((r: any) => ({
+    patente: r.patente || "",
+    etiqueta: r.etiqueta || r.patente || "",
+    lat: parseFloat(r.lat) || 0,
+    lng: parseFloat(r.lng) || 0,
+    velocidad: parseFloat(r.velocidad) || 0,
+    direccion: parseInt(r.direccion) || 0,
+    ignicion: !!r.ignicion,
+    grupo1: r.grupo1 || "",
+    conductor: r.conductor || "",
+    kmsTotal: parseFloat(r.kms_total) || 0,
+    consumoLitros: parseFloat(r.consumo_litros) || 0,
+    nivelEstanque: parseFloat(r.nivel_estanque) || 0,
+    rpm: parseInt(r.rpm) || 0,
+    tempMotor: parseFloat(r.temp_motor) || 0,
+    estadoOperacion: r.estado_operacion || "Sin Lectura",
+    fecha: r.fecha || "",
+    fechaInicioUltViaje: null,
+    fechaFinUltViaje: null,
+    kms: 0,
+    tiempoConduccion: 0,
+    tiempoRalenti: 0,
+  }));
+}
