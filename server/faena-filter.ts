@@ -2,7 +2,8 @@ import { storage } from "./storage";
 import { pool } from "./db";
 
 // Dynamic — populated at startup from DB
-export let CONTRATOS_VOLVO_ACTIVOS: string[] = ["CENCOSUD"];
+export let CONTRATOS_ACTIVOS: string[] = ["CENCOSUD"];
+export { CONTRATOS_ACTIVOS as CONTRATOS_VOLVO_ACTIVOS };
 export const CONTRATO_DEFAULT = "CENCOSUD";
 
 export async function inicializarContratos() {
@@ -14,12 +15,12 @@ export async function inicializarContratos() {
       ORDER BY contrato
     `);
     if (r.rows.length > 0) {
-      CONTRATOS_VOLVO_ACTIVOS = r.rows.map((row: any) => row.contrato);
+      CONTRATOS_ACTIVOS = r.rows.map((row: any) => row.contrato);
     }
-    if (!CONTRATOS_VOLVO_ACTIVOS.includes("CENCOSUD")) {
-      CONTRATOS_VOLVO_ACTIVOS.unshift("CENCOSUD");
+    if (!CONTRATOS_ACTIVOS.includes("CENCOSUD")) {
+      CONTRATOS_ACTIVOS.unshift("CENCOSUD");
     }
-    console.log("[CONFIG] Contratos activos:", CONTRATOS_VOLVO_ACTIVOS);
+    console.log("[CONFIG] Contratos activos:", CONTRATOS_ACTIVOS);
   } catch (e: any) {
     console.error("[CONFIG] Error cargando contratos:", e.message);
   }

@@ -69,7 +69,7 @@ function StatCard({ label, value, sub, color, icon: Icon }: { label: string; val
 }
 
 function WTFlotaDashboard() {
-  const [vista, setVista] = useState<"resumen" | "combustible" | "anomalias" | "mapa">("resumen");
+  const [vista, setVista] = useState<"resumen" | "combustible" | "paradas" | "anomalias" | "mapa">("resumen");
 
   const { data: enVivo } = useQuery<WTResponse>({
     queryKey: ["/api/wisetrack/en-vivo"],
@@ -84,22 +84,17 @@ function WTFlotaDashboard() {
     staleTime: 120000,
   });
 
-  const { data: microData } = useQuery<any>({ queryKey: ["/api/datos/micro-cargas"] });
+  const { data: towerFuel } = useQuery<any>({
+    queryKey: ["/api/tower/combustible"],
+    queryFn: async () => { const r = await fetch("/api/tower/combustible"); if (!r.ok) throw new Error(`Error ${r.status}`); return r.json(); },
+    staleTime: 120000,
+  });
 
-  const { data: fusion = [] } = useQuery<any[]>({ queryKey: ["/api/datos/fusion"] });
-
-  const fuelData = useMemo(() => {
-    const trucks = (fusion || []).map((t: any) => {
-      const cargas = t.cargas || [];
-      const rendVals = cargas.map((c: any) => c.rendimiento).filter((r: any) => r > 0 && r <= 20);
-      const rendProm = rendVals.length > 0 ? +(rendVals.reduce((a: number, b: number) => a + b, 0) / rendVals.length).toFixed(2) : 0;
-      return { patente: t.patenteReal || t.fleetNum, faena: t.faena || t.contrato || "-", rend: rendProm, cargas: cargas.length };
-    }).filter((t: any) => t.cargas > 0).sort((a: any, b: any) => a.rend - b.rend);
-    const allRend = trucks.map((t: any) => t.rend).filter((r: number) => r > 0).sort((a: number, b: number) => a - b);
-    const avg = allRend.length > 0 ? +(allRend.reduce((a, b) => a + b, 0) / allRend.length).toFixed(2) : 0;
-    const worst = trucks.filter(t => t.rend > 0).slice(0, 5);
-    return { trucks, avg, worst, total: trucks.length };
-  }, [fusion]);
+  const { data: towerParadas } = useQuery<any>({
+    queryKey: ["/api/tower/paradas"],
+    queryFn: async () => { const r = await fetch("/api/tower/paradas"); if (!r.ok) throw new Error(`Error ${r.status}`); return r.json(); },
+    staleTime: 120000,
+  });
 
   const vehiculos = enVivo?.vehiculos || [];
   const resumen = enVivo?.resumen || { total: 0, en_ruta: 0, detenido: 0, ralenti: 0, sin_senal: 0 };
@@ -111,13 +106,16 @@ function WTFlotaDashboard() {
   const anomalias = viajesStats?.anomalias || [];
   const totalViajes = viajesStats?.totalViajes || 0;
 
-  const microTotals = microData?.totals || {};
-  const microCriticos = microTotals.criticos || 0;
-  const microSospechosos = microTotals.sospechosos || 0;
+  const fuelResumen = towerFuel?.resumen || {};
+  const fuelCamiones = towerFuel?.camiones || [];
+  const fuelWorst = towerFuel?.worst_5 || [];
+  const fuelBest = towerFuel?.best_5 || [];
+  const paradasData = towerParadas || {};
 
   const subTabs = [
     { id: "resumen", label: "RESUMEN", icon: BarChart3 },
     { id: "combustible", label: "COMBUSTIBLE", icon: Fuel },
+    { id: "paradas", label: "PARADAS", icon: Clock },
     { id: "anomalias", label: "ANOMALIAS", icon: AlertTriangle },
     { id: "mapa", label: "MAPA EN VIVO", icon: MapPin },
   ] as const;
@@ -140,8 +138,11 @@ function WTFlotaDashboard() {
               {t.id === "anomalias" && anomalias.length > 0 && (
                 <span className="ml-1 font-space text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "#ff2244", color: "#020508" }}>{anomalias.length}</span>
               )}
-              {t.id === "combustible" && (microCriticos + microSospechosos) > 0 && (
-                <span className="ml-1 font-space text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "#ffcc00", color: "#020508" }}>{microCriticos + microSospechosos}</span>
+              {t.id === "combustible" && lowFuel.length > 0 && (
+                <span className="ml-1 font-space text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "#ffcc00", color: "#020508" }}>{lowFuel.length}</span>
+              )}
+              {t.id === "paradas" && (paradasData.largas || 0) > 0 && (
+                <span className="ml-1 font-space text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "#ff6b35", color: "#020508" }}>{paradasData.largas}</span>
               )}
             </button>
           );
@@ -154,7 +155,7 @@ function WTFlotaDashboard() {
             <StatCard label="FLOTA CENCOSUD" value={resumen.total} sub={`${resumen.en_ruta} en ruta · ${resumen.detenido} detenidos`} color="#06b6d4" icon={Truck} />
             <StatCard label="EN RUTA AHORA" value={resumen.en_ruta} sub={`${resumen.ralenti} en ralenti`} color="#00ff88" icon={Activity} />
             <StatCard label="VIAJES DETECTADOS" value={totalViajes} sub={viajesStats?.desde ? `Desde ${new Date(viajesStats.desde).toLocaleDateString("es-CL")}` : "Sin datos"} color="#06b6d4" icon={BarChart3} />
-            <StatCard label="ANOMALIAS" value={anomalias.length} sub={`${microCriticos} criticos combustible`} color={anomalias.length > 0 ? "#ff2244" : "#00ff88"} icon={AlertTriangle} />
+            <StatCard label="ANOMALIAS" value={anomalias.length} sub={`Rendimiento prom: ${fuelResumen.rendimiento_promedio || "?"} km/L`} color={anomalias.length > 0 ? "#ff2244" : "#00ff88"} icon={AlertTriangle} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -266,42 +267,79 @@ function WTFlotaDashboard() {
       {vista === "combustible" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="RENDIMIENTO PROMEDIO" value={`${fuelData.avg} km/L`} sub={`${fuelData.total} camiones con datos`} color="#06b6d4" icon={Fuel} />
-            <StatCard label="CARGAS CRITICAS" value={microCriticos} sub="Posible desvio de combustible" color={microCriticos > 0 ? "#ff2244" : "#00ff88"} icon={AlertTriangle} />
-            <StatCard label="CARGAS SOSPECHOSAS" value={microSospechosos} sub="Requiere verificacion" color={microSospechosos > 0 ? "#ffcc00" : "#00ff88"} icon={TrendingDown} />
-            <StatCard label="ESTANQUE BAJO" value={lowFuel.length} sub="Menor a 20%" color={lowFuel.length > 0 ? "#ff6b35" : "#00ff88"} icon={Fuel} />
+            <StatCard label="RENDIMIENTO PROMEDIO" value={`${fuelResumen.rendimiento_promedio || 0} km/L`} sub={`${fuelResumen.total_camiones || 0} camiones · 7 dias`} color="#06b6d4" icon={Fuel} />
+            <StatCard label="KM TOTAL FLOTA" value={(fuelResumen.km_total_flota || 0).toLocaleString()} sub={`${(fuelResumen.litros_total_flota || 0).toLocaleString()} litros`} color="#00ff88" icon={TrendingDown} />
+            <StatCard label="ESTANQUE BAJO" value={lowFuel.length} sub="Menor a 20% en vivo" color={lowFuel.length > 0 ? "#ff6b35" : "#00ff88"} icon={Fuel} />
+            <StatCard label="PEOR RENDIMIENTO" value={fuelWorst.length > 0 ? `${fuelWorst[0].rendimiento} km/L` : "N/D"} sub={fuelWorst.length > 0 ? fuelWorst[0].patente : ""} color="#ff2244" icon={AlertTriangle} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#ff2244" }}>PEOR RENDIMIENTO (5 CAMIONES)</span>
+              </div>
+              <div className="p-4 space-y-2">
+                {fuelWorst.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded" style={{ background: "#0a1520" }}>
+                    <div>
+                      <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{t.patente}</span>
+                      <span className="font-exo text-[8px] ml-2" style={{ color: "#3a6080" }}>{t.km_total} km · {t.litros_total} L</span>
+                    </div>
+                    <span className="font-space text-[12px] font-bold" style={{ color: "#ff2244" }}>{t.rendimiento} km/L</span>
+                  </div>
+                ))}
+                {fuelWorst.length === 0 && <div className="text-center py-4 font-exo text-[11px]" style={{ color: "#3a6080" }}>Sin datos de rendimiento</div>}
+              </div>
+            </div>
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#00ff88" }}>MEJOR RENDIMIENTO (5 CAMIONES)</span>
+              </div>
+              <div className="p-4 space-y-2">
+                {fuelBest.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded" style={{ background: "#0a1520" }}>
+                    <div>
+                      <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{t.patente}</span>
+                      <span className="font-exo text-[8px] ml-2" style={{ color: "#3a6080" }}>{t.km_total} km · {t.litros_total} L</span>
+                    </div>
+                    <span className="font-space text-[12px] font-bold" style={{ color: "#00ff88" }}>{t.rendimiento} km/L</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
-            <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-              <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>RENDIMIENTO POR CAMION (km/L)</span>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid #0d2035" }}>
+              <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>RENDIMIENTO POR CAMION · FUENTE WISETRACK (7 DIAS)</span>
+              <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>P25={fuelResumen.percentiles?.p25 || 0} · P50={fuelResumen.percentiles?.p50 || 0} · P75={fuelResumen.percentiles?.p75 || 0} · P90={fuelResumen.percentiles?.p90 || 0}</span>
             </div>
             <div className="p-4">
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: "1px solid #0d2035" }}>
-                      {["CAMION", "FAENA", "REND km/L", "CARGAS", "NIVEL"].map(h => (
+                      {["CAMION", "KM", "LITROS", "REND km/L", "TANK MIN", "TANK MAX", "DIAS", "NIVEL"].map(h => (
                         <th key={h} className="py-2 px-3 text-left font-exo text-[9px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {fuelData.trucks.slice(0, 50).map((t: any, i: number) => {
-                      const allRend = fuelData.trucks.map(x => x.rend).filter(r => r > 0).sort((a, b) => a - b);
-                      const p50 = allRend.length > 0 ? allRend[Math.floor(allRend.length * 0.5)] : 0;
-                      const p75 = allRend.length > 0 ? allRend[Math.floor(allRend.length * 0.75)] : 0;
-                      const p90 = allRend.length > 0 ? allRend[Math.floor(allRend.length * 0.9)] : 0;
-                      const c = t.rend >= p90 ? "#00ff88" : t.rend >= p75 ? "#00d4ff" : t.rend >= p50 ? "#ffcc00" : "#ff2244";
-                      const lbl = t.rend >= p90 ? "P90+" : t.rend >= p75 ? "P75+" : t.rend >= p50 ? "P50+" : "<P50";
+                    {fuelCamiones.slice(0, 60).map((t: any, i: number) => {
+                      const pcts = fuelResumen.percentiles || {};
+                      const c = t.rendimiento >= (pcts.p90 || 99) ? "#00ff88" : t.rendimiento >= (pcts.p75 || 99) ? "#00d4ff" : t.rendimiento >= (pcts.p50 || 99) ? "#ffcc00" : "#ff2244";
+                      const lbl = t.rendimiento >= (pcts.p90 || 99) ? "P90+" : t.rendimiento >= (pcts.p75 || 99) ? "P75+" : t.rendimiento >= (pcts.p50 || 99) ? "P50+" : "<P50";
                       return (
-                        <tr key={i} style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }} className="hover:bg-[rgba(0,212,255,0.02)]">
+                        <tr key={i} style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }}>
                           <td className="py-2 px-3 font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{t.patente}</td>
-                          <td className="py-2 px-3 font-exo text-xs" style={{ color: "#3a6080" }}>{t.faena}</td>
-                          <td className="py-2 px-3 font-space text-[11px] font-bold" style={{ color: c }}>{t.rend > 0 ? t.rend.toFixed(2) : "N/D"}</td>
-                          <td className="py-2 px-3 font-exo text-xs" style={{ color: "#3a6080" }}>{t.cargas}</td>
+                          <td className="py-2 px-3 font-space text-[10px]" style={{ color: "#06b6d4" }}>{t.km_total}</td>
+                          <td className="py-2 px-3 font-space text-[10px]" style={{ color: "#c8e8ff" }}>{t.litros_total}</td>
+                          <td className="py-2 px-3 font-space text-[11px] font-bold" style={{ color: c }}>{t.rendimiento > 0 ? t.rendimiento.toFixed(2) : "N/D"}</td>
+                          <td className="py-2 px-3 font-space text-[10px]" style={{ color: t.tank_min < 20 ? "#ff2244" : "#3a6080" }}>{t.tank_min}%</td>
+                          <td className="py-2 px-3 font-space text-[10px]" style={{ color: "#3a6080" }}>{t.tank_max}%</td>
+                          <td className="py-2 px-3 font-exo text-[10px]" style={{ color: "#3a6080" }}>{t.dias_datos}d</td>
                           <td className="py-2 px-3">
-                            <span className="font-space text-xs font-bold px-2 py-0.5" style={{ color: c, border: `1px solid ${c}40`, background: `${c}10` }}>{lbl}</span>
+                            <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded" style={{ color: c, background: `${c}10` }}>{lbl}</span>
                           </td>
                         </tr>
                       );
@@ -328,6 +366,71 @@ function WTFlotaDashboard() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {vista === "paradas" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="TOTAL PARADAS" value={paradasData.total_paradas || 0} sub="Ultimas 48h" color="#06b6d4" icon={Clock} />
+            <StatCard label="SIGNIFICATIVAS" value={paradasData.significativas || 0} sub="Mas de 30 minutos" color="#ff6b35" icon={MapPin} />
+            <StatCard label="PARADAS LARGAS" value={paradasData.largas || 0} sub="Mas de 2 horas" color="#ff2244" icon={AlertTriangle} />
+            <StatCard label="CAMIONES CON PARADAS" value={(paradasData.por_camion || []).length} sub="Con al menos 1 parada" color="#ffcc00" icon={Truck} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>TIEMPO DETENIDO POR CAMION (48H)</span>
+              </div>
+              <div className="p-4 space-y-2 max-h-[400px] overflow-y-auto">
+                {(paradasData.por_camion || []).map((c: any, i: number) => {
+                  const hrs = Math.floor(c.tiempo_total / 60);
+                  const mins = c.tiempo_total % 60;
+                  return (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 rounded" style={{ background: "#0a1520" }}>
+                      <div>
+                        <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{c.etiqueta || c.patente}</span>
+                        <span className="font-exo text-[8px] ml-2" style={{ color: "#3a6080" }}>{c.paradas} paradas</span>
+                      </div>
+                      <span className="font-space text-[11px] font-bold" style={{ color: c.tiempo_total > 120 ? "#ff2244" : c.tiempo_total > 60 ? "#ff6b35" : "#ffcc00" }}>
+                        {hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`}
+                      </span>
+                    </div>
+                  );
+                })}
+                {(paradasData.por_camion || []).length === 0 && (
+                  <div className="text-center py-4 font-exo text-[11px]" style={{ color: "#00ff88" }}>Sin paradas significativas</div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>ULTIMAS PARADAS</span>
+              </div>
+              <div className="p-4">
+                <div className="overflow-y-auto max-h-[400px] space-y-2">
+                  {(paradasData.ultimas_paradas || []).slice(0, 20).map((p: any, i: number) => {
+                    const hrs = Math.floor(p.duracion_min / 60);
+                    const mins = p.duracion_min % 60;
+                    const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+                    return (
+                      <div key={i} className="px-3 py-2 rounded" style={{ background: "#0a1520", borderLeft: `3px solid ${p.duracion_min > 120 ? "#ff2244" : p.duracion_min > 60 ? "#ff6b35" : "#ffcc00"}` }}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{p.etiqueta || p.patente}</span>
+                          <span className="font-space text-[10px] font-bold" style={{ color: p.duracion_min > 120 ? "#ff2244" : "#ff6b35" }}>{timeStr}</span>
+                        </div>
+                        <div className="font-exo text-[8px] mt-0.5" style={{ color: "#3a6080" }}>
+                          {new Date(p.inicio).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} — {new Date(p.fin).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

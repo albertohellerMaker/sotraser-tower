@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "./db";
 import Anthropic from "@anthropic-ai/sdk";
-import { CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
+import { CONTRATOS_ACTIVOS } from "./faena-filter";
 import { validate } from "./middleware/validate";
 import { z } from "zod";
 
@@ -11,7 +11,7 @@ const BrainAnomaliasMacroQuery = z.object({ contrato: z.string().default("TODOS"
 const MODEL = "claude-sonnet-4-20250514";
 
 function getContratos(contrato: string): string[] {
-  return contrato === "TODOS" ? CONTRATOS_VOLVO_ACTIVOS : [contrato];
+  return contrato === "TODOS" ? CONTRATOS_ACTIVOS : [contrato];
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -22,11 +22,9 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-// Cache anomalías por 10 min para no recalcular en cada request
 let anomaliasCache: { data: any[]; ts: number; contrato: string } = { data: [], ts: 0, contrato: "" };
 
 async function detectarAnomaliasMacro(contrato: string) {
-  // Return cached if < 10 min old and same contrato
   if (contrato === anomaliasCache.contrato && Date.now() - anomaliasCache.ts < 10 * 60 * 1000) {
     return anomaliasCache.data;
   }
@@ -34,7 +32,6 @@ async function detectarAnomaliasMacro(contrato: string) {
   const contratos = getContratos(contrato);
   const anomalias: any[] = [];
 
-  // TIPO 1 — RUTA ANÓMALA (single query, no N+1)
   try {
     const viajesR = await pool.query(`
       WITH viajes_recientes AS (
@@ -145,8 +142,8 @@ export function registerBrainRoutes(app: Express) {
           GROUP BY DATE(fecha_inicio) ORDER BY dia
         `),
         pool.query(`
-          SELECT COUNT(DISTINCT camion_id) as activos
-          FROM geo_puntos WHERE timestamp_punto >= NOW() - INTERVAL '2 hours'
+          SELECT COUNT(DISTINCT patente) as activos
+          FROM wisetrack_posiciones WHERE fecha >= NOW() - INTERVAL '2 hours'
         `),
         pool.query(`SELECT COUNT(*) as total FROM camiones WHERE activo = true`),
       ]);
@@ -189,59 +186,38 @@ export function registerBrainRoutes(app: Express) {
     }
   });
 
-  // GET /api/brain/resumen-rapido — para card de inicio
   app.get("/api/brain/resumen-rapido", async (_req: Request, res: Response) => {
     try {
       const anomalias = await detectarAnomaliasMacro("TODOS");
-      // Cobertura Volvo Connect: camiones con actividad Volvo desde 01-Mar
       const cobR = await pool.query(`
         SELECT
-          (SELECT COUNT(DISTINCT c.id) FROM camiones c
-           JOIN faenas f ON f.id = c.faena_id
-           WHERE c.vin IS NOT NULL AND c.vin != ''
-             AND f.nombre = ANY($1)
-             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as total_volvo,
-          (SELECT COUNT(DISTINCT g.camion_id) FROM geo_puntos g
-           JOIN camiones c ON c.id = g.camion_id
-           JOIN faenas f ON f.id = c.faena_id
-           WHERE g.timestamp_punto >= NOW() - INTERVAL '2 hours'
-             AND c.vin IS NOT NULL AND c.vin != ''
-             AND f.nombre = ANY($1)
-             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as con_gps
-      `, [CONTRATOS_VOLVO_ACTIVOS]);
-      const total = parseInt(cobR.rows[0]?.total_volvo || "1");
+          (SELECT COUNT(DISTINCT patente) FROM wisetrack_posiciones
+           WHERE fecha >= NOW() - INTERVAL '7 days') as total_wt,
+          (SELECT COUNT(DISTINCT patente) FROM wisetrack_posiciones
+           WHERE fecha >= NOW() - INTERVAL '2 hours') as con_gps
+      `);
+      const total = parseInt(cobR.rows[0]?.total_wt || "1");
       const conGps = parseInt(cobR.rows[0]?.con_gps || "0");
-      res.json({ anomalias_macro: anomalias.length, cobertura_sistema: Math.round(conGps / total * 100) });
+      res.json({ anomalias_macro: anomalias.length, cobertura_sistema: total > 0 ? Math.round(conGps / total * 100) : 0 });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  // GET /api/brain/estado-sistema
   app.get("/api/brain/estado-sistema", async (_req: Request, res: Response) => {
     try {
-      // Cobertura Volvo Connect: camiones activos desde 01-Mar
       const cobR = await pool.query(`
         SELECT
-          (SELECT COUNT(DISTINCT c.id) FROM camiones c
-           JOIN faenas f ON f.id = c.faena_id
-           WHERE c.vin IS NOT NULL AND c.vin != ''
-             AND f.nombre = ANY($1)
-             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as total,
-          (SELECT COUNT(DISTINCT g.camion_id) FROM geo_puntos g
-           JOIN camiones c ON c.id = g.camion_id
-           JOIN faenas f ON f.id = c.faena_id
-           WHERE g.timestamp_punto >= NOW() - INTERVAL '2 hours'
-             AND c.vin IS NOT NULL AND c.vin != ''
-             AND f.nombre = ANY($1)
-             AND c.vin IN (SELECT DISTINCT vin FROM volvo_fuel_snapshots WHERE captured_at >= '2026-03-01')) as con_gps
-      `, [CONTRATOS_VOLVO_ACTIVOS]);
+          (SELECT COUNT(DISTINCT patente) FROM wisetrack_posiciones
+           WHERE fecha >= NOW() - INTERVAL '7 days') as total,
+          (SELECT COUNT(DISTINCT patente) FROM wisetrack_posiciones
+           WHERE fecha >= NOW() - INTERVAL '2 hours') as con_gps
+      `);
       const ecuR = await pool.query(`
         SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE rendimiento_real::float > 0) as con_ecu
         FROM viajes_aprendizaje WHERE fecha_inicio >= date_trunc('month', NOW()) AND contrato = ANY($1)
-      `, [CONTRATOS_VOLVO_ACTIVOS]);
+      `, [CONTRATOS_ACTIVOS]);
       const syncR = await pool.query(`
-        SELECT MAX(captured_at) as ultimo_volvo FROM volvo_fuel_snapshots
+        SELECT MAX(fecha) as ultimo_wt FROM wisetrack_posiciones
       `);
-      const sigetraR = await pool.query(`SELECT MAX(fecha) as ultimo_sigetra FROM cargas`);
 
       const totalCam = parseInt(cobR.rows[0]?.total || "1");
       const conGps = parseInt(cobR.rows[0]?.con_gps || "0");
@@ -249,10 +225,9 @@ export function registerBrainRoutes(app: Express) {
       const conEcu = parseInt(ecuR.rows[0]?.con_ecu || "0");
 
       res.json({
-        cobertura_volvo: { activos: conGps, total: totalCam, pct: Math.round(conGps / totalCam * 100) },
-        datos_ecu: { con_ecu: conEcu, total: totalViajes, pct: totalViajes > 0 ? Math.round(conEcu / totalViajes * 100) : 0 },
-        ultimo_sync_volvo: syncR.rows[0]?.ultimo_volvo || null,
-        ultimo_sync_sigetra: sigetraR.rows[0]?.ultimo_sigetra || null,
+        cobertura_wisetrack: { activos: conGps, total: totalCam, pct: totalCam > 0 ? Math.round(conGps / totalCam * 100) : 0 },
+        datos_telemetria: { con_datos: conEcu, total: totalViajes, pct: totalViajes > 0 ? Math.round(conEcu / totalViajes * 100) : 0 },
+        ultimo_sync_wisetrack: syncR.rows[0]?.ultimo_wt || null,
       });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
@@ -263,7 +238,6 @@ export function registerBrainRoutes(app: Express) {
       const now = new Date();
       const diasRestantes = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
 
-      // km actual del mes + promedio diario últimos 7 días
       const kmR = await pool.query(`
         SELECT COALESCE(SUM(km_ecu::float), 0) as km_mes
         FROM viajes_aprendizaje WHERE fecha_inicio >= date_trunc('month', NOW()) AND contrato = ANY($1) AND km_ecu::float > 0
@@ -275,26 +249,20 @@ export function registerBrainRoutes(app: Express) {
           GROUP BY DATE(fecha_inicio)
         ) d
       `, [contratos]);
-      // Tendencia: semana actual vs semana anterior
       const tendR = await pool.query(`
         SELECT
           SUM(km_ecu::float) FILTER (WHERE fecha_inicio >= NOW() - INTERVAL '7 days') as km_semana_actual,
           SUM(km_ecu::float) FILTER (WHERE fecha_inicio >= NOW() - INTERVAL '14 days' AND fecha_inicio < NOW() - INTERVAL '7 days') as km_semana_anterior
         FROM viajes_aprendizaje WHERE contrato = ANY($1) AND km_ecu::float > 0
       `, [contratos]);
-      // Rendimiento promedio últimos 14 días
       const rendR = await pool.query(`
         SELECT AVG(rendimiento_real::float) as rend_prom
         FROM viajes_aprendizaje WHERE fecha_inicio >= NOW() - INTERVAL '14 days' AND contrato = ANY($1) AND rendimiento_real::float > 0.5
       `, [contratos]);
-      // Camiones activos hoy — usar geo_puntos (tiempo real) en vez de viajes (puede estar atrasado)
       const activosR = await pool.query(`
-        SELECT COUNT(DISTINCT g.camion_id) as hoy FROM geo_puntos g
-        JOIN camiones c ON c.id = g.camion_id
-        JOIN faenas f ON f.id = c.faena_id
-        WHERE g.timestamp_punto >= NOW() - INTERVAL '4 hours'
-          AND f.nombre = ANY($1)
-      `, [contratos]);
+        SELECT COUNT(DISTINCT patente) as hoy FROM wisetrack_posiciones
+        WHERE fecha >= NOW() - INTERVAL '4 hours'
+      `);
       const histActivosR = await pool.query(`
         SELECT AVG(cnt) as prom FROM (
           SELECT DATE(fecha_inicio) as d, COUNT(DISTINCT camion_id) as cnt
@@ -345,7 +313,6 @@ export function registerBrainRoutes(app: Express) {
         FROM viajes_aprendizaje WHERE fecha_inicio >= date_trunc('month', NOW()) AND contrato = ANY($1) AND km_ecu::float > 20
       `, [contratos]);
 
-      // Top 5 camiones
       const topR = await pool.query(`
         SELECT c.patente, COUNT(*) as viajes,
           ROUND(AVG(va.rendimiento_real::float)::numeric, 2) as rend,
@@ -356,7 +323,6 @@ export function registerBrainRoutes(app: Express) {
         GROUP BY c.patente HAVING COUNT(*) >= 3 ORDER BY rend DESC LIMIT 5
       `, [contratos]);
 
-      // Bottom 3
       const bottomR = await pool.query(`
         SELECT c.patente, COUNT(*) as viajes,
           ROUND(AVG(va.rendimiento_real::float)::numeric, 2) as rend,
@@ -389,8 +355,8 @@ export function registerBrainRoutes(app: Express) {
       const { mensaje, contrato, historial } = req.body as z.infer<typeof BrainChatBody>;
       const contratos = getContratos(contrato);
 
-      const [flotaR, kpiR, predR] = await Promise.all([
-        pool.query(`SELECT COUNT(DISTINCT g.patente) as activos FROM geo_puntos g WHERE g.timestamp_punto >= NOW() - INTERVAL '2 hours'`),
+      const [flotaR, kpiR, predR, fuelR] = await Promise.all([
+        pool.query(`SELECT COUNT(DISTINCT patente) as activos FROM wisetrack_posiciones WHERE fecha >= NOW() - INTERVAL '2 hours'`),
         pool.query(`
           SELECT COUNT(*) as viajes, COUNT(DISTINCT camion_id) as camiones,
             ROUND(AVG(rendimiento_real::float) FILTER (WHERE rendimiento_real::float > 0.5)::numeric, 2) as rend,
@@ -404,6 +370,18 @@ export function registerBrainRoutes(app: Express) {
             GROUP BY DATE(fecha_inicio)
           ) d
         `, [contratos]),
+        pool.query(`
+          SELECT patente,
+            MAX(nivel_estanque) - MIN(nivel_estanque) as delta_tank,
+            MAX(consumo_litros) - MIN(consumo_litros) as litros_consumidos,
+            MAX(kms_total) - MIN(kms_total) as kms_recorridos
+          FROM wisetrack_posiciones
+          WHERE fecha >= NOW() - INTERVAL '24 hours'
+            AND kms_total > 0 AND consumo_litros > 0
+          GROUP BY patente
+          HAVING MAX(kms_total) - MIN(kms_total) > 10
+          ORDER BY litros_consumidos DESC LIMIT 10
+        `),
       ]);
 
       const anomalias = await detectarAnomaliasMacro(contrato);
@@ -411,15 +389,23 @@ export function registerBrainRoutes(app: Express) {
       const diasRestantes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate();
       const kmProy = parseFloat(k.km || "0") + (parseFloat(predR.rows[0]?.km_dia || "0") * diasRestantes);
 
-      const systemPrompt = `Eres el asistente del administrador de contratos de Sotraser para Cencosud.
-Respondes en español, conciso y técnico. Siempre con números reales. Nunca inventas datos.
+      const fuelContext = fuelR.rows.slice(0, 5).map((r: any) => {
+        const rend = r.kms_recorridos > 0 && r.litros_consumidos > 0 ? (r.kms_recorridos / r.litros_consumidos).toFixed(2) : "N/D";
+        return `${r.patente}: ${Math.round(r.kms_recorridos)}km, ${Math.round(r.litros_consumidos)}L, ${rend} km/L`;
+      }).join("\n");
+
+      const systemPrompt = `Eres el asistente ejecutivo de Sotraser Tower para gestion de flota Cencosud.
+Respondes en español, conciso y tecnico. Siempre con numeros reales del sistema. Nunca inventas datos.
+Fuente unica de datos: WiseTrack API (telemetria GPS en tiempo real cada 60 segundos).
 
 DATOS REALES HOY ${new Date().toLocaleDateString("es-CL")}:
-FLOTA: ${flotaR.rows[0]?.activos || 0} camiones activos últimas 2h
+FLOTA: ${flotaR.rows[0]?.activos || 0} camiones con GPS activo (ultimas 2h)
 KPIs MES (${contrato}): ${k.viajes || 0} viajes, ${k.camiones || 0} camiones, ${k.rend || 0} km/L prom, ${Math.round(parseFloat(k.km || "0")).toLocaleString()} km total
-PROYECCIÓN: ${Math.round(kmProy).toLocaleString()} km fin de mes, ${diasRestantes} días restantes
-ANOMALÍAS: ${anomalias.length} activas
-${anomalias.slice(0, 3).map((a: any) => `- ${a.tipo} camión ${a.patente}: ${a.tipo === "RUTA_ANOMALA" ? `${a.detalle.diff_km_pct}% diferente` : "velocidad anómala"}`).join("\n")}
+PROYECCION: ${Math.round(kmProy).toLocaleString()} km fin de mes, ${diasRestantes} dias restantes
+ANOMALIAS: ${anomalias.length} activas
+${anomalias.slice(0, 3).map((a: any) => `- ${a.tipo} camion ${a.patente}: ${a.detalle.diff_km_pct}% desviacion km`).join("\n")}
+COMBUSTIBLE TOP 5 (ultimas 24h):
+${fuelContext || "Sin datos de combustible recientes"}
 
 Si no tienes la info, dilo. No inventes.`;
 
@@ -441,25 +427,18 @@ Si no tienes la info, dilo. No inventes.`;
 
   app.get("/api/brain/comparacion-fuentes", async (_req: Request, res: Response) => {
     try {
-      // Comparar km Volvo ECU vs km Sigetra
       const r3 = await pool.query(`
-        SELECT cam.patente,
-          ROUND(SUM(va.km_ecu)::numeric) as km_volvo,
-          (SELECT ROUND(SUM(GREATEST(c.km_actual::float - c.km_anterior::float, 0))::numeric)
-           FROM cargas c WHERE c.patente = ANY(ci.ids_validos) AND c.fecha >= NOW() - INTERVAL '7 days'
-             AND c.km_actual::float > c.km_anterior::float AND c.km_actual::float - c.km_anterior::float < 3000
-          ) as km_sigetra
-        FROM viajes_aprendizaje va
-        JOIN camiones cam ON cam.id = va.camion_id
-        JOIN camion_identidades ci ON cam.vin = ci.vin
-        WHERE va.fecha_inicio >= NOW() - INTERVAL '7 days' AND va.km_ecu > 0
-        GROUP BY cam.patente, ci.ids_validos
-        HAVING SUM(va.km_ecu) > 100
-        ORDER BY km_volvo DESC
+        SELECT patente,
+          ROUND(SUM(GREATEST(kms_total - LAG(kms_total) OVER (PARTITION BY patente ORDER BY fecha), 0))::numeric) as km_wisetrack,
+          ROUND(SUM(GREATEST(consumo_litros - LAG(consumo_litros) OVER (PARTITION BY patente ORDER BY fecha), 0))::numeric) as litros_wt
+        FROM wisetrack_posiciones
+        WHERE fecha >= NOW() - INTERVAL '7 days' AND kms_total > 0
+        GROUP BY patente
+        HAVING SUM(GREATEST(kms_total - LAG(kms_total) OVER (PARTITION BY patente ORDER BY fecha), 0)) > 100
+        ORDER BY km_wisetrack DESC
         LIMIT 20
       `);
 
-      // Geocercas stats
       const r4 = await pool.query(`
         SELECT nivel, COUNT(*) as total, ROUND(AVG(radio_metros)::numeric) as radio_avg
         FROM geocercas_operacionales WHERE activa = true
@@ -473,9 +452,11 @@ Si no tienes la info, dilo. No inventes.`;
       `);
 
       res.json({
-        km_comparacion: r3.rows.filter((r: any) => r.km_sigetra).map((r: any) => ({
-          patente: r.patente, km_volvo: parseInt(r.km_volvo), km_sigetra: parseInt(r.km_sigetra),
-          diff_pct: r.km_sigetra > 0 ? Math.round((parseInt(r.km_volvo) - parseInt(r.km_sigetra)) / parseInt(r.km_sigetra) * 100) : null,
+        km_wisetrack: (r3.rows || []).map((r: any) => ({
+          patente: r.patente,
+          km: parseInt(r.km_wisetrack || "0"),
+          litros: parseInt(r.litros_wt || "0"),
+          rend: r.litros_wt > 0 ? +(parseInt(r.km_wisetrack) / parseInt(r.litros_wt)).toFixed(2) : 0,
         })),
         geocercas: { niveles: r4.rows, puntos_nuevos: r5.rows[0] || {} },
       });
@@ -484,5 +465,5 @@ Si no tienes la info, dilo. No inventes.`;
     }
   });
 
-  console.log("[BRAIN] Brain routes registered");
+  console.log("[BRAIN] Brain routes registered (WiseTrack engine)");
 }
