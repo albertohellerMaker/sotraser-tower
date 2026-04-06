@@ -656,6 +656,112 @@ router.post("/mapear-viaje", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ VIAJES PARCIALES: tienen un alias pero no cuadran con tarifa ═══
+router.get("/viajes-parciales", async (req, res) => {
+  try {
+    const dias = Math.min(parseInt(req.query.dias as string) || 30, 90);
+    const viajesR = await pool.query(`
+      SELECT va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
+        va.km_ecu::float as km, va.duracion_minutos::int as min,
+        va.origen_lat::float, va.origen_lng::float, va.destino_lat::float, va.destino_lng::float,
+        va.fecha_inicio::text as fecha, DATE(va.fecha_inicio)::text as dia,
+        ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato,
+        CASE
+          WHEN ao.nombre_contrato IS NOT NULL AND ad.nombre_contrato IS NULL THEN 'FALTA_DESTINO'
+          WHEN ao.nombre_contrato IS NULL AND ad.nombre_contrato IS NOT NULL THEN 'FALTA_ORIGEN'
+          ELSE 'AMBOS_SIN_TARIFA'
+        END as tipo_parcial
+      FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+      LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+      LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+      LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = COALESCE(ao.nombre_contrato, va.origen_nombre)
+        AND crt.destino = COALESCE(ad.nombre_contrato, va.destino_nombre) AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+      WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR'
+        AND va.fecha_inicio >= NOW() - ($1 || ' days')::interval
+        AND va.km_ecu > 5 AND crt.id IS NULL
+        AND (ao.nombre_contrato IS NOT NULL OR ad.nombre_contrato IS NOT NULL)
+      ORDER BY va.fecha_inicio DESC
+      LIMIT 200
+    `, [dias]);
+
+    const rutasR = await pool.query(`SELECT DISTINCT origen, destino, tarifa, lote, clase FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true ORDER BY origen, destino`);
+    const nombresR = await pool.query(`
+      SELECT DISTINCT nombre FROM (
+        SELECT DISTINCT origen as nombre FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+        UNION SELECT DISTINCT destino FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true
+      ) x ORDER BY nombre
+    `);
+
+    const viajes = viajesR.rows.map((v: any) => {
+      const sugerencias: any[] = [];
+      const conocido = v.tipo_parcial === 'FALTA_DESTINO' ? v.origen_contrato : v.destino_contrato;
+      for (const r of rutasR.rows) {
+        let score = 0;
+        if (v.tipo_parcial === 'FALTA_DESTINO') {
+          if (r.origen === conocido) score += 60;
+          const dNom = (v.destino_nombre || "").toLowerCase();
+          if (dNom.includes(r.destino.toLowerCase().replace("cd ", "").replace("ct ", "")) || r.destino.toLowerCase().includes(dNom.split(" ")[0])) score += 40;
+        } else if (v.tipo_parcial === 'FALTA_ORIGEN') {
+          if (r.destino === conocido) score += 60;
+          const oNom = (v.origen_nombre || "").toLowerCase();
+          if (oNom.includes(r.origen.toLowerCase().replace("cd ", "").replace("ct ", "")) || r.origen.toLowerCase().includes(oNom.split(" ")[0])) score += 40;
+        } else {
+          if (v.origen_contrato && r.origen === v.origen_contrato) score += 50;
+          if (v.destino_contrato && r.destino === v.destino_contrato) score += 50;
+        }
+        const kmDiff = Math.abs(v.km - (r.tarifa / 150));
+        if (kmDiff < 100) score += 10;
+        if (score >= 30) sugerencias.push({ origen: r.origen, destino: r.destino, tarifa: r.tarifa, lote: r.lote, clase: r.clase, score });
+      }
+      sugerencias.sort((a: any, b: any) => b.score - a.score);
+      return { ...v, sugerencias: sugerencias.slice(0, 5) };
+    });
+
+    const resumen = {
+      total: viajes.length,
+      falta_destino: viajes.filter((v: any) => v.tipo_parcial === 'FALTA_DESTINO').length,
+      falta_origen: viajes.filter((v: any) => v.tipo_parcial === 'FALTA_ORIGEN').length,
+      ambos_sin_tarifa: viajes.filter((v: any) => v.tipo_parcial === 'AMBOS_SIN_TARIFA').length,
+    };
+
+    res.json({
+      resumen,
+      viajes,
+      nombres_contrato: nombresR.rows.map((r: any) => r.nombre),
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/resolver-parcial", async (req, res) => {
+  try {
+    const { viaje_id, geocerca_nombre, nombre_contrato } = req.body;
+    if (!geocerca_nombre || !nombre_contrato) return res.status(400).json({ error: "geocerca_nombre y nombre_contrato requeridos" });
+
+    await pool.query(
+      `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+       VALUES ($1, $2, 'CENCOSUD', true, 'RESOLVER_PARCIAL')
+       ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO UPDATE SET confirmado = true`,
+      [geocerca_nombre, nombre_contrato]
+    );
+
+    const afectados = await pool.query(
+      `SELECT COUNT(*)::int as total FROM viajes_aprendizaje
+       WHERE contrato = 'CENCOSUD' AND fuente_viaje = 'T1_RECONSTRUCTOR'
+         AND fecha_inicio >= NOW() - INTERVAL '60 days'
+         AND (origen_nombre = $1 OR destino_nombre = $1)`,
+      [geocerca_nombre]
+    );
+
+    res.json({
+      ok: true,
+      alias: `${geocerca_nombre} → ${nombre_contrato}`,
+      viajes_afectados: afectados.rows[0].total,
+    });
+
+    calcularPLViajes().catch(err => console.error("[RESOLVER-PARCIAL] P&L recalc error:", err.message));
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ DESCARTAR VIAJE: marcar como no-Cencosud ═══
 router.post("/descartar-viaje", async (req, res) => {
   try {

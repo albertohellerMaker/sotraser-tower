@@ -247,17 +247,23 @@ export async function promoverPuntosNuevos(): Promise<number> {
 
     const candidatos = await pool.query(`
       SELECT id, lat, lng, contrato, veces FROM geocerca_puntos_nuevos
-      WHERE veces >= 3 AND promovido = false
+      WHERE promovido = false AND (
+        (UPPER(contrato) LIKE '%CENCOSUD%' AND veces >= 2)
+        OR (veces >= 3)
+      )
     `);
 
     let promovidos = 0;
     for (const c of candidatos.rows) {
+      const esCencosud = (c.contrato || "").toUpperCase().includes("CENCOSUD");
+      const radio = esCencosud ? 100 : 50;
+      const confianza = esCencosud ? "ALTA" : "MEDIA";
       try {
         await pool.query(`
           INSERT INTO geocercas_operacionales (nombre, lat, lng, radio_metros, tipo, contrato, confianza, auto_detectada, camiones_frecuentes, nivel)
-          VALUES ($1, $2, $3, 50, 'AUTO_NUEVO', $4, 'MEDIA', true, $5, 2)
+          VALUES ($1, $2, $3, $4, 'AUTO_NUEVO', $5, $6, true, $7, 2)
           ON CONFLICT (lat_key, lng_key) DO NOTHING
-        `, [`Auto ${c.lat.toFixed(3)},${c.lng.toFixed(3)}`, c.lat, c.lng, c.contrato, c.veces]);
+        `, [`Auto ${c.lat.toFixed(3)},${c.lng.toFixed(3)}`, c.lat, c.lng, radio, c.contrato, confianza, c.veces]);
 
         await pool.query("UPDATE geocerca_puntos_nuevos SET promovido = true WHERE id = $1", [c.id]);
         promovidos++;
@@ -266,7 +272,7 @@ export async function promoverPuntosNuevos(): Promise<number> {
 
     if (promovidos > 0) {
       _cacheTs = 0;
-      console.log(`[GEOCERCA] ${promovidos} puntos nuevos promovidos a geocercas de 50m`);
+      console.log(`[GEOCERCA] ${promovidos} puntos nuevos promovidos (Cencosud: radio 100m/2 visitas, otros: 50m/3 visitas)`);
     }
 
     return promovidos;

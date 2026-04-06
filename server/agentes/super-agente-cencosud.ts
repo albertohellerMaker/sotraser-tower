@@ -24,9 +24,36 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number): number 
 
 const RADIO_ALIAS_KM = 30;
 const RADIO_ALIAS_CD_KM = 5;
-const MIN_VIAJES_PARA_ALIAS = 2;
+const MIN_VIAJES_PARA_ALIAS = 1;
 const VENTANA_CONSOLIDACION_HORAS = 4;
 const GPS_INVALIDO_LAT = -22.198;
+
+function levenshtein(a: string, b: string): number {
+  const la = a.length, lb = b.length;
+  const dp: number[][] = Array.from({ length: la + 1 }, (_, i) => {
+    const row = new Array(lb + 1).fill(0);
+    row[0] = i;
+    return row;
+  });
+  for (let j = 1; j <= lb; j++) dp[0][j] = j;
+  for (let i = 1; i <= la; i++) {
+    for (let j = 1; j <= lb; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[la][lb];
+}
+
+function nombreSimilaridad(a: string, b: string): number {
+  const na = a.toUpperCase().replace(/^(CD|CT)\s+/i, "").trim();
+  const nb = b.toUpperCase().replace(/^(CD|CT)\s+/i, "").trim();
+  if (na === nb) return 1.0;
+  const maxLen = Math.max(na.length, nb.length);
+  if (maxLen === 0) return 0;
+  return 1 - levenshtein(na, nb) / maxLen;
+}
 
 interface CiudadContrato {
   nombre: string;
@@ -71,16 +98,19 @@ async function getCiudadesContrato(): Promise<CiudadContrato[]> {
   return _ciudadesCache;
 }
 
-function encontrarCiudadMasCercana(lat: number, lng: number, ciudades: CiudadContrato[]): { ciudad: CiudadContrato; distancia: number } | null {
+function encontrarCiudadMasCercana(lat: number, lng: number, ciudades: CiudadContrato[], nombrePunto?: string): { ciudad: CiudadContrato; distancia: number; similaridad: number } | null {
   if (Math.abs(lat - GPS_INVALIDO_LAT) < 0.1) return null;
   if (lat < -56 || lat > -17 || lng < -76 || lng > -66) return null;
 
-  let mejor: { ciudad: CiudadContrato; distancia: number } | null = null;
+  let mejor: { ciudad: CiudadContrato; distancia: number; similaridad: number } | null = null;
   for (const c of ciudades) {
     const d = distKm(lat, lng, c.lat, c.lng);
-    const radio = (c.esCD || c.esCT) ? RADIO_ALIAS_CD_KM : RADIO_ALIAS_KM;
-    if (d <= radio && (!mejor || d < mejor.distancia)) {
-      mejor = { ciudad: c, distancia: d };
+    const sim = nombrePunto ? nombreSimilaridad(nombrePunto, c.nombre) : 0;
+    const radioBase = (c.esCD || c.esCT) ? RADIO_ALIAS_CD_KM : RADIO_ALIAS_KM;
+    const radioEfectivo = sim >= 0.7 ? radioBase * 1.5 : radioBase;
+    const score = d - (sim * 20);
+    if (d <= radioEfectivo && (!mejor || score < (mejor.distancia - mejor.similaridad * 20))) {
+      mejor = { ciudad: c, distancia: d, similaridad: sim };
     }
   }
   return mejor;
@@ -162,7 +192,7 @@ export const superAgenteCencosud = {
 
   async autoAliasGPS() {
     const ciudades = await getCiudadesContrato();
-    if (ciudades.length === 0) return { nuevos: 0, evaluados: 0 };
+    if (ciudades.length === 0) return { nuevos: 0, evaluados: 0, kml_alias: 0 };
 
     const sinAlias = await pool.query(`
       SELECT nombre, lat, lng, viajes FROM (
@@ -188,40 +218,94 @@ export const superAgenteCencosud = {
     `);
 
     let nuevos = 0;
+    let kmlAlias = 0;
     const aliasCreados: string[] = [];
+
+    let kmlGeocercas: any[] = [];
+    try {
+      const kmlR = await pool.query(`SELECT id, nombre, tipo, lat::float, lng::float, radio_m, poligono, nombre_contrato FROM cencosud_geocercas_kml WHERE activa = true`);
+      kmlGeocercas = kmlR.rows;
+    } catch {}
 
     for (const punto of sinAlias.rows) {
       if (!punto.lat || !punto.lng) continue;
-      const match = encontrarCiudadMasCercana(punto.lat, punto.lng, ciudades);
+
+      let assigned = false;
+      if (kmlGeocercas.length > 0) {
+        for (const kml of kmlGeocercas) {
+          if (!kml.poligono || kml.poligono.length < 3) continue;
+          let inside = false;
+          const poly = kml.poligono as [number, number][];
+          for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const [yi, xi] = poly[i];
+            const [yj, xj] = poly[j];
+            if (((yi > punto.lat) !== (yj > punto.lat)) && (punto.lng < (xj - xi) * (punto.lat - yi) / (yj - yi) + xi)) {
+              inside = !inside;
+            }
+          }
+          if (inside) {
+            const aliasNombre = kml.nombre_contrato || kml.nombre;
+            try {
+              const res = await pool.query(
+                `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
+                 VALUES ($1, $2, 'CENCOSUD', true, 'AGENTE_KML')
+                 ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO UPDATE SET confirmado = true`,
+                [punto.nombre, aliasNombre]
+              );
+              if (res.rowCount && res.rowCount > 0) {
+                nuevos++;
+                kmlAlias++;
+                aliasCreados.push(`${punto.nombre} → ${aliasNombre} (KML polígono, ${punto.viajes}v)`);
+                assigned = true;
+              }
+            } catch {}
+            break;
+          }
+        }
+      }
+
+      if (assigned) continue;
+
+      const match = encontrarCiudadMasCercana(punto.lat, punto.lng, ciudades, punto.nombre);
       if (!match) continue;
 
-      const confianza = match.distancia <= 5 ? true : match.distancia <= 15;
+      const highConfidence = match.distancia <= 2
+        || (match.distancia <= 10 && match.similaridad >= 0.7)
+        || (match.distancia <= 5 && match.similaridad >= 0.5);
+      const confianza = highConfidence || match.distancia <= 15;
+
       try {
         const res = await pool.query(
           `INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, creado_por)
-           VALUES ($1, $2, 'CENCOSUD', $3, 'AGENTE_GPS')
+           VALUES ($1, $2, 'CENCOSUD', $3, $4)
            ON CONFLICT (geocerca_nombre, nombre_contrato, contrato) DO NOTHING`,
-          [punto.nombre, match.ciudad.nombre, confianza]
+          [punto.nombre, match.ciudad.nombre, confianza, highConfidence ? 'AGENTE_GPS_HC' : 'AGENTE_GPS']
         );
         if (res.rowCount && res.rowCount > 0) {
           nuevos++;
-          aliasCreados.push(`${punto.nombre} → ${match.ciudad.nombre} (${match.distancia.toFixed(1)}km, ${punto.viajes}v)`);
+          const simPct = Math.round(match.similaridad * 100);
+          aliasCreados.push(`${punto.nombre} → ${match.ciudad.nombre} (${match.distancia.toFixed(1)}km, sim:${simPct}%, ${punto.viajes}v${highConfidence ? ' HC' : ''})`);
         }
       } catch {}
     }
 
     if (nuevos > 0) {
-      console.log(`[SUPER-CENCOSUD] GPS-Alias: +${nuevos} nuevos`);
+      console.log(`[SUPER-CENCOSUD] GPS-Alias: +${nuevos} nuevos (${kmlAlias} KML)`);
       for (const a of aliasCreados.slice(0, 10)) console.log(`  → ${a}`);
       _ciudadesCacheTs = 0;
 
+      try {
+        const plResult = await calcularPLViajes();
+        console.log(`[SUPER-CENCOSUD] P&L post-alias: ${plResult.procesados} viajes (${plResult.conTarifa} con tarifa)`);
+      } catch {}
+
       await guardarMensaje("APRENDIZAJE", "NORMAL",
-        `Auto-alias GPS: +${nuevos} geocercas mapeadas`,
-        `El agente usó coordenadas GPS para mapear ${nuevos} geocercas a ciudades del contrato:\n${aliasCreados.slice(0, 8).join("\n")}${aliasCreados.length > 8 ? `\n... y ${aliasCreados.length - 8} más` : ""}`,
-        { nuevos, detalle: aliasCreados.slice(0, 20) });
+        `Auto-alias: +${nuevos} geocercas mapeadas (${kmlAlias} por KML)`,
+        `El agente mapeó ${nuevos} geocercas usando GPS+similaridad de nombre y polígonos KML:\n${aliasCreados.slice(0, 8).join("\n")}${aliasCreados.length > 8 ? `\n... y ${aliasCreados.length - 8} más` : ""}`,
+        { nuevos, kml_alias: kmlAlias, detalle: aliasCreados.slice(0, 20) });
     }
 
-    return { nuevos, evaluados: sinAlias.rows.length };
+    return { nuevos, evaluados: sinAlias.rows.length, kml_alias: kmlAlias };
   },
 
   async consolidarTrayectos() {
