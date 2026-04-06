@@ -854,6 +854,44 @@ export const wisetrackPosiciones = pgTable("wisetrack_posiciones", {
   creadoAt: timestamp("creado_at").defaultNow(),
 }, (t) => [unique().on(t.patente, t.fecha)]);
 
+export const wisetrackVehiculos = pgTable("wisetrack_vehiculos", {
+  movil: text("movil").primaryKey(),
+  patente: text("patente").notNull(),
+  grupo1: text("grupo1"),
+  grupo2: text("grupo2"),
+  conductor: text("conductor"),
+  actualizadoAt: timestamp("actualizado_at").defaultNow(),
+});
+
+export const wisetrackTelemetria = pgTable("wisetrack_telemetria", {
+  id: serial("id").primaryKey(),
+  wtId: integer("wt_id").notNull().unique(),
+  movil: text("movil").notNull(),
+  patente: text("patente"),
+  fechaHora: text("fecha_hora").notNull(),
+  lat: real("lat"),
+  lng: real("lng"),
+  direccion: integer("direccion"),
+  kms: real("kms"),
+  kmsTotal: real("kms_total"),
+  horometro: real("horometro"),
+  nivelEstanque: real("nivel_estanque"),
+  consumoConduccion: real("consumo_conduccion"),
+  consumoRalenti: real("consumo_ralenti"),
+  consumoTotal: real("consumo_total"),
+  tiempoConduccion: integer("tiempo_conduccion"),
+  tiempoRalenti: integer("tiempo_ralenti"),
+  tempMotor: real("temp_motor"),
+  velocidad: real("velocidad"),
+  rpm: integer("rpm"),
+  torque: real("torque"),
+  presionAceite: real("presion_aceite"),
+  idEnergia: integer("id_energia"),
+  idPartida: integer("id_partida"),
+  fechaInsercion: text("fecha_insercion"),
+  creadoAt: timestamp("creado_at").defaultNow(),
+});
+
 export const camionIdentidades = pgTable("camion_identidades", {
   vin: text("vin").primaryKey(),
   numeroInterno: text("numero_interno"),

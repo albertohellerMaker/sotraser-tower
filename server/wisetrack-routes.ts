@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { fetchSeguimiento, getWiseTrackStatus, startWiseTrackSync, stopWiseTrackSync } from "./wisetrack-scraper";
+import { fetchSeguimiento, getWiseTrackStatus, startWiseTrackSync, stopWiseTrackSync, fetchTelemetriaAPI } from "./wisetrack-scraper";
 import { pool } from "./db";
 
 const router = Router();
@@ -114,13 +114,32 @@ router.get("/api/wisetrack/status", async (_req, res) => {
   try {
     const status = getWiseTrackStatus();
     let totalRegistros = 0;
+    let totalTelemetria = 0;
     try {
       const countResult = await pool.query("SELECT COUNT(*) as total FROM wisetrack_posiciones");
       totalRegistros = parseInt(countResult.rows[0].total);
-    } catch {
-      // table may not exist yet
-    }
-    res.json({ ...status, totalRegistros });
+    } catch {}
+    try {
+      const countResult2 = await pool.query("SELECT COUNT(*) as total FROM wisetrack_telemetria");
+      totalTelemetria = parseInt(countResult2.rows[0].total);
+    } catch {}
+    res.json({ ...status, totalRegistros, totalTelemetria });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/api/wisetrack/telemetria/:movil", async (req, res) => {
+  try {
+    const { movil } = req.params;
+    const horas = parseInt(req.query.horas as string) || 24;
+    const result = await pool.query(
+      `SELECT * FROM wisetrack_telemetria 
+       WHERE movil = $1 AND creado_at > NOW() - INTERVAL '1 hour' * $2
+       ORDER BY fecha_hora DESC LIMIT 500`,
+      [movil, horas]
+    );
+    res.json({ movil, registros: result.rows, total: result.rows.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
