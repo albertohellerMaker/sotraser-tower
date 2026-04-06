@@ -1,83 +1,103 @@
 # SOTRASER - Fleet Intelligence Dashboard
 
 ## Overview
-Fleet management system for Chilean trucking company SOTRASER. **WiseTrack official API only** — all Volvo Connect and WiseTrack portal scraping code has been removed. Single data source via `ei.wisetrack.cl/Sotraser/TelemetriaDetalle`.
+Fleet management system for Chilean trucking company SOTRASER. **WiseTrack official API only** — single data source via `ei.wisetrack.cl/Sotraser/TelemetriaDetalle`. All Volvo Connect code removed.
 
 ## Data Source
-- **WiseTrack Official API**: `https://ei.wisetrack.cl/Sotraser/TelemetriaDetalle` — GET with Bearer token, SSL self-signed cert (`rejectUnauthorized: false`). Buffer empties after read — poll every 60s. Rich telemetry: GPS, fuel, RPM, torque, engine temp, horometer, consumption breakdown. Tables: `wisetrack_telemetria` (API data by wt_id), `wisetrack_vehiculos` (movil→patente mapping), `wisetrack_posiciones` (GPS positions). 63 Cencosud trucks.
-- **TMS Trip Detection**: Fully automatic using `wisetrack_posiciones`. `viajes-historico.ts` builds trips from GPS positions using sustained-stop segmentation (30min dwell threshold) and odometer/fuel deltas. `t1-reconstructor.ts` reconstructs T-1 daily trips from WiseTrack data. No Volvo ECU dependency.
+- **WiseTrack Official API**: `https://ei.wisetrack.cl/Sotraser/TelemetriaDetalle` — GET with Bearer token, SSL self-signed cert (`rejectUnauthorized: false`). Buffer empties after read — poll every 60s. Rich telemetry: GPS, fuel, RPM, torque, engine temp, horometer, consumption breakdown.
+- **DB Tables**: `wisetrack_telemetria` (raw API data by wt_id), `wisetrack_vehiculos` (movil→patente mapping, 476 entries), `wisetrack_posiciones` (processed GPS + fuel positions, auto-created by scraper)
+- **TMS Trip Detection**: Fully automatic using `wisetrack_posiciones`. `viajes-historico.ts` builds trips from GPS positions using sustained-stop segmentation (30min dwell threshold) and odometer/fuel deltas. `t1-reconstructor.ts` reconstructs T-1 daily trips.
 - **WiseTrack Token**: stored as `WISETRACK_API_TOKEN` env var
 
 ## Architecture
-- **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`. Root has devDependencies and scripts.
-- **Single port**: Both API and frontend run on port 5000 in development
-- **Database**: PostgreSQL (Neon/Railway production DB loaded via `.env` file, overrides Replit's managed DATABASE_URL)
-- **GitHub auto-sync**: `server/github-sync.ts` pushes to `github.com/albertohellerMaker/sotraser-tower` every 10 minutes using `GITHUB_TOKEN`
+- **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`
+- **Single port**: Both API and frontend run on the same port (default 5000, configurable via PORT env var)
+- **Database**: PostgreSQL (Neon/Railway production DB loaded via `.env` file)
+- **GitHub auto-sync**: `server/github-sync.ts` pushes to GitHub every 10 minutes using `GITHUB_TOKEN`
 
 ## Authentication
 - **Session-based login**: express-session with cookie auth (30-day expiry)
 - **Credentials**: usuario `beto`, clave `1234`
-- **Protection**: All `/api/*` routes require authenticated session (except `/api/auth/*`)
-- **Cookie**: httpOnly, sameSite=lax, secure in production
+- **Protection**: All `/api/*` routes require authenticated session (except `/api/auth/*`, `/api/conductor/*`)
 
 ## Tech Stack
 - **Frontend**: React 18, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Google Maps (`@vis.gl/react-google-maps`)
 - **Backend**: Node.js, Express 5, TypeScript (ESM), Zod request validation middleware
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI**: Anthropic Claude (fleet diagnostics and conversational assistant)
+- **AI**: Anthropic Claude (fleet diagnostics and conversational assistant via BRAIN)
 - **Build**: Vite (frontend), esbuild (backend production bundle)
 - **Package manager**: npm
-- **Maps**: Google Maps ONLY (`@vis.gl/react-google-maps`). Key: `VITE_GOOGLE_MAPS_KEY`. All Leaflet fully removed.
-- **Workers**: Background jobs and agents run in separate child processes via `server/worker-manager.ts` (uses `child_process.fork` + tsx). Workers: `server/workers/jobs-worker.ts` (data sync, scoring, geocercas), `server/workers/agents-worker.ts` (multi-agent AI system). Auto-restart with exponential backoff on crash.
-- **Conductor API**: `/api/conductor/*` endpoints for the driver-facing app. Auth via `X-API-Key` header (env: `CONDUCTOR_API_KEY`). Bypasses Tower session auth.
+- **Workers**: Background jobs and agents run in separate child processes via `server/worker-manager.ts`. Workers: `server/workers/jobs-worker.ts` (data sync, scoring, geocercas), `server/workers/agents-worker.ts` (multi-agent AI system)
+- **Conductor API**: `/api/conductor/*` endpoints for the driver-facing app. Auth via `X-API-Key` header
 
 ## Project Structure
 ```
 client/                    # React frontend (Vite)
   src/
-    components/            # UI components
-      ui/                  # shadcn/ui primitives
-      mapa-geocercas-cencosud.tsx # Cencosud geofence map
-    pages/                 # Active pages
-      flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
-      cencosud.tsx         # Dedicated Cencosud TMS view (EN VIVO real-time tracking, P&L, viajes, tarifas, mapeo)
-      wisetrack-app.tsx    # TOWER main app shell — FLOTA dashboard (RESUMEN/COMBUSTIBLE/ANOMALIAS/MAPA EN VIVO), CAMIONES, TMS CENCOSUD, SISTEMA tabs
+    pages/
+      wisetrack-app.tsx    # TOWER main app shell — FLOTA/CAMIONES/TMS CENCOSUD/SISTEMA tabs
+      cencosud.tsx         # Cencosud TMS view (EN VIVO, P&L, viajes, tarifas, mapeo)
       operative-brain.tsx  # AI brain with multi-agent chat
       conductores-panel.tsx # Conductores management
-      camiones.tsx         # Individual truck view with faena filter
-    lib/                   # Frontend utilities, API clients
-      fuel-utils.ts        # Fuel analysis utilities (rendimiento, percentiles)
-server/                    # Express backend
-  routes.ts                # Main route registration
-  wisetrack-scraper.ts     # WiseTrack official API client + DB-backed fetchSeguimiento
-  wisetrack-routes.ts      # WiseTrack REST endpoints
-  geo-routes.ts            # GPS/geocerca endpoints
-  estaciones-routes.ts     # Fuel station analytics
-  drivers-routes.ts        # Driver analytics
-  aprendizaje-engine.ts    # Learning engine for fuel anomaly detection
+server/
+  routes.ts                # Main route registration (all API endpoints)
+  tower-routes.ts          # /api/tower/* — fuel analysis, stops, fleet summary (100% WiseTrack)
+  brain-routes.ts          # /api/brain/* — AI executive assistant, anomaly detection, predictions
+  wisetrack-scraper.ts     # WiseTrack API client + DB sync (tables auto-created)
+  wisetrack-routes.ts      # /api/wisetrack/* — en-vivo, historial, TMS en-vivo
+  combustible-routes.ts    # /api/combustible/* — fuel validation, ADN, fraud detection
+  viajes-historico.ts      # Trip reconstruction from GPS positions
+  faena-filter.ts          # Contract filtering (CONTRATOS_ACTIVOS, dynamic from DB)
   workers/
-    jobs-worker.ts         # Background sync jobs
-    agents-worker.ts       # Multi-agent AI system
+    jobs-worker.ts         # Background: viajes, parametros, geocercas, scoring
+    agents-worker.ts       # Background: multi-agent AI (operaciones, contratos, gerente)
 shared/
   schema.ts                # Drizzle ORM schema (PostgreSQL)
 ```
 
 ## Navigation Flow
-Login → SplashScreen → WiseTrackApp (tabs: FLOTA / CAMIONES / TMS CENCOSUD / SISTEMA)
-- FLOTA tab has sub-tabs: RESUMEN (fleet summary + operational alerts), COMBUSTIBLE (fuel performance + low-tank alerts), ANOMALIAS (trip anomaly detection from viajes_aprendizaje), MAPA EN VIVO (live GPS tracking map)
-- Header shows "SOTRASER · TOWER · LIVE"
-- All Volvo Connect references cleaned from main dashboard and key components
+Login → SplashScreen → WiseTrackApp
+- **FLOTA tab** sub-tabs: RESUMEN / COMBUSTIBLE / PARADAS / ANOMALIAS / MAPA EN VIVO
+  - RESUMEN: fleet count, en-ruta/detenidos/ralenti/sin_senal, operational alerts, anomaly preview
+  - COMBUSTIBLE: Tower API fuel analysis (7-day), worst/best 5 trucks, percentile table, low-tank alerts
+  - PARADAS: Tower API stop detection (48h), per-truck breakdown, recent stops timeline
+  - ANOMALIAS: trip anomaly scoring from viajes_aprendizaje (score ≥ 20)
+  - MAPA EN VIVO: Google Maps with live truck positions
+- **CAMIONES tab**: per-truck detail, GPS historial, telemetry
+- **TMS CENCOSUD tab**: dedicated Cencosud contract management
+- **SISTEMA tab**: WiseTrack API health, system status, sync info
+
+## Key API Routes
+| Route | Source | Purpose |
+|-------|--------|---------|
+| `/api/wisetrack/en-vivo` | wisetrack_posiciones | Live fleet view with status classification |
+| `/api/tower/combustible` | wisetrack_posiciones | 7-day fuel analysis with percentiles |
+| `/api/tower/paradas` | wisetrack_posiciones | 48h stop detection and analysis |
+| `/api/tower/resumen-flota` | wisetrack_posiciones + viajes_aprendizaje | Fleet summary dashboard |
+| `/api/brain/chat` | Claude AI + real WiseTrack context | AI executive assistant |
+| `/api/brain/resumen-ejecutivo` | viajes_aprendizaje + wisetrack_posiciones | Contract-level KPIs |
+| `/api/brain/anomalias-macro` | viajes_aprendizaje | Route deviation detection |
+| `/api/viajes/stats` | viajes_aprendizaje | Trip statistics and anomalies |
+| `/api/combustible/resumen` | validaciones_carga | Fuel fraud detection dashboard |
+| `/api/datos/excesos-velocidad` | wisetrack_posiciones | Speed violation tracking (>90 km/h) |
 
 ## Key Environment Variables
 - `DATABASE_URL`: PostgreSQL connection string
-- `WISETRACK_API_TOKEN`: Bearer token for WiseTrack API (value: 77b95789-a047-3186-86cf-90c83583b352)
+- `WISETRACK_API_TOKEN`: Bearer token for WiseTrack API
 - `ANTHROPIC_API_KEY`: Claude AI API key
 - `GITHUB_TOKEN`: GitHub sync token
 - `VITE_GOOGLE_MAPS_KEY`: Google Maps API key (must be in .env for Vite injection)
 - `CONDUCTOR_API_KEY`: Driver app API key
 
-## Deleted Systems (cleanup completed)
-- Volvo Connect pipeline: `server/volvo-api.ts`, `server/volvo-vin-sync.ts`, `server/volvo-backfill.ts`, `client/src/pages/volvo.tsx`, `client/src/components/volvo-truck-modal.tsx`
-- WiseTrack portal scraping: `loginPortal`, `fetchSeguimiento` (portal-based), `syncVehiculoMap` removed from scraper
-- GPS unification: `server/utils/gps-unificado.ts`, `server/utils/vin-patente.ts`, `server/utils/snapshots-carga.ts` deleted
-- All `/api/volvo/*` routes removed from `routes.ts`
+## Audit Fixes Applied (April 2026)
+- **Fixed**: `saveTelemetria` now uses `ConsumoLitros_Total` instead of `ConsumoLitros_Conduccion` — fuel data was under-reported
+- **Fixed**: `wisetrack_posiciones` table auto-created by scraper on startup
+- **Fixed**: `fetchSeguimiento` handles Date objects from PostgreSQL (was crashing with `.replace is not a function`)
+- **Fixed**: `/api/camiones` no longer filters by VIN (was hiding non-Volvo trucks)
+- **Fixed**: `/api/dashboard/hero` now pulls real km/litros from wisetrack_posiciones instead of returning zeros
+- **Fixed**: `/api/datos/excesos-velocidad` now queries wisetrack_posiciones for speed events instead of returning empty
+- **Fixed**: `/api/faenas/en-movimiento` now returns real counts from wisetrack_posiciones
+- **Fixed**: `/api/brain/comparacion-fuentes` SQL — window function moved to CTE (was invalid nested aggregate)
+- **Fixed**: Sigetra status message updated from "Volvo Connect" to "WiseTrack API"
+- **Added**: PARADAS sub-tab in FLOTA dashboard
+- **Added**: Tower API endpoints: `/api/tower/combustible`, `/api/tower/paradas`, `/api/tower/resumen-flota`
