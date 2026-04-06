@@ -377,10 +377,7 @@ async function main() {
   programarReporteDiario();
   programarCuadraturaNocturna();
 
-  setTimeout(() => {
-    runJob(JOBS.VIN_PATENTE_REFRESH);
-    setInterval(() => runJob(JOBS.VIN_PATENTE_REFRESH), JOBS.VIN_PATENTE_REFRESH.intervalo!);
-  }, 10 * 1000);
+  
 
   setTimeout(() => {
     runJob(JOBS.TRAYECTOS_CENCOSUD);
