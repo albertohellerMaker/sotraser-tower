@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import OperativeBrain from "@/pages/operative-brain";
 import CencosudView from "@/pages/cencosud";
-import WiseTrackView from "@/pages/wisetrack";
+import WiseTrackApp from "@/pages/wisetrack-app";
 
 import Flota from "@/pages/flota";
 import ConductoresPanel from "@/pages/conductores-panel";
@@ -659,9 +659,89 @@ function CamionesUnificado() {
   );
 }
 
+// ── Platform Selector (first screen after splash) ──
+function PlatformSelector({ onVolvo, onWiseTrack }: { onVolvo: () => void; onWiseTrack: () => void }) {
+  const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
+  useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
+  const fecha = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  const { data: wtStatus } = useQuery<any>({ queryKey: ["/api/wisetrack/status"], queryFn: () => fetch("/api/wisetrack/status").then(r => r.json()).catch(() => null), staleTime: 30000 });
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: "#020508", backgroundImage: "radial-gradient(ellipse at 30% 40%, rgba(0,212,255,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 60%, rgba(6,182,212,0.04) 0%, transparent 60%)" }}>
+      <div className="text-center mb-16">
+        <div className="font-exo text-[10px] tracking-[0.5em] uppercase mb-4" style={{ color: "#3a6080" }}>SOTRASER S.A.</div>
+        <div className="font-space text-[56px] font-bold tracking-wider leading-none mb-2" style={{ color: "#c8e8ff", textShadow: "0 0 40px rgba(0,212,255,0.15)" }}>{hora}</div>
+        <div className="font-exo text-[12px] capitalize mt-2" style={{ color: "#3a6080" }}>{fecha}</div>
+        <div className="font-exo text-[10px] tracking-[0.3em] uppercase mt-6" style={{ color: "#1a3040" }}>SELECCIONE PLATAFORMA</div>
+      </div>
+
+      <div className="flex gap-8 w-full max-w-4xl px-8">
+        <button onClick={onVolvo} className="group flex-1 p-10 text-left cursor-pointer transition-all duration-500 hover:scale-[1.03] hover:shadow-2xl"
+          style={{ background: "linear-gradient(145deg, #060d14 0%, #0a1a28 100%)", border: "1px solid #00d4ff20", borderTop: "4px solid #00d4ff", borderRadius: 16, boxShadow: "0 4px 30px rgba(0,212,255,0.05)" }}>
+          <div className="text-[48px] mb-4">🗼</div>
+          <div className="font-space text-[26px] font-bold tracking-wider mb-1" style={{ color: "#00d4ff" }}>VOLVO CONNECT</div>
+          <div className="font-exo text-[10px] uppercase tracking-[0.2em] mb-6" style={{ color: "#3a6080" }}>rFMS · Volvo Fleet Management</div>
+          <div className="space-y-2 mb-6">
+            {[
+              { t: "TOWER", d: "Control operacional · GPS en vivo", c: "#00d4ff" },
+              { t: "BRAIN", d: "Centro de inteligencia · 8 agentes IA", c: "#a855f7" },
+              { t: "TMS CENCOSUD", d: "Gestión contrato · ERR · Facturación", c: "#00ff88" },
+              { t: "APP CONDUCTOR", d: "Vista terreno · GPS + Cámara", c: "#ff6b35" },
+              { t: "SISTEMA", d: "Monitoreo · Pipeline · Estado", c: "#3a6080" },
+            ].map(m => (
+              <div key={m.t} className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: m.c }} />
+                <span className="font-space text-[10px] font-bold" style={{ color: m.c }}>{m.t}</span>
+                <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{m.d}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88" }} /><span className="font-space text-[11px] font-bold" style={{ color: "#00ff88" }}>72</span></div>
+            <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>camiones Volvo · Cencosud</span>
+          </div>
+          <div className="mt-6 flex items-center gap-2 font-space text-[12px] font-bold tracking-wider" style={{ color: "#00d4ff" }}>
+            ENTRAR <span className="group-hover:translate-x-2 transition-transform duration-300">→</span>
+          </div>
+        </button>
+
+        <button onClick={onWiseTrack} className="group flex-1 p-10 text-left cursor-pointer transition-all duration-500 hover:scale-[1.03] hover:shadow-2xl"
+          style={{ background: "linear-gradient(145deg, #060d14 0%, #081820 100%)", border: "1px solid #06b6d420", borderTop: "4px solid #06b6d4", borderRadius: 16, boxShadow: "0 4px 30px rgba(6,182,212,0.05)" }}>
+          <div className="text-[48px] mb-4">📡</div>
+          <div className="font-space text-[26px] font-bold tracking-wider mb-1" style={{ color: "#06b6d4" }}>WISETRACK</div>
+          <div className="font-exo text-[10px] uppercase tracking-[0.2em] mb-6" style={{ color: "#3a6080" }}>Telemetría GPS · Portal Seguimiento</div>
+          <div className="space-y-2 mb-6">
+            {[
+              { t: "FLOTA", d: "Mapa en vivo · GPS + Telemetría", c: "#06b6d4" },
+              { t: "CAMIONES", d: "Ficha por camión · Historial GPS", c: "#06b6d4" },
+              { t: "SISTEMA", d: "Estado scraper · Sync · Grupos", c: "#3a6080" },
+            ].map(m => (
+              <div key={m.t} className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: m.c }} />
+                <span className="font-space text-[10px] font-bold" style={{ color: m.c }}>{m.t}</span>
+                <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{m.d}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full" style={{ background: wtStatus?.sessionActive ? "#00ff88" : "#ff2244", boxShadow: `0 0 6px ${wtStatus?.sessionActive ? "#00ff88" : "#ff2244"}` }} /><span className="font-space text-[11px] font-bold" style={{ color: wtStatus?.sessionActive ? "#00ff88" : "#ff2244" }}>{wtStatus?.lastSyncCount || 63}</span></div>
+            <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>camiones Cencosud · WiseTrack</span>
+          </div>
+          <div className="mt-6 flex items-center gap-2 font-space text-[12px] font-bold tracking-wider" style={{ color: "#06b6d4" }}>
+            ENTRAR <span className="group-hover:translate-x-2 transition-transform duration-300">→</span>
+          </div>
+        </button>
+      </div>
+
+      <div className="mt-16 font-exo text-[8px] tracking-[0.3em]" style={{ color: "#1a3040" }}>SOTRASER · PLATAFORMA INTEGRADA DE FLOTA · v3.0</div>
+    </div>
+  );
+}
+
 // ── Main App Shell ──
-// Welcome screen
-function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor, onWiseTrack }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAppConductor: () => void; onWiseTrack: () => void }) {
+// Volvo Welcome screen
+function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor, onBack }: { onTower: () => void; onMando: () => void; onTMS: () => void; onAppConductor: () => void; onBack: () => void }) {
   const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }));
   useEffect(() => { const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
   const { data: stats } = useQuery<any>({ queryKey: ["/api/welcome/stats"], queryFn: () => fetch("/api/welcome/stats").then(r => r.json()), refetchInterval: 60000 });
@@ -670,7 +750,8 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor, onWiseTrack }:
   return (
     <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: "#020508", backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.03) 0%, transparent 60%), radial-gradient(ellipse at 80% 50%, rgba(168,85,247,0.03) 0%, transparent 60%)" }}>
       <div className="text-center mb-12">
-        <div className="font-exo text-[11px] tracking-[0.4em] uppercase mb-3" style={{ color: "#3a6080" }}>SOTRASER S.A.</div>
+        <button onClick={onBack} className="font-exo text-[9px] tracking-wider uppercase mb-4 block mx-auto cursor-pointer hover:opacity-80" style={{ color: "#3a6080", background: "none", border: "none" }}>← CAMBIAR PLATAFORMA</button>
+        <div className="font-exo text-[11px] tracking-[0.4em] uppercase mb-3" style={{ color: "#00d4ff" }}>SOTRASER · VOLVO CONNECT</div>
         <div className="font-space text-[48px] font-bold tracking-wider leading-none mb-2" style={{ color: "#c8e8ff" }}>{hora}</div>
         <div className="font-exo text-[12px] capitalize" style={{ color: "#3a6080" }}>{fecha}</div>
         {stats && (
@@ -681,7 +762,7 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor, onWiseTrack }:
           </div>
         )}
       </div>
-      <div className="grid grid-cols-5 gap-4 w-full max-w-6xl px-8">
+      <div className="grid grid-cols-4 gap-4 w-full max-w-5xl px-8">
         <button onClick={onTower} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
           style={{ background: "#060d14", border: "1px solid #00d4ff20", borderTop: "3px solid #00d4ff", borderRadius: 12 }}>
           <div className="text-[32px] mb-3">🗼</div>
@@ -722,24 +803,15 @@ function WelcomeScreen({ onTower, onMando, onTMS, onAppConductor, onWiseTrack }:
           ))}
           <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#ff6b35" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
         </button>
-        <button onClick={onWiseTrack} className="group p-7 text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
-          style={{ background: "#060d14", border: "1px solid #06b6d420", borderTop: "3px solid #06b6d4", borderRadius: 12 }}>
-          <div className="text-[32px] mb-3">📡</div>
-          <div className="font-space text-[18px] font-bold tracking-wider mb-2" style={{ color: "#06b6d4" }}>WISETRACK</div>
-          <div className="font-exo text-[9px] uppercase tracking-wider mb-3" style={{ color: "#3a6080" }}>GPS Alternativo</div>
-          {["Seguimiento WiseTrack · Cencosud", "63 camiones · GPS en vivo", "Telemetría · RPM · Estanque"].map(item => (
-            <div key={item} className="flex items-center gap-2 font-exo text-[8px] mb-1" style={{ color: "#4a8090" }}><div className="w-1 h-1 rounded-full" style={{ background: "#06b6d4" }} />{item}</div>
-          ))}
-          <div className="mt-5 flex items-center gap-2 font-space text-[10px] font-bold" style={{ color: "#06b6d4" }}>ENTRAR <span className="group-hover:translate-x-1 transition-transform">→</span></div>
-        </button>
       </div>
-      <div className="mt-12 font-exo text-[8px] tracking-wider" style={{ color: "#1a3040" }}>SOTRASER TOWER · Sistema de Gestión de Flota · v2.0</div>
+      <div className="mt-12 font-exo text-[8px] tracking-wider" style={{ color: "#1a3040" }}>SOTRASER · VOLVO CONNECT · v3.0</div>
     </div>
   );
 }
 
 function AppShell() {
-  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "APP_CONDUCTOR" | "WISETRACK">("WELCOME");
+  const [platform, setPlatform] = useState<"SELECTOR" | "VOLVO" | "WISETRACK">("SELECTOR");
+  const [modo, setModo] = useState<"WELCOME" | "TOWER" | "MANDO" | "TMS" | "APP_CONDUCTOR">("WELCOME");
   const [tab, setTab] = useState<MainTab>("flota");
   const [showSplash, setShowSplash] = useState(true);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -757,14 +829,15 @@ function AppShell() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAppConductor={() => setModo("APP_CONDUCTOR")} onWiseTrack={() => setModo("WISETRACK")} />;
+  if (platform === "SELECTOR") return <PlatformSelector onVolvo={() => setPlatform("VOLVO")} onWiseTrack={() => setPlatform("WISETRACK")} />;
+
+  if (platform === "WISETRACK") return <WiseTrackApp onBack={() => setPlatform("SELECTOR")} />;
+
+  if (modo === "WELCOME") return <WelcomeScreen onTower={() => setModo("TOWER")} onMando={() => setModo("MANDO")} onTMS={() => setModo("TMS")} onAppConductor={() => setModo("APP_CONDUCTOR")} onBack={() => { setPlatform("SELECTOR"); setModo("WELCOME"); }} />;
 
   if (modo === "TMS") return <CencosudView onBack={() => setModo("WELCOME")} />;
 
-
   if (modo === "APP_CONDUCTOR") return <AppConductorHub onBack={() => setModo("WELCOME")} />;
-
-  if (modo === "WISETRACK") return <WiseTrackView onBack={() => setModo("WELCOME")} />;
 
   if (modo === "MANDO") return (
     <div className="min-h-screen" style={{ background: "#020508" }}>
