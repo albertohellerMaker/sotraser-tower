@@ -5,7 +5,7 @@ Fleet management system for Chilean trucking company SOTRASER. **Dual-platform a
 
 ## Data Sources (2 active)
 - **Volvo Connect rFMS**: GPS positions, fuel consumption, odometer, speed via official API (sync every 90s). 72 camiones with VIN.
-- **WiseTrack GPS**: Portal scraping (`telemetria.wisetrack.cl`). ASP.NET login + AJAX endpoint `Seguimiento`. Sync every 120s. 63 Cencosud trucks with patente, lat/lng, velocidad, RPM, estanque, conductor. Parallel system — completely isolated from Volvo pipeline.
+- **WiseTrack GPS**: **Dual data acquisition**: 1) Official API (`ei.wisetrack.cl/Sotraser/TelemetriaDetalle`, Bearer token, buffer/queue pattern — records consumed on read). Polls every 120s. Rich telemetry: GPS, fuel, RPM, torque, engine temp, horometer, consumption breakdown. 2) Portal scraping (`telemetria.wisetrack.cl`) as backup, polls every 300s for vehicle mapping (movil→patente, grupo1). Tables: `wisetrack_telemetria` (API data by wt_id), `wisetrack_vehiculos` (mapping), `wisetrack_posiciones` (legacy GPS). 63 Cencosud trucks. Parallel system — completely isolated from Volvo pipeline.
 
 ## Architecture
 - **npm workspaces monorepo**: Root manages 3 workspaces (`shared/`, `server/`, `client/`) with per-workspace `package.json`. Root has devDependencies and scripts.
@@ -121,7 +121,8 @@ migrations/                # SQL migration files
 - `DATABASE_URL` - PostgreSQL connection
 - `ANTHROPIC_API_KEY` - For Claude AI features
 - `VOLVO_CONNECT_USER`, `VOLVO_CONNECT_PASSWORD` - Volvo Connect rFMS API
-- `WISETRACK_USER`, `WISETRACK_PASS`, `WISETRACK_COMPANY` - WiseTrack portal credentials
+- `WISETRACK_API_TOKEN` - WiseTrack official API Bearer token (buffer/queue telemetry)
+- `WISETRACK_USER`, `WISETRACK_PASS`, `WISETRACK_COMPANY` - WiseTrack portal credentials (backup for vehicle mapping)
 - `GITHUB_TOKEN` - For auto-sync to GitHub
 - `VITE_GOOGLE_MAPS_KEY` - Google Maps API key
 - `SESSION_SECRET` - Express session secret
