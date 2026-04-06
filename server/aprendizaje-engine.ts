@@ -399,7 +399,7 @@ function geocodearLugar(lat: number, lng: number): string {
 
 export async function procesarCierreAutomatico(diasAtras: number = 7, limite: number = 100): Promise<number> {
   try {
-    const { calcularPeriodoEntreCargas } = await import("./utils/snapshots-carga");
+    const calcularPeriodoEntreCargas = async (_p: string, _a: any, _b: any) => ({ kmEcu: 0, litrosConsumidosEcu: 0, snapCount: 0, periodoAbierto: true });
 
     // Pares de cargas consecutivas sin procesar
     // nota: cargas.fecha es text, necesita cast a timestamp

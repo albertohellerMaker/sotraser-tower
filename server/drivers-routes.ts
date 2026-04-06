@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from "express";
 import { pool, DATA_START } from "./db";
-import { getDriverEvaluations, getFleetStatus, type DriverEvaluation } from "./volvo-api";
 import { calcularScoreAdaptativo, scoreNivelGlobal, type ScoreParam, type ScoreResult } from "./score-conduccion";
 import * as fs from "fs";
 import * as path from "path";
@@ -118,7 +117,7 @@ async function buildDriverData(): Promise<{
 }> {
   const vinInfoMap = await getVolvoVinsWithInfo();
   const volvoEvals = await getDriverEvaluations(START_DATE);
-  const fleetStatus = await getFleetStatus();
+  const fleetStatus: any[] = [];
 
   const baselines = loadBaselines();
   const currentWeek = getCurrentWeekString();
@@ -491,7 +490,7 @@ async function getDriverGeoZone(vin: string): Promise<string> {
   } catch (e) {}
 
   try {
-    const fleet = await getFleetStatus();
+    const fleet: any[] = [];
     const vs = fleet.find(f => f.vin === vin);
     if (vs?.gps?.latitude) {
       const lat = vs.gps.latitude;

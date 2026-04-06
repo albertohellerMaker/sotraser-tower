@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { storage } from "./storage";
-import { getFleetStatus } from "./volvo-api";
 import Anthropic from "@anthropic-ai/sdk";
 import { getCencosudFaenaId } from "./cencosud-filter";
 import { DATA_START } from "./db";
@@ -146,7 +145,7 @@ export function registerTMSRoutes(app: Express) {
       const to = new Date();
 
       let fleetStatus: any[] = [];
-      try { fleetStatus = await getFleetStatus(); } catch {}
+      fleetStatus = [];
 
       let fuelData: any[] = [];
 
@@ -709,7 +708,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
         const contrato = await storage.getTmsContrato(id);
         if (contrato) {
           const contractTrucks = allCamiones.filter(c => c.faenaId === contrato.faenaId);
-          const fleet = await getFleetStatus();
+          const fleet: any[] = [];
           for (const truck of contractTrucks) {
             if (!truck.vin) continue;
             const match = fleet.find((v: any) => v.vin === truck.vin);
@@ -1009,7 +1008,7 @@ Se especifico con datos reales. Menciona patentes cuando sea relevante. No uses 
       console.log(`[tms-auto-sync] Contratos por analizar: ${contratosParaAnalizar.length}`);
 
       let fleetStatus: any[] = [];
-      try { fleetStatus = await getFleetStatus(); } catch {}
+      fleetStatus = [];
 
       let fuelData: any[] = [];
 

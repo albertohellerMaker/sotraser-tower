@@ -3,14 +3,11 @@ import { storage } from "./storage";
 import { db, pool, DATA_START, getDefaultDesde } from "./db";
 import { geoPuntos, geoViajes, geoBases, geoTrayectorias, geoGeocache, camiones, geoLugares, geoVisitas, geoAnalisisIa, viajesAprendizaje, cargas } from "@shared/schema";
 import { eq, desc, and, gte, lte, sql, inArray, asc, or, isNull, isNotNull } from "drizzle-orm";
-import { getFleetStatus } from "./volvo-api";
-import { runBackfill, getBackfillProgress } from "./volvo-backfill";
 import { getContractConfig, getContractPatentes, getContractCamiones, CONTRATOS_VOLVO_ACTIVOS } from "./faena-filter";
 import { detectarLugar, registrarVisita, analizarHistoricoCompleto, generarAnalisisIA } from "./geo-lugares-service";
 import { obtenerHistorialCamion, procesarFlotaHistorico, obtenerResumenFlota } from "./geo-reconstruccion-service";
 import { detectarVisitasFlota, obtenerResumenVisitas, obtenerVisitasCamion, inicializarPerfilGPS } from "./geo-visitas-service";
 import { buscarLugarCercano, LUGARES_CONOCIDOS } from "./viajes-historico";
-import { insertarGpsVolvo } from "./utils/gps-unificado";
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -481,124 +478,6 @@ export function registerGeoRoutes(app: Express) {
     }
   });
 
-  async function ingestAllVolvo(): Promise<{ ingested: number; camiones: number; snapshots: number }> {
-    const allCamiones = await storage.getCamiones();
-    const withVin = allCamiones.filter(c => c.vin);
-    let fleet: any[] = [];
-    try { fleet = await getFleetStatus(); } catch {}
-
-    const vinToFleet = new Map(fleet.map(v => [v.vin, v]));
-    let ingested = 0;
-    let snapshots = 0;
-
-    for (const cam of withVin) {
-      const volvo = vinToFleet.get(cam.vin!);
-      if (!volvo) continue;
-
-      const gpsTime = volvo.gps?.positionDateTime || volvo.createdDateTime;
-
-      if (volvo.gps?.latitude && volvo.gps?.longitude && gpsTime) {
-        const existing = await db.select({ id: geoPuntos.id }).from(geoPuntos)
-          .where(and(
-            eq(geoPuntos.camionId, cam.id),
-            eq(geoPuntos.timestampPunto, new Date(gpsTime))
-          )).limit(1);
-
-        if (existing.length === 0) {
-          await db.insert(geoPuntos).values({
-            camionId: cam.id,
-            patente: cam.patente,
-            lat: String(volvo.gps.latitude),
-            lng: String(volvo.gps.longitude),
-            timestampPunto: new Date(gpsTime),
-            velocidadKmh: String(volvo.wheelBasedSpeed ?? volvo.gps.speed ?? 0),
-            rumboGrados: volvo.gps.heading != null ? String(volvo.gps.heading) : null,
-            kmOdometro: volvo.totalDistance != null ? String(Math.round(volvo.totalDistance / 1000)) : null,
-            fuente: "VOLVO",
-          });
-          // Also insert into unified GPS table
-          await insertarGpsVolvo(
-            cam.patente, cam.vin!, volvo.gps.latitude, volvo.gps.longitude,
-            volvo.wheelBasedSpeed ?? volvo.gps.speed ?? 0,
-            volvo.gps.heading ?? 0, new Date(gpsTime),
-            volvo.totalDistance ? Math.round(volvo.totalDistance / 1000) : undefined,
-            volvo.fuelLevel1 ?? undefined
-          );
-          ingested++;
-        }
-      }
-
-      if (volvo.totalFuelUsed != null && volvo.totalDistance != null) {
-        const hourKey = new Date().toISOString().slice(0, 13) + ":00:00";
-        try {
-          await pool.query(`
-            INSERT INTO volvo_fuel_snapshots (vin, total_fuel_used, total_distance, captured_at)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (vin, captured_at) DO UPDATE SET
-              total_fuel_used = EXCLUDED.total_fuel_used,
-              total_distance = EXCLUDED.total_distance
-          `, [cam.vin, volvo.totalFuelUsed, volvo.totalDistance, hourKey]);
-          snapshots++;
-        } catch {}
-      }
-    }
-
-    return { ingested, camiones: withVin.length, snapshots };
-  }
-
-  setInterval(async () => {
-    try {
-      const result = await ingestAllVolvo();
-      if (result.ingested > 0 || result.snapshots > 0) {
-        console.log(`[geo-auto] Ingested ${result.ingested} GPS points, ${result.snapshots} fuel snapshots from ${result.camiones} trucks`);
-      }
-    } catch (err: any) {
-      console.error("[geo-auto] Ingestion error:", err.message);
-    }
-  }, 90 * 1000);
-
-  setTimeout(async () => {
-    try {
-      const result = await ingestAllVolvo();
-      console.log(`[geo-auto] Initial ingestion: ${result.ingested} points from ${result.camiones} trucks`);
-    } catch (err: any) {
-      console.error("[geo-auto] Initial ingestion error:", err.message);
-    }
-  }, 10_000);
-
-  app.post("/api/geo/ingest-volvo", async (_req: Request, res: Response) => {
-    try {
-      const result = await ingestAllVolvo();
-      res.json(result);
-    } catch (error: any) {
-      console.error("[geo] ingest-volvo error:", error.message);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/geo/backfill", async (req: Request, res: Response) => {
-    try {
-      const { from, to, chunkHours } = req.body || {};
-      const fromDate = from || "2026-03-01";
-      const toDate = to || "2026-03-18";
-      const hours = Math.max(1, Math.min(24, Number(chunkHours) || 6));
-
-      const { validateBackfillParams } = await import("./volvo-backfill");
-      const validationError = validateBackfillParams(fromDate, toDate, hours);
-      if (validationError) {
-        return res.status(400).json({ error: validationError });
-      }
-
-      runBackfill(fromDate, toDate, hours);
-      res.json({ message: `Backfill started: ${fromDate} → ${toDate}`, progress: getBackfillProgress() });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/geo/backfill/progress", async (_req: Request, res: Response) => {
-    res.json(getBackfillProgress());
-  });
 
   app.post("/api/geo/detectar-viajes", async (_req: Request, res: Response) => {
     try {
@@ -2079,67 +1958,14 @@ export function registerGeoRoutes(app: Express) {
 
   app.get("/api/debug/vin-patente-diagnostico", async (_req, res) => {
     try {
-      const { diagnosticoVinPatente } = await import("./utils/vin-patente");
-      const diag = await diagnosticoVinPatente();
-      res.json(diag);
+      res.json({ message: "VIN-Patente diagnostics removed (Volvo pipeline eliminated)" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
   app.get("/api/debug/test-cruce-cargas", async (_req, res) => {
     try {
-      const { encontrarSnapshotsParaCarga } = await import("./utils/snapshots-carga");
-
-      const cargasTest = await pool.query(`
-        SELECT id, patente, fecha, litros_surtidor, lugar_consumo
-        FROM cargas
-        WHERE patente IS NOT NULL AND litros_surtidor > 0
-        ORDER BY fecha DESC
-        LIMIT 10
-      `);
-
-      const resultados = [];
-
-      for (const carga of cargasTest.rows) {
-        const snaps = await encontrarSnapshotsParaCarga(
-          carga.patente,
-          new Date(carga.fecha),
-          120
-        );
-
-        resultados.push({
-          patente: carga.patente,
-          fecha_carga: carga.fecha,
-          litros_sigetra: carga.litros_surtidor,
-          estacion: carga.lugar_consumo,
-          vin_encontrado: snaps.vin,
-          calidad_cruce: snaps.calidadCruce,
-          snap_antes: snaps.snapAntes
-            ? {
-                minutos_antes: snaps.snapAntes.minutosAntes,
-                fuel_acumulado_L: Math.round(snaps.snapAntes.totalFuelUsedMl / 1000),
-              }
-            : null,
-          snap_despues: snaps.snapDespues
-            ? { minutos_despues: snaps.snapDespues.minutosDespues }
-            : null,
-        });
-      }
-
-      const resumen = {
-        total_testeadas: resultados.length,
-        con_vin: resultados.filter((r) => r.vin_encontrado).length,
-        sin_vin: resultados.filter((r) => !r.vin_encontrado).length,
-        calidad_cruces: {
-          excelente: resultados.filter((r) => r.calidad_cruce === "EXCELENTE").length,
-          buena: resultados.filter((r) => r.calidad_cruce === "BUENA").length,
-          regular: resultados.filter((r) => r.calidad_cruce === "REGULAR").length,
-          mala: resultados.filter((r) => r.calidad_cruce === "MALA").length,
-          sin_datos: resultados.filter((r) => r.calidad_cruce === "SIN_DATOS").length,
-        },
-      };
-
-      res.json({ resumen, detalle: resultados });
+      res.json({ resumen: { total_testeadas: 0, con_vin: 0, sin_vin: 0 }, detalle: [] });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

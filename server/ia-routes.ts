@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { getFleetStatus } from "./volvo-api";
 import { storage } from "./storage";
 import type { Carga } from "@shared/schema";
 import { DATA_START } from "./db";
@@ -19,7 +18,7 @@ async function getFusionContext(days: number = 7): Promise<string> {
   if (from < DATA_START_DATE) from = new Date(DATA_START_DATE);
 
   const [fleetStatus, allCamionesRaw, faenas] = await Promise.all([
-    getFleetStatus().catch(() => []),
+    Promise.resolve([]),
     storage.getCamiones(),
     storage.getFaenas(),
   ]);
@@ -522,7 +521,7 @@ ${truckContext}`
 
       const [allCargas, fleet] = await Promise.all([
         storage.getCargasByDateRange(from, to).catch(() => [] as Carga[]),
-        getFleetStatus().catch(() => []),
+        Promise.resolve([]),
       ]);
       const vinsOnline = new Set(fleet.map((v: any) => v.vin));
       const cargasByCamionId = new Map<number, Carga[]>();

@@ -1,10 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertFaenaSchema, insertCamionSchema, insertCargaSchema, insertTarifaRutaSchema, camiones, volvoFuelSnapshots } from "@shared/schema";
+import { insertFaenaSchema, insertCamionSchema, insertCargaSchema, insertTarifaRutaSchema, camiones } from "@shared/schema";
 import { z } from "zod";
-import { getVehicles, getVehicleStatuses, getVehiclePositions, getFleetStatus, getSingleVehicleStatus } from "./volvo-api";
-import { syncVolvoVinsToCamiones } from "./volvo-vin-sync";
 import { registerIARoutes } from "./ia-routes";
 import { registerTMSRoutes } from "./tms-routes";
 import { registerCEORoutes } from "./ceo-routes";
@@ -138,232 +136,6 @@ export async function registerRoutes(
     const id = parseInt(req.params.id);
     await storage.deleteCarga(id);
     res.json({ success: true });
-  });
-
-  app.get("/api/volvo/status", async (_req, res) => {
-    const user = process.env.VOLVO_CONNECT_USER || "";
-    const hasPassword = !!process.env.VOLVO_CONNECT_PASSWORD;
-    const configured = !!user && hasPassword;
-
-    if (!configured) {
-      return res.json({ configured, status: "not_configured", user: "", message: "Credenciales no configuradas" });
-    }
-
-    try {
-      const authHeader = "Basic " + Buffer.from(`${user}:${process.env.VOLVO_CONNECT_PASSWORD}`).toString("base64");
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const testRes = await fetch("https://api.volvotrucks.com/rfms/vehicles", {
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/vnd.fmsstandard.com.Vehicles.v2.1+json",
-        },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (testRes.status === 200) {
-        return res.json({ configured, status: "connected", user, message: "Conectado a Volvo rFMS API" });
-      } else if (testRes.status === 403) {
-        return res.json({ configured, status: "forbidden", user, message: "Credenciales v\u00e1lidas pero acceso API no activado por Volvo (403 Forbidden). Contactar a Volvo para activar acceso rFMS." });
-      } else if (testRes.status === 401) {
-        return res.json({ configured, status: "unauthorized", user, message: "Credenciales inv\u00e1lidas (401 Unauthorized)" });
-      } else {
-        return res.json({ configured, status: "error", user, message: `Respuesta inesperada: ${testRes.status}` });
-      }
-    } catch (error: any) {
-      return res.json({ configured, status: "error", user, message: `Error de conexi\u00f3n: ${error.message}` });
-    }
-  });
-
-  app.get("/api/volvo/vehicles", async (_req, res) => {
-    try {
-      const vehicles = await getVehicles();
-      res.json(vehicles);
-    } catch (error: any) {
-      console.error("[volvo] Error fetching vehicles:", error.message);
-      res.status(502).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/volvo/vehicle-status", async (req, res) => {
-    try {
-      const vin = req.query.vin as string | undefined;
-      const statuses = await getVehicleStatuses(vin, true);
-      res.json(statuses);
-    } catch (error: any) {
-      console.error("[volvo] Error fetching statuses:", error.message);
-      res.status(502).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/volvo/vehicle-positions", async (req, res) => {
-    try {
-      const vin = req.query.vin as string | undefined;
-      const positions = await getVehiclePositions(vin, true);
-      res.json(positions);
-    } catch (error: any) {
-      console.error("[volvo] Error fetching positions:", error.message);
-      res.status(502).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/volvo/fleet-status", async (_req, res) => {
-    try {
-      const fleet = await getFleetStatus();
-      const nowDate = new Date();
-      const hourKey = nowDate.toISOString().slice(0, 13) + ":00:00.000Z";
-      const snapsToSave: { vin: string; totalFuelUsed: number; totalDistance: number | null; capturedAt: string }[] = [];
-      for (const vs of fleet) {
-        if (vs.totalFuelUsed != null) {
-          snapsToSave.push({ vin: vs.vin, totalFuelUsed: vs.totalFuelUsed, totalDistance: vs.totalDistance ?? null, capturedAt: hourKey });
-        }
-      }
-      if (snapsToSave.length > 0) {
-        storage.saveVolvoFuelSnapshots(snapsToSave).catch((err: any) => console.error("[fleet-status] snapshot save error:", err.message));
-      }
-      const allCams = await storage.getCamiones();
-      const allVins = new Set(allCams.filter(c => c.vin).map(c => c.vin));
-      res.json(fleet.filter((v: any) => allVins.has(v.vin)));
-    } catch (error: any) {
-      console.error("[volvo] Error fetching fleet status:", error.message);
-      res.status(502).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/volvo/vehicle-status/:vin", async (req, res) => {
-    try {
-      const { vin } = req.params;
-      if (!vin) return res.status(400).json({ message: "VIN is required" });
-      const status = await getSingleVehicleStatus(vin);
-      res.json(status);
-    } catch (error: any) {
-      console.error("[volvo] Error fetching vehicle status:", error.message);
-      res.status(502).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/volvo/truck-locations/:patente", async (req, res) => {
-    try {
-      const { patente } = req.params;
-      const fromStr = req.query.from as string | undefined;
-      const toStr = req.query.to as string | undefined;
-      const from = fromStr ? new Date(fromStr) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const to = toStr ? new Date(toStr) : new Date();
-      if (isNaN(from.getTime()) || isNaN(to.getTime())) {
-        return res.status(400).json({ message: "Parametros from/to invalidos" });
-      }
-
-      const camion = (await storage.getCamiones()).find(c => c.patente === patente);
-      if (!camion) return res.status(404).json({ message: "Camion no encontrado" });
-
-      let currentGps: { latitude: number | null; longitude: number | null; speed: number | null; positionDateTime: string | null } | null = null;
-      if (camion.vin) {
-        try {
-          const status = await getSingleVehicleStatus(camion.vin);
-          if (status?.gps) {
-            currentGps = {
-              latitude: status.gps.latitude,
-              longitude: status.gps.longitude,
-              speed: status.gps.speed,
-              positionDateTime: status.gps.positionDateTime,
-            };
-          }
-        } catch { }
-      }
-
-      const fuelData: any[] = [];
-      const numVeh = parseInt(patente, 10);
-      const truckCargas = fuelData.filter(c =>
-        (!isNaN(numVeh) && c.numVeh === numVeh) || c.patente === patente
-      );
-
-      const locations = truckCargas.map(c => ({
-        fecha: c.fechaConsumo,
-        lugar: c.lugarConsumo,
-        litros: c.cantidadLt,
-        odometro: c.odometroActual,
-        kmRecorrido: c.kmRecorrido,
-        conductor: c.nombreConductor,
-        faena: c.faena,
-        numGuia: c.numGuia,
-      }));
-
-      locations.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-
-      const lugarSummary = new Map<string, { count: number; totalLitros: number; lastDate: string }>();
-      for (const loc of locations) {
-        const key = loc.lugar || "Desconocido";
-        const existing = lugarSummary.get(key) || { count: 0, totalLitros: 0, lastDate: loc.fecha };
-        existing.count++;
-        existing.totalLitros += loc.litros;
-        if (new Date(loc.fecha) > new Date(existing.lastDate)) existing.lastDate = loc.fecha;
-        lugarSummary.set(key, existing);
-      }
-
-      res.json({
-        patente,
-        vin: camion.vin,
-        modelo: camion.modelo,
-        currentGps,
-        locations,
-        lugarSummary: Array.from(lugarSummary.entries()).map(([lugar, data]) => ({
-          lugar,
-          ...data,
-          totalLitros: Math.round(data.totalLitros * 100) / 100,
-        })),
-        totalCargas: locations.length,
-        periodo: { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) },
-      });
-    } catch (error: any) {
-      console.error("[volvo] Error fetching truck locations:", error.message);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/volvo/sync", async (_req, res) => {
-    try {
-      const [vehicles, statuses] = await Promise.all([
-        getVehicles(),
-        getVehicleStatuses(undefined, true),
-      ]);
-
-      const statusMap = new Map(statuses.map(s => [s.Vin, s]));
-      const now = new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" });
-      let synced = 0;
-
-      for (const v of vehicles) {
-        const status = statusMap.get(v.VIN);
-        const existing = await storage.getCamionByVin(v.VIN);
-
-        const camionData = {
-          patente: v.CustomerVehicleName || v.VIN.substring(v.VIN.length - 6),
-          modelo: v.Model ? `${v.Brand || "Volvo"} ${v.Model}` : (v.Brand || "Volvo"),
-          faenaId: existing?.faenaId || 0,
-          metaKmL: existing?.metaKmL || 2.0,
-          vin: v.VIN,
-          odometro: status?.HRTotalVehicleDistance ? Math.round(status.HRTotalVehicleDistance / 1000) : (existing?.odometro || null),
-          horasMotor: status?.TotalEngineHours ? Math.round(status.TotalEngineHours) : (existing?.horasMotor || null),
-          horasRalenti: existing?.horasRalenti || null,
-          velPromedio: existing?.velPromedio || null,
-          conductor: existing?.conductor || null,
-          syncOk: true,
-          syncAt: now,
-        };
-
-        if (existing) {
-          await storage.updateCamion(existing.id, camionData);
-        } else {
-          await storage.createCamion(camionData);
-        }
-        synced++;
-      }
-
-      res.json({ success: true, synced, total: vehicles.length });
-    } catch (error: any) {
-      console.error("[volvo] Sync error:", error.message);
-      res.status(502).json({ success: false, message: error.message });
-    }
   });
 
   app.get("/api/desviaciones/checks", async (_req, res) => {
@@ -571,11 +343,6 @@ export async function registerRoutes(
       } catch {}
 
       let fleetStatus: any[] = [];
-      try {
-        const allFleet = await getFleetStatus();
-        const allVins = new Set(allCamiones.map(c => c.vin).filter(Boolean));
-        fleetStatus = allFleet.filter((v: any) => allVins.has(v.vin));
-      } catch {}
 
       const totalCamiones = allCamiones.length;
       const totalFaenas = allFaenas.length;
@@ -897,113 +664,16 @@ export async function registerRoutes(
 
   app.get("/api/faenas/en-movimiento", async (_req, res) => {
     try {
-      const allCamiones = await storage.getCamiones();
-      const allFaenas = await storage.getFaenas();
-
-      let fleet: any[] = [];
-      try {
-        const { getFleetStatus } = await import("./volvo-api");
-        fleet = await getFleetStatus();
-      } catch {}
-
-      const vinToFleet = new Map(fleet.map(v => [v.vin, v]));
-      const now = Date.now();
-
-      const faenaMap = new Map(allFaenas.map(f => [f.id, f]));
-      const byFaena = new Map<number, any[]>();
-
-      for (const cam of allCamiones) {
-        if (!cam.faenaId || !cam.vin) continue;
-        const volvo = vinToFleet.get(cam.vin);
-        if (!volvo?.gps) continue;
-
-        const gpsAge = volvo.gps.positionDateTime
-          ? (now - new Date(volvo.gps.positionDateTime).getTime()) / (1000 * 60)
-          : 999;
-
-        const isMoving = (volvo.gps.speed || 0) > 2;
-        const isRecent = gpsAge < 60;
-        const isOnline = gpsAge < 360;
-
-        if (!isOnline) continue;
-
-        const truck = {
-          id: cam.id,
-          patente: cam.patente,
-          modelo: cam.modelo,
-          vin: cam.vin,
-          lat: volvo.gps.latitude,
-          lng: volvo.gps.longitude,
-          speed: volvo.gps.speed || 0,
-          heading: volvo.gps.heading,
-          gpsTime: volvo.gps.positionDateTime,
-          gpsAgeMin: Math.round(gpsAge),
-          fuelLevel: volvo.fuelLevel,
-          engineHours: volvo.engineHours,
-          totalDistance: volvo.totalDistance,
-          driverWorkingState: volvo.driverWorkingState,
-          isMoving,
-          isRecent,
-          estado: isMoving ? "EN_RUTA" : isRecent ? "DETENIDO" : "INACTIVO",
-        };
-
-        const arr = byFaena.get(cam.faenaId) || [];
-        arr.push(truck);
-        byFaena.set(cam.faenaId, arr);
-      }
-
-      const result = Array.from(byFaena.entries()).map(([faenaId, trucks]) => {
-        const faena = faenaMap.get(faenaId);
-        if (!faena) return null;
-        const enRuta = trucks.filter(t => t.estado === "EN_RUTA").length;
-        const detenidos = trucks.filter(t => t.estado === "DETENIDO").length;
-        const inactivos = trucks.filter(t => t.estado === "INACTIVO").length;
-        return {
-          faenaId,
-          nombre: faena.nombre,
-          color: faena.color,
-          trucks: trucks.sort((a, b) => {
-            const order: Record<string, number> = { EN_RUTA: 0, DETENIDO: 1, INACTIVO: 2 };
-            return (order[a.estado] ?? 3) - (order[b.estado] ?? 3);
-          }),
-          enRuta,
-          detenidos,
-          inactivos,
-          totalOnline: trucks.length,
-        };
-      }).filter(Boolean).sort((a: any, b: any) => b.enRuta - a.enRuta || b.totalOnline - a.totalOnline);
-
-      const totals = {
-        totalOnline: result.reduce((s: number, f: any) => s + f.totalOnline, 0),
-        enRuta: result.reduce((s: number, f: any) => s + f.enRuta, 0),
-        detenidos: result.reduce((s: number, f: any) => s + f.detenidos, 0),
-        inactivos: result.reduce((s: number, f: any) => s + f.inactivos, 0),
-        faenasActivas: result.length,
-      };
-
-      res.json({ faenas: result, totals });
+      res.json({ faenas: [], totals: { totalOnline: 0, enRuta: 0, detenidos: 0, inactivos: 0, faenasActivas: 0 } });
     } catch (error: any) {
-      console.error("[faenas/en-movimiento] Error:", error.message);
       res.status(500).json({ message: error.message });
     }
   });
 
   app.get("/api/dashboard/sistema", async (_req, res) => {
     try {
-      let volvoStatus: any = { status: "unknown" };
-      try {
-        const user = process.env.VOLVO_CONNECT_USER || "";
-        const hasPassword = !!process.env.VOLVO_CONNECT_PASSWORD;
-        const configured = !!user && hasPassword;
-        if (configured) {
-          const fleet = await getFleetStatus();
-          volvoStatus = { status: "connected", vehiculos: fleet.length, configured: true };
-        } else {
-          volvoStatus = { status: "not_configured", vehiculos: 0, configured: false };
-        }
-      } catch (e: any) {
-        volvoStatus = { status: "error", vehiculos: 0, configured: true, error: e.message };
-      }
+      const { getWiseTrackStatus } = await import("./wisetrack-scraper");
+      const wtStatus = getWiseTrackStatus();
 
       const iaConfigured = !!process.env.ANTHROPIC_API_KEY;
       const iaStatus = {
@@ -1015,14 +685,14 @@ export async function registerRoutes(
       const now = new Date();
       const ultimoSync = now.toLocaleString("es-CL", { timeZone: "America/Santiago" });
 
-      const healthVolvo = volvoStatus.status === "connected" ? 100 : volvoStatus.status === "not_configured" ? 0 : 30;
+      const healthWT = wtStatus.lastSyncAt && !wtStatus.lastSyncError ? 100 : wtStatus.lastSyncError ? 30 : 0;
       const healthIA = iaConfigured ? 100 : 0;
 
       res.json({
-        volvo: { ...volvoStatus, health: healthVolvo },
+        wisetrack: { ...wtStatus, health: healthWT },
         ia: { ...iaStatus, health: healthIA },
         ultimoSync,
-        healthGeneral: Math.round((healthVolvo + healthIA) / 2),
+        healthGeneral: Math.round((healthWT + healthIA) / 2),
       });
     } catch (error: any) {
       console.error("[dashboard/sistema] Error:", error.message);
@@ -1084,17 +754,12 @@ export async function registerRoutes(
       const litrosMicro = parseFloat(params.find(p => p.clave === "litros_micro_carga")?.valor || "100");
       const nivelTanqueSospechoso = parseFloat(params.find(p => p.clave === "nivel_tanque_sospechoso_pct")?.valor || "80");
 
-      let fleet: any[] = [];
-      try { fleet = await getFleetStatus(); } catch {}
-
       const camionMap = new Map(camiones.map(c => [c.patente, c]));
       const camionByNumVeh = new Map(camiones.filter(c => c.numVeh).map(c => [c.numVeh!, c]));
       const faenaMap = new Map(faenas.map(f => [f.id, f]));
-      const vinFuelLevel = new Map(fleet.map((v: any) => [v.vin, v.fuelLevel]));
 
       const smallLoads = fuelData.filter(r => r.cantidadLt < litrosMicro && r.cantidadLt > 0);
 
-      // Signal A: Multiple small loads same day at different stations
       const dayGroups = new Map<string, typeof smallLoads>();
       for (const r of smallLoads) {
         const dateStr = r.fechaConsumo.split(" ")[0];
@@ -1112,61 +777,9 @@ export async function registerRoutes(
         }
       }
 
-      // Signal B: Fuel load without movement — check volvo_fuel_snapshots for distance changes
       const signalB = new Set<number>();
-      const horasVentana = parseFloat(params.find(p => p.clave === "horas_ventana_gps")?.valor || "4");
-      {
-        const allSnapshots = await db.select().from(
-          (await import("@shared/schema")).volvoFuelSnapshots
-        );
-        const snapByVin = new Map<string, { capturedAt: string; totalDistance: number | null }[]>();
-        for (const s of allSnapshots) {
-          if (!snapByVin.has(s.vin)) snapByVin.set(s.vin, []);
-          snapByVin.get(s.vin)!.push({ capturedAt: s.capturedAt, totalDistance: s.totalDistance });
-        }
-
-        for (const r of smallLoads) {
-          const cam = camionMap.get(r.patente) || (r.numVeh ? camionByNumVeh.get(String(r.numVeh)) : null);
-          if (!cam?.vin) continue;
-          const snaps = snapByVin.get(cam.vin);
-          if (!snaps || snaps.length < 2) continue;
-
-          const loadTime = new Date(r.fechaConsumo).getTime();
-          const windowMs = horasVentana * 60 * 60 * 1000;
-          const nearbySnaps = snaps.filter(s => {
-            const snapTime = new Date(s.capturedAt).getTime();
-            return Math.abs(snapTime - loadTime) <= windowMs && s.totalDistance != null;
-          });
-
-          if (nearbySnaps.length >= 2) {
-            const distances = nearbySnaps.map(s => s.totalDistance!);
-            const distChange = Math.max(...distances) - Math.min(...distances);
-            if (distChange < 1000) {
-              signalB.add(r.numGuia);
-            }
-          } else if (nearbySnaps.length === 0) {
-            const volvo = fleet.find((v: any) => v.vin === cam.vin);
-            if (volvo) {
-              const gpsTime = volvo.gps?.positionDateTime;
-              if (!gpsTime) { signalB.add(r.numGuia); continue; }
-              const gpsAgeH = (Date.now() - new Date(gpsTime).getTime()) / (1000 * 60 * 60);
-              if (gpsAgeH > 12 && (volvo.gps?.speed || 0) === 0) {
-                signalB.add(r.numGuia);
-              }
-            }
-          }
-        }
-      }
-
-      // Signal C: Fuel load when tank is nearly full
       const signalC = new Set<number>();
-      for (const r of smallLoads) {
-        const cam = camionMap.get(r.patente) || (r.numVeh ? camionByNumVeh.get(String(r.numVeh)) : null);
-        if (!cam?.vin) continue;
-        const currentLevel = vinFuelLevel.get(cam.vin);
-        if (currentLevel != null && currentLevel > nivelTanqueSospechoso) {
-          signalC.add(r.numGuia);
-        }
+      {
       }
 
       const suspicious: any[] = [];
@@ -1222,90 +835,11 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════
   app.get("/api/datos/excesos-velocidad", async (_req, res) => {
     try {
-      const params = await storage.getParametros();
-      const limiteKmh = parseFloat(params.find(p => p.clave === "velocidad_limite_kmh")?.valor || params.find(p => p.clave === "vel_max_kmh")?.valor || "90");
-
-      let fleet: any[] = [];
-      try { fleet = await getFleetStatus(); } catch {}
-
-      const allCamiones = await storage.getCamiones();
-      const faenas = await storage.getFaenas();
-      const camiones = allCamiones;
-      const camionByVin = new Map(camiones.filter(c => c.vin).map(c => [c.vin, c]));
-      const faenaMap = new Map(faenas.map(f => [f.id, f]));
-
-      const eventos: any[] = [];
-      for (const v of fleet) {
-        const speed = v.wheelBasedSpeed ?? v.gps?.speed ?? 0;
-        if (speed <= limiteKmh) continue;
-        const cam = camionByVin.get(v.vin);
-        if (!cam) continue;
-        const faena = faenaMap.get(cam.faenaId);
-
-        eventos.push({
-          camionId: cam.id,
-          patente: cam.patente,
-          modelo: cam.modelo,
-          conductor: cam.conductor || v.driverId || null,
-          faena: faena?.nombre || null,
-          velocidadMaxima: Math.round(speed * 10) / 10,
-          fecha: v.gps?.positionDateTime || v.createdDateTime || new Date().toISOString(),
-          lat: v.gps?.latitude || null,
-          lng: v.gps?.longitude || null,
-          riesgo: speed > 105 ? "ALTO" : speed > 90 ? "MEDIO" : "BAJO",
-        });
-      }
-
-      eventos.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-
-      const porCamion = new Map<string, any>();
-      for (const e of eventos) {
-        if (!porCamion.has(e.patente)) {
-          porCamion.set(e.patente, {
-            patente: e.patente,
-            modelo: e.modelo,
-            conductor: e.conductor,
-            faena: e.faena,
-            velocidadMaxima: e.velocidadMaxima,
-            totalExcesos: 0,
-            ultimoExceso: e.fecha,
-            eventos: [],
-            riesgo: "BAJO",
-          });
-        }
-        const entry = porCamion.get(e.patente)!;
-        entry.totalExcesos++;
-        entry.eventos.push(e);
-        if (e.velocidadMaxima > entry.velocidadMaxima) entry.velocidadMaxima = e.velocidadMaxima;
-        if (entry.velocidadMaxima > 120 || entry.totalExcesos > 10) entry.riesgo = "ALTO";
-        else if (entry.velocidadMaxima > 100 || entry.totalExcesos > 2) entry.riesgo = "MEDIO";
-      }
-
-      const camionesConExceso = Array.from(porCamion.values()).sort((a, b) => b.totalExcesos - a.totalExcesos);
-
-      const totalCamiones = camiones.filter(c => c.vin).length;
-      const camionesNunca = totalCamiones - camionesConExceso.length;
-      const camionesOcasionales = camionesConExceso.filter(c => c.riesgo === "BAJO" || c.riesgo === "MEDIO").length;
-      const camionesFrecuentes = camionesConExceso.filter(c => c.riesgo === "ALTO").length;
-
-      const masGrave = camionesConExceso.length > 0 ? camionesConExceso[0] : null;
-
       res.json({
-        eventos,
-        porCamion: camionesConExceso,
-        totals: {
-          camionesConExceso: camionesConExceso.length,
-          eventosTotal: eventos.length,
-          masGrave: masGrave ? { patente: masGrave.patente, velocidad: masGrave.velocidadMaxima } : null,
-          hoy: eventos.filter(e => new Date(e.fecha).toDateString() === new Date().toDateString()).length,
-          limiteKmh,
-        },
-        resumen: {
-          nuncaExcedieron: camionesNunca,
-          ocasionales: camionesOcasionales,
-          frecuentes: camionesFrecuentes,
-        },
-        desde: getDefaultDesde(30).toISOString().slice(0,10),
+        eventos: [],
+        porCamion: [],
+        totals: { camionesConExceso: 0, eventosTotal: 0, masGrave: null, hoy: 0, limiteKmh: 90 },
+        resumen: { nuncaExcedieron: 0, ocasionales: 0, frecuentes: 0 },
       });
     } catch (error: any) {
       console.error("[datos] excesos-velocidad error:", error.message);
@@ -1323,9 +857,7 @@ export async function registerRoutes(
       const faenaMap = new Map(faenas.map(f => [f.id, f]));
       const camiones = allCamiones;
 
-      let fleet: any[] = [];
-      try { fleet = await getFleetStatus(); } catch {}
-      const vinWeight = new Map(fleet.map((v: any) => [v.vin, v.grossWeight]));
+      const vinWeight = new Map<string, number>();
 
       const from = getDefaultDesde();
       const to = new Date();

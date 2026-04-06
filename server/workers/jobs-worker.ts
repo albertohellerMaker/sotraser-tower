@@ -150,16 +150,6 @@ async function main() {
       },
     },
 
-    VIN_PATENTE_REFRESH: {
-      intervalo: 60 * 60 * 1000,
-      nombre: "VIN_PATENTE_REFRESH",
-      fn: async () => {
-        const { invalidarCache, diagnosticoVinPatente } = await import("../utils/vin-patente");
-        invalidarCache();
-        const diag = await diagnosticoVinPatente();
-        log(`VIN Refresh: ${diag.vins_resueltos} VINs, ${diag.patentes_mapeadas} patentes, ${diag.vins_con_duplicados} duplicados`);
-      },
-    },
   };
 
   const jobsEnCurso = new Set<string>();

@@ -2,7 +2,6 @@ import type { Express, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { pool, DATA_START } from "./db";
-import { getFleetStatus } from "./volvo-api";
 
 const MODEL = "claude-sonnet-4-20250514";
 
@@ -34,7 +33,7 @@ async function getCoreData(dias: number) {
     storage.getFaenas(),
     Promise.resolve([]),
     Promise.resolve([]),
-    getFleetStatus().catch(() => []),
+    Promise.resolve([]),
     storage.getParametros(),
   ]);
 

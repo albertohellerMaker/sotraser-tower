@@ -3,15 +3,6 @@ import https from "https";
 import { parse as parseUrl } from "url";
 
 const API_URL = "https://ei.wisetrack.cl/Sotraser/TelemetriaDetalle";
-const PORTAL_URL = "https://telemetria.wisetrack.cl/Portal";
-
-interface WiseTrackSession {
-  cookies: string;
-  loginTime: number;
-}
-
-let cachedSession: WiseTrackSession | null = null;
-const SESSION_TTL = 25 * 60 * 1000;
 
 const vehiculoMap = new Map<string, { patente: string; grupo1: string; conductor: string }>();
 
@@ -29,7 +20,6 @@ function httpRequest(
     opts.headers = {
       Cookie: cookies || "",
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "X-Requested-With": "XMLHttpRequest",
       ...headers,
     };
     let payload: string | undefined;
@@ -57,147 +47,6 @@ function httpRequest(
     if (payload) req.write(payload);
     req.end();
   });
-}
-
-async function loginPortal(): Promise<WiseTrackSession> {
-  if (cachedSession && Date.now() - cachedSession.loginTime < SESSION_TTL) {
-    return cachedSession;
-  }
-
-  const user = process.env.WISETRACK_USER;
-  const pass = process.env.WISETRACK_PASS;
-  const company = process.env.WISETRACK_COMPANY || "Sotraser";
-
-  if (!user || !pass) throw new Error("WISETRACK_USER/WISETRACK_PASS not set");
-
-  const page = await httpRequest("GET", `${PORTAL_URL}/`);
-  const cookies = page.cookies.join("; ");
-
-  const vs = page.data.match(/__VIEWSTATE.*?value="([^"]+)"/)?.[1] || "";
-  const ev = page.data.match(/__EVENTVALIDATION.*?value="([^"]+)"/)?.[1] || "";
-  const vg = page.data.match(/__VIEWSTATEGENERATOR.*?value="([^"]+)"/)?.[1] || "";
-
-  const loginResp = await httpRequest(
-    "POST",
-    `${PORTAL_URL}/`,
-    {
-      TextBox1: user,
-      TextBox2: pass,
-      TextBox3: company,
-      Button1: "Ingresar",
-      __VIEWSTATE: vs,
-      __VIEWSTATEGENERATOR: vg,
-      __EVENTVALIDATION: ev,
-    },
-    cookies
-  );
-
-  if (loginResp.status !== 302) {
-    throw new Error(`WiseTrack portal login failed: status ${loginResp.status}`);
-  }
-
-  const allCookies = [...cookies.split("; "), ...loginResp.cookies].join("; ");
-  cachedSession = { cookies: allCookies, loginTime: Date.now() };
-  console.log("[WISETRACK] Portal login OK");
-  return cachedSession;
-}
-
-export function invalidateSession() {
-  cachedSession = null;
-}
-
-export interface WiseTrackVehicle {
-  etiqueta: string;
-  movil: string;
-  patente: string;
-  fecha: string;
-  velocidad: number;
-  lat: number;
-  lng: number;
-  direccion: number;
-  ignicion: boolean;
-  grupo1: string;
-  grupo2: string;
-  grupo3: string;
-  grupo4: string;
-  conductor: string;
-  kms: number;
-  kmsTotal: number;
-  consumoLitros: number;
-  tiempoConduccion: number;
-  tiempoRalenti: number;
-  nivelEstanque: number;
-  rpm: number;
-  tempMotor: number;
-  estadoOperacion: string;
-  fechaInicioUltViaje: string;
-  fechaFinUltViaje: string;
-}
-
-export async function fetchSeguimiento(soloGrupo1?: string): Promise<WiseTrackVehicle[]> {
-  const session = await loginPortal();
-
-  const resp = await httpRequest(
-    "POST",
-    `${PORTAL_URL}/Ajaxpages/AjaxReport.aspx?Metodo=Seguimiento`,
-    {},
-    session.cookies
-  );
-
-  if (resp.status !== 200) {
-    invalidateSession();
-    throw new Error("WiseTrack: unable to fetch vehicle data");
-  }
-
-  let raw: any[];
-  try {
-    raw = JSON.parse(resp.data);
-  } catch {
-    invalidateSession();
-    throw new Error("WiseTrack: unable to parse response");
-  }
-
-  let vehicles: WiseTrackVehicle[] = raw.map((v) => ({
-    etiqueta: v.Etiqueta || "",
-    movil: v.Movil || "",
-    patente: v.MOV_PATENTE || "",
-    fecha: v.Fecha || "",
-    velocidad: parseFloat(v.Velocidad) || 0,
-    lat: v.Latitud || 0,
-    lng: v.Longitud || 0,
-    direccion: v.Direccion || 0,
-    ignicion: !!v.Ignicion,
-    grupo1: v.MOV_GRUPO1 || "",
-    grupo2: v.MOV_GRUPO2 || "",
-    grupo3: v.MOV_GRUPO3 || "",
-    grupo4: v.MOV_GRUPO4 || "",
-    conductor: v.CONDUCTOR || "",
-    kms: v.Kms || 0,
-    kmsTotal: v.Kms_Total_Sincronizado || 0,
-    consumoLitros: parseFloat(v.ConsumoLitros_Conduccion) || 0,
-    tiempoConduccion: v.Tiempo_Conduccion || 0,
-    tiempoRalenti: v.Tiempo_Ralenti || 0,
-    nivelEstanque: parseFloat(v.NIVELESTANQUE) || 0,
-    rpm: v.RPM || 0,
-    tempMotor: parseFloat(v.TempMotor) || 0,
-    estadoOperacion: v.EstadoOperacionCanStr || "",
-    fechaInicioUltViaje: v.Fecha_Inicio_Ult_Viaje || "",
-    fechaFinUltViaje: v.Fecha_Fin_Ult_Viaje || "",
-  }));
-
-  for (const v of vehicles) {
-    if (v.etiqueta && v.patente) {
-      vehiculoMap.set(v.etiqueta, { patente: v.patente, grupo1: v.grupo1, conductor: v.conductor });
-    }
-  }
-
-  if (soloGrupo1) {
-    vehicles = vehicles.filter(
-      (v) => v.grupo1.toLowerCase() === soloGrupo1.toLowerCase()
-    );
-  }
-
-  return vehicles;
 }
 
 export interface WTTelemetriaRecord {
@@ -321,34 +170,6 @@ export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<num
   }
 }
 
-export async function syncVehiculoMap(): Promise<number> {
-  try {
-    const vehicles = await fetchSeguimiento();
-    const client = await pool.connect();
-    try {
-      let count = 0;
-      for (const v of vehicles) {
-        if (!v.etiqueta || !v.patente) continue;
-        await client.query(
-          `INSERT INTO wisetrack_vehiculos (movil, patente, grupo1, grupo2, conductor, actualizado_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())
-           ON CONFLICT (movil) DO UPDATE SET
-             patente = $2, grupo1 = $3, grupo2 = $4, conductor = $5, actualizado_at = NOW()`,
-          [v.etiqueta, v.patente, v.grupo1, v.grupo2, v.conductor]
-        );
-        vehiculoMap.set(v.etiqueta, { patente: v.patente, grupo1: v.grupo1, conductor: v.conductor });
-        count++;
-      }
-      return count;
-    } finally {
-      client.release();
-    }
-  } catch (err: any) {
-    console.error("[WISETRACK] Vehicle map sync error:", err.message);
-    return 0;
-  }
-}
-
 async function ensureTables() {
   const client = await pool.connect();
   try {
@@ -401,50 +222,10 @@ async function loadVehiculoMapFromDB() {
   }
 }
 
-export function savePositions(vehicles: WiseTrackVehicle[]): Promise<number> {
-  return saveLegacyPositions(vehicles);
-}
-
-async function saveLegacyPositions(vehicles: WiseTrackVehicle[]): Promise<number> {
-  if (vehicles.length === 0) return 0;
-
-  const client = await pool.connect();
-  try {
-    let saved = 0;
-    for (const v of vehicles) {
-      if (!v.patente || !v.lat || !v.lng) continue;
-      try {
-        await client.query(
-          `INSERT INTO wisetrack_posiciones 
-           (patente, etiqueta, fecha, lat, lng, velocidad, direccion, ignicion,
-            grupo1, conductor, kms_total, consumo_litros, nivel_estanque,
-            rpm, temp_motor, estado_operacion)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-           ON CONFLICT (patente, fecha) DO NOTHING`,
-          [
-            v.patente, v.etiqueta, v.fecha, v.lat, v.lng,
-            v.velocidad, v.direccion, v.ignicion,
-            v.grupo1, v.conductor, v.kmsTotal, v.consumoLitros,
-            v.nivelEstanque, v.rpm, v.tempMotor, v.estadoOperacion,
-          ]
-        );
-        saved++;
-      } catch {
-      }
-    }
-    return saved;
-  } finally {
-    client.release();
-  }
-}
-
 let apiInterval: NodeJS.Timeout | null = null;
-let portalInterval: NodeJS.Timeout | null = null;
 let lastApiSyncAt: Date | null = null;
 let lastApiSyncCount = 0;
 let lastApiSyncError: string | null = null;
-let lastPortalSyncAt: Date | null = null;
-let lastPortalSyncCount = 0;
 let totalApiRecords = 0;
 
 export function getWiseTrackStatus() {
@@ -455,16 +236,10 @@ export function getWiseTrackStatus() {
       lastSyncError: lastApiSyncError,
       totalRecords: totalApiRecords,
     },
-    portal: {
-      lastSyncAt: lastPortalSyncAt,
-      lastSyncCount: lastPortalSyncCount,
-      sessionActive: !!cachedSession && Date.now() - cachedSession.loginTime < SESSION_TTL,
-    },
     vehiculoMapSize: vehiculoMap.size,
-    lastSyncAt: lastApiSyncAt || lastPortalSyncAt,
-    lastSyncCount: lastApiSyncCount || lastPortalSyncCount,
+    lastSyncAt: lastApiSyncAt,
+    lastSyncCount: lastApiSyncCount,
     lastSyncError: lastApiSyncError,
-    sessionActive: !!cachedSession && Date.now() - cachedSession.loginTime < SESSION_TTL,
   };
 }
 
@@ -488,43 +263,21 @@ async function doApiSync() {
   }
 }
 
-async function doPortalSync() {
-  try {
-    const count = await syncVehiculoMap();
-    lastPortalSyncAt = new Date();
-    lastPortalSyncCount = count;
-    console.log(`[WISETRACK] Portal sync OK: ${count} vehicles mapped`);
-
-    const vehicles = await fetchSeguimiento("CENCOSUD");
-    const saved = await saveLegacyPositions(vehicles);
-    console.log(`[WISETRACK] Sync OK: ${vehicles.length} Cencosud vehicles, ${saved} new positions saved`);
-  } catch (err: any) {
-    console.error(`[WISETRACK] Portal sync error: ${err.message}`);
-  }
-}
-
-export function startWiseTrackSync(apiIntervalMs = 60_000, portalIntervalMs = 300_000) {
+export function startWiseTrackSync(apiIntervalMs = 60_000) {
   if (apiInterval) return;
 
-  console.log(`[WISETRACK] Starting API sync every ${apiIntervalMs / 1000}s, portal sync every ${portalIntervalMs / 1000}s`);
+  console.log(`[WISETRACK] Starting API sync every ${apiIntervalMs / 1000}s (official API only)`);
 
   loadVehiculoMapFromDB().then(() => {
-    doPortalSync().then(() => {
-      doApiSync();
-    });
+    doApiSync();
   });
 
   apiInterval = setInterval(doApiSync, apiIntervalMs);
-  portalInterval = setInterval(doPortalSync, portalIntervalMs);
 }
 
 export function stopWiseTrackSync() {
   if (apiInterval) {
     clearInterval(apiInterval);
     apiInterval = null;
-  }
-  if (portalInterval) {
-    clearInterval(portalInterval);
-    portalInterval = null;
   }
 }
