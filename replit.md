@@ -41,7 +41,7 @@ client/                    # React frontend (Vite)
     pages/                 # Active pages
       flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
       cencosud.tsx         # Dedicated Cencosud TMS view (EN VIVO real-time tracking, P&L, viajes, tarifas, mapeo)
-      wisetrack.tsx        # WiseTrack GPS view — live Cencosud fleet tracking from WiseTrack portal
+      wisetrack-app.tsx     # WiseTrack full app shell — parallel platform with Flota/Camiones/Sistema tabs
       operative-brain.tsx  # AI brain with multi-agent chat
       conductores-panel.tsx # Conductores management
       app-conductor-hub.tsx # Driver app management hub
