@@ -41,7 +41,7 @@ client/                    # React frontend (Vite)
     pages/                 # Active pages
       flota.tsx            # Fleet overview (EN VIVO + COMBUSTIBLE sub-tabs)
       cencosud.tsx         # Dedicated Cencosud TMS view (EN VIVO real-time tracking, P&L, viajes, tarifas, mapeo)
-      wisetrack-app.tsx    # WiseTrack full app shell — main app with Flota/Camiones/Sistema tabs
+      wisetrack-app.tsx    # TOWER main app shell — FLOTA dashboard (RESUMEN/COMBUSTIBLE/ANOMALIAS/MAPA EN VIVO), CAMIONES, TMS CENCOSUD, SISTEMA tabs
       operative-brain.tsx  # AI brain with multi-agent chat
       conductores-panel.tsx # Conductores management
       camiones.tsx         # Individual truck view with faena filter
@@ -64,6 +64,9 @@ shared/
 
 ## Navigation Flow
 Login → SplashScreen → WiseTrackApp (tabs: FLOTA / CAMIONES / TMS CENCOSUD / SISTEMA)
+- FLOTA tab has sub-tabs: RESUMEN (fleet summary + operational alerts), COMBUSTIBLE (fuel performance + low-tank alerts), ANOMALIAS (trip anomaly detection from viajes_aprendizaje), MAPA EN VIVO (live GPS tracking map)
+- Header shows "SOTRASER · TOWER · LIVE"
+- All Volvo Connect references cleaned from main dashboard and key components
 
 ## Key Environment Variables
 - `DATABASE_URL`: PostgreSQL connection string

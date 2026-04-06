@@ -795,7 +795,7 @@ function CamionDetalle({ patente, onDayFilter, onPointHighlight, viajesDelDia, o
                 <span className="font-exo text-xs" style={{ color: "#3a6080" }}>{meses[(data.mes || 1) - 1]} {data.anio}</span>
                 {data.acumulado?.dias_volvo > 0 && (
                   <span className="font-exo text-xs px-1.5 py-0.5 rounded" style={{ background: "#00ff8812", border: "1px solid #00ff8825", color: "#00ff88" }}>
-                    {data.acumulado.dias_volvo}d Volvo ECU
+                    {data.acumulado.dias_volvo}d WiseTrack
                   </span>
                 )}
               </div>

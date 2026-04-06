@@ -199,7 +199,7 @@ function CamionesTab() {
             CONSUMO ECU POR CAMION
           </h2>
           <p className="font-exo text-[11px]" style={{ color: "#3a6080" }}>
-            Acumulado mensual por camion — consumo ECU Volvo (desde 01-MAR)
+            Acumulado mensual por camion — consumo ECU WiseTrack (desde 01-MAR)
           </p>
         </div>
       </div>
@@ -231,7 +231,7 @@ function CamionesTab() {
         {[
           { label: "CAMIONES", val: totals.camiones, color: contratoColor },
           { label: "LT ECU", val: fN(totals.litrosEcu), color: "#00d4ff" },
-          { label: "KM VOLVO", val: fN(totals.km), color: "#3a6080" },
+          { label: "KM WISETRACK", val: fN(totals.km), color: "#3a6080" },
         ].map(k => (
           <div key={k.label} className="dash-card px-3 py-2.5" data-testid={`camiones-kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
             <div className="font-exo text-xs tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>{k.label}</div>
@@ -311,7 +311,7 @@ function CamionesTab() {
                         <div className="p-4">
                           <div className="grid grid-cols-3 gap-3 mb-3">
                             <div className="dash-card p-3">
-                              <div className="font-exo text-xs tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>KM ECU VOLVO</div>
+                              <div className="font-exo text-xs tracking-[0.1em] uppercase" style={{ color: "#3a6080" }}>KM ECU WISETRACK</div>
                               <div className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{fN(c.kmEcu)}</div>
                             </div>
                             <div className="dash-card p-3">
@@ -650,7 +650,7 @@ function RecopilacionTab() {
   };
 
   return (
-    <div className="space-y-4" data-testid="cobertura-volvo">
+    <div className="space-y-4" data-testid="cobertura-wisetrack">
       {/* HEADER SEMAFORO */}
       <div className="grid grid-cols-5 gap-3">
         {/* Semaforo principal */}
@@ -1315,7 +1315,7 @@ function RendimientoECUTab() {
       )}
 
       <div className="mt-4 font-rajdhani text-[11px]" style={{ color: '#4a7090' }}>
-        Solo camiones con telemetria Volvo activa. Datos de los ultimos 7 dias.
+        Solo camiones con telemetria WiseTrack activa. Datos de los ultimos 7 dias.
       </div>
     </div>
   );
