@@ -240,11 +240,11 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
               {[
                 { label: "VIAJES ECU", value: data.resumen.totalViajes, color: "text-[#00d4ff]" },
-                { label: "CARGAS SIGETRA", value: data.resumen.totalCargas, color: "text-[#00d4ff]" },
+                { label: "CARGAS SURTIDOR", value: data.resumen.totalCargas, color: "text-[#00d4ff]" },
                 { label: "LT ECU", value: `${fN(Math.round(data.resumen.totalEcuLt))}`, color: "text-amber-400" },
                 { label: "KM ECU", value: `${fN(data.resumen.totalEcuKm)}`, color: "text-[#c8e8ff]" },
                 { label: "REND ECU", value: `${data.resumen.rendEcu.toFixed(2)}`, color: rendColor(data.resumen.rendEcu), unit: "km/L" },
-                { label: "LT SIGETRA", value: `${fN(Math.round(data.resumen.totalSigLt))}`, color: "text-amber-400" },
+                { label: "LT SURTIDOR", value: `${fN(Math.round(data.resumen.totalSigLt))}`, color: "text-amber-400" },
                 { label: "CAMIONES", value: data.resumen.camiones.length, color: "text-[#c8e8ff]" },
                 { label: "ANOMALIAS", value: data.resumen.anomalias, color: data.resumen.anomalias > 0 ? "text-[#ff2244]" : "text-[#00c97a]" },
               ].map((k, i) => (
@@ -275,7 +275,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
               {([
                 { key: "historial" as const, label: "HISTORIAL", icon: <Calendar className="w-3.5 h-3.5" />, count: data.historialMensual?.length || 0 },
                 { key: "viajes" as const, label: "VIAJES ECU", icon: <Route className="w-3.5 h-3.5" />, count: data.viajes.length },
-                { key: "cargas" as const, label: "CARGAS SIGETRA", icon: <Fuel className="w-3.5 h-3.5" />, count: data.cargas.length },
+                { key: "cargas" as const, label: "CARGAS SURTIDOR", icon: <Fuel className="w-3.5 h-3.5" />, count: data.cargas.length },
                 { key: "camiones" as const, label: "POR CAMION", icon: <Truck className="w-3.5 h-3.5" />, count: data.porCamion.length },
                 { key: "zonas" as const, label: "POR ZONA", icon: <MapPinned className="w-3.5 h-3.5" />, count: data.porZona.length },
               ]).map(t => (
@@ -297,7 +297,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                 <div className="grid grid-cols-5 gap-2">
                   {[
                     { label: "PROM CARGAS/MES", value: data.promedios?.cargasMes || 0, color: "text-[#00d4ff]" },
-                    { label: "PROM LT SIGETRA/MES", value: fN(data.promedios?.litrosSigMes || 0), color: "text-amber-400", unit: "L" },
+                    { label: "PROM LT SURTIDOR/MES", value: fN(data.promedios?.litrosSigMes || 0), color: "text-amber-400", unit: "L" },
                     { label: "PROM LT ECU/MES", value: fN(data.promedios?.litrosEcuMes || 0), color: "text-amber-400", unit: "L" },
                     { label: "PROM KM ECU/MES", value: fN(data.promedios?.kmEcuMes || 0), color: "text-[#c8e8ff]", unit: "km" },
                     { label: "PROM VIAJES/MES", value: data.promedios?.viajesMes || 0, color: "text-[#00d4ff]" },
@@ -391,7 +391,7 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                 {data.historialMensual.length > 0 && (
                   <div className="space-y-2">
                     <div className="text-xs font-mono text-[#3a6080] tracking-[0.15em] flex items-center gap-2">
-                      <BarChart3 className="w-3.5 h-3.5" /> LITROS POR MES (SIGETRA vs ECU)
+                      <BarChart3 className="w-3.5 h-3.5" /> LITROS POR MES (SURTIDOR vs TELEMETRIA)
                     </div>
                     <div className="flex items-end gap-1.5" style={{ height: "120px" }}>
                       {data.historialMensual.map((m, i) => {
@@ -534,15 +534,15 @@ function ConductorDetailModal({ conductorName, onClose, desde, hasta }: { conduc
                           <div className={`text-sm font-mono font-bold ${rendColor(pc.rendEcu)}`}>{pc.rendEcu > 0 ? `${pc.rendEcu.toFixed(2)} km/L` : "-"}</div>
                         </div>
                         <div>
-                          <div className="text-[7px] font-mono text-[#3a6080] tracking-[0.15em]">CARGAS SIG</div>
+                          <div className="text-[7px] font-mono text-[#3a6080] tracking-[0.15em]">CARGAS</div>
                           <div className="text-sm font-mono font-bold text-[#c8e8ff]">{pc.cargas}</div>
                         </div>
                         <div>
-                          <div className="text-[7px] font-mono text-[#3a6080] tracking-[0.15em]">LT SIGETRA</div>
+                          <div className="text-[7px] font-mono text-[#3a6080] tracking-[0.15em]">LT SURTIDOR</div>
                           <div className="text-sm font-mono font-bold text-amber-400">{fN(Math.round(pc.litrosSig))}</div>
                         </div>
                         <div>
-                          <div className="text-[7px] font-mono text-[#3a6080] tracking-[0.15em]">KM SIGETRA</div>
+                          <div className="text-[7px] font-mono text-[#3a6080] tracking-[0.15em]">KM SURTIDOR</div>
                           <div className="text-sm font-mono font-bold text-[#c8e8ff]">{fN(Math.round(pc.kmSig))}</div>
                         </div>
                         <div>

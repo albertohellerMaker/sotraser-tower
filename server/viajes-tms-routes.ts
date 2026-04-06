@@ -378,7 +378,7 @@ router.get("/contrato-detalle/:contrato", validate({ params: ContratoParam }), a
       `, [contrato, inicioMes.toISOString().slice(0,10)]),
     ]);
 
-    // Rendimiento cruzado: km ECU / litros Sigetra
+    // Rendimiento cruzado: km telemetria / litros surtidor
     const kmEcu = parseFloat(kpis.rows[0]?.km_total || 0);
     const ltSig = parseFloat(litros.rows[0]?.litros_total || 0);
     const rendCruzado = ltSig > 0 ? Math.round((kmEcu / ltSig) * 100) / 100 : null;
