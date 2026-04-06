@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Map as MapIcon, Truck, Settings, Search, Fuel, Gauge, Activity, ThermometerSun, BarChart3 } from "lucide-react";
+import { Map as MapIcon, Truck, Settings, Search, Fuel, Gauge, Activity, ThermometerSun, BarChart3, AlertTriangle, TrendingDown, Clock, MapPin } from "lucide-react";
 import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
 import CencosudView from "./cencosud";
 
@@ -34,8 +34,8 @@ interface WTResponse {
 const ESTADO_CFG: Record<string, { color: string; label: string; dotColor: string }> = {
   en_ruta: { color: "#00ff88", label: "EN RUTA", dotColor: "#00ff88" },
   detenido: { color: "#ff6b35", label: "DETENIDO", dotColor: "#ff6b35" },
-  ralenti: { color: "#ffcc00", label: "RALENTÍ", dotColor: "#ffcc00" },
-  sin_senal: { color: "#ff2244", label: "SIN SEÑAL", dotColor: "#ff2244" },
+  ralenti: { color: "#ffcc00", label: "RALENTI", dotColor: "#ffcc00" },
+  sin_senal: { color: "#ff2244", label: "SIN SENAL", dotColor: "#ff2244" },
 };
 
 type WTTab = "flota" | "camiones" | "tms" | "sistema";
@@ -55,7 +55,349 @@ function LiveClock() {
   return <span className="font-space text-[11px]" style={{ color: "#4a7090" }}>{time}</span>;
 }
 
-function WTFlota() {
+function StatCard({ label, value, sub, color, icon: Icon }: { label: string; value: string | number; sub?: string; color: string; icon?: any }) {
+  return (
+    <div className="px-3 py-3 rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+      <div className="flex items-center gap-2 mb-1">
+        {Icon && <Icon className="w-3 h-3" style={{ color: "#3a6080" }} />}
+        <span className="font-exo text-[8px] tracking-[0.15em] uppercase" style={{ color: "#3a6080" }}>{label}</span>
+      </div>
+      <div className="font-space text-[20px] font-bold" style={{ color }}>{value}</div>
+      {sub && <div className="font-exo text-[9px] mt-0.5" style={{ color: "#4a7090" }}>{sub}</div>}
+    </div>
+  );
+}
+
+function WTFlotaDashboard() {
+  const [vista, setVista] = useState<"resumen" | "combustible" | "anomalias" | "mapa">("resumen");
+
+  const { data: enVivo } = useQuery<WTResponse>({
+    queryKey: ["/api/wisetrack/en-vivo"],
+    queryFn: async () => { const r = await fetch("/api/wisetrack/en-vivo"); if (!r.ok) throw new Error(`Error ${r.status}`); return r.json(); },
+    refetchInterval: 30000,
+    retry: 2,
+  });
+
+  const { data: viajesStats } = useQuery<any>({
+    queryKey: ["/api/viajes/stats"],
+    queryFn: async () => { const r = await fetch("/api/viajes/stats"); if (!r.ok) throw new Error(`Error ${r.status}`); return r.json(); },
+    staleTime: 120000,
+  });
+
+  const { data: microData } = useQuery<any>({ queryKey: ["/api/datos/micro-cargas"] });
+
+  const { data: fusion = [] } = useQuery<any[]>({ queryKey: ["/api/datos/fusion"] });
+
+  const fuelData = useMemo(() => {
+    const trucks = (fusion || []).map((t: any) => {
+      const cargas = t.cargas || [];
+      const rendVals = cargas.map((c: any) => c.rendimiento).filter((r: any) => r > 0 && r <= 20);
+      const rendProm = rendVals.length > 0 ? +(rendVals.reduce((a: number, b: number) => a + b, 0) / rendVals.length).toFixed(2) : 0;
+      return { patente: t.patenteReal || t.fleetNum, faena: t.faena || t.contrato || "-", rend: rendProm, cargas: cargas.length };
+    }).filter((t: any) => t.cargas > 0).sort((a: any, b: any) => a.rend - b.rend);
+    const allRend = trucks.map((t: any) => t.rend).filter((r: number) => r > 0).sort((a: number, b: number) => a - b);
+    const avg = allRend.length > 0 ? +(allRend.reduce((a, b) => a + b, 0) / allRend.length).toFixed(2) : 0;
+    const worst = trucks.filter(t => t.rend > 0).slice(0, 5);
+    return { trucks, avg, worst, total: trucks.length };
+  }, [fusion]);
+
+  const vehiculos = enVivo?.vehiculos || [];
+  const resumen = enVivo?.resumen || { total: 0, en_ruta: 0, detenido: 0, ralenti: 0, sin_senal: 0 };
+
+  const lowFuel = vehiculos.filter(v => v.nivelEstanque > 0 && v.nivelEstanque < 20);
+  const highTemp = vehiculos.filter(v => v.tempMotor > 95);
+  const highRpm = vehiculos.filter(v => v.rpm > 1800 && v.velocidad > 0);
+
+  const anomalias = viajesStats?.anomalias || [];
+  const totalViajes = viajesStats?.totalViajes || 0;
+
+  const microTotals = microData?.totals || {};
+  const microCriticos = microTotals.criticos || 0;
+  const microSospechosos = microTotals.sospechosos || 0;
+
+  const subTabs = [
+    { id: "resumen", label: "RESUMEN", icon: BarChart3 },
+    { id: "combustible", label: "COMBUSTIBLE", icon: Fuel },
+    { id: "anomalias", label: "ANOMALIAS", icon: AlertTriangle },
+    { id: "mapa", label: "MAPA EN VIVO", icon: MapPin },
+  ] as const;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-1 pb-2" style={{ borderBottom: "1px solid #0d2035" }}>
+        {subTabs.map(t => {
+          const Icon = t.icon;
+          return (
+            <button key={t.id} onClick={() => setVista(t.id as any)}
+              className="flex items-center gap-1.5 px-3 py-2 font-exo text-[10px] font-bold tracking-[0.1em] cursor-pointer transition-all"
+              style={{
+                background: vista === t.id ? "#06b6d410" : "transparent",
+                borderBottom: vista === t.id ? "2px solid #06b6d4" : "2px solid transparent",
+                color: vista === t.id ? "#06b6d4" : "#3a6080",
+              }}>
+              <Icon className="w-3.5 h-3.5" />
+              {t.label}
+              {t.id === "anomalias" && anomalias.length > 0 && (
+                <span className="ml-1 font-space text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "#ff2244", color: "#020508" }}>{anomalias.length}</span>
+              )}
+              {t.id === "combustible" && (microCriticos + microSospechosos) > 0 && (
+                <span className="ml-1 font-space text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "#ffcc00", color: "#020508" }}>{microCriticos + microSospechosos}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {vista === "resumen" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="FLOTA CENCOSUD" value={resumen.total} sub={`${resumen.en_ruta} en ruta · ${resumen.detenido} detenidos`} color="#06b6d4" icon={Truck} />
+            <StatCard label="EN RUTA AHORA" value={resumen.en_ruta} sub={`${resumen.ralenti} en ralenti`} color="#00ff88" icon={Activity} />
+            <StatCard label="VIAJES DETECTADOS" value={totalViajes} sub={viajesStats?.desde ? `Desde ${new Date(viajesStats.desde).toLocaleDateString("es-CL")}` : "Sin datos"} color="#06b6d4" icon={BarChart3} />
+            <StatCard label="ANOMALIAS" value={anomalias.length} sub={`${microCriticos} criticos combustible`} color={anomalias.length > 0 ? "#ff2244" : "#00ff88"} icon={AlertTriangle} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>ESTADO FLOTA EN VIVO</span>
+              </div>
+              <div className="p-4 space-y-2">
+                {[
+                  { label: "En Ruta", count: resumen.en_ruta, pct: resumen.total > 0 ? Math.round(resumen.en_ruta / resumen.total * 100) : 0, color: "#00ff88" },
+                  { label: "Detenido", count: resumen.detenido, pct: resumen.total > 0 ? Math.round(resumen.detenido / resumen.total * 100) : 0, color: "#ff6b35" },
+                  { label: "Ralenti", count: resumen.ralenti, pct: resumen.total > 0 ? Math.round(resumen.ralenti / resumen.total * 100) : 0, color: "#ffcc00" },
+                  { label: "Sin Senal", count: resumen.sin_senal, pct: resumen.total > 0 ? Math.round(resumen.sin_senal / resumen.total * 100) : 0, color: "#ff2244" },
+                ].map(s => (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full" style={{ background: s.color }} />
+                    <span className="font-exo text-[11px] w-24" style={{ color: "#c8e8ff" }}>{s.label}</span>
+                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "#0a1520" }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${s.pct}%`, background: s.color }} />
+                    </div>
+                    <span className="font-space text-[11px] font-bold w-8 text-right" style={{ color: s.color }}>{s.count}</span>
+                    <span className="font-exo text-[9px] w-10 text-right" style={{ color: "#3a6080" }}>{s.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>ALERTAS OPERACIONALES</span>
+              </div>
+              <div className="p-4 space-y-2">
+                {lowFuel.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: "#ff224410", border: "1px solid #ff224420" }}>
+                    <Fuel className="w-3.5 h-3.5" style={{ color: "#ff2244" }} />
+                    <span className="font-exo text-[10px]" style={{ color: "#ff2244" }}>{lowFuel.length} camiones con estanque bajo (&lt;20%)</span>
+                  </div>
+                )}
+                {lowFuel.map(v => (
+                  <div key={v.patente} className="flex items-center justify-between px-3 py-1 ml-5">
+                    <span className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{v.etiqueta} · {v.patente}</span>
+                    <span className="font-space text-[10px] font-bold" style={{ color: "#ff2244" }}>{v.nivelEstanque}%</span>
+                  </div>
+                ))}
+                {highTemp.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: "#ff6b3510", border: "1px solid #ff6b3520" }}>
+                    <ThermometerSun className="w-3.5 h-3.5" style={{ color: "#ff6b35" }} />
+                    <span className="font-exo text-[10px]" style={{ color: "#ff6b35" }}>{highTemp.length} camiones con temp motor alta (&gt;95C)</span>
+                  </div>
+                )}
+                {highRpm.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: "#ffcc0010", border: "1px solid #ffcc0020" }}>
+                    <Activity className="w-3.5 h-3.5" style={{ color: "#ffcc00" }} />
+                    <span className="font-exo text-[10px]" style={{ color: "#ffcc00" }}>{highRpm.length} en RPM elevado (&gt;1800)</span>
+                  </div>
+                )}
+                {lowFuel.length === 0 && highTemp.length === 0 && highRpm.length === 0 && (
+                  <div className="px-3 py-4 text-center">
+                    <span className="font-exo text-[11px]" style={{ color: "#00ff88" }}>Sin alertas operacionales activas</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {anomalias.length > 0 && (
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>ULTIMAS ANOMALIAS DE VIAJES</span>
+                <button onClick={() => setVista("anomalias")} className="font-exo text-[9px] cursor-pointer" style={{ color: "#06b6d4" }}>VER TODAS →</button>
+              </div>
+              <div className="p-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #0d2035" }}>
+                        {["CAMION", "RUTA", "KM", "L/100KM", "SCORE", "ESTADO"].map(h => (
+                          <th key={h} className="py-2 px-2 text-left font-exo text-[8px] tracking-wider" style={{ color: "#3a6080" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {anomalias.slice(0, 5).map((a: any) => (
+                        <tr key={a.id} style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }}>
+                          <td className="py-2 px-2 font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</td>
+                          <td className="py-2 px-2 font-exo text-[9px]" style={{ color: "#4a7090" }}>{a.origen_nombre || "?"} → {a.destino_nombre || "?"}</td>
+                          <td className="py-2 px-2 font-space text-[10px]" style={{ color: "#06b6d4" }}>{Math.round(a.km_ecu)}</td>
+                          <td className="py-2 px-2 font-space text-[10px]" style={{ color: a.rendimiento_real < 2 ? "#ff2244" : "#ffcc00" }}>
+                            {a.rendimiento_real ? (100 / parseFloat(a.rendimiento_real)).toFixed(1) : "-"}
+                          </td>
+                          <td className="py-2 px-2">
+                            <span className="font-space text-[9px] font-bold px-2 py-0.5 rounded" style={{
+                              color: a.score_anomalia >= 50 ? "#ff2244" : "#ffcc00",
+                              background: a.score_anomalia >= 50 ? "#ff224415" : "#ffcc0015",
+                            }}>{a.score_anomalia}</span>
+                          </td>
+                          <td className="py-2 px-2 font-exo text-[8px]" style={{ color: a.estado === "ANOMALIA" ? "#ff2244" : "#ffcc00" }}>{a.estado}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista === "combustible" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="RENDIMIENTO PROMEDIO" value={`${fuelData.avg} km/L`} sub={`${fuelData.total} camiones con datos`} color="#06b6d4" icon={Fuel} />
+            <StatCard label="CARGAS CRITICAS" value={microCriticos} sub="Posible desvio de combustible" color={microCriticos > 0 ? "#ff2244" : "#00ff88"} icon={AlertTriangle} />
+            <StatCard label="CARGAS SOSPECHOSAS" value={microSospechosos} sub="Requiere verificacion" color={microSospechosos > 0 ? "#ffcc00" : "#00ff88"} icon={TrendingDown} />
+            <StatCard label="ESTANQUE BAJO" value={lowFuel.length} sub="Menor a 20%" color={lowFuel.length > 0 ? "#ff6b35" : "#00ff88"} icon={Fuel} />
+          </div>
+
+          <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+              <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>RENDIMIENTO POR CAMION (km/L)</span>
+            </div>
+            <div className="p-4">
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #0d2035" }}>
+                      {["CAMION", "FAENA", "REND km/L", "CARGAS", "NIVEL"].map(h => (
+                        <th key={h} className="py-2 px-3 text-left font-exo text-[9px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fuelData.trucks.slice(0, 50).map((t: any, i: number) => {
+                      const allRend = fuelData.trucks.map(x => x.rend).filter(r => r > 0).sort((a, b) => a - b);
+                      const p50 = allRend.length > 0 ? allRend[Math.floor(allRend.length * 0.5)] : 0;
+                      const p75 = allRend.length > 0 ? allRend[Math.floor(allRend.length * 0.75)] : 0;
+                      const p90 = allRend.length > 0 ? allRend[Math.floor(allRend.length * 0.9)] : 0;
+                      const c = t.rend >= p90 ? "#00ff88" : t.rend >= p75 ? "#00d4ff" : t.rend >= p50 ? "#ffcc00" : "#ff2244";
+                      const lbl = t.rend >= p90 ? "P90+" : t.rend >= p75 ? "P75+" : t.rend >= p50 ? "P50+" : "<P50";
+                      return (
+                        <tr key={i} style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }} className="hover:bg-[rgba(0,212,255,0.02)]">
+                          <td className="py-2 px-3 font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{t.patente}</td>
+                          <td className="py-2 px-3 font-exo text-xs" style={{ color: "#3a6080" }}>{t.faena}</td>
+                          <td className="py-2 px-3 font-space text-[11px] font-bold" style={{ color: c }}>{t.rend > 0 ? t.rend.toFixed(2) : "N/D"}</td>
+                          <td className="py-2 px-3 font-exo text-xs" style={{ color: "#3a6080" }}>{t.cargas}</td>
+                          <td className="py-2 px-3">
+                            <span className="font-space text-xs font-bold px-2 py-0.5" style={{ color: c, border: `1px solid ${c}40`, background: `${c}10` }}>{lbl}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {lowFuel.length > 0 && (
+            <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#ff6b35" }}>ESTANQUE BAJO EN VIVO</span>
+              </div>
+              <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+                {lowFuel.map(v => (
+                  <div key={v.patente} className="px-3 py-2 rounded" style={{ background: "#0a1520", borderLeft: "3px solid #ff2244" }}>
+                    <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{v.etiqueta}</div>
+                    <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{v.patente}</div>
+                    <div className="font-space text-[14px] font-bold mt-1" style={{ color: "#ff2244" }}>{v.nivelEstanque}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista === "anomalias" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <StatCard label="VIAJES TOTALES" value={totalViajes} color="#06b6d4" icon={BarChart3} />
+            <StatCard label="CON ANOMALIA" value={anomalias.filter((a: any) => a.estado === "ANOMALIA").length} color="#ff2244" icon={AlertTriangle} />
+            <StatCard label="PARA REVISAR" value={anomalias.filter((a: any) => a.estado === "REVISAR").length} color="#ffcc00" icon={Clock} />
+          </div>
+
+          <div className="rounded-lg" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+              <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>VIAJES CON ANOMALIA (score ≥ 20)</span>
+            </div>
+            <div className="p-4">
+              {anomalias.length === 0 ? (
+                <div className="py-8 text-center">
+                  <span className="font-exo text-[12px]" style={{ color: "#00ff88" }}>Sin anomalias detectadas. El sistema analiza viajes automaticamente.</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #0d2035" }}>
+                        {["CAMION", "CONDUCTOR", "RUTA", "FECHA", "KM", "LITROS", "km/L", "SCORE", "ESTADO"].map(h => (
+                          <th key={h} className="py-2 px-2 text-left font-exo text-[8px] tracking-wider" style={{ color: "#3a6080" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {anomalias.map((a: any) => (
+                        <tr key={a.id} style={{ borderBottom: "1px solid rgba(13,32,53,0.5)" }} className="hover:bg-[rgba(0,212,255,0.02)]">
+                          <td className="py-2 px-2 font-space text-[10px] font-bold" style={{ color: "#c8e8ff" }}>{a.patente}</td>
+                          <td className="py-2 px-2 font-exo text-[9px]" style={{ color: "#4a7090" }}>{a.conductor || "-"}</td>
+                          <td className="py-2 px-2 font-exo text-[9px]" style={{ color: "#4a7090" }}>
+                            {a.origen_nombre || "?"} → {a.destino_nombre || "?"}
+                          </td>
+                          <td className="py-2 px-2 font-space text-[9px]" style={{ color: "#4a7090" }}>
+                            {a.fecha_inicio ? new Date(a.fecha_inicio).toLocaleDateString("es-CL") : "-"}
+                          </td>
+                          <td className="py-2 px-2 font-space text-[10px]" style={{ color: "#06b6d4" }}>{Math.round(a.km_ecu || 0)}</td>
+                          <td className="py-2 px-2 font-space text-[10px]" style={{ color: "#c8e8ff" }}>{parseFloat(a.litros_consumidos_ecu || 0).toFixed(1)}</td>
+                          <td className="py-2 px-2 font-space text-[10px] font-bold" style={{ color: a.rendimiento_real < 2 ? "#ff2244" : "#ffcc00" }}>
+                            {a.rendimiento_real ? parseFloat(a.rendimiento_real).toFixed(2) : "-"}
+                          </td>
+                          <td className="py-2 px-2">
+                            <span className="font-space text-[10px] font-bold px-2 py-0.5 rounded" style={{
+                              color: a.score_anomalia >= 50 ? "#ff2244" : "#ffcc00",
+                              background: a.score_anomalia >= 50 ? "#ff224415" : "#ffcc0015",
+                            }}>{a.score_anomalia}</span>
+                          </td>
+                          <td className="py-2 px-2 font-exo text-[8px] font-bold" style={{ color: a.estado === "ANOMALIA" ? "#ff2244" : "#ffcc00" }}>{a.estado}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vista === "mapa" && <WTFlotaMap />}
+    </div>
+  );
+}
+
+function WTFlotaMap() {
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
   const [selectedPatente, setSelectedPatente] = useState<string | null>(null);
@@ -94,8 +436,7 @@ function WTFlota() {
   };
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-110px)]">
-      {/* Left: Map */}
+    <div className="flex gap-4 h-[calc(100vh-150px)]">
       <div className="flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
         <GMap
           mapId="wt-fleet-map"
@@ -111,11 +452,7 @@ function WTFlota() {
             const cfg = ESTADO_CFG[v.estado] || ESTADO_CFG.sin_senal;
             const isSelected = v.patente === selectedPatente;
             return (
-              <AdvancedMarker
-                key={v.patente}
-                position={{ lat: v.lat, lng: v.lng }}
-                onClick={() => selectVehicle(v)}
-              >
+              <AdvancedMarker key={v.patente} position={{ lat: v.lat, lng: v.lng }} onClick={() => selectVehicle(v)}>
                 <div className="relative cursor-pointer" style={{ transform: isSelected ? "scale(1.4)" : "scale(1)", transition: "transform 0.2s" }}>
                   <div className="w-4 h-4 rounded-full border-2" style={{ background: cfg.dotColor, borderColor: isSelected ? "#fff" : cfg.dotColor, boxShadow: `0 0 ${isSelected ? 12 : 6}px ${cfg.dotColor}` }} />
                   {(isSelected || mapZoom >= 10) && (
@@ -131,19 +468,16 @@ function WTFlota() {
         </GMap>
       </div>
 
-      {/* Right: Panel */}
-      <div className="w-[380px] flex flex-col" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
-        {/* Summary */}
+      <div className="w-[340px] flex flex-col" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
         {data?.resumen && (
-          <div className="flex items-center gap-1.5 px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
+          <div className="flex items-center gap-1 px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
             {[
               { key: null, label: "TODOS", count: data.resumen.total, color: "#06b6d4" },
               { key: "en_ruta", label: "RUTA", count: data.resumen.en_ruta, color: "#00ff88" },
               { key: "detenido", label: "DET", count: data.resumen.detenido, color: "#ff6b35" },
-              { key: "ralenti", label: "RAL", count: data.resumen.ralenti, color: "#ffcc00" },
               { key: "sin_senal", label: "S/S", count: data.resumen.sin_senal, color: "#ff2244" },
             ].map((b) => (
-              <button key={b.key || "all"} onClick={() => setFiltroEstado(b.key)} className="flex items-center gap-1 px-2 py-1 rounded transition-colors cursor-pointer"
+              <button key={b.key || "all"} onClick={() => setFiltroEstado(b.key)} className="flex items-center gap-1 px-2 py-1 rounded cursor-pointer"
                 style={{ background: filtroEstado === b.key ? `${b.color}15` : "transparent", border: `1px solid ${filtroEstado === b.key ? b.color + "40" : "transparent"}` }}>
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: b.color }} />
                 <span className="font-space text-[10px] font-bold" style={{ color: b.color }}>{b.count}</span>
@@ -153,16 +487,14 @@ function WTFlota() {
           </div>
         )}
 
-        {/* Search */}
         <div className="px-3 py-2" style={{ borderBottom: "1px solid #0d2035" }}>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: "#3a6080" }} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar patente, etiqueta..."
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar patente..."
               className="w-full pl-8 pr-3 py-1.5 rounded font-exo text-[10px]" style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff", outline: "none" }} />
           </div>
         </div>
 
-        {/* Vehicle list */}
         <div className="flex-1 overflow-auto px-2 py-1 space-y-1">
           {isLoading ? (
             <div className="flex items-center justify-center h-40">
@@ -196,7 +528,6 @@ function WTFlota() {
           })}
         </div>
 
-        {/* Detail panel */}
         {selected && (
           <div className="border-t overflow-auto" style={{ borderColor: "#0d2035", maxHeight: "40%" }}>
             <div className="p-3 space-y-2">
@@ -205,7 +536,7 @@ function WTFlota() {
                   <span className="font-space text-[14px] font-bold" style={{ color: "#c8e8ff" }}>{selected.etiqueta}</span>
                   <span className="font-exo text-[10px] ml-2" style={{ color: "#3a6080" }}>{selected.patente}</span>
                 </div>
-                <button onClick={() => setSelectedPatente(null)} className="font-space text-[12px] cursor-pointer" style={{ color: "#3a6080" }}>×</button>
+                <button onClick={() => setSelectedPatente(null)} className="font-space text-[12px] cursor-pointer" style={{ color: "#3a6080" }}>x</button>
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {[
@@ -220,9 +551,6 @@ function WTFlota() {
                     <div className="font-exo text-[6px]" style={{ color: "#3a6080" }}>{t.label}</div>
                   </div>
                 ))}
-              </div>
-              <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
-                WiseTrack: {selected.estadoWt} · {selected.fecha}
               </div>
             </div>
           </div>
@@ -292,7 +620,7 @@ function WTCamiones() {
 
             {selected.ultimoViaje.inicio && (
               <div className="p-3 rounded mb-4" style={{ background: "#0a1520" }}>
-                <div className="font-exo text-[8px] tracking-wider mb-2" style={{ color: "#3a6080" }}>ÚLTIMO VIAJE</div>
+                <div className="font-exo text-[8px] tracking-wider mb-2" style={{ color: "#3a6080" }}>ULTIMO VIAJE</div>
                 <div className="grid grid-cols-3 gap-3">
                   <div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>Inicio</div><div className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{selected.ultimoViaje.inicio}</div></div>
                   <div><div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>Fin</div><div className="font-space text-[10px]" style={{ color: "#c8e8ff" }}>{selected.ultimoViaje.fin}</div></div>
@@ -303,7 +631,7 @@ function WTCamiones() {
 
             {historial?.puntos && historial.puntos.length > 0 && (
               <div className="p-3 rounded" style={{ background: "#0a1520" }}>
-                <div className="font-exo text-[8px] tracking-wider mb-2" style={{ color: "#3a6080" }}>HISTORIAL GPS (últimas 24h) · {historial.total} registros</div>
+                <div className="font-exo text-[8px] tracking-wider mb-2" style={{ color: "#3a6080" }}>HISTORIAL GPS (ultimas 24h) · {historial.total} registros</div>
                 <div className="overflow-auto" style={{ maxHeight: 200 }}>
                   <table className="w-full">
                     <thead><tr>
@@ -372,17 +700,17 @@ function WTSistema() {
     <div className="space-y-4">
       <div style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
         <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>ESTADO WISETRACK</span>
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>ESTADO WISETRACK API</span>
         </div>
         <div className="p-4 space-y-3">
           <div className="flex items-center justify-between px-3 py-2" style={{ background: "#0a1520", borderRadius: 6 }}>
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 rounded-full" style={{ background: status?.sessionActive ? "#00ff88" : "#ff2244", boxShadow: `0 0 6px ${status?.sessionActive ? "#00ff88" : "#ff2244"}` }} />
-              <span className="font-exo text-[11px] font-bold" style={{ color: "#c8e8ff" }}>WiseTrack Portal</span>
+              <span className="font-exo text-[11px] font-bold" style={{ color: "#c8e8ff" }}>WiseTrack API</span>
             </div>
             <div className="flex items-center gap-4">
-              <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sesión: {status?.sessionActive ? "ACTIVA" : "INACTIVA"}</span>
-              <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{status?.lastSyncCount || 0} vehículos</span>
+              <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sesion: {status?.sessionActive ? "ACTIVA" : "INACTIVA"}</span>
+              <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>{status?.lastSyncCount || 0} vehiculos</span>
               <span className="font-space text-[10px]" style={{ color: status?.lastSyncAt ? "#00ff88" : "#ff2244" }}>
                 {status?.lastSyncAt ? new Date(status.lastSyncAt).toLocaleTimeString("es-CL") : "Sin sync"}
               </span>
@@ -396,36 +724,15 @@ function WTSistema() {
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
               <div className="font-space text-[20px] font-bold" style={{ color: "#06b6d4" }}>{status?.lastSyncCount || 0}</div>
-              <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>VEHÍCULOS CENCOSUD</div>
+              <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>VEHICULOS CENCOSUD</div>
             </div>
             <div className="text-center p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
               <div className="font-space text-[20px] font-bold" style={{ color: "#c8e8ff" }}>{status?.totalRegistros || 0}</div>
               <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>POSICIONES GUARDADAS</div>
             </div>
             <div className="text-center p-3" style={{ background: "#0a1520", borderRadius: 6 }}>
-              <div className="font-space text-[20px] font-bold" style={{ color: "#00ff88" }}>120s</div>
+              <div className="font-space text-[20px] font-bold" style={{ color: "#00ff88" }}>60s</div>
               <div className="font-exo text-[7px]" style={{ color: "#3a6080" }}>FRECUENCIA SYNC</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
-        <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#06b6d4" }}>COMO FUNCIONA WISETRACK</span>
-        </div>
-        <div className="p-4 space-y-4">
-          <div className="p-3 text-center" style={{ background: "#0a1520", borderRadius: 6 }}>
-            <div className="font-exo text-[9px] font-bold mb-2" style={{ color: "#3a6080" }}>FLUJO DE DATOS</div>
-            <div className="font-space text-[10px] leading-relaxed" style={{ color: "#c8e8ff" }}>
-              <span style={{ color: "#06b6d4" }}>PORTAL WISETRACK</span>
-              <br /><span style={{ color: "#3a6080" }}>scraping cada 120s · ASP.NET AJAX</span>
-              <br /><span style={{ color: "#3a6080" }}>↓</span>
-              <br /><span style={{ color: "#a855f7" }}>FILTRO CENCOSUD</span> (63 de 482 vehículos)
-              <br /><span style={{ color: "#3a6080" }}>↓</span>
-              <br /><span style={{ color: "#a855f7" }}>GPS + TELEMETRÍA</span> (lat, lng, vel, RPM, estanque, temp)
-              <br /><span style={{ color: "#3a6080" }}>↓</span>
-              <br /><span style={{ color: "#00ff88" }}>DASHBOARD</span> (mapa + fichas)
             </div>
           </div>
         </div>
@@ -434,9 +741,9 @@ function WTSistema() {
       {grupos && (
         <div style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>
           <div className="px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
-            <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>FLOTA COMPLETA SOTRASER ({grupos.totalVehiculos} vehículos)</span>
+            <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#3a6080" }}>FLOTA COMPLETA SOTRASER ({grupos.totalVehiculos} vehiculos)</span>
           </div>
-          <div className="p-4 grid grid-cols-4 gap-2">
+          <div className="p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
             {grupos.grupos?.slice(0, 20).map((g: any) => (
               <div key={g.nombre} className="px-3 py-2 rounded" style={{ background: "#0a1520", borderLeft: g.nombre === "CENCOSUD" ? "3px solid #06b6d4" : "3px solid #0d2035" }}>
                 <div className="font-space text-[12px] font-bold" style={{ color: g.nombre === "CENCOSUD" ? "#06b6d4" : "#c8e8ff" }}>{g.cantidad}</div>
@@ -472,12 +779,11 @@ export default function WiseTrackApp({ onBack }: { onBack?: () => void } = {}) {
 
   return (
     <div className="min-h-screen" style={{ background: "#020508", color: "#c8e8ff" }}>
-      {/* Top Bar */}
       <div className="fixed top-0 left-0 right-0 z-50" style={{ background: "rgba(2,5,8,0.97)", backdropFilter: "blur(12px)", borderBottom: "1px solid #0d2035" }}>
         <div className="flex items-center justify-between px-4 h-[36px]">
           <div className="flex items-center gap-3">
             <button onClick={() => onBack ? onBack() : setTab("flota")} className="font-space text-[14px] font-bold tracking-[0.2em] cursor-pointer hover:opacity-80" style={{ color: "#06b6d4", background: "none", border: "none" }}>SOTRASER</button>
-            <span className="font-exo text-[9px] tracking-wider" style={{ color: "#3a6080" }}>WISETRACK</span>
+            <span className="font-exo text-[9px] tracking-wider" style={{ color: "#3a6080" }}>TOWER</span>
             <div className="w-px h-4 mx-1" style={{ background: "#0d2035" }} />
             <div className="flex items-center gap-1">
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", animation: "blink 2s infinite", boxShadow: "0 0 4px #00ff88" }} />
@@ -517,7 +823,7 @@ export default function WiseTrackApp({ onBack }: { onBack?: () => void } = {}) {
 
       <div style={{ paddingTop: "72px" }}>
         <div className="p-4 max-w-[1600px] mx-auto">
-          {tab === "flota" && <WTFlota />}
+          {tab === "flota" && <WTFlotaDashboard />}
           {tab === "camiones" && <WTCamiones />}
           {tab === "sistema" && <WTSistema />}
         </div>

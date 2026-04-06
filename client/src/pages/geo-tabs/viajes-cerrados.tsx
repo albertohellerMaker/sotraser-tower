@@ -1100,7 +1100,7 @@ function ResumenMesPanel({ onClose }: { onClose: () => void }) {
           <Calendar className="w-5 h-5" style={{ color: "#00d4ff" }} />
           <div>
             <div className="font-space text-[15px] font-bold" style={{ color: "#00d4ff" }}>RESUMEN {data.mes_nombre?.toUpperCase()} {data.anio}</div>
-            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Acumulado flota Cencosud · Fuente: Volvo Connect ECU</div>
+            <div className="font-exo text-[9px]" style={{ color: "#3a6080" }}>Acumulado flota Cencosud · Fuente: WiseTrack Telemetria</div>
           </div>
         </div>
         <button onClick={onClose} className="flex items-center gap-1 px-3 py-1.5 rounded cursor-pointer font-exo text-[9px] font-bold"

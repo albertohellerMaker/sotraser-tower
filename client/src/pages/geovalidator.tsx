@@ -818,7 +818,7 @@ function RecopilacionTab() {
         </div>
 
         <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid #0d2035" }}>
-          <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>El sistema consulta Volvo Connect cada 5 minutos para todos los camiones con VIN registrado.</div>
+          <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>El sistema consulta WiseTrack cada 60 segundos para todos los camiones Cencosud.</div>
           <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>Cada punto GPS incluye posicion, velocidad y consumo de combustible ECU.</div>
           <div className="font-exo text-[11px]" style={{ color: "#3a6080" }}>A mas puntos acumulados, mejor es la deteccion de anomalias y el calculo de rendimiento.</div>
         </div>
@@ -990,7 +990,7 @@ function AprendizajeTab() {
           <div className="space-y-2 font-exo text-[11px]" style={{ color: "#6a90aa" }}>
             <div className="flex items-start gap-2">
               <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: "#00d4ff" }} />
-              <span><strong style={{ color: "#c8e8ff" }}>SYNC</strong> — Toma los datos ECU de Volvo Connect (combustible, km, velocidad) y los puntos GPS para reconstruir viajes automaticamente. Un viaje empieza cuando el camion se mueve y termina cuando se detiene mas de 90 minutos en ruta general, hasta 8 horas en base o 6 horas en faena minera. El sistema adapta el umbral segun el lugar.</span>
+              <span><strong style={{ color: "#c8e8ff" }}>SYNC</strong> — Toma los datos de telemetria WiseTrack (combustible, km, velocidad) y los puntos GPS para reconstruir viajes automaticamente. Un viaje empieza cuando el camion se mueve y termina cuando se detiene mas de 30 minutos. El sistema adapta el umbral segun el lugar.</span>
             </div>
             <div className="flex items-start gap-2">
               <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: "#00ff88" }} />
@@ -1229,7 +1229,7 @@ function RendimientoECUTab() {
           RENDIMIENTO ECU POR CONTRATO
         </div>
         <div className="font-exo text-[11px] tracking-wider mt-1" style={{ color: '#4a7090' }}>
-          Basado en datos Volvo Connect (ultimos 7 dias)
+          Basado en datos WiseTrack (ultimos 7 dias)
         </div>
       </div>
 

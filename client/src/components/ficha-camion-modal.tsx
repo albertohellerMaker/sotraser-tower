@@ -174,7 +174,7 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[11px] font-mono text-muted-foreground mb-0.5">SYNC VOLVO CONNECT</div>
+              <div className="text-[11px] font-mono text-muted-foreground mb-0.5">SYNC WISETRACK</div>
               <div className={`text-[11px] font-mono ${cam.syncOk ? "text-emerald-400" : "text-red-400"}`}>
                 {cam.syncOk ? `● ${cam.syncAt}` : "✕ Sin sincronizar"}
               </div>
@@ -184,7 +184,7 @@ export function FichaCamionModal({ cam, faenas, open, onClose }: FichaCamionModa
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-[11px] font-mono text-primary tracking-[0.15em] uppercase mb-2.5">
-                VOLVO CONNECT — ECU
+                WISETRACK — TELEMETRIA
               </div>
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {[
