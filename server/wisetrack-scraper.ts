@@ -349,15 +349,55 @@ export async function syncVehiculoMap(): Promise<number> {
   }
 }
 
+async function ensureTables() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wisetrack_vehiculos (
+        movil TEXT PRIMARY KEY,
+        patente TEXT NOT NULL,
+        grupo1 TEXT,
+        grupo2 TEXT,
+        conductor TEXT,
+        actualizado_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wisetrack_telemetria (
+        id SERIAL PRIMARY KEY,
+        wt_id INTEGER NOT NULL UNIQUE,
+        movil TEXT NOT NULL,
+        patente TEXT,
+        fecha_hora TEXT NOT NULL,
+        lat REAL, lng REAL,
+        direccion INTEGER, kms REAL, kms_total REAL,
+        horometro REAL, nivel_estanque REAL,
+        consumo_conduccion REAL, consumo_ralenti REAL, consumo_total REAL,
+        tiempo_conduccion INTEGER, tiempo_ralenti INTEGER,
+        temp_motor REAL, velocidad REAL, rpm INTEGER,
+        torque REAL, presion_aceite REAL,
+        id_energia INTEGER, id_partida INTEGER,
+        fecha_insercion TEXT,
+        creado_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wt_tel_movil ON wisetrack_telemetria (movil)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wt_tel_fecha ON wisetrack_telemetria (fecha_hora)');
+  } finally {
+    client.release();
+  }
+}
+
 async function loadVehiculoMapFromDB() {
   try {
+    await ensureTables();
     const res = await pool.query("SELECT movil, patente, grupo1, conductor FROM wisetrack_vehiculos");
     for (const r of res.rows) {
       vehiculoMap.set(r.movil, { patente: r.patente, grupo1: r.grupo1 || "", conductor: r.conductor || "" });
     }
     console.log(`[WISETRACK] Vehicle map loaded: ${vehiculoMap.size} entries from DB`);
-  } catch {
-    console.log("[WISETRACK] Vehicle map table not yet created, will populate on first portal sync");
+  } catch (err: any) {
+    console.log("[WISETRACK] Vehicle map init error:", err.message);
   }
 }
 
