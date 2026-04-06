@@ -54,6 +54,10 @@ interface ViajeT1 {
   es_round_trip: boolean;
   paradas_intermedias: any[];
   visitas_secuencia: string[];
+  origen_lat?: number;
+  origen_lng?: number;
+  destino_lat?: number;
+  destino_lng?: number;
 }
 
 const PARADA_PATTERNS = [
@@ -368,6 +372,10 @@ function construirViajes(
         es_round_trip: true,
         paradas_intermedias: allParadas,
         visitas_secuencia: visitasDestino.slice(i, roundTripDestIdx + 1).map(v => v.nombre_contrato || v.geocerca_nombre),
+        origen_lat: origen.lat,
+        origen_lng: origen.lng,
+        destino_lat: destino.lat,
+        destino_lng: destino.lng,
       });
 
       i = roundTripDestIdx;
@@ -387,6 +395,10 @@ function construirViajes(
         es_round_trip: false,
         paradas_intermedias: paradasEnMedio,
         visitas_secuencia: [origenNombre, destinoNombre],
+        origen_lat: origen.lat,
+        origen_lng: origen.lng,
+        destino_lat: destino.lat,
+        destino_lng: destino.lng,
       });
 
       i++;
@@ -596,12 +608,10 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
       const viajes = construirViajes(cam.camion_id, cam.patente, visitas, puntos);
 
       for (const v of viajes) {
-        const origenVisita = visitas.find(vis =>
-          vis.geocerca_nombre === v.origen_geo && vis.salida.getTime() === v.fecha_inicio.getTime()
-        );
-        const destinoVisita = visitas.find(vis =>
-          vis.geocerca_nombre === v.destino_geo && vis.llegada.getTime() === v.fecha_fin.getTime()
-        );
+        const oLat = v.origen_lat || 0;
+        const oLng = v.origen_lng || 0;
+        const dLat = v.destino_lat || 0;
+        const dLng = v.destino_lng || 0;
 
         if (v.es_round_trip) {
           const rtBilling = evaluarBillingRoundTrip(v.origen, v.destino, tarifas);
@@ -619,8 +629,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
               fecha_fin: midTime,
               origen: v.origen, destino: v.destino,
               origen_geo: v.origen_geo, destino_geo: v.destino_geo,
-              origen_lat: origenVisita?.lat || 0, origen_lng: origenVisita?.lng || 0,
-              destino_lat: destinoVisita?.lat || 0, destino_lng: destinoVisita?.lng || 0,
+              origen_lat: oLat, origen_lng: oLng,
+              destino_lat: dLat, destino_lng: dLng,
               km: kmIda, duracion: durIda,
               es_round_trip: false,
               paradas_intermedias: v.paradas_intermedias,
@@ -634,8 +644,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
               fecha_fin: v.fecha_fin,
               origen: v.destino, destino: v.origen,
               origen_geo: v.destino_geo, destino_geo: v.origen_geo,
-              origen_lat: destinoVisita?.lat || 0, origen_lng: destinoVisita?.lng || 0,
-              destino_lat: origenVisita?.lat || 0, destino_lng: origenVisita?.lng || 0,
+              origen_lat: dLat, origen_lng: dLng,
+              destino_lat: oLat, destino_lng: oLng,
               km: kmVuelta, duracion: durVuelta,
               es_round_trip: false,
               paradas_intermedias: [],
@@ -656,8 +666,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
             fecha_inicio: v.fecha_inicio, fecha_fin: v.fecha_fin,
             origen: v.origen, destino: v.destino,
             origen_geo: v.origen_geo, destino_geo: v.destino_geo,
-            origen_lat: origenVisita?.lat || 0, origen_lng: origenVisita?.lng || 0,
-            destino_lat: destinoVisita?.lat || 0, destino_lng: destinoVisita?.lng || 0,
+            origen_lat: oLat, origen_lng: oLng,
+            destino_lat: dLat, destino_lng: dLng,
             km: v.km_estimado, duracion: v.duracion_min,
             es_round_trip: true,
             paradas_intermedias: v.paradas_intermedias,
@@ -675,8 +685,8 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
             fecha_inicio: v.fecha_inicio, fecha_fin: v.fecha_fin,
             origen: v.origen, destino: v.destino,
             origen_geo: v.origen_geo, destino_geo: v.destino_geo,
-            origen_lat: origenVisita?.lat || 0, origen_lng: origenVisita?.lng || 0,
-            destino_lat: destinoVisita?.lat || 0, destino_lng: destinoVisita?.lng || 0,
+            origen_lat: oLat, origen_lng: oLng,
+            destino_lat: dLat, destino_lng: dLng,
             km: v.km_estimado, duracion: v.duracion_min,
             es_round_trip: false,
             paradas_intermedias: v.paradas_intermedias,

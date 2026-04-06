@@ -272,7 +272,7 @@ export const superAgenteCencosud = {
       const highConfidence = match.distancia <= 2
         || (match.distancia <= 10 && match.similaridad >= 0.7)
         || (match.distancia <= 5 && match.similaridad >= 0.5);
-      const confianza = highConfidence || match.distancia <= 15;
+      const confianza = highConfidence;
 
       try {
         const res = await pool.query(

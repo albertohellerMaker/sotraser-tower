@@ -60,9 +60,14 @@ Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
 - **CENCOSUD tab** (HOME — primary focus): Cencosud contract control panel
   - Sub-tabs: EN VIVO / RESUMEN / VIAJES / ERRORES / RUTAS / FLOTA / AGENTE / TARIFAS / MAPA
   - Trip reconciliation (cuadratura): GPS trips matched to tarifario via geocerca aliases
+  - Trip states: CRUZADO (billable), PARCIAL (one end mapped), SIN_ALIAS (unmapped)
   - Interactive mapping: manual assignment of contract names to unmatched trips
+  - Partial trip resolution: `/api/cencosud/viajes-parciales` + `/api/cencosud/resolver-parcial` for PARCIAL trips
   - Geo-references: KML polygons, operational geofences, auto-detected points
   - T1 Reconstructor: automatic trip detection from GPS dwell-time at geocercas
+  - Round trip billing: evaluates if tarifario has separate ida/vuelta prices, splits billing accordingly
+  - Auto-alias engine: KML polygon match (instant), GPS proximity + Levenshtein name similarity scoring
+  - Geocerca promotion: Cencosud points promoted after 2 visits (100m radius), others after 3 (50m)
 - **FLOTA tab** (informational): general fleet overview with sub-tabs RESUMEN / COMBUSTIBLE / PARADAS / ANOMALIAS / MAPA EN VIVO
 - **CAMIONES tab** (informational): per-truck detail, GPS historial, telemetry
 - **SISTEMA tab** (informational): WiseTrack API health, system status, sync info
