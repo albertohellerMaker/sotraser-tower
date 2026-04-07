@@ -284,8 +284,6 @@ async function doApiSync() {
     lastApiSyncCount = records.length;
     lastApiSyncError = null;
     console.log(`[WISETRACK-API] Consumed ${records.length} records from buffer, ${saved} saved to DB`);
-    const dbCheck = await pool.query("SELECT COUNT(*) as c FROM wisetrack_telemetria");
-    console.log(`[WISETRACK-API] DB verify: telemetria rows = ${dbCheck.rows[0].c}`);
   } catch (err: any) {
     lastApiSyncError = err.message;
     console.error(`[WISETRACK-API] Sync error: ${err.message}`);
