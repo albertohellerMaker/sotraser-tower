@@ -230,7 +230,7 @@ router.get("/sin-mapear", async (_req, res) => {
 router.get("/viajes-mes", async (_req, res) => {
   try {
     const r = await pool.query(`
-      SELECT va.id, c.patente, va.conductor, va.contrato,
+      SELECT DISTINCT ON (va.id) va.id, c.patente, va.conductor, va.contrato,
         DATE(va.fecha_inicio)::text as fecha, va.origen_nombre, va.destino_nombre,
         va.km_ecu::float as km, va.rendimiento_real::float as rend,
         va.duracion_minutos::int as min, va.velocidad_maxima::float as vel_max,
@@ -244,7 +244,7 @@ router.get("/viajes-mes", async (_req, res) => {
       LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
       LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
       WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
-      ORDER BY va.fecha_inicio DESC
+      ORDER BY va.id, crt.tarifa DESC NULLS LAST
     `);
 
     const viajes = r.rows;
@@ -1265,6 +1265,52 @@ router.get("/control-diario", async (req, res) => {
       viajes: viajesData,
       velocidad_por_hora: velocidadHora.rows,
     });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/alias-audit", async (_req, res) => {
+  try {
+    const r = await pool.query(`SELECT id, geocerca_nombre, nombre_contrato, confirmado, fuente FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD' ORDER BY geocerca_nombre`);
+    res.json({ total: r.rows.length, aliases: r.rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/alias-fix", async (_req, res) => {
+  try {
+    const fixes: string[] = [];
+
+    const upCD = await pool.query(`UPDATE geocerca_alias_contrato SET nombre_contrato = 'CD Chillán' WHERE contrato = 'CENCOSUD' AND nombre_contrato = 'CD CHILLAN' RETURNING id`);
+    if (upCD.rowCount) fixes.push(`CD CHILLAN → CD Chillán: ${upCD.rowCount} fixed`);
+
+    const badAliases = await pool.query(`
+      SELECT id, geocerca_nombre, nombre_contrato FROM geocerca_alias_contrato
+      WHERE contrato = 'CENCOSUD' AND (
+        (geocerca_nombre = 'Chillán' AND nombre_contrato = 'Temuco')
+        OR (geocerca_nombre = 'Los Ángeles' AND nombre_contrato = 'Puerto Montt')
+        OR (geocerca_nombre = 'Temuco' AND nombre_contrato = 'Los Ángeles')
+        OR (geocerca_nombre = 'Mulchén' AND nombre_contrato = 'Los Ángeles')
+      )
+    `);
+
+    if (badAliases.rows.length > 0) {
+      const ids = badAliases.rows.map((r: any) => r.id);
+      await pool.query(`DELETE FROM geocerca_alias_contrato WHERE id = ANY($1)`, [ids]);
+      fixes.push(`Deleted ${ids.length} incorrect aliases: ${badAliases.rows.map((r: any) => `${r.geocerca_nombre}→${r.nombre_contrato}`).join(', ')}`);
+    }
+
+    const missingAliases = [
+      { geo: 'Chillán', contrato: 'Chillán' },
+      { geo: 'Mulchén', contrato: 'Mulchén' },
+    ];
+    for (const m of missingAliases) {
+      const exists = await pool.query(`SELECT 1 FROM geocerca_alias_contrato WHERE geocerca_nombre = $1 AND nombre_contrato = $2 AND contrato = 'CENCOSUD'`, [m.geo, m.contrato]);
+      if (exists.rows.length === 0) {
+        await pool.query(`INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, fuente) VALUES ($1, $2, 'CENCOSUD', true, 'ADMIN_FIX')`, [m.geo, m.contrato]);
+        fixes.push(`Added: ${m.geo} → ${m.contrato}`);
+      }
+    }
+
+    res.json({ ok: true, fixes });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
