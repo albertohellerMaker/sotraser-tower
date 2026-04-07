@@ -95,6 +95,13 @@ Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
 - `VITE_GOOGLE_MAPS_KEY`: Google Maps API key (must be in .env for Vite injection)
 - `CONDUCTOR_API_KEY`: Driver app API key
 
+## Alias Dedup Strategy (Critical)
+- **All queries** joining `geocerca_alias_contrato` must use `DISTINCT ON (va.id) ... ORDER BY va.id, crt.tarifa DESC NULLS LAST` to prevent row duplication when a geocerca matches multiple aliases
+- **Aggregate queries** use CTE pattern: `WITH dedup AS (SELECT DISTINCT ON ...)` then aggregate from the CTE
+- **Bad aliases fixed**: "CD CHILLAN"→"CD Chillán", removed wrong mappings (Chillán→Temuco, Los Ángeles→Puerto Montt, Temuco→Los Ángeles, Mulchén→Los Ángeles)
+- **Admin endpoints**: `/api/cencosud/alias-audit` (GET) and `/api/cencosud/alias-fix` (POST) for alias maintenance
+- **Do NOT add `mapId`** to Google Maps components unless creating real Map IDs in Google Cloud Console
+
 ## Audit Fixes Applied (April 2026)
 - **Fixed**: `saveTelemetria` now uses `ConsumoLitros_Total` instead of `ConsumoLitros_Conduccion` — fuel data was under-reported
 - **Fixed**: `wisetrack_posiciones` table auto-created by scraper on startup
