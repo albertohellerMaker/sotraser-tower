@@ -144,9 +144,9 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
       UPDATE viajes_aprendizaje SET
         costo_diesel = $1::numeric, costo_cvm = $2::numeric, costo_total = $3::numeric,
         ingreso_tarifa = $4::numeric, margen_bruto = $5::numeric,
-        tarifa_id = $6, tarifa_clase = $7,
+        tarifa_id = $6::int, tarifa_clase = $7,
         origen_contrato = $8, destino_contrato = $9,
-        estado = CASE WHEN $4::numeric > 0 THEN 'FACTURADO' WHEN $6 IS NOT NULL THEN 'TRANSITO' ELSE estado END
+        estado = CASE WHEN $4::numeric > 0 THEN 'FACTURADO' WHEN $6::int IS NOT NULL THEN 'TRANSITO' ELSE estado END
       WHERE id = $10
     `, [costoDiesel, costoCvm, costoTotal, ingresoTarifa, margenBruto, tarifaId, tarifaClase, origenC, destinoC, v.id]);
 
