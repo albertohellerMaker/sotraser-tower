@@ -544,6 +544,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
     FROM wisetrack_posiciones wp
     WHERE creado_at >= $1::date
       AND creado_at < ($1::date + interval '1 day')
+      AND grupo1 = 'CENCOSUD'
     ORDER BY patente
   `, [fecha]);
 
@@ -749,7 +750,7 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
           origen_geocerca: v.origen_geo,
           destino_geocerca: v.destino_geo,
         }),
-        v.tarifa ? 'FACTURADO' : 'PENDIENTE',
+        v.tarifa && v.tarifa > 0 ? 'FACTURADO' : v.tarifa === 0 ? 'TRANSITO' : 'PENDIENTE',
         v.origen_lat, v.origen_lng,
         v.destino_lat, v.destino_lng,
       ]);

@@ -129,7 +129,8 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
         ingresoTarifa = t.tarifa;
         tarifaId = t.id;
         tarifaClase = t.clase;
-        conTarifa++;
+        if (t.tarifa > 0) conTarifa++;
+        else sinTarifa++;
       } else {
         sinTarifa++;
       }
@@ -145,7 +146,7 @@ export async function calcularPLViajes(filtroFecha?: string): Promise<{ procesad
         ingreso_tarifa = $4::numeric, margen_bruto = $5::numeric,
         tarifa_id = $6, tarifa_clase = $7,
         origen_contrato = $8, destino_contrato = $9,
-        estado = CASE WHEN $4::numeric > 0 THEN 'FACTURADO' ELSE estado END
+        estado = CASE WHEN $4::numeric > 0 THEN 'FACTURADO' WHEN $6 IS NOT NULL THEN 'TRANSITO' ELSE estado END
       WHERE id = $10
     `, [costoDiesel, costoCvm, costoTotal, ingresoTarifa, margenBruto, tarifaId, tarifaClase, origenC, destinoC, v.id]);
 
