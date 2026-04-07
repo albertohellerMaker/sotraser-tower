@@ -1927,18 +1927,19 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
 
 const velColor = (v: number) => v <= 0 ? "#3a6080" : v < 40 ? "#00d4ff" : v < 60 ? "#00ff88" : v < 80 ? "#fbbf24" : v < 100 ? "#ff6b35" : "#ff2244";
 
-function FitBoundsRuta({ puntos }: { puntos: { lat: number; lng: number }[] }) {
+function FitBoundsRuta({ puntos, tripId }: { puntos: { lat: number; lng: number }[]; tripId?: number }) {
   const map = useMap();
   const fitted = useRef("");
   useEffect(() => {
     if (!map || puntos.length === 0) return;
-    const key = puntos.length + "-" + puntos[0]?.lat;
+    const last = puntos[puntos.length - 1];
+    const key = `${tripId}-${puntos.length}-${puntos[0]?.lat}-${last?.lat}`;
     if (fitted.current === key) return;
     fitted.current = key;
     const bounds = new google.maps.LatLngBounds();
     puntos.forEach(p => bounds.extend(p));
     map.fitBounds(bounds, 50);
-  }, [map, puntos]);
+  }, [map, puntos, tripId]);
   return null;
 }
 
@@ -2028,7 +2029,7 @@ function ViajeReconstructorPanel({ viajeId, onClose }: { viajeId: number; onClos
               disableDefaultUI
               style={{ width: "100%", height: "100%" }}
             >
-              <FitBoundsRuta puntos={trailPath} />
+              <FitBoundsRuta puntos={trailPath} tripId={viajeId} />
               <Polyline path={trailPath} strokeColor="#0055ff" strokeWeight={3} strokeOpacity={0.3} />
               <Polyline path={visiblePath} strokeColor="#0088ff" strokeWeight={4} strokeOpacity={0.9} />
 

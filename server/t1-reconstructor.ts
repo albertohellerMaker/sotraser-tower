@@ -371,7 +371,7 @@ function construirViajes(
     const vuelveAlMismoCD = vueltaIdx >= 0 &&
       (visitasDestino[vueltaIdx].nombre_contrato || visitasDestino[vueltaIdx].geocerca_nombre) === origenNombre;
 
-    const finViaje = vueltaIdx >= 0 ? visitasDestino[vueltaIdx] : ultimaEntrega;
+    const finViaje = vuelveAlMismoCD && vueltaIdx >= 0 ? visitasDestino[vueltaIdx] : ultimaEntrega;
 
     const kmTotal = estimarKm(puntos, origen.salida, finViaje.llegada);
     if (kmTotal < MIN_TRIP_KM) {

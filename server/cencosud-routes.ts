@@ -611,9 +611,13 @@ router.get("/viaje-ruta/:id", async (req, res) => {
     const tiempoDetenido = puntos.filter((p: any) => p.velocidad === 0 || !p.ignicion).length;
     const tiempoMovimiento = puntos.filter((p: any) => p.velocidad > 0 && p.ignicion).length;
 
+    const paradasNorm = Array.isArray(viaje.paradas) ? viaje.paradas :
+      (viaje.paradas?.paradas && Array.isArray(viaje.paradas.paradas)) ? viaje.paradas.paradas : [];
+
     res.json({
       viaje: {
         ...viaje,
+        paradas: paradasNorm,
         vel_max_gps: velMax,
         vel_prom_gps: velProm,
         pct_detenido: puntos.length > 0 ? Math.round(tiempoDetenido / puntos.length * 100) : 0,
