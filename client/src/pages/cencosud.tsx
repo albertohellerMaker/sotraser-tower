@@ -339,6 +339,11 @@ function MapeoInteractivo() {
 export default function CencosudView({ onBack, gpsSource = "wisetrack", onNavigate }: { onBack: () => void; gpsSource?: "wisetrack"; onNavigate?: (tab: string) => void }) {
   const [tab, setTab] = useState<Tab>("EN_VIVO");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [filtroFlota, setFiltroFlota] = useState("");
+  const [filtroCtrl, setFiltroCtrl] = useState("");
+  const [filtroTarifas, setFiltroTarifas] = useState("");
+  const [sortFlota, setSortFlota] = useState<{ col: string; asc: boolean }>({ col: "patente", asc: true });
+  const [sortCtrl, setSortCtrl] = useState<{ col: string; asc: boolean }>({ col: "patente", asc: true });
 
   const enVivoUrl = gpsSource === "wisetrack" ? "/api/wisetrack/tms/en-vivo" : "/api/cencosud/en-vivo";
   const trailUrlBase = gpsSource === "wisetrack" ? "/api/wisetrack/tms/en-vivo/trail" : "/api/cencosud/en-vivo/trail";
@@ -419,13 +424,23 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
 
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
-        <div className="flex gap-0">
-          {(["EN_VIVO", "CONTROL", "RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "AGENTE", "TARIFAS", "MAPA"] as Tab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)} className="flex items-center gap-1.5 px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
-              style={{ color: tab === t ? (t === "EN_VIVO" ? "#00ff88" : t === "CONTROL" ? "#ffcc00" : "#00d4ff") : "#3a6080", borderBottom: tab === t ? `2px solid ${t === "EN_VIVO" ? "#00ff88" : t === "CONTROL" ? "#ffcc00" : "#00d4ff"}` : "2px solid transparent" }}>
-              {t === "EN_VIVO" && <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />}
-              {t === "CONTROL" && <Activity size={10} style={{ color: "#ffcc00" }} />}
-              {t === "EN_VIVO" ? "EN VIVO" : t}
+        <div className="flex gap-0 overflow-x-auto">
+          {([
+            { t: "EN_VIVO" as Tab, icon: <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />, label: "EN VIVO", color: "#00ff88" },
+            { t: "CONTROL" as Tab, icon: <Activity size={11} />, label: "CONTROL", color: "#ffcc00" },
+            { t: "RESUMEN" as Tab, icon: <TrendingUp size={11} />, label: "RESUMEN", color: "#00d4ff" },
+            { t: "VIAJES" as Tab, icon: <Route size={11} />, label: "VIAJES", color: "#a855f7" },
+            { t: "ERR" as Tab, icon: <DollarSign size={11} />, label: "ERR", color: "#00ff88" },
+            { t: "RUTAS" as Tab, icon: <Navigation size={11} />, label: "RUTAS", color: "#00d4ff" },
+            { t: "FLOTA" as Tab, icon: <Truck size={11} />, label: "FLOTA", color: "#00d4ff" },
+            { t: "AGENTE" as Tab, icon: <Brain size={11} />, label: "AGENTE", color: "#a855f7" },
+            { t: "TARIFAS" as Tab, icon: <Target size={11} />, label: "TARIFAS", color: "#00ff88" },
+            { t: "MAPA" as Tab, icon: <MapPin size={11} />, label: "MAPA", color: "#00d4ff" },
+          ]).map(({ t, icon, label, color }) => (
+            <button key={t} onClick={() => setTab(t)} className="flex items-center gap-1.5 px-3 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer whitespace-nowrap"
+              style={{ color: tab === t ? color : "#3a6080", borderBottom: tab === t ? `2px solid ${color}` : "2px solid transparent" }}>
+              {icon}
+              {label}
               {t === "EN_VIVO" && enVivoData?.resumen && <span className="ml-1 text-[8px] px-1 py-0.5" style={{ background: "#00ff8815", borderRadius: 3 }}>{enVivoData.resumen.en_ruta}</span>}
             </button>
           ))}
@@ -1020,7 +1035,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
         {tab === "RESUMEN" && (
           <>
             {/* KPIs */}
-            <div className="grid grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
               {[
                 { l: "CAMIONES", v: `${f.camiones || 0}/83`, c: "#00d4ff", icon: Truck, go: "FLOTA" as Tab },
                 { l: "VIAJES MES", v: f.viajes || 0, c: "#a855f7", icon: Activity, go: "VIAJES" as Tab },
@@ -1033,10 +1048,10 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
               ].map(k => {
                 const Icon = k.icon;
                 return (
-                  <div key={k.l} onClick={() => k.go && setTab(k.go)} className={`rounded-lg p-3 ${k.go ? "cursor-pointer hover:opacity-90 transition-all" : ""}`} style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
+                  <div key={k.l} onClick={() => k.go && setTab(k.go)} className={`rounded-lg p-3 ${k.go ? "cursor-pointer hover:opacity-90 hover:brightness-110 transition-all" : ""}`} style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
                     <Icon className="w-3.5 h-3.5 mb-1.5" style={{ color: `${k.c}50` }} />
                     <div className="font-space text-[16px] font-bold leading-none" style={{ color: k.c }}>{k.v}</div>
-                    <div className="font-exo text-[6px] tracking-wider uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}{k.go ? " >" : ""}</div>
+                    <div className="font-exo text-[7px] tracking-wider uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}{k.go ? " >" : ""}</div>
                   </div>
                 );
               })}
@@ -1130,7 +1145,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
           return (
             <>
               {/* KPIs viajes */}
-              <div className="grid grid-cols-8 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                 {[
                   { l: "TOTAL VIAJES", v: viajesMes.total, c: "#a855f7" },
                   { l: "CON TARIFA", v: viajesMes.con_tarifa, c: "#00ff88" },
@@ -1143,7 +1158,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                 ].map(k => (
                   <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
                     <div className="font-space text-[14px] font-bold" style={{ color: k.c }}>{k.v}</div>
-                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                    <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
                   </div>
                 ))}
               </div>
