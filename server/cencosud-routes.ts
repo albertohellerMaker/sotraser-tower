@@ -272,7 +272,7 @@ router.get("/err", async (req, res) => {
     const [viajes, porRuta, porCamion, circuitos] = await Promise.all([
       // Viajes con cruce tarifa
       pool.query(`
-        SELECT va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
+        SELECT DISTINCT ON (va.id) va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
           va.km_ecu::float as km, va.rendimiento_real::float as rend, va.duracion_minutos::int as min,
           va.fecha_inicio::text, va.velocidad_maxima::float as vel_max,
           ao.nombre_contrato as o_c, ad.nombre_contrato as d_c,
@@ -282,7 +282,7 @@ router.get("/err", async (req, res) => {
         LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
         LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
         WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
-        ORDER BY va.fecha_inicio
+        ORDER BY va.id, crt.tarifa DESC NULLS LAST
       `, [fecha]),
 
       // Resumen por ruta contrato
@@ -450,7 +450,7 @@ router.get("/trayectos", async (req, res) => {
     const dias = parseInt(req.query.dias as string) || 7;
 
     const r = await pool.query(`
-      SELECT t.id, t.patente, t.origen_nombre, t.destino_nombre,
+      SELECT DISTINCT ON (t.id) t.id, t.patente, t.origen_nombre, t.destino_nombre,
              t.km_total, t.litros_total, t.rendimiento_real,
              t.fecha_inicio, t.fecha_fin, t.duracion_minutos,
              t.paradas_intermedias, t.segmentos_count,
@@ -465,7 +465,7 @@ router.get("/trayectos", async (req, res) => {
       LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
       WHERE t.fecha_inicio >= $1::date - ($2 || ' days')::interval
         AND t.fecha_inicio <= $1::date + INTERVAL '1 day'
-      ORDER BY t.fecha_inicio DESC
+      ORDER BY t.id, crt.tarifa DESC NULLS LAST
       LIMIT 500
     `, [fecha, dias]);
 
@@ -552,7 +552,7 @@ router.get("/viajes-sin-tarifa-mapa", async (req, res) => {
     const dias = Math.min(parseInt(req.query.dias as string) || 30, 90);
     const [viajesR, rutasR, nombresR] = await Promise.all([
       pool.query(`
-        SELECT va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
+        SELECT DISTINCT ON (va.id) va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
           va.km_ecu::float as km, va.rendimiento_real::float as rend,
           va.duracion_minutos::int as min, va.velocidad_maxima::float as vel_max,
           va.origen_lat::float, va.origen_lng::float, va.destino_lat::float, va.destino_lng::float,
@@ -565,7 +565,7 @@ router.get("/viajes-sin-tarifa-mapa", async (req, res) => {
           AND crt.destino = COALESCE(ad.nombre_contrato, va.destino_nombre) AND crt.contrato = 'CENCOSUD' AND crt.activo = true
         WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= NOW() - ($1 || ' days')::interval
           AND va.km_ecu > 5 AND crt.id IS NULL
-        ORDER BY va.fecha_inicio DESC
+        ORDER BY va.id, va.fecha_inicio DESC
         LIMIT 200
       `, [dias]),
       pool.query(`SELECT DISTINCT origen, destino, tarifa, lote, clase FROM contrato_rutas_tarifas WHERE contrato = 'CENCOSUD' AND activo = true ORDER BY origen, destino`),
@@ -661,7 +661,7 @@ router.get("/viajes-parciales", async (req, res) => {
   try {
     const dias = Math.min(parseInt(req.query.dias as string) || 30, 90);
     const viajesR = await pool.query(`
-      SELECT va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
+      SELECT DISTINCT ON (va.id) va.id, c.patente, va.conductor, va.origen_nombre, va.destino_nombre,
         va.km_ecu::float as km, va.duracion_minutos::int as min,
         va.origen_lat::float, va.origen_lng::float, va.destino_lat::float, va.destino_lng::float,
         va.fecha_inicio::text as fecha, DATE(va.fecha_inicio)::text as dia,
@@ -680,7 +680,7 @@ router.get("/viajes-parciales", async (req, res) => {
         AND va.fecha_inicio >= NOW() - ($1 || ' days')::interval
         AND va.km_ecu > 5 AND crt.id IS NULL
         AND (ao.nombre_contrato IS NOT NULL OR ad.nombre_contrato IS NOT NULL)
-      ORDER BY va.fecha_inicio DESC
+      ORDER BY va.id, va.fecha_inicio DESC
       LIMIT 200
     `, [dias]);
 
