@@ -363,6 +363,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
   const { data: saMsgs, refetch: refetchSaMsgs } = useQuery<any>({ queryKey: ["/api/cencosud/agente/mensajes"], queryFn: () => fetch("/api/cencosud/agente/mensajes").then(r => r.json()), refetchInterval: 30000, enabled: tab === "AGENTE" });
   const { data: paramData, refetch: refetchParams } = useQuery<any>({ queryKey: ["/api/cencosud/parametros"], queryFn: () => fetch("/api/cencosud/parametros").then(r => r.json()), staleTime: 300000, enabled: tab === "AGENTE" });
   const { data: intelData, refetch: refetchIntel } = useQuery<any>({ queryKey: ["/api/cencosud/agente/inteligencia"], queryFn: () => fetch("/api/cencosud/agente/inteligencia").then(r => r.json()), refetchInterval: 120000, enabled: tab === "AGENTE" });
+  const { data: ctrlData, isLoading: ctrlLoading } = useQuery<any>({ queryKey: ["/api/cencosud/control-diario", fecha], queryFn: () => fetch(`/api/cencosud/control-diario?fecha=${fecha}`).then(r => r.json()), staleTime: 30000, enabled: tab === "CONTROL" });
 
   const f = mes?.flota || {};
   const fi = mes?.financiero || {};
@@ -815,18 +816,13 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
 
         {/* ═══ CONTROL OPERACIONAL DIARIO ═══ */}
         {tab === "CONTROL" && (() => {
-          const { data: ctrl, isLoading } = useQuery<any>({
-            queryKey: ["/api/cencosud/control-diario", fecha],
-            queryFn: () => fetch(`/api/cencosud/control-diario?fecha=${fecha}`).then(r => r.json()),
-            staleTime: 30000,
-          });
-          if (isLoading) return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Cargando control diario...</div>;
-          if (!ctrl?.resumen) return <div className="text-center py-20 font-exo text-[#3a6080]">Sin datos para {fecha}</div>;
-          const r = ctrl.resumen;
-          const cams = ctrl.camiones || [];
-          const exc = ctrl.excesos_detalle || [];
-          const vjs = ctrl.viajes || [];
-          const velHora = ctrl.velocidad_por_hora || [];
+          if (ctrlLoading) return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Cargando control diario...</div>;
+          if (!ctrlData?.resumen) return <div className="text-center py-20 font-exo text-[#3a6080]">Sin datos para {fecha}</div>;
+          const r = ctrlData.resumen;
+          const cams = ctrlData.camiones || [];
+          const exc = ctrlData.excesos_detalle || [];
+          const vjs = ctrlData.viajes || [];
+          const velHora = ctrlData.velocidad_por_hora || [];
           return (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">

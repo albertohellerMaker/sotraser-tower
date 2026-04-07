@@ -58,7 +58,8 @@ shared/
 ## Navigation Flow
 Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
 - **CENCOSUD tab** (HOME — primary focus): Cencosud contract control panel
-  - Sub-tabs: EN VIVO / RESUMEN / VIAJES / ERRORES / RUTAS / FLOTA / AGENTE / TARIFAS / MAPA
+  - Sub-tabs: EN VIVO / CONTROL / RESUMEN / VIAJES / ERRORES / RUTAS / FLOTA / AGENTE / TARIFAS / MAPA
+  - **CONTROL tab**: Daily operational control — KPIs (km, liters, fuel efficiency, speed violations), hourly speed chart, per-truck detail table, speed excess log, daily trips summary. Endpoint: `/api/cencosud/control-diario?fecha=YYYY-MM-DD`
   - Trip reconciliation (cuadratura): GPS trips matched to tarifario via geocerca aliases
   - Trip states: CRUZADO (billable), PARCIAL (one end mapped), SIN_ALIAS (unmapped)
   - Interactive mapping: manual assignment of contract names to unmatched trips
