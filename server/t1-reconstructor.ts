@@ -294,8 +294,17 @@ function deduplicarVisitas(visitas: Visita[]): Visita[] {
   return result;
 }
 
+const basesSOTRASERSet = new Set([
+  "base sotraser antofagasta", "base sotraser calama",
+  "base sotraser lo boza", "base sotraser los angeles",
+]);
+
 function esCD(visita: Visita): boolean {
-  return visita.tipo === "CD" || visita.tipo === "BASE";
+  return visita.tipo === "CD";
+}
+
+function esBaseSotraser(visita: Visita): boolean {
+  return visita.tipo === "BASE" || basesSOTRASERSet.has(visita.geocerca_nombre.toLowerCase());
 }
 
 function construirViajes(
@@ -319,53 +328,37 @@ function construirViajes(
       continue;
     }
 
-    let finIdx = -1;
     const entregas: Visita[] = [];
+    let vueltaIdx = -1;
+    let descansoIdx = -1;
 
     for (let j = i + 1; j < visitasDestino.length; j++) {
       const punto = visitasDestino[j];
       const puntoNombre = punto.nombre_contrato || punto.geocerca_nombre;
 
-      if (esCD(punto)) {
-        finIdx = j;
+      if (esBaseSotraser(punto)) {
+        descansoIdx = j;
         break;
       }
+
+      if (esCD(punto) && puntoNombre === origenNombre) {
+        vueltaIdx = j;
+        break;
+      }
+
+      if (esCD(punto)) {
+        vueltaIdx = j;
+        break;
+      }
+
       entregas.push(punto);
     }
 
     if (entregas.length === 0) {
-      if (finIdx > 0) {
-        const finVisita = visitasDestino[finIdx];
-        const finNombre = finVisita.nombre_contrato || finVisita.geocerca_nombre;
-        if (finNombre !== origenNombre) {
-          const kmTotal = estimarKm(puntos, origen.salida, finVisita.llegada);
-          if (kmTotal >= MIN_TRIP_KM) {
-            const dur = Math.round((finVisita.llegada.getTime() - origen.salida.getTime()) / 60000);
-            const paradasEnMedio = visitas.filter(v =>
-              v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= finVisita.llegada
-            ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
-
-            viajes.push({
-              camion_id, patente,
-              origen: origenNombre,
-              destino: finNombre,
-              origen_geo: origen.geocerca_nombre,
-              destino_geo: finVisita.geocerca_nombre,
-              fecha_inicio: origen.salida,
-              fecha_fin: finVisita.llegada,
-              km_estimado: kmTotal,
-              duracion_min: dur,
-              es_round_trip: false,
-              paradas_intermedias: paradasEnMedio,
-              visitas_secuencia: [origenNombre, finNombre],
-              origen_lat: origen.lat,
-              origen_lng: origen.lng,
-              destino_lat: finVisita.lat,
-              destino_lng: finVisita.lng,
-            });
-          }
-        }
-        i = finIdx;
+      if (vueltaIdx >= 0) {
+        i = vueltaIdx;
+      } else if (descansoIdx >= 0) {
+        i = descansoIdx;
       } else {
         i++;
       }
@@ -375,13 +368,14 @@ function construirViajes(
     const ultimaEntrega = entregas[entregas.length - 1];
     const destinoPrincipal = ultimaEntrega.nombre_contrato || ultimaEntrega.geocerca_nombre;
 
-    const finViaje = finIdx >= 0 ? visitasDestino[finIdx] : ultimaEntrega;
-    const finNombre = finViaje.nombre_contrato || finViaje.geocerca_nombre;
-    const vuelveAlOrigen = finIdx >= 0 && finNombre === origenNombre;
+    const vuelveAlMismoCD = vueltaIdx >= 0 &&
+      (visitasDestino[vueltaIdx].nombre_contrato || visitasDestino[vueltaIdx].geocerca_nombre) === origenNombre;
+
+    const finViaje = vueltaIdx >= 0 ? visitasDestino[vueltaIdx] : ultimaEntrega;
 
     const kmTotal = estimarKm(puntos, origen.salida, finViaje.llegada);
     if (kmTotal < MIN_TRIP_KM) {
-      i = finIdx >= 0 ? finIdx : i + 1;
+      i = vueltaIdx >= 0 ? vueltaIdx : (descansoIdx >= 0 ? descansoIdx : i + 1);
       continue;
     }
 
@@ -399,7 +393,7 @@ function construirViajes(
     ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
 
     const secuencia = [origenNombre, ...entregas.map(e => e.nombre_contrato || e.geocerca_nombre)];
-    if (finIdx >= 0) secuencia.push(finNombre);
+    if (vuelveAlMismoCD) secuencia.push(origenNombre);
 
     viajes.push({
       camion_id, patente,
@@ -411,7 +405,7 @@ function construirViajes(
       fecha_fin: finViaje.llegada,
       km_estimado: kmTotal,
       duracion_min: dur,
-      es_round_trip: vuelveAlOrigen,
+      es_round_trip: vuelveAlMismoCD,
       paradas_intermedias: [...entregasInfo, ...paradasEnMedio],
       visitas_secuencia: secuencia,
       origen_lat: origen.lat,
@@ -420,7 +414,13 @@ function construirViajes(
       destino_lng: ultimaEntrega.lng,
     });
 
-    i = finIdx >= 0 ? finIdx : visitasDestino.length;
+    if (vueltaIdx >= 0) {
+      i = vueltaIdx;
+    } else if (descansoIdx >= 0) {
+      i = descansoIdx;
+    } else {
+      i = visitasDestino.length;
+    }
   }
 
   return viajes;
