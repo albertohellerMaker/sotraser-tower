@@ -1270,7 +1270,7 @@ router.get("/control-diario", async (req, res) => {
 
 router.get("/alias-audit", async (_req, res) => {
   try {
-    const r = await pool.query(`SELECT id, geocerca_nombre, nombre_contrato, confirmado, fuente FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD' ORDER BY geocerca_nombre`);
+    const r = await pool.query(`SELECT id, geocerca_nombre, nombre_contrato, confirmado FROM geocerca_alias_contrato WHERE contrato = 'CENCOSUD' ORDER BY geocerca_nombre`);
     res.json({ total: r.rows.length, aliases: r.rows });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -1305,7 +1305,7 @@ router.post("/alias-fix", async (_req, res) => {
     for (const m of missingAliases) {
       const exists = await pool.query(`SELECT 1 FROM geocerca_alias_contrato WHERE geocerca_nombre = $1 AND nombre_contrato = $2 AND contrato = 'CENCOSUD'`, [m.geo, m.contrato]);
       if (exists.rows.length === 0) {
-        await pool.query(`INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado, fuente) VALUES ($1, $2, 'CENCOSUD', true, 'ADMIN_FIX')`, [m.geo, m.contrato]);
+        await pool.query(`INSERT INTO geocerca_alias_contrato (geocerca_nombre, nombre_contrato, contrato, confirmado) VALUES ($1, $2, 'CENCOSUD', true)`, [m.geo, m.contrato]);
         fixes.push(`Added: ${m.geo} → ${m.contrato}`);
       }
     }
