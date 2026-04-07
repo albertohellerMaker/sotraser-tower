@@ -294,6 +294,10 @@ function deduplicarVisitas(visitas: Visita[]): Visita[] {
   return result;
 }
 
+function esCD(visita: Visita): boolean {
+  return visita.tipo === "CD" || visita.tipo === "BASE";
+}
+
 function construirViajes(
   camion_id: number,
   patente: string,
@@ -306,103 +310,117 @@ function construirViajes(
   const viajes: ViajeT1[] = [];
   let i = 0;
 
-  while (i < visitasDestino.length - 1) {
+  while (i < visitasDestino.length) {
     const origen = visitasDestino[i];
-    const destino = visitasDestino[i + 1];
-
     const origenNombre = origen.nombre_contrato || origen.geocerca_nombre;
-    const destinoNombre = destino.nombre_contrato || destino.geocerca_nombre;
 
-    if (origenNombre === destinoNombre) {
+    if (!esCD(origen)) {
       i++;
       continue;
     }
 
-    const kmEntrePuntos = estimarKm(puntos, origen.salida, destino.llegada);
+    let finIdx = -1;
+    const entregas: Visita[] = [];
 
-    if (kmEntrePuntos < MIN_TRIP_KM) {
-      i++;
+    for (let j = i + 1; j < visitasDestino.length; j++) {
+      const punto = visitasDestino[j];
+      const puntoNombre = punto.nombre_contrato || punto.geocerca_nombre;
+
+      if (esCD(punto)) {
+        finIdx = j;
+        break;
+      }
+      entregas.push(punto);
+    }
+
+    if (entregas.length === 0) {
+      if (finIdx > 0) {
+        const finVisita = visitasDestino[finIdx];
+        const finNombre = finVisita.nombre_contrato || finVisita.geocerca_nombre;
+        if (finNombre !== origenNombre) {
+          const kmTotal = estimarKm(puntos, origen.salida, finVisita.llegada);
+          if (kmTotal >= MIN_TRIP_KM) {
+            const dur = Math.round((finVisita.llegada.getTime() - origen.salida.getTime()) / 60000);
+            const paradasEnMedio = visitas.filter(v =>
+              v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= finVisita.llegada
+            ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
+
+            viajes.push({
+              camion_id, patente,
+              origen: origenNombre,
+              destino: finNombre,
+              origen_geo: origen.geocerca_nombre,
+              destino_geo: finVisita.geocerca_nombre,
+              fecha_inicio: origen.salida,
+              fecha_fin: finVisita.llegada,
+              km_estimado: kmTotal,
+              duracion_min: dur,
+              es_round_trip: false,
+              paradas_intermedias: paradasEnMedio,
+              visitas_secuencia: [origenNombre, finNombre],
+              origen_lat: origen.lat,
+              origen_lng: origen.lng,
+              destino_lat: finVisita.lat,
+              destino_lng: finVisita.lng,
+            });
+          }
+        }
+        i = finIdx;
+      } else {
+        i++;
+      }
       continue;
     }
+
+    const ultimaEntrega = entregas[entregas.length - 1];
+    const destinoPrincipal = ultimaEntrega.nombre_contrato || ultimaEntrega.geocerca_nombre;
+
+    const finViaje = finIdx >= 0 ? visitasDestino[finIdx] : ultimaEntrega;
+    const finNombre = finViaje.nombre_contrato || finViaje.geocerca_nombre;
+    const vuelveAlOrigen = finIdx >= 0 && finNombre === origenNombre;
+
+    const kmTotal = estimarKm(puntos, origen.salida, finViaje.llegada);
+    if (kmTotal < MIN_TRIP_KM) {
+      i = finIdx >= 0 ? finIdx : i + 1;
+      continue;
+    }
+
+    const dur = Math.round((finViaje.llegada.getTime() - origen.salida.getTime()) / 60000);
+
+    const entregasInfo = entregas.map(e => ({
+      nombre: e.nombre_contrato || e.geocerca_nombre,
+      llegada: e.llegada,
+      salida: e.salida,
+      duracion_min: e.duracion_min,
+    }));
 
     const paradasEnMedio = visitas.filter(v =>
-      v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= destino.llegada
+      v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= finViaje.llegada
     ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
 
-    let esRoundTrip = false;
-    let roundTripDestIdx = -1;
-    const origenEsBase = origen.tipo === "CD" || origen.tipo === "BASE";
-    if (origenEsBase && i + 2 < visitasDestino.length) {
-      const vueltaNombre = visitasDestino[i + 2].nombre_contrato || visitasDestino[i + 2].geocerca_nombre;
-      if (vueltaNombre === origenNombre) {
-        esRoundTrip = true;
-        roundTripDestIdx = i + 2;
-      }
-    }
+    const secuencia = [origenNombre, ...entregas.map(e => e.nombre_contrato || e.geocerca_nombre)];
+    if (finIdx >= 0) secuencia.push(finNombre);
 
-    if (esRoundTrip) {
-      const vuelta = visitasDestino[roundTripDestIdx];
-      const kmTotal = estimarKm(puntos, origen.salida, vuelta.llegada);
-      const durTotal = Math.round((vuelta.llegada.getTime() - origen.salida.getTime()) / 60000);
+    viajes.push({
+      camion_id, patente,
+      origen: origenNombre,
+      destino: destinoPrincipal,
+      origen_geo: origen.geocerca_nombre,
+      destino_geo: ultimaEntrega.geocerca_nombre,
+      fecha_inicio: origen.salida,
+      fecha_fin: finViaje.llegada,
+      km_estimado: kmTotal,
+      duracion_min: dur,
+      es_round_trip: vuelveAlOrigen,
+      paradas_intermedias: [...entregasInfo, ...paradasEnMedio],
+      visitas_secuencia: secuencia,
+      origen_lat: origen.lat,
+      origen_lng: origen.lng,
+      destino_lat: ultimaEntrega.lat,
+      destino_lng: ultimaEntrega.lng,
+    });
 
-      const allParadas = [];
-      for (let j = i + 1; j < roundTripDestIdx; j++) {
-        allParadas.push({
-          nombre: visitasDestino[j].nombre_contrato || visitasDestino[j].geocerca_nombre,
-          llegada: visitasDestino[j].llegada,
-          salida: visitasDestino[j].salida,
-          duracion_min: visitasDestino[j].duracion_min,
-        });
-      }
-      const paradasRT = visitas.filter(v =>
-        v.tipo === "PARADA" && v.llegada >= origen.salida && v.salida <= vuelta.llegada
-      ).map(v => ({ nombre: v.geocerca_nombre, llegada: v.llegada, salida: v.salida, duracion_min: v.duracion_min }));
-      allParadas.push(...paradasRT);
-
-      viajes.push({
-        camion_id, patente,
-        origen: origenNombre,
-        destino: destinoNombre,
-        origen_geo: origen.geocerca_nombre,
-        destino_geo: destino.geocerca_nombre,
-        fecha_inicio: origen.salida,
-        fecha_fin: vuelta.llegada,
-        km_estimado: kmTotal,
-        duracion_min: durTotal,
-        es_round_trip: true,
-        paradas_intermedias: allParadas,
-        visitas_secuencia: visitasDestino.slice(i, roundTripDestIdx + 1).map(v => v.nombre_contrato || v.geocerca_nombre),
-        origen_lat: origen.lat,
-        origen_lng: origen.lng,
-        destino_lat: destino.lat,
-        destino_lng: destino.lng,
-      });
-
-      i = roundTripDestIdx;
-    } else {
-      const dur = Math.round((destino.llegada.getTime() - origen.salida.getTime()) / 60000);
-
-      viajes.push({
-        camion_id, patente,
-        origen: origenNombre,
-        destino: destinoNombre,
-        origen_geo: origen.geocerca_nombre,
-        destino_geo: destino.geocerca_nombre,
-        fecha_inicio: origen.salida,
-        fecha_fin: destino.llegada,
-        km_estimado: kmEntrePuntos,
-        duracion_min: dur,
-        es_round_trip: false,
-        paradas_intermedias: paradasEnMedio,
-        visitas_secuencia: [origenNombre, destinoNombre],
-        origen_lat: origen.lat,
-        origen_lng: origen.lng,
-        destino_lat: destino.lat,
-        destino_lng: destino.lng,
-      });
-
-      i++;
-    }
+    i = finIdx >= 0 ? finIdx : visitasDestino.length;
   }
 
   return viajes;
@@ -614,91 +632,30 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
         const dLat = v.destino_lat || 0;
         const dLng = v.destino_lng || 0;
 
-        if (v.es_round_trip) {
-          const rtBilling = evaluarBillingRoundTrip(v.origen, v.destino, tarifas);
+        const tarifaFinal = buscarTarifaFlexible(v.origen, v.destino, tarifas);
 
-          if (rtBilling.mode === "SPLIT") {
-            const kmIda = Math.round(v.km_estimado * 0.5);
-            const kmVuelta = v.km_estimado - kmIda;
-            const durIda = Math.round(v.duracion_min * 0.5);
-            const durVuelta = v.duracion_min - durIda;
-            const midTime = new Date((v.fecha_inicio.getTime() + v.fecha_fin.getTime()) / 2);
+        allInserts.push({
+          camion_id: cam.camion_id,
+          fecha_inicio: v.fecha_inicio, fecha_fin: v.fecha_fin,
+          origen: v.origen, destino: v.destino,
+          origen_geo: v.origen_geo, destino_geo: v.destino_geo,
+          origen_lat: oLat, origen_lng: oLng,
+          destino_lat: dLat, destino_lng: dLng,
+          km: v.km_estimado, duracion: v.duracion_min,
+          es_round_trip: v.es_round_trip,
+          paradas_intermedias: v.paradas_intermedias,
+          visitas_secuencia: v.visitas_secuencia,
+          tarifa: tarifaFinal,
+        });
 
-            allInserts.push({
-              camion_id: cam.camion_id,
-              fecha_inicio: v.fecha_inicio,
-              fecha_fin: midTime,
-              origen: v.origen, destino: v.destino,
-              origen_geo: v.origen_geo, destino_geo: v.destino_geo,
-              origen_lat: oLat, origen_lng: oLng,
-              destino_lat: dLat, destino_lng: dLng,
-              km: kmIda, duracion: durIda,
-              es_round_trip: false,
-              paradas_intermedias: v.paradas_intermedias,
-              visitas_secuencia: [v.origen, v.destino],
-              tarifa: rtBilling.tarifa_ida,
-            });
+        totalViajes++;
+        if (v.es_round_trip) totalRoundTrip++;
+        else totalIda++;
+        if (tarifaFinal && tarifaFinal > 0) totalFacturados++;
+        else totalPendientes++;
 
-            allInserts.push({
-              camion_id: cam.camion_id,
-              fecha_inicio: new Date(midTime.getTime() + 1000),
-              fecha_fin: v.fecha_fin,
-              origen: v.destino, destino: v.origen,
-              origen_geo: v.destino_geo, destino_geo: v.origen_geo,
-              origen_lat: dLat, origen_lng: dLng,
-              destino_lat: oLat, destino_lng: oLng,
-              km: kmVuelta, duracion: durVuelta,
-              es_round_trip: false,
-              paradas_intermedias: [],
-              visitas_secuencia: [v.destino, v.origen],
-              tarifa: rtBilling.tarifa_vuelta,
-            });
-
-            totalViajes += 2;
-            totalRoundTrip++;
-            totalFacturados += 2;
-            console.log(`[T1] RT-SPLIT ${cam.patente}: ${v.origen}→${v.destino}→${v.origen} = $${rtBilling.tarifa_ida}+$${rtBilling.tarifa_vuelta}`);
-            continue;
-          }
-
-          const tarifaFinal = rtBilling.tarifa_total;
-          allInserts.push({
-            camion_id: cam.camion_id,
-            fecha_inicio: v.fecha_inicio, fecha_fin: v.fecha_fin,
-            origen: v.origen, destino: v.destino,
-            origen_geo: v.origen_geo, destino_geo: v.destino_geo,
-            origen_lat: oLat, origen_lng: oLng,
-            destino_lat: dLat, destino_lng: dLng,
-            km: v.km_estimado, duracion: v.duracion_min,
-            es_round_trip: true,
-            paradas_intermedias: v.paradas_intermedias,
-            visitas_secuencia: v.visitas_secuencia,
-            tarifa: tarifaFinal,
-          });
-          totalViajes++;
-          totalRoundTrip++;
-          if (tarifaFinal) totalFacturados++;
-          else totalPendientes++;
-        } else {
-          const tarifaFinal = buscarTarifaFlexible(v.origen, v.destino, tarifas);
-          allInserts.push({
-            camion_id: cam.camion_id,
-            fecha_inicio: v.fecha_inicio, fecha_fin: v.fecha_fin,
-            origen: v.origen, destino: v.destino,
-            origen_geo: v.origen_geo, destino_geo: v.destino_geo,
-            origen_lat: oLat, origen_lng: oLng,
-            destino_lat: dLat, destino_lng: dLng,
-            km: v.km_estimado, duracion: v.duracion_min,
-            es_round_trip: false,
-            paradas_intermedias: v.paradas_intermedias,
-            visitas_secuencia: v.visitas_secuencia,
-            tarifa: tarifaFinal,
-          });
-          totalViajes++;
-          totalIda++;
-          if (tarifaFinal) totalFacturados++;
-          else totalPendientes++;
-        }
+        const entregasStr = v.visitas_secuencia.filter(s => s !== v.origen).join("→");
+        console.log(`[T1] ${cam.patente}: ${v.origen}→${entregasStr} ${v.es_round_trip ? "(RT)" : "(ida)"} ${v.km_estimado}km $${tarifaFinal || 0}`);
       }
     } catch (err: any) {
       errores.push(`${cam.patente}: ${err.message}`);
