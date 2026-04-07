@@ -331,16 +331,22 @@ export interface SeguimientoVehicle {
   tiempoRalenti: number;
 }
 
-export async function fetchSeguimiento(_grupo?: string): Promise<SeguimientoVehicle[]> {
+export async function fetchSeguimiento(grupo?: string): Promise<SeguimientoVehicle[]> {
+  const params: any[] = [];
+  let whereClause = "WHERE creado_at > NOW() - INTERVAL '4 hours'";
+  if (grupo) {
+    params.push(grupo);
+    whereClause += ` AND grupo1 = $${params.length}`;
+  }
   const result = await pool.query(`
     SELECT DISTINCT ON (patente)
       patente, etiqueta, lat, lng, velocidad, direccion, ignicion,
       grupo1, conductor, kms_total, consumo_litros, nivel_estanque,
       rpm, temp_motor, estado_operacion, fecha
     FROM wisetrack_posiciones
-    WHERE creado_at > NOW() - INTERVAL '4 hours'
+    ${whereClause}
     ORDER BY patente, creado_at DESC
-  `);
+  `, params);
 
   return result.rows.map((r: any) => ({
     patente: r.patente || "",

@@ -102,6 +102,11 @@ Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
 - **Admin endpoints**: `/api/cencosud/alias-audit` (GET) and `/api/cencosud/alias-fix` (POST) for alias maintenance
 - **Do NOT add `mapId`** to Google Maps components unless creating real Map IDs in Google Cloud Console
 
+## TMS Cencosud — Only Cencosud Trucks
+- **`fetchSeguimiento(grupo)` now filters by `grupo1`** — Previously ignored the parameter (prefixed with `_`), returning ALL 476 vehicles from all clients (Glencore, Mininco, Indura, Anglo, etc.) in the Cencosud TMS view
+- **Fix**: SQL WHERE clause `AND grupo1 = $1` applied when grupo is provided. Only `fetchSeguimiento()` without argument returns all vehicles (used only for `/api/wisetrack/grupos` endpoint)
+- **Affected endpoints**: `/api/wisetrack/en-vivo`, `/api/wisetrack/flota`, `/api/wisetrack/tms/en-vivo` — all pass `"CENCOSUD"` and now correctly filter
+
 ## Audit Fixes Applied (April 2026)
 - **Fixed**: `saveTelemetria` now uses `ConsumoLitros_Total` instead of `ConsumoLitros_Conduccion` — fuel data was under-reported
 - **Fixed**: `wisetrack_posiciones` table auto-created by scraper on startup
