@@ -351,6 +351,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
   const { data: plDia } = useQuery<any>({ queryKey: ["/api/cencosud/pl/dia", fecha], queryFn: () => fetch(`/api/cencosud/pl/dia?fecha=${fecha}`).then(r => r.json()), staleTime: 60000 });
   const { data: enVivoData } = useQuery<any>({ queryKey: [enVivoUrl], queryFn: () => fetch(enVivoUrl).then(r => r.json()), refetchInterval: 30000, enabled: tab === "EN_VIVO" });
   const [seguir, setSeguir] = useState<string | null>(null);
+  const [alertaMapOpen, setAlertaMapOpen] = useState<any>(null);
   const prevTab = useRef<Tab>("EN_VIVO");
   useEffect(() => { if (prevTab.current === "EN_VIVO" && tab !== "EN_VIVO") setSeguir(null); prevTab.current = tab; }, [tab]);
   const { data: trailData } = useQuery<any>({ queryKey: [trailUrlBase, seguir], queryFn: () => fetch(`${trailUrlBase}/${seguir}`).then(r => r.json()), refetchInterval: 30000, enabled: !!seguir && tab === "EN_VIVO" });
@@ -919,12 +920,15 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
               {exc.length > 0 && (
                 <div className="p-4 rounded-lg" style={{ background: "#0d1825", border: "1px solid #1a0a0a" }}>
                   <div className="font-space text-[10px] font-bold tracking-wider mb-3" style={{ color: "#ff6b35" }}>
-                    <AlertTriangle size={12} className="inline mr-1" />EXCESOS DE VELOCIDAD ({exc.length})
+                    <AlertTriangle size={12} className="inline mr-1" />EXCESOS DE VELOCIDAD ({exc.length}) <span className="font-exo text-[8px]" style={{ color: "#6a8fa8" }}>· click para ver en mapa</span>
                   </div>
                   <div className="grid gap-1 max-h-[200px] overflow-y-auto">
                     {exc.map((e: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between py-1 px-2 rounded" style={{ background: "#0a0a15", border: `1px solid ${e.velocidad > 105 ? "#ff224430" : "#ff6b3520"}` }}>
+                      <div key={i} onClick={() => e.lat && e.lng && setAlertaMapOpen(e)}
+                        className="flex items-center justify-between py-1 px-2 rounded cursor-pointer hover:brightness-125 transition-all"
+                        style={{ background: "#0a0a15", border: `1px solid ${e.velocidad > 105 ? "#ff224430" : "#ff6b3520"}` }}>
                         <div className="flex items-center gap-3">
+                          <MapPin size={10} style={{ color: e.velocidad > 105 ? "#ff2244" : "#ff6b35" }} />
                           <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{e.patente}</span>
                           <span className="font-exo text-[9px]" style={{ color: "#6a8fa8" }}>{e.conductor || ""}</span>
                         </div>
@@ -965,6 +969,48 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {alertaMapOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.85)" }} onClick={() => setAlertaMapOpen(null)}>
+                  <div className="w-[90vw] max-w-[700px] rounded-xl overflow-hidden" style={{ background: "#0d1825", border: "1px solid #0d2035" }} onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #0d2035" }}>
+                      <div className="flex items-center gap-3">
+                        <AlertTriangle size={14} style={{ color: alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35" }} />
+                        <span className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{alertaMapOpen.patente}</span>
+                        <span className="font-space text-[13px] font-bold" style={{ color: alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35" }}>{alertaMapOpen.velocidad} km/h</span>
+                        <span className="font-exo text-[10px]" style={{ color: "#6a8fa8" }}>{alertaMapOpen.conductor || ""}</span>
+                        <span className="font-exo text-[10px]" style={{ color: "#6a8fa8" }}>{new Date(alertaMapOpen.hora).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                      </div>
+                      <button onClick={() => setAlertaMapOpen(null)} className="cursor-pointer" style={{ color: "#6a8fa8" }}><X size={16} /></button>
+                    </div>
+                    <div style={{ height: 400 }}>
+                      <GMap defaultCenter={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }} defaultZoom={15} mapId="alerta-velocidad-map" gestureHandling="greedy" disableDefaultUI={false} streetViewControl={true}>
+                        <AdvancedMarker position={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }}>
+                          <div className="flex flex-col items-center">
+                            <div className="px-2 py-1 rounded-lg font-space text-[10px] font-bold" style={{
+                              background: alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35",
+                              color: "#fff", boxShadow: `0 0 12px ${alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35"}`
+                            }}>
+                              {alertaMapOpen.velocidad} km/h
+                            </div>
+                            <div className="w-0 h-0" style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `6px solid ${alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35"}` }} />
+                          </div>
+                        </AdvancedMarker>
+                      </GMap>
+                    </div>
+                    <div className="px-4 py-2 flex items-center justify-between" style={{ borderTop: "1px solid #0d2035" }}>
+                      <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+                        GPS: {alertaMapOpen.lat?.toFixed(5)}, {alertaMapOpen.lng?.toFixed(5)}
+                      </span>
+                      <a href={`https://www.google.com/maps?q=${alertaMapOpen.lat},${alertaMapOpen.lng}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-1 rounded font-space text-[9px] font-bold cursor-pointer"
+                        style={{ background: "#00d4ff15", color: "#00d4ff", border: "1px solid #00d4ff30" }}>
+                        <Navigation size={10} /> ABRIR EN GOOGLE MAPS
+                      </a>
+                    </div>
                   </div>
                 </div>
               )}

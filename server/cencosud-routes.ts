@@ -85,14 +85,14 @@ router.get("/resumen-mes", async (_req, res) => {
         SELECT COUNT(DISTINCT c.patente)::int as camiones, COUNT(*)::int as viajes,
           ROUND(SUM(va.km_ecu)::numeric) as km, ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
         FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
       `),
       pool.query(`
         SELECT DATE(va.fecha_inicio)::text as dia, COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
           ROUND(SUM(va.km_ecu)::numeric) as km,
           ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
         FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
         GROUP BY DATE(va.fecha_inicio) ORDER BY dia
       `),
       // Cruce financiero mes completo
@@ -104,7 +104,7 @@ router.get("/resumen-mes", async (_req, res) => {
         LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
         LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
         LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
       `),
     ]);
 
@@ -159,7 +159,7 @@ router.get("/flota", async (_req, res) => {
         COUNT(DISTINCT DATE(va.fecha_inicio))::int as dias_activo,
         MAX(va.fecha_inicio)::text as ultimo_viaje
       FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-      WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+      WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
       GROUP BY c.patente, va.conductor ORDER BY km_mes DESC
     `);
     const dia = new Date().getDate();
@@ -243,7 +243,7 @@ router.get("/viajes-mes", async (_req, res) => {
       LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
       LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
       LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-      WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu > 0
+      WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
       ORDER BY va.fecha_inicio DESC
     `);
 
@@ -1149,7 +1149,7 @@ router.get("/control-diario", async (req, res) => {
           MIN(wp.creado_at)::text as primera_pos,
           MAX(wp.creado_at)::text as ultima_pos,
           COUNT(*)::int as total_puntos,
-          ROUND(SUM(CASE WHEN wp.velocidad < 3 AND wp.ignicion = 1 THEN 1 ELSE 0 END)::numeric * 100.0 / NULLIF(COUNT(*), 0), 1) as pct_ralenti,
+          ROUND(SUM(CASE WHEN wp.velocidad < 3 AND wp.ignicion = true THEN 1 ELSE 0 END)::numeric * 100.0 / NULLIF(COUNT(*), 0), 1) as pct_ralenti,
           wp.conductor
         FROM wisetrack_posiciones wp
         JOIN camiones c ON c.patente = wp.patente
@@ -1195,7 +1195,7 @@ router.get("/control-diario", async (req, res) => {
       `, [fecha]),
 
       pool.query(`
-        SELECT c.patente, va.origen_nombre, va.destino_nombre,
+        SELECT DISTINCT ON (va.id) c.patente, va.origen_nombre, va.destino_nombre,
           va.km_ecu::float as km, va.duracion_minutos::int as duracion,
           va.rendimiento_real::float as rendimiento,
           va.velocidad_maxima::float as vel_max,
@@ -1211,8 +1211,8 @@ router.get("/control-diario", async (req, res) => {
         LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = COALESCE(ao.nombre_contrato, va.origen_nombre)
           AND crt.destino = COALESCE(ad.nombre_contrato, va.destino_nombre) AND crt.contrato = 'CENCOSUD' AND crt.activo = true
         WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR'
-          AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 5
-        ORDER BY va.fecha_inicio
+          AND DATE(va.fecha_inicio) = $1 AND va.km_ecu >= 15
+        ORDER BY va.id, crt.tarifa DESC NULLS LAST
       `, [fecha]),
 
       pool.query(`
