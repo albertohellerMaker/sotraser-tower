@@ -165,9 +165,13 @@ export const superAgenteCencosud = {
     try {
       if (!this._t1Ejecutado) {
         try {
-          const fecha = new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
-          const result = await reconstruirDiaT1(fecha);
-          console.log(`[SUPER-CENCOSUD] T-1 inicial (${fecha}): ${result.viajes_creados} viajes`);
+          const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+          const hace30 = new Date(Date.now() - 30 * 86400000).toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+          const { reconstruirRango } = await import("../t1-reconstructor");
+          const resultados = await reconstruirRango(hace30, hoy);
+          const totalViajes = resultados.reduce((s: number, r: any) => s + r.viajes_creados, 0);
+          const diasConViajes = resultados.filter((r: any) => r.viajes_creados > 0).length;
+          console.log(`[SUPER-CENCOSUD] T-1 backlog (${hace30} → ${hoy}): ${totalViajes} viajes en ${diasConViajes} días`);
           this._t1Ejecutado = true;
           try {
             const plResult = await calcularPLViajes();
