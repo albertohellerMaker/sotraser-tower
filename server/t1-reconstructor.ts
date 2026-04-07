@@ -558,10 +558,10 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 
   const camionesResult = await pool.query(`
     SELECT DISTINCT patente, 
-           (SELECT id FROM camiones WHERE camiones.patente = wp.patente LIMIT 1) as camion_id
+           (SELECT id FROM camiones WHERE REPLACE(camiones.patente, '-', '') = REPLACE(wp.patente, '-', '') LIMIT 1) as camion_id
     FROM wisetrack_posiciones wp
-    WHERE creado_at >= $1::date
-      AND creado_at < ($1::date + interval '1 day')
+    WHERE fecha >= $1::date
+      AND fecha < ($1::date + interval '1 day')
       AND grupo1 = 'CENCOSUD'
     ORDER BY patente
   `, [fecha]);
@@ -585,12 +585,12 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
 
     try {
       const puntosResult = await pool.query(`
-        SELECT lat, lng, creado_at as timestamp_gps, velocidad, kms_total as odometro
+        SELECT lat, lng, fecha as timestamp_gps, velocidad, kms_total as odometro
         FROM wisetrack_posiciones
         WHERE patente = $1
-          AND creado_at >= $2::date
-          AND creado_at < ($2::date + interval '1 day')
-        ORDER BY creado_at ASC
+          AND fecha >= $2::date
+          AND fecha < ($2::date + interval '1 day')
+        ORDER BY fecha ASC
       `, [cam.patente, fecha]);
 
       const puntos: GpsPoint[] = (puntosResult.rows as any[]).map((r: any) => ({
@@ -660,6 +660,17 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
     } catch (err: any) {
       errores.push(`${cam.patente}: ${err.message}`);
     }
+  }
+
+  if (allInserts.length === 0) {
+    console.log(`[T1] Sin viajes nuevos para ${fecha} — preservando datos existentes`);
+    return {
+      camiones_procesados: camiones.length,
+      viajes_creados: 0, viajes_round_trip: 0, viajes_ida: 0, viajes_retorno: 0,
+      viajes_facturados: 0, viajes_pendientes: 0, pct_facturable: 0,
+      camiones_descanso: camionesDescanso,
+      camiones_sin_geocerca: camionesSinGeocerca, errores
+    };
   }
 
   const client = await pool.connect();
