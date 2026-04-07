@@ -840,7 +840,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
           const velHora = ctrlData.velocidad_por_hora || [];
           return (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {[
                   { label: "CAMIONES", value: r.camiones_activos, color: "#00d4ff", icon: <Truck size={14} /> },
                   { label: "KM TOTAL", value: fN(r.km_total), color: "#00ff88", icon: <Route size={14} /> },
@@ -892,25 +892,48 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
               )}
 
               <div className="p-4 rounded-lg" style={{ background: "#0d1825", border: "1px solid #0d2035" }}>
-                <div className="font-space text-[10px] font-bold tracking-wider mb-3" style={{ color: "#c8e8ff" }}>DETALLE POR CAMIÓN</div>
-                <div className="overflow-x-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-space text-[10px] font-bold tracking-wider" style={{ color: "#c8e8ff" }}>DETALLE POR CAMIÓN ({cams.length})</div>
+                  <div className="relative">
+                    <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: "#3a6080" }} />
+                    <input value={filtroCtrl} onChange={e => setFiltroCtrl(e.target.value)} placeholder="Buscar patente..."
+                      className="font-exo text-[9px] pl-6 pr-3 py-1 rounded outline-none w-40"
+                      style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+                  </div>
+                </div>
+                <div className="overflow-x-auto" style={{ maxHeight: 400 }}>
                   <table className="w-full text-left">
-                    <thead>
+                    <thead className="sticky top-0" style={{ background: "#0d1825" }}>
                       <tr className="font-space text-[8px] tracking-wider" style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
-                        <th className="py-2 px-2">PATENTE</th>
-                        <th className="py-2 px-2">CONDUCTOR</th>
-                        <th className="py-2 px-2 text-right">KM</th>
-                        <th className="py-2 px-2 text-right">LITROS</th>
-                        <th className="py-2 px-2 text-right">km/L</th>
-                        <th className="py-2 px-2 text-right">VEL MÁX</th>
-                        <th className="py-2 px-2 text-right">{">"}90</th>
-                        <th className="py-2 px-2 text-right">{">"}105</th>
-                        <th className="py-2 px-2 text-right">% RALENTÍ</th>
-                        <th className="py-2 px-2 text-right">TANQUE</th>
+                        {[
+                          { key: "patente", label: "PATENTE", right: false },
+                          { key: "conductor", label: "CONDUCTOR", right: false },
+                          { key: "km_dia", label: "KM", right: true },
+                          { key: "litros_dia", label: "LITROS", right: true },
+                          { key: "rendimiento", label: "km/L", right: true },
+                          { key: "vel_max", label: "VEL MÁX", right: true },
+                          { key: "puntos_sobre_90", label: ">90", right: true },
+                          { key: "puntos_sobre_105", label: ">105", right: true },
+                          { key: "pct_ralenti", label: "% RALENTÍ", right: true },
+                          { key: "tanque_min", label: "TANQUE", right: true },
+                        ].map(h => (
+                          <th key={h.key} className={`py-2 px-2 cursor-pointer hover:text-[#c8e8ff] transition-colors select-none ${h.right ? "text-right" : ""}`}
+                            onClick={() => setSortCtrl(s => ({ col: h.key, asc: s.col === h.key ? !s.asc : true }))}>
+                            {h.label} {sortCtrl.col === h.key ? (sortCtrl.asc ? "↑" : "↓") : ""}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {cams.map((c: any, i: number) => (
+                      {cams
+                        .filter((c: any) => !filtroCtrl || (c.patente || "").toLowerCase().includes(filtroCtrl.toLowerCase()) || (c.conductor || "").toLowerCase().includes(filtroCtrl.toLowerCase()))
+                        .sort((a: any, b: any) => {
+                          const col = sortCtrl.col;
+                          const va = col === "patente" || col === "conductor" ? (a[col] || "") : parseFloat(a[col]) || 0;
+                          const vb = col === "patente" || col === "conductor" ? (b[col] || "") : parseFloat(b[col]) || 0;
+                          return sortCtrl.asc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+                        })
+                        .map((c: any, i: number) => (
                         <tr key={i} className="font-exo text-[10px] hover:bg-[#0a1520]" style={{ color: "#c8e8ff", borderBottom: "1px solid #0a1520" }}>
                           <td className="py-1.5 px-2 font-bold" style={{ color: "#00d4ff" }}>{c.patente}</td>
                           <td className="py-1.5 px-2 truncate max-w-[120px]" style={{ color: "#6a8fa8" }}>{c.conductor || "—"}</td>
@@ -1217,7 +1240,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
               </div>
 
               {/* KPIs ERR */}
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 {[
                   { l: "CAMIONES", v: e.camiones || 0, c: "#00d4ff" },
                   { l: "VIAJES", v: e.viajes || 0, c: "#a855f7" },
@@ -1227,14 +1250,14 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                 ].map(k => (
                   <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
                     <div className="font-space text-[14px] font-bold" style={{ color: k.c }}>{k.v}</div>
-                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                    <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
                   </div>
                 ))}
               </div>
 
               {/* P&L del dia */}
               {plDia && (
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {[
                     { l: "INGRESO DIA", v: fP(plDia.ingreso_total || 0), c: "#00ff88" },
                     { l: "COSTO DIESEL", v: fP(plDia.costo_diesel_total || 0), c: "#ff6b35" },
@@ -1244,7 +1267,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                   ].map(k => (
                     <div key={k.l} className="text-center p-2 rounded" style={{ background: "#060d14", borderTop: `2px solid ${k.c}` }}>
                       <div className="font-space text-[12px] font-bold" style={{ color: k.c }}>{k.v}</div>
-                      <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                      <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
                     </div>
                   ))}
                 </div>
@@ -1369,7 +1392,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                       <td className="font-space text-[9px] px-3 py-1.5" style={{ color: r.tarifa ? "#00ff88" : "#3a6080" }}>{r.tarifa ? fP(r.tarifa) : "-"}</td>
                       <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#00ff88" }}>{r.ingreso_estimado ? fP(r.ingreso_estimado) : "-"}</td>
                       <td className="px-3 py-1.5">
-                        <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{
+                        <span className="font-exo text-[8px] px-1.5 py-0.5 rounded" style={{
                           color: r.estado_match === "CRUZADO" ? "#00ff88" : r.estado_match === "PARCIAL" ? "#ffcc00" : "#ff2244",
                           border: `1px solid ${r.estado_match === "CRUZADO" ? "#00ff8830" : r.estado_match === "PARCIAL" ? "#ffcc0030" : "#ff224430"}`,
                         }}>{r.estado_match}</span>
@@ -1377,6 +1400,16 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr style={{ background: "#0d2035", borderTop: "2px solid #00d4ff30" }}>
+                    <td colSpan={2} className="font-space text-[9px] font-bold px-3 py-2" style={{ color: "#c8e8ff" }}>TOTAL</td>
+                    <td className="font-space text-[10px] font-bold px-3 py-2" style={{ color: "#00d4ff" }}>{(dash.rutas || []).reduce((s: number, r: any) => s + (r.viajes || 0), 0)}</td>
+                    <td className="font-space text-[10px] font-bold px-3 py-2" style={{ color: "#c8e8ff" }}>{fN((dash.rutas || []).reduce((s: number, r: any) => s + (parseFloat(r.km) || 0), 0))}</td>
+                    <td colSpan={3} className="px-3 py-2" />
+                    <td className="font-space text-[10px] font-bold px-3 py-2" style={{ color: "#00ff88" }}>{fP((dash.rutas || []).reduce((s: number, r: any) => s + (r.ingreso_estimado || 0), 0))}</td>
+                    <td className="px-3 py-2" />
+                  </tr>
+                </tfoot>
               </table>
             </div>
             <div className="font-exo text-[9px] mt-2" style={{ color: "#3a6080" }}>
@@ -1386,30 +1419,72 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
         )}
 
         {/* ═══ FLOTA ═══ */}
-        {tab === "FLOTA" && flotaData && (
+        {tab === "FLOTA" && flotaData && (() => {
+          const allCams = flotaData.camiones || [];
+          const filteredCams = allCams.filter((c: any) => !filtroFlota || (c.patente || "").toLowerCase().includes(filtroFlota.toLowerCase()) || (c.conductor || "").toLowerCase().includes(filtroFlota.toLowerCase()));
+          const sortedCams = [...filteredCams].sort((a: any, b: any) => {
+            const col = sortFlota.col;
+            const va = col === "patente" || col === "conductor" || col === "estado" ? (a[col] || "") : parseFloat(a[col]) || 0;
+            const vb = col === "patente" || col === "conductor" || col === "estado" ? (b[col] || "") : parseFloat(b[col]) || 0;
+            return sortFlota.asc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+          });
+          const okCount = allCams.filter((c: any) => c.estado === "OK").length;
+          const bajoCount = allCams.filter((c: any) => c.estado === "BAJO").length;
+          const critCount = allCams.filter((c: any) => c.estado !== "OK" && c.estado !== "BAJO").length;
+          return (
           <>
             <div className="flex items-center justify-between mb-2">
-              <span className="font-exo text-[8px] tracking-wider uppercase" style={{ color: "#00d4ff" }}>
-                FLOTA CENCOSUD · {flotaData.total}/{flotaData.contratados} CAMIONES ACTIVOS
-              </span>
-              <div className="font-space text-[11px] font-bold" style={{ color: flotaData.total >= 58 ? "#00ff88" : "#ff6b35" }}>
-                {Math.round(flotaData.total / flotaData.contratados * 100)}%
+              <div>
+                <span className="font-exo text-[9px] tracking-wider uppercase" style={{ color: "#00d4ff" }}>
+                  FLOTA CENCOSUD · {flotaData.total}/{flotaData.contratados} CAMIONES ACTIVOS
+                </span>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="font-exo text-[8px] flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ background: "#00ff88" }} />{okCount} OK</span>
+                  <span className="font-exo text-[8px] flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ background: "#ffcc00" }} />{bajoCount} Bajo</span>
+                  <span className="font-exo text-[8px] flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ background: "#ff2244" }} />{critCount} Crítico</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: "#3a6080" }} />
+                  <input value={filtroFlota} onChange={e => setFiltroFlota(e.target.value)} placeholder="Buscar patente o conductor..."
+                    className="font-exo text-[9px] pl-6 pr-3 py-1 rounded outline-none w-52"
+                    style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+                </div>
+                <div className="font-space text-[11px] font-bold" style={{ color: flotaData.total >= 58 ? "#00ff88" : "#ff6b35" }}>
+                  {Math.round(flotaData.total / flotaData.contratados * 100)}%
+                </div>
               </div>
             </div>
             <div className="h-2 rounded-full overflow-hidden mb-4" style={{ background: "#0d2035" }}>
               <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(flotaData.total / flotaData.contratados * 100))}%`, background: flotaData.total >= 58 ? "#00ff88" : "#ff6b35" }} />
             </div>
             <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
+              <div className="overflow-auto" style={{ maxHeight: 500 }}>
               <table className="w-full">
-                <thead>
+                <thead className="sticky top-0">
                   <tr style={{ background: "#0d2035" }}>
-                    {["PATENTE", "CONDUCTOR", "VIAJES", "KM MES", "KM PROY", "% META", "KM/L", "DIAS", "ESTADO"].map(h => (
-                      <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
+                    {[
+                      { key: "patente", label: "PATENTE" },
+                      { key: "conductor", label: "CONDUCTOR" },
+                      { key: "viajes", label: "VIAJES" },
+                      { key: "km_mes", label: "KM MES" },
+                      { key: "km_proyectado", label: "KM PROY" },
+                      { key: "pct_meta", label: "% META" },
+                      { key: "rend", label: "KM/L" },
+                      { key: "dias_activo", label: "DIAS" },
+                      { key: "estado", label: "ESTADO" },
+                    ].map(h => (
+                      <th key={h.key} className="font-exo text-[7px] tracking-wider text-left px-3 py-2 cursor-pointer hover:text-[#c8e8ff] transition-colors select-none"
+                        style={{ color: sortFlota.col === h.key ? "#c8e8ff" : "#3a6080" }}
+                        onClick={() => setSortFlota(s => ({ col: h.key, asc: s.col === h.key ? !s.asc : true }))}>
+                        {h.label} {sortFlota.col === h.key ? (sortFlota.asc ? "↑" : "↓") : ""}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(flotaData.camiones || []).map((c: any, i: number) => (
+                  {sortedCams.map((c: any, i: number) => (
                     <tr key={c.patente} style={{ background: i % 2 === 0 ? "#060d14" : "#0a1520" }}>
                       <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: "#c8e8ff" }}>{c.patente}</td>
                       <td className="font-exo text-[8px] px-3 py-1.5" style={{ color: "#3a6080" }}>{(c.conductor || "").substring(0, 18)}</td>
@@ -1420,7 +1495,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                       <td className="font-space text-[10px] font-bold px-3 py-1.5" style={{ color: RC(parseFloat(c.rend) || 0) }}>{c.rend || "--"}</td>
                       <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#3a6080" }}>{c.dias_activo}</td>
                       <td className="px-3 py-1.5">
-                        <span className="font-exo text-[7px] px-1.5 py-0.5 rounded" style={{
+                        <span className="font-exo text-[8px] px-1.5 py-0.5 rounded" style={{
                           color: c.estado === "OK" ? "#00ff88" : c.estado === "BAJO" ? "#ffcc00" : "#ff2244",
                           background: c.estado === "OK" ? "#00ff8810" : c.estado === "BAJO" ? "#ffcc0010" : "#ff224410",
                           border: `1px solid ${c.estado === "OK" ? "#00ff8830" : c.estado === "BAJO" ? "#ffcc0030" : "#ff224430"}`,
@@ -1430,21 +1505,40 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </>
-        )}
+          );
+        })()}
 
         {tab === "AGENTE" && <SuperAgentePanel saEstado={saEstado} saMsgs={saMsgs} refetchSaMsgs={refetchSaMsgs} paramData={paramData} refetchParams={refetchParams} intelData={intelData} refetchIntel={refetchIntel} />}
 
         {/* ═══ TARIFAS ═══ */}
-        {tab === "TARIFAS" && tarifasData && (
+        {tab === "TARIFAS" && tarifasData && (() => {
+          const allTarifas = tarifasData.tarifas || [];
+          const filtered = allTarifas.filter((t: any) => {
+            if (!filtroTarifas) return true;
+            const f = filtroTarifas.toLowerCase();
+            return (t.origen || "").toLowerCase().includes(f) || (t.destino || "").toLowerCase().includes(f) || `L${t.lote}`.toLowerCase().includes(f);
+          });
+          const lotes = [...new Set(filtered.map((t: any) => t.lote))].sort();
+          return (
           <>
-            <div className="font-exo text-[8px] tracking-wider uppercase mb-2" style={{ color: "#00d4ff" }}>
-              TARIFAS CONTRATO · {(tarifasData.tarifas || []).length} RUTAS · 7 LOTES
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-exo text-[9px] tracking-wider uppercase" style={{ color: "#00d4ff" }}>
+                TARIFAS CONTRATO · {allTarifas.length} RUTAS · {lotes.length} LOTES
+              </span>
+              <div className="relative">
+                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: "#3a6080" }} />
+                <input value={filtroTarifas} onChange={e => setFiltroTarifas(e.target.value)} placeholder="Buscar ruta o lote..."
+                  className="font-exo text-[9px] pl-6 pr-3 py-1 rounded outline-none w-48"
+                  style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+              </div>
             </div>
             <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
+              <div className="overflow-auto" style={{ maxHeight: 500 }}>
               <table className="w-full">
-                <thead>
+                <thead className="sticky top-0">
                   <tr style={{ background: "#0d2035" }}>
                     {["LOTE", "CLASE", "ORIGEN", "DESTINO", "TARIFA"].map(h => (
                       <th key={h} className="font-exo text-[7px] tracking-wider text-left px-3 py-2" style={{ color: "#3a6080" }}>{h}</th>
@@ -1452,7 +1546,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                   </tr>
                 </thead>
                 <tbody>
-                  {(tarifasData.tarifas || []).map((t: any, i: number) => (
+                  {filtered.map((t: any, i: number) => (
                     <tr key={i} style={{ background: i % 2 === 0 ? "#060d14" : "#0a1520" }}>
                       <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#00d4ff" }}>L{t.lote}</td>
                       <td className="font-space text-[9px] px-3 py-1.5" style={{ color: "#3a6080" }}>{t.clase}</td>
@@ -1463,9 +1557,11 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </>
-        )}
+          );
+        })()}
 
         {/* ═══ MAPA — GEOCERCAS KML OFICIAL ═══ */}
         {tab === "MAPA" && (
@@ -1580,7 +1676,7 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
           ].map(k => (
             <div key={k.l} className="text-center p-2 rounded" style={{ background: "#0a1520", borderTop: `2px solid ${k.c}` }}>
               <div className="font-space text-[15px] font-bold" style={{ color: k.c }}>{k.v}</div>
-              <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+              <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
             </div>
           ))}
         </div>
@@ -1639,15 +1735,15 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
                 <div className="grid grid-cols-3 gap-2">
                   <div className="text-center p-2 rounded" style={{ background: "#0a1520" }}>
                     <div className="font-space text-[18px] font-bold" style={{ color: "#a855f7" }}>{tr.consolidados || 0}</div>
-                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>CREADOS</div>
+                    <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>CREADOS</div>
                   </div>
                   <div className="text-center p-2 rounded" style={{ background: "#0a1520" }}>
                     <div className="font-space text-[18px] font-bold" style={{ color: "#00d4ff" }}>{tr.total || 0}</div>
-                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>VIAJES 30D</div>
+                    <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>VIAJES 30D</div>
                   </div>
                   <div className="text-center p-2 rounded" style={{ background: "#0a1520" }}>
                     <div className="font-space text-[18px] font-bold" style={{ color: tr.consolidados > 0 ? "#00ff88" : "#3a6080" }}>{tr.total > 0 ? Math.round(tr.consolidados / tr.total * 100) : 0}%</div>
-                    <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>RATIO</div>
+                    <div className="font-exo text-[7px] uppercase" style={{ color: "#3a6080" }}>RATIO</div>
                   </div>
                 </div>
                 <div className="font-exo text-[8px] mt-2 px-1" style={{ color: "#3a6080" }}>
