@@ -7,7 +7,7 @@ import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "EN_VIVO" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
+type Tab = "EN_VIVO" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
 
 function MapPanner({ lat, lng, zoom }: { lat: number | null; lng: number | null; zoom: number }) {
   const map = useMap();
@@ -419,16 +419,17 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
       {/* TABS */}
       <div className="flex items-center justify-between px-4 py-1" style={{ background: "#0a1218", borderBottom: "1px solid #0d2035" }}>
         <div className="flex gap-0">
-          {(["EN_VIVO", "RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "AGENTE", "TARIFAS", "MAPA"] as Tab[]).map(t => (
+          {(["EN_VIVO", "CONTROL", "RESUMEN", "VIAJES", "ERR", "RUTAS", "FLOTA", "AGENTE", "TARIFAS", "MAPA"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} className="flex items-center gap-1.5 px-4 py-2 font-space text-[9px] font-bold tracking-wider cursor-pointer"
-              style={{ color: tab === t ? (t === "EN_VIVO" ? "#00ff88" : "#00d4ff") : "#3a6080", borderBottom: tab === t ? `2px solid ${t === "EN_VIVO" ? "#00ff88" : "#00d4ff"}` : "2px solid transparent" }}>
+              style={{ color: tab === t ? (t === "EN_VIVO" ? "#00ff88" : t === "CONTROL" ? "#ffcc00" : "#00d4ff") : "#3a6080", borderBottom: tab === t ? `2px solid ${t === "EN_VIVO" ? "#00ff88" : t === "CONTROL" ? "#ffcc00" : "#00d4ff"}` : "2px solid transparent" }}>
               {t === "EN_VIVO" && <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />}
+              {t === "CONTROL" && <Activity size={10} style={{ color: "#ffcc00" }} />}
               {t === "EN_VIVO" ? "EN VIVO" : t}
               {t === "EN_VIVO" && enVivoData?.resumen && <span className="ml-1 text-[8px] px-1 py-0.5" style={{ background: "#00ff8815", borderRadius: 3 }}>{enVivoData.resumen.en_ruta}</span>}
             </button>
           ))}
         </div>
-        {(tab === "ERR" || tab === "RUTAS") && (
+        {(tab === "ERR" || tab === "RUTAS" || tab === "CONTROL") && (
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
             className="font-exo text-[10px] px-3 py-1 rounded outline-none cursor-pointer"
             style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
@@ -808,6 +809,168 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                   </div>
                 )}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* ═══ CONTROL OPERACIONAL DIARIO ═══ */}
+        {tab === "CONTROL" && (() => {
+          const { data: ctrl, isLoading } = useQuery<any>({
+            queryKey: ["/api/cencosud/control-diario", fecha],
+            queryFn: () => fetch(`/api/cencosud/control-diario?fecha=${fecha}`).then(r => r.json()),
+            staleTime: 30000,
+          });
+          if (isLoading) return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Cargando control diario...</div>;
+          if (!ctrl?.resumen) return <div className="text-center py-20 font-exo text-[#3a6080]">Sin datos para {fecha}</div>;
+          const r = ctrl.resumen;
+          const cams = ctrl.camiones || [];
+          const exc = ctrl.excesos_detalle || [];
+          const vjs = ctrl.viajes || [];
+          const velHora = ctrl.velocidad_por_hora || [];
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {[
+                  { label: "CAMIONES", value: r.camiones_activos, color: "#00d4ff", icon: <Truck size={14} /> },
+                  { label: "KM TOTAL", value: fN(r.km_total), color: "#00ff88", icon: <Route size={14} /> },
+                  { label: "LITROS", value: r.litros_total?.toFixed(1), color: "#ffcc00", icon: <Fuel size={14} /> },
+                  { label: "REND km/L", value: r.rendimiento_flota?.toFixed(2), color: RC(r.rendimiento_flota), icon: <TrendingUp size={14} /> },
+                  { label: "EXCESOS >90", value: r.excesos_90, color: r.excesos_90 > 0 ? "#ff6b35" : "#00ff88", icon: <Zap size={14} /> },
+                  { label: "CRÍTICOS >105", value: r.excesos_105, color: r.excesos_105 > 0 ? "#ff2244" : "#00ff88", icon: <AlertTriangle size={14} /> },
+                  { label: "VEL MÁX", value: `${r.vel_max_flota} km/h`, color: r.vel_max_flota > 105 ? "#ff2244" : r.vel_max_flota > 90 ? "#ff6b35" : "#00ff88", icon: <Activity size={14} /> },
+                  { label: "VIAJES", value: r.viajes_total, color: "#00d4ff", icon: <MapPin size={14} /> },
+                  { label: "CRUZADOS", value: `${r.viajes_cruzados}/${r.viajes_total}`, color: r.pct_facturado >= 80 ? "#00ff88" : "#ffcc00", icon: <Check size={14} /> },
+                  { label: "INGRESO EST.", value: fP(r.ingreso_estimado), color: "#00ffcc", icon: <DollarSign size={14} /> },
+                  { label: "% FACTURADO", value: `${r.pct_facturado}%`, color: r.pct_facturado >= 80 ? "#00ff88" : r.pct_facturado >= 50 ? "#ffcc00" : "#ff6b35", icon: <Target size={14} /> },
+                ].map((kpi, i) => (
+                  <div key={i} className="p-3 rounded-lg" style={{ background: "#0d1825", border: "1px solid #0d2035" }}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span style={{ color: kpi.color }}>{kpi.icon}</span>
+                      <span className="font-space text-[8px] tracking-wider" style={{ color: "#3a6080" }}>{kpi.label}</span>
+                    </div>
+                    <div className="font-space text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {velHora.length > 0 && (
+                <div className="p-4 rounded-lg" style={{ background: "#0d1825", border: "1px solid #0d2035" }}>
+                  <div className="font-space text-[10px] font-bold tracking-wider mb-3" style={{ color: "#c8e8ff" }}>VELOCIDAD POR HORA</div>
+                  <div className="flex items-end gap-1" style={{ height: 80 }}>
+                    {velHora.map((h: any, i: number) => {
+                      const maxV = Math.max(...velHora.map((x: any) => parseFloat(x.vel_max) || 0), 1);
+                      const pct = (parseFloat(h.vel_max) || 0) / maxV * 100;
+                      const color = parseFloat(h.vel_max) > 105 ? "#ff2244" : parseFloat(h.vel_max) > 90 ? "#ff6b35" : "#00d4ff";
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                          <div className="w-full rounded-t" style={{ height: `${pct}%`, background: color, minHeight: 2, opacity: 0.8 }} title={`${h.hora}h: máx ${h.vel_max}km/h, prom ${h.vel_prom}km/h, ${h.camiones_activos} camiones, ${h.excesos} excesos`} />
+                          <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>{h.hora}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="font-exo text-[7px]" style={{ color: "#3a6080" }}>Hora del día</span>
+                    <div className="flex gap-3">
+                      <span className="font-exo text-[7px] flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ background: "#00d4ff" }} />Normal</span>
+                      <span className="font-exo text-[7px] flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ background: "#ff6b35" }} />{">"}90</span>
+                      <span className="font-exo text-[7px] flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ background: "#ff2244" }} />{">"}105</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 rounded-lg" style={{ background: "#0d1825", border: "1px solid #0d2035" }}>
+                <div className="font-space text-[10px] font-bold tracking-wider mb-3" style={{ color: "#c8e8ff" }}>DETALLE POR CAMIÓN</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="font-space text-[8px] tracking-wider" style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+                        <th className="py-2 px-2">PATENTE</th>
+                        <th className="py-2 px-2">CONDUCTOR</th>
+                        <th className="py-2 px-2 text-right">KM</th>
+                        <th className="py-2 px-2 text-right">LITROS</th>
+                        <th className="py-2 px-2 text-right">km/L</th>
+                        <th className="py-2 px-2 text-right">VEL MÁX</th>
+                        <th className="py-2 px-2 text-right">{">"}90</th>
+                        <th className="py-2 px-2 text-right">{">"}105</th>
+                        <th className="py-2 px-2 text-right">% RALENTÍ</th>
+                        <th className="py-2 px-2 text-right">TANQUE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cams.map((c: any, i: number) => (
+                        <tr key={i} className="font-exo text-[10px] hover:bg-[#0a1520]" style={{ color: "#c8e8ff", borderBottom: "1px solid #0a1520" }}>
+                          <td className="py-1.5 px-2 font-bold" style={{ color: "#00d4ff" }}>{c.patente}</td>
+                          <td className="py-1.5 px-2 truncate max-w-[120px]" style={{ color: "#6a8fa8" }}>{c.conductor || "—"}</td>
+                          <td className="py-1.5 px-2 text-right font-bold" style={{ color: parseFloat(c.km_dia) > 0 ? "#00ff88" : "#3a6080" }}>{c.km_dia || 0}</td>
+                          <td className="py-1.5 px-2 text-right" style={{ color: "#ffcc00" }}>{c.litros_dia || "—"}</td>
+                          <td className="py-1.5 px-2 text-right font-bold" style={{ color: RC(parseFloat(c.rendimiento)) }}>{c.rendimiento || "—"}</td>
+                          <td className="py-1.5 px-2 text-right font-bold" style={{ color: parseFloat(c.vel_max) > 105 ? "#ff2244" : parseFloat(c.vel_max) > 90 ? "#ff6b35" : "#c8e8ff" }}>{c.vel_max || 0}</td>
+                          <td className="py-1.5 px-2 text-right" style={{ color: c.puntos_sobre_90 > 0 ? "#ff6b35" : "#3a6080" }}>{c.puntos_sobre_90}</td>
+                          <td className="py-1.5 px-2 text-right" style={{ color: c.puntos_sobre_105 > 0 ? "#ff2244" : "#3a6080" }}>{c.puntos_sobre_105}</td>
+                          <td className="py-1.5 px-2 text-right" style={{ color: parseFloat(c.pct_ralenti) > 30 ? "#ff6b35" : "#6a8fa8" }}>{c.pct_ralenti || 0}%</td>
+                          <td className="py-1.5 px-2 text-right" style={{ color: c.tanque_min < 20 ? "#ff2244" : "#6a8fa8" }}>{c.tanque_min}–{c.tanque_max}%</td>
+                        </tr>
+                      ))}
+                      {cams.length === 0 && <tr><td colSpan={10} className="py-8 text-center font-exo text-[#3a6080]">Sin datos GPS para esta fecha</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {exc.length > 0 && (
+                <div className="p-4 rounded-lg" style={{ background: "#0d1825", border: "1px solid #1a0a0a" }}>
+                  <div className="font-space text-[10px] font-bold tracking-wider mb-3" style={{ color: "#ff6b35" }}>
+                    <AlertTriangle size={12} className="inline mr-1" />EXCESOS DE VELOCIDAD ({exc.length})
+                  </div>
+                  <div className="grid gap-1 max-h-[200px] overflow-y-auto">
+                    {exc.map((e: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between py-1 px-2 rounded" style={{ background: "#0a0a15", border: `1px solid ${e.velocidad > 105 ? "#ff224430" : "#ff6b3520"}` }}>
+                        <div className="flex items-center gap-3">
+                          <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{e.patente}</span>
+                          <span className="font-exo text-[9px]" style={{ color: "#6a8fa8" }}>{e.conductor || ""}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-exo text-[9px]" style={{ color: "#6a8fa8" }}>{new Date(e.hora).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
+                          <span className="font-space text-[11px] font-bold px-2 py-0.5 rounded" style={{ color: e.velocidad > 105 ? "#ff2244" : "#ff6b35", background: e.velocidad > 105 ? "#ff224415" : "#ff6b3510" }}>
+                            {e.velocidad} km/h
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {vjs.length > 0 && (
+                <div className="p-4 rounded-lg" style={{ background: "#0d1825", border: "1px solid #0d2035" }}>
+                  <div className="font-space text-[10px] font-bold tracking-wider mb-3" style={{ color: "#c8e8ff" }}>
+                    <Route size={12} className="inline mr-1" />VIAJES DEL DÍA ({vjs.length})
+                  </div>
+                  <div className="space-y-1 max-h-[250px] overflow-y-auto">
+                    {vjs.map((v: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-space text-[10px] font-bold" style={{ color: "#00d4ff" }}>{v.patente}</span>
+                          <span className="font-exo text-[9px]" style={{ color: "#6a8fa8" }}>{v.origen_contrato || v.origen_nombre}</span>
+                          <span style={{ color: "#3a6080" }}>→</span>
+                          <span className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{v.destino_contrato || v.destino_nombre}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-exo text-[9px]" style={{ color: "#6a8fa8" }}>{v.km}km · {v.duracion}min</span>
+                          <span className="font-space text-[8px] px-1.5 py-0.5 rounded font-bold" style={{
+                            color: v.estado_factura === "CRUZADO" ? "#00ff88" : "#ffcc00",
+                            background: v.estado_factura === "CRUZADO" ? "#00ff8815" : "#ffcc0015"
+                          }}>
+                            {v.estado_factura === "CRUZADO" ? `$${fN(v.tarifa)}` : "PENDIENTE"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}

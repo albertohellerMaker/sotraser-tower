@@ -1123,4 +1123,147 @@ router.get("/en-vivo/trail/:patente", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ CONTROL OPERACIONAL DIARIO — velocidad, km, paradas, rendimiento por camión ═══
+router.get("/control-diario", async (req, res) => {
+  try {
+    const fecha = (req.query.fecha as string) || new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+
+    const [flota, excesos, paradas, viajes, velocidadHora] = await Promise.all([
+      pool.query(`
+        SELECT c.patente, c.modelo,
+          MIN(wp.kms_total)::float as odo_ini, MAX(wp.kms_total)::float as odo_fin,
+          ROUND((MAX(wp.kms_total) - MIN(wp.kms_total))::numeric) as km_dia,
+          ROUND(MAX(wp.velocidad)::numeric) as vel_max,
+          ROUND(AVG(wp.velocidad) FILTER (WHERE wp.velocidad > 3)::numeric) as vel_prom,
+          COUNT(*) FILTER (WHERE wp.velocidad > 90)::int as puntos_sobre_90,
+          COUNT(*) FILTER (WHERE wp.velocidad > 105)::int as puntos_sobre_105,
+          MIN(wp.consumo_litros)::float as litros_ini, MAX(wp.consumo_litros)::float as litros_fin,
+          ROUND((MAX(wp.consumo_litros) - MIN(wp.consumo_litros))::numeric, 1) as litros_dia,
+          ROUND(CASE WHEN (MAX(wp.consumo_litros) - MIN(wp.consumo_litros)) > 0
+            THEN (MAX(wp.kms_total) - MIN(wp.kms_total)) / NULLIF(MAX(wp.consumo_litros) - MIN(wp.consumo_litros), 0)
+            ELSE NULL END::numeric, 2) as rendimiento,
+          MIN(wp.nivel_estanque)::int as tanque_min,
+          MAX(wp.nivel_estanque)::int as tanque_max,
+          MIN(wp.creado_at)::text as primera_pos,
+          MAX(wp.creado_at)::text as ultima_pos,
+          COUNT(*)::int as total_puntos,
+          ROUND(SUM(CASE WHEN wp.velocidad < 3 AND wp.ignicion = 1 THEN 1 ELSE 0 END)::numeric * 100.0 / NULLIF(COUNT(*), 0), 1) as pct_ralenti,
+          wp.conductor
+        FROM wisetrack_posiciones wp
+        JOIN camiones c ON c.patente = wp.patente
+        JOIN faenas f ON f.id = c.faena_id
+        WHERE f.nombre ILIKE '%CENCOSUD%'
+          AND wp.creado_at >= $1::date AND wp.creado_at < ($1::date + interval '1 day')
+          AND wp.kms_total > 0
+        GROUP BY c.patente, c.modelo, wp.conductor
+        HAVING (MAX(wp.kms_total) - MIN(wp.kms_total)) >= 0
+        ORDER BY km_dia DESC NULLS LAST
+      `, [fecha]),
+
+      pool.query(`
+        SELECT c.patente, wp.velocidad::int as velocidad, wp.lat, wp.lng,
+          wp.creado_at::text as hora, wp.conductor
+        FROM wisetrack_posiciones wp
+        JOIN camiones c ON c.patente = wp.patente
+        JOIN faenas f ON f.id = c.faena_id
+        WHERE f.nombre ILIKE '%CENCOSUD%'
+          AND wp.creado_at >= $1::date AND wp.creado_at < ($1::date + interval '1 day')
+          AND wp.velocidad > 90
+        ORDER BY wp.velocidad DESC
+        LIMIT 100
+      `, [fecha]),
+
+      pool.query(`
+        WITH gaps AS (
+          SELECT c.patente, wp.lat, wp.lng, wp.creado_at,
+            LAG(wp.creado_at) OVER (PARTITION BY c.patente ORDER BY wp.creado_at) as prev_at,
+            wp.velocidad
+          FROM wisetrack_posiciones wp
+          JOIN camiones c ON c.patente = wp.patente
+          JOIN faenas f ON f.id = c.faena_id
+          WHERE f.nombre ILIKE '%CENCOSUD%'
+            AND wp.creado_at >= $1::date AND wp.creado_at < ($1::date + interval '1 day')
+            AND wp.velocidad < 3
+        )
+        SELECT patente, COUNT(*)::int as puntos_detenido,
+          ROUND(COUNT(*)::numeric / 60, 1) as horas_estimadas_detenido
+        FROM gaps
+        GROUP BY patente
+        ORDER BY puntos_detenido DESC
+      `, [fecha]),
+
+      pool.query(`
+        SELECT c.patente, va.origen_nombre, va.destino_nombre,
+          va.km_ecu::float as km, va.duracion_minutos::int as duracion,
+          va.rendimiento_real::float as rendimiento,
+          va.velocidad_maxima::float as vel_max,
+          va.fecha_inicio::text, va.fecha_fin::text,
+          COALESCE(ao.nombre_contrato, va.origen_nombre) as origen_contrato,
+          COALESCE(ad.nombre_contrato, va.destino_nombre) as destino_contrato,
+          CASE WHEN crt.tarifa IS NOT NULL THEN 'CRUZADO' ELSE 'PENDIENTE' END as estado_factura,
+          crt.tarifa::float
+        FROM viajes_aprendizaje va
+        JOIN camiones c ON c.id = va.camion_id
+        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = COALESCE(ao.nombre_contrato, va.origen_nombre)
+          AND crt.destino = COALESCE(ad.nombre_contrato, va.destino_nombre) AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR'
+          AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 5
+        ORDER BY va.fecha_inicio
+      `, [fecha]),
+
+      pool.query(`
+        SELECT EXTRACT(HOUR FROM wp.creado_at) as hora,
+          ROUND(AVG(wp.velocidad) FILTER (WHERE wp.velocidad > 3)::numeric) as vel_prom,
+          ROUND(MAX(wp.velocidad)::numeric) as vel_max,
+          COUNT(DISTINCT c.patente)::int as camiones_activos,
+          COUNT(*) FILTER (WHERE wp.velocidad > 90)::int as excesos
+        FROM wisetrack_posiciones wp
+        JOIN camiones c ON c.patente = wp.patente
+        JOIN faenas f ON f.id = c.faena_id
+        WHERE f.nombre ILIKE '%CENCOSUD%'
+          AND wp.creado_at >= $1::date AND wp.creado_at < ($1::date + interval '1 day')
+        GROUP BY EXTRACT(HOUR FROM wp.creado_at)
+        ORDER BY hora
+      `, [fecha]),
+    ]);
+
+    const camiones = flota.rows;
+    const kmTotal = camiones.reduce((s: number, c: any) => s + (parseFloat(c.km_dia) || 0), 0);
+    const litrosTotal = camiones.reduce((s: number, c: any) => s + (parseFloat(c.litros_dia) || 0), 0);
+    const excesosTotal = camiones.reduce((s: number, c: any) => s + (c.puntos_sobre_90 || 0), 0);
+    const excesosCriticos = camiones.reduce((s: number, c: any) => s + (c.puntos_sobre_105 || 0), 0);
+    const velMaxFlota = camiones.length > 0 ? Math.max(...camiones.map((c: any) => parseFloat(c.vel_max) || 0)) : 0;
+    const rendProm = camiones.filter((c: any) => c.rendimiento > 0 && c.rendimiento < 10);
+    const rendimientoFlota = rendProm.length > 0 ? rendProm.reduce((s: number, c: any) => s + parseFloat(c.rendimiento), 0) / rendProm.length : 0;
+
+    const viajesData = viajes.rows;
+    const ingresoEstimado = viajesData.filter((v: any) => v.tarifa).reduce((s: number, v: any) => s + v.tarifa, 0);
+    const viajesCruzados = viajesData.filter((v: any) => v.estado_factura === 'CRUZADO').length;
+
+    res.json({
+      fecha,
+      resumen: {
+        camiones_activos: camiones.length,
+        km_total: Math.round(kmTotal),
+        litros_total: Math.round(litrosTotal * 10) / 10,
+        rendimiento_flota: Math.round(rendimientoFlota * 100) / 100,
+        vel_max_flota: velMaxFlota,
+        excesos_90: excesosTotal,
+        excesos_105: excesosCriticos,
+        viajes_total: viajesData.length,
+        viajes_cruzados: viajesCruzados,
+        ingreso_estimado: Math.round(ingresoEstimado),
+        pct_facturado: viajesData.length > 0 ? Math.round(viajesCruzados / viajesData.length * 100) : 0,
+      },
+      camiones,
+      excesos_detalle: excesos.rows,
+      paradas: paradas.rows,
+      viajes: viajesData,
+      velocidad_por_hora: velocidadHora.rows,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
