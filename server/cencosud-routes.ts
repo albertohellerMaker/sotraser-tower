@@ -1126,7 +1126,9 @@ router.get("/en-vivo/trail/:patente", async (req, res) => {
 // ═══ CONTROL OPERACIONAL DIARIO — velocidad, km, paradas, rendimiento por camión ═══
 router.get("/control-diario", async (req, res) => {
   try {
-    const fecha = (req.query.fecha as string) || new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+    const fechaRaw = (req.query.fecha as string) || new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaRaw)) return res.status(400).json({ error: "Fecha inválida, use YYYY-MM-DD" });
+    const fecha = fechaRaw;
 
     const [flota, excesos, paradas, viajes, velocidadHora] = await Promise.all([
       pool.query(`

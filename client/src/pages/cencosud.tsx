@@ -363,7 +363,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
   const { data: saMsgs, refetch: refetchSaMsgs } = useQuery<any>({ queryKey: ["/api/cencosud/agente/mensajes"], queryFn: () => fetch("/api/cencosud/agente/mensajes").then(r => r.json()), refetchInterval: 30000, enabled: tab === "AGENTE" });
   const { data: paramData, refetch: refetchParams } = useQuery<any>({ queryKey: ["/api/cencosud/parametros"], queryFn: () => fetch("/api/cencosud/parametros").then(r => r.json()), staleTime: 300000, enabled: tab === "AGENTE" });
   const { data: intelData, refetch: refetchIntel } = useQuery<any>({ queryKey: ["/api/cencosud/agente/inteligencia"], queryFn: () => fetch("/api/cencosud/agente/inteligencia").then(r => r.json()), refetchInterval: 120000, enabled: tab === "AGENTE" });
-  const { data: ctrlData, isLoading: ctrlLoading } = useQuery<any>({ queryKey: ["/api/cencosud/control-diario", fecha], queryFn: () => fetch(`/api/cencosud/control-diario?fecha=${fecha}`).then(r => r.json()), staleTime: 30000, enabled: tab === "CONTROL" });
+  const { data: ctrlData, isLoading: ctrlLoading, isError: ctrlError, refetch: refetchCtrl } = useQuery<any>({ queryKey: ["/api/cencosud/control-diario", fecha], queryFn: () => fetch(`/api/cencosud/control-diario?fecha=${fecha}`).then(r => { if (!r.ok) throw new Error("Error cargando control diario"); return r.json(); }), staleTime: 30000, enabled: tab === "CONTROL" });
 
   const f = mes?.flota || {};
   const fi = mes?.financiero || {};
@@ -817,6 +817,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
         {/* ═══ CONTROL OPERACIONAL DIARIO ═══ */}
         {tab === "CONTROL" && (() => {
           if (ctrlLoading) return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Cargando control diario...</div>;
+          if (ctrlError) return <div className="text-center py-20 font-exo"><AlertTriangle size={24} className="mx-auto mb-2" style={{ color: "#ff6b35" }} /><div style={{ color: "#ff6b35" }}>Error cargando datos</div><button onClick={() => refetchCtrl()} className="mt-3 px-4 py-1.5 rounded font-space text-[10px]" style={{ background: "#0d2035", color: "#00d4ff", border: "1px solid #0d2035" }}>REINTENTAR</button></div>;
           if (!ctrlData?.resumen) return <div className="text-center py-20 font-exo text-[#3a6080]">Sin datos para {fecha}</div>;
           const r = ctrlData.resumen;
           const cams = ctrlData.camiones || [];
