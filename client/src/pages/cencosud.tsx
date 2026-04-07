@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Map as GMap, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
-import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search } from "lucide-react";
+import { Map as GMap, AdvancedMarker, Polyline, useMap } from "@vis.gl/react-google-maps";
+import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search, Flag, Gauge, Clock, Play, Pause } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
@@ -356,6 +356,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
   const { data: enVivoData } = useQuery<any>({ queryKey: [enVivoUrl], queryFn: () => fetch(enVivoUrl).then(r => r.json()), refetchInterval: 30000, enabled: tab === "EN_VIVO" });
   const [seguir, setSeguir] = useState<string | null>(null);
   const [alertaMapOpen, setAlertaMapOpen] = useState<any>(null);
+  const [viajeRutaId, setViajeRutaId] = useState<number | null>(null);
   const prevTab = useRef<Tab>("EN_VIVO");
   useEffect(() => { if (prevTab.current === "EN_VIVO" && tab !== "EN_VIVO") setSeguir(null); prevTab.current = tab; }, [tab]);
   const { data: trailData } = useQuery<any>({ queryKey: [trailUrlBase, seguir], queryFn: () => fetch(`${trailUrlBase}/${seguir}`).then(r => r.json()), refetchInterval: 30000, enabled: !!seguir && tab === "EN_VIVO" });
@@ -1202,7 +1203,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                     </tr></thead>
                     <tbody>
                       {conT.map((v: any, i: number) => (
-                        <tr key={v.id} style={{ background: i % 2 === 0 ? "transparent" : "#0a152030" }}>
+                        <tr key={v.id} className="cursor-pointer hover:brightness-125" onClick={() => setViajeRutaId(v.id)} style={{ background: viajeRutaId === v.id ? "#0a2540" : i % 2 === 0 ? "transparent" : "#0a152030" }}>
                           <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{v.fecha?.slice(5)}</td>
                           <td className="font-space text-[9px] font-bold px-3 py-1" style={{ color: "#c8e8ff" }}>{v.patente}</td>
                           <td className="font-exo text-[8px] px-3 py-1" style={{ color: "#3a6080" }}>{(v.conductor || "").substring(0, 15)}</td>
@@ -1219,6 +1220,8 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                   </table>
                 </div>
               </div>
+
+              {viajeRutaId && <ViajeReconstructorPanel viajeId={viajeRutaId} onClose={() => setViajeRutaId(null)} />}
 
               {/* VIAJES SIN TARIFA — SISTEMA INTERACTIVO */}
               <MapeoInteractivo />
@@ -1916,6 +1919,232 @@ function SuperAgentePanel({ saEstado, saMsgs, refetchSaMsgs, paramData, refetchP
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const velColor = (v: number) => v <= 0 ? "#3a6080" : v < 40 ? "#00d4ff" : v < 60 ? "#00ff88" : v < 80 ? "#fbbf24" : v < 100 ? "#ff6b35" : "#ff2244";
+
+function FitBoundsRuta({ puntos }: { puntos: { lat: number; lng: number }[] }) {
+  const map = useMap();
+  const fitted = useRef("");
+  useEffect(() => {
+    if (!map || puntos.length === 0) return;
+    const key = puntos.length + "-" + puntos[0]?.lat;
+    if (fitted.current === key) return;
+    fitted.current = key;
+    const bounds = new google.maps.LatLngBounds();
+    puntos.forEach(p => bounds.extend(p));
+    map.fitBounds(bounds, 50);
+  }, [map, puntos]);
+  return null;
+}
+
+function ViajeReconstructorPanel({ viajeId, onClose }: { viajeId: number; onClose: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const animRef = useRef<number | null>(null);
+  const lastTimeRef = useRef(0);
+
+  useEffect(() => {
+    setLoading(true);
+    setData(null);
+    setProgress(0);
+    setPlaying(false);
+    fetch(`/api/cencosud/viaje-ruta/${viajeId}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [viajeId]);
+
+  useEffect(() => {
+    if (!playing || !data?.puntos?.length) return;
+    const animate = (time: number) => {
+      if (lastTimeRef.current === 0) lastTimeRef.current = time;
+      const delta = time - lastTimeRef.current;
+      lastTimeRef.current = time;
+      setProgress(prev => {
+        const next = prev + (delta / 20000);
+        if (next >= 1) { setPlaying(false); return 1; }
+        return next;
+      });
+      animRef.current = requestAnimationFrame(animate);
+    };
+    lastTimeRef.current = 0;
+    animRef.current = requestAnimationFrame(animate);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [playing, data]);
+
+  if (loading) return (
+    <div className="rounded-lg p-8 flex items-center justify-center gap-3" style={{ background: "#060d14", border: "1px solid #0055ff40" }}>
+      <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#0088ff" }} />
+      <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Reconstruyendo ruta GPS...</span>
+    </div>
+  );
+
+  if (!data?.viaje) return null;
+
+  const v = data.viaje;
+  const puntos: { lat: number; lng: number; vel: number; fecha: string }[] = data.puntos || [];
+  const trailPath = puntos.map(p => ({ lat: p.lat, lng: p.lng }));
+  const cursorIdx = Math.min(Math.floor(progress * puntos.length), puntos.length - 1);
+  const cursorPt = puntos[cursorIdx];
+  const visiblePath = trailPath.slice(0, cursorIdx + 1);
+
+  const fHora = (s: string) => s ? new Date(s).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "--";
+  const durH = v.duracion_min ? `${Math.floor(v.duracion_min / 60)}h ${v.duracion_min % 60}m` : "--";
+
+  const paradas = Array.isArray(v.paradas) ? v.paradas : [];
+
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ background: "#060d14", border: "1px solid #0055ff60" }}>
+      <div className="px-4 py-2 flex items-center justify-between" style={{ background: "#0a1825", borderBottom: "1px solid #0055ff40" }}>
+        <div className="flex items-center gap-2">
+          <Route size={14} color="#0088ff" />
+          <span className="font-space text-[11px] font-bold tracking-wider" style={{ color: "#0088ff" }}>
+            RECONSTRUCTOR DE RUTA
+          </span>
+          <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
+            {v.patente} · {v.conductor?.substring(0, 20) || "Sin conductor"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>{data.total_puntos} puntos GPS</span>
+          <button onClick={onClose} className="cursor-pointer p-1 rounded hover:brightness-150" style={{ color: "#3a6080" }}><X size={14} /></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+        <div className="lg:col-span-2" style={{ height: 400 }}>
+          {puntos.length > 0 ? (
+            <GMap
+              defaultCenter={{ lat: puntos[0].lat, lng: puntos[0].lng }}
+              defaultZoom={10}
+              gestureHandling="greedy"
+              disableDefaultUI
+              style={{ width: "100%", height: "100%" }}
+            >
+              <FitBoundsRuta puntos={trailPath} />
+              <Polyline path={trailPath} strokeColor="#0055ff" strokeWeight={3} strokeOpacity={0.3} />
+              <Polyline path={visiblePath} strokeColor="#0088ff" strokeWeight={4} strokeOpacity={0.9} />
+
+              <AdvancedMarker position={{ lat: trailPath[0].lat, lng: trailPath[0].lng }}>
+                <div style={{ background: "#00ff88", borderRadius: "50%", width: 14, height: 14, border: "2px solid #060d14", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Flag size={8} color="#060d14" />
+                </div>
+              </AdvancedMarker>
+
+              <AdvancedMarker position={{ lat: trailPath[trailPath.length - 1].lat, lng: trailPath[trailPath.length - 1].lng }}>
+                <div style={{ background: "#ff2244", borderRadius: "50%", width: 14, height: 14, border: "2px solid #060d14", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Flag size={8} color="#fff" />
+                </div>
+              </AdvancedMarker>
+
+              {cursorPt && playing && (
+                <AdvancedMarker position={{ lat: cursorPt.lat, lng: cursorPt.lng }}>
+                  <div style={{ background: "#0088ff", borderRadius: "50%", width: 18, height: 18, border: "3px solid #fff", boxShadow: "0 0 12px #0088ff" }} />
+                </AdvancedMarker>
+              )}
+
+              {paradas.map((p: any, i: number) => p.lat && p.lng && (
+                <AdvancedMarker key={`parada-${i}`} position={{ lat: p.lat, lng: p.lng }}>
+                  <div style={{ background: "#a855f7", borderRadius: "50%", width: 10, height: 10, border: "2px solid #060d14" }} title={p.nombre || `Parada ${i + 1}`} />
+                </AdvancedMarker>
+              ))}
+            </GMap>
+          ) : (
+            <div className="h-full flex items-center justify-center" style={{ background: "#0a1520" }}>
+              <div className="text-center">
+                <MapPin size={32} color="#3a6080" className="mx-auto mb-2" />
+                <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>Sin puntos GPS para este viaje</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 space-y-3 overflow-auto" style={{ borderLeft: "1px solid #0d2035", maxHeight: 400 }}>
+          <div className="space-y-1">
+            <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#0088ff" }}>RUTA</div>
+            <div className="font-space text-[13px] font-bold" style={{ color: "#c8e8ff" }}>
+              {v.origen_contrato || v.origen_nombre} → {v.destino_contrato || v.destino_nombre}
+            </div>
+            <div className="font-exo text-[8px]" style={{ color: "#3a6080" }}>
+              {v.fecha_inicio ? new Date(v.fecha_inicio).toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" }) : ""}
+              {" · "}{fHora(v.fecha_inicio)} — {fHora(v.fecha_fin)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { l: "DISTANCIA", v: `${Math.round(v.km || 0)} km`, c: "#00d4ff", icon: Route },
+              { l: "DURACIÓN", v: durH, c: "#a855f7", icon: Clock },
+              { l: "VEL. MÁX", v: `${Math.round(v.vel_max_gps || v.vel_max || 0)} km/h`, c: velColor(v.vel_max_gps || v.vel_max || 0), icon: Gauge },
+              { l: "VEL. PROM", v: `${Math.round(v.vel_prom_gps || v.vel_prom || 0)} km/h`, c: "#00d4ff", icon: Gauge },
+              { l: "RENDIMIENTO", v: v.rend ? `${v.rend.toFixed(2)} km/L` : "--", c: RC(v.rend), icon: Fuel },
+              { l: "LITROS", v: v.litros ? `${Math.round(v.litros)} L` : "--", c: "#ff6b35", icon: Fuel },
+              { l: "% MOVIMIENTO", v: `${v.pct_movimiento || 0}%`, c: "#00ff88", icon: Truck },
+              { l: "% DETENIDO", v: `${v.pct_detenido || 0}%`, c: "#ffcc00", icon: Clock },
+            ].map(k => (
+              <div key={k.l} className="p-2 rounded" style={{ background: "#0a1520", borderLeft: `2px solid ${k.c}` }}>
+                <div className="flex items-center gap-1 mb-0.5">
+                  <k.icon size={9} color={k.c} />
+                  <span className="font-exo text-[6px] tracking-wider uppercase" style={{ color: "#3a6080" }}>{k.l}</span>
+                </div>
+                <div className="font-space text-[12px] font-bold" style={{ color: k.c }}>{k.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {v.ingreso_tarifa && (
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { l: "INGRESO", v: fP(v.ingreso_tarifa || 0), c: "#00ff88" },
+                { l: "COSTO", v: fP(v.costo_total || 0), c: "#ff6b35" },
+                { l: "MARGEN", v: fP(v.margen_bruto || 0), c: (v.margen_bruto || 0) >= 0 ? "#00ff88" : "#ff2244" },
+              ].map(k => (
+                <div key={k.l} className="p-2 rounded text-center" style={{ background: "#0a1520", borderTop: `2px solid ${k.c}` }}>
+                  <div className="font-space text-[11px] font-bold" style={{ color: k.c }}>{k.v}</div>
+                  <div className="font-exo text-[6px] uppercase" style={{ color: "#3a6080" }}>{k.l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {paradas.length > 0 && (
+            <div>
+              <div className="font-exo text-[7px] tracking-wider uppercase mb-1" style={{ color: "#a855f7" }}>PARADAS ({paradas.length})</div>
+              {paradas.map((p: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-1" style={{ borderBottom: "1px solid #0d203530" }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#a855f7" }} />
+                  <span className="font-exo text-[8px]" style={{ color: "#c8e8ff" }}>{p.nombre || `Parada ${i + 1}`}</span>
+                  {p.duracion_min != null && <span className="font-space text-[7px]" style={{ color: "#3a6080" }}>{p.duracion_min}min</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {puntos.length > 0 && (
+        <div className="px-4 py-2 flex items-center gap-3" style={{ borderTop: "1px solid #0d2035", background: "#0a1520" }}>
+          <button onClick={() => { setPlaying(!playing); if (progress >= 1) setProgress(0); }} className="cursor-pointer p-1.5 rounded" style={{ background: "#0088ff20", border: "1px solid #0088ff40", color: "#0088ff" }}>
+            {playing ? <Pause size={12} /> : <Play size={12} />}
+          </button>
+          <div className="flex-1 h-2 rounded-full overflow-hidden cursor-pointer" style={{ background: "#162a3d" }} onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setProgress((e.clientX - rect.left) / rect.width);
+          }}>
+            <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: "linear-gradient(90deg, #0055ff, #0088ff)" }} />
+          </div>
+          {cursorPt && (
+            <span className="font-space text-[9px]" style={{ color: velColor(cursorPt.vel) }}>
+              {Math.round(cursorPt.vel)} km/h · {fHora(cursorPt.fecha)}
+            </span>
+          )}
         </div>
       )}
     </div>

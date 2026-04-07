@@ -569,6 +569,68 @@ router.get("/agente/inteligencia", async (_req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+router.get("/viaje-ruta/:id", async (req, res) => {
+  try {
+    const viajeId = parseInt(req.params.id);
+    if (!viajeId) return res.status(400).json({ error: "ID inválido" });
+
+    const vr = await pool.query(`
+      SELECT va.id, va.camion_id, c.patente, va.conductor, va.contrato,
+        va.fecha_inicio, va.fecha_fin,
+        va.origen_nombre, va.destino_nombre,
+        va.origen_lat::float, va.origen_lng::float,
+        va.destino_lat::float, va.destino_lng::float,
+        va.km_ecu::float as km, va.rendimiento_real::float as rend,
+        va.duracion_minutos::int as duracion_min,
+        va.velocidad_promedio::float as vel_prom,
+        va.velocidad_maxima::float as vel_max,
+        va.litros_consumidos_ecu::float as litros,
+        va.paradas,
+        va.origen_contrato, va.destino_contrato,
+        va.ingreso_tarifa::float, va.costo_total::float, va.margen_bruto::float,
+        va.estado
+      FROM viajes_aprendizaje va
+      JOIN camiones c ON c.id = va.camion_id
+      WHERE va.id = $1
+    `, [viajeId]);
+
+    if (vr.rows.length === 0) return res.status(404).json({ error: "Viaje no encontrado" });
+    const viaje = vr.rows[0];
+
+    const puntosR = await pool.query(`
+      SELECT lat::float, lng::float, fecha, velocidad::float, ignicion,
+        kms_total::float, rpm::int, temp_motor::int
+      FROM wisetrack_posiciones
+      WHERE patente = $1 AND fecha >= $2 AND fecha <= $3
+      ORDER BY fecha ASC
+    `, [viaje.patente, viaje.fecha_inicio, viaje.fecha_fin]);
+
+    const puntos = puntosR.rows;
+    const velMax = puntos.length > 0 ? Math.max(...puntos.map((p: any) => p.velocidad || 0)) : (viaje.vel_max || 0);
+    const velProm = puntos.length > 0 ? Math.round(puntos.filter((p: any) => p.velocidad > 0).reduce((s: number, p: any) => s + p.velocidad, 0) / Math.max(1, puntos.filter((p: any) => p.velocidad > 0).length)) : (viaje.vel_prom || 0);
+    const tiempoDetenido = puntos.filter((p: any) => p.velocidad === 0 || !p.ignicion).length;
+    const tiempoMovimiento = puntos.filter((p: any) => p.velocidad > 0 && p.ignicion).length;
+
+    res.json({
+      viaje: {
+        ...viaje,
+        vel_max_gps: velMax,
+        vel_prom_gps: velProm,
+        pct_detenido: puntos.length > 0 ? Math.round(tiempoDetenido / puntos.length * 100) : 0,
+        pct_movimiento: puntos.length > 0 ? Math.round(tiempoMovimiento / puntos.length * 100) : 0,
+      },
+      puntos: puntos.map((p: any) => ({
+        lat: p.lat, lng: p.lng,
+        fecha: p.fecha,
+        vel: p.velocidad || 0,
+        ign: p.ignicion,
+        km: p.kms_total,
+      })),
+      total_puntos: puntos.length,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ VIAJES SIN TARIFA — INTERACTIVO CON MAPA ═══
 router.get("/viajes-sin-tarifa-mapa", async (req, res) => {
   try {
