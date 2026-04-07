@@ -107,9 +107,11 @@ Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
 - **Fix**: SQL WHERE clause `AND grupo1 = $1` applied when grupo is provided. Only `fetchSeguimiento()` without argument returns all vehicles (used only for `/api/wisetrack/grupos` endpoint)
 - **Affected endpoints**: `/api/wisetrack/en-vivo`, `/api/wisetrack/flota`, `/api/wisetrack/tms/en-vivo` — all pass `"CENCOSUD"` and now correctly filter
 
-## TMS Route Matching (April 7 2026)
+## TMS Route Matching & Trip Logic (April 7 2026)
+- **Trip definition redesigned**: A trip = truck leaves a CD → delivers at 1+ destinations → arrives at another CD (or returns). NO split into segments. Previous logic broke CD Chillán→Los Ángeles→Temuco into 2 trips; now it's 1 trip with multiple deliveries.
 - **T-1 reconstructor** now filters `wisetrack_posiciones` by `grupo1 = 'CENCOSUD'` — was processing all 476 vehicles instead of ~63 Cencosud trucks
-- **Route matching improved from 62% to 100%** — added 13 missing routes to `contrato_rutas_tarifas`:
+- **`construirViajes` rewritten**: Trips start only at CD/BASE, collect all delivery stops until reaching next CD. Round-trip = returns to same CD. Intermediate deliveries stored in `paradas_intermedias`.
+- **Route matching improved to 100%** — added 13 missing routes to `contrato_rutas_tarifas`:
   - Return/transit routes (tarifa $0): Mulchén→CD Chillán, Temuco→CD Chillán, Victoria→CD Chillán, Los Ángeles→Temuco, Temuco→Los Ángeles, Los Ángeles→Valdivia, Victoria→Osorno, Osorno→Puerto Montt, Los Ángeles→CD Puerto Madero, Los Ángeles→Noviciado, Curicó→Noviciado
   - City routes: Chillán→Los Ángeles, Chillán→Victoria
 - **Trip states**: FACTURADO (tarifa > 0), TRANSITO (ruta reconocida, tarifa $0), PENDIENTE (sin match)
