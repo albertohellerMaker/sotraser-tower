@@ -107,6 +107,14 @@ Login → SplashScreen → WiseTrackApp → **CENCOSUD (landing/default)**
 - **Fix**: SQL WHERE clause `AND grupo1 = $1` applied when grupo is provided. Only `fetchSeguimiento()` without argument returns all vehicles (used only for `/api/wisetrack/grupos` endpoint)
 - **Affected endpoints**: `/api/wisetrack/en-vivo`, `/api/wisetrack/flota`, `/api/wisetrack/tms/en-vivo` — all pass `"CENCOSUD"` and now correctly filter
 
+## TMS Route Matching (April 7 2026)
+- **T-1 reconstructor** now filters `wisetrack_posiciones` by `grupo1 = 'CENCOSUD'` — was processing all 476 vehicles instead of ~63 Cencosud trucks
+- **Route matching improved from 62% to 100%** — added 13 missing routes to `contrato_rutas_tarifas`:
+  - Return/transit routes (tarifa $0): Mulchén→CD Chillán, Temuco→CD Chillán, Victoria→CD Chillán, Los Ángeles→Temuco, Temuco→Los Ángeles, Los Ángeles→Valdivia, Victoria→Osorno, Osorno→Puerto Montt, Los Ángeles→CD Puerto Madero, Los Ángeles→Noviciado, Curicó→Noviciado
+  - City routes: Chillán→Los Ángeles, Chillán→Victoria
+- **Trip states**: FACTURADO (tarifa > 0), TRANSITO (ruta reconocida, tarifa $0), PENDIENTE (sin match)
+- **P&L engine** (`pl-engine.ts`): Routes with tarifa=0 correctly count as `sinTarifa` but still get `tarifa_id` assigned
+
 ## Audit Fixes Applied (April 2026)
 - **Fixed**: `saveTelemetria` now uses `ConsumoLitros_Total` instead of `ConsumoLitros_Conduccion` — fuel data was under-reported
 - **Fixed**: `wisetrack_posiciones` table auto-created by scraper on startup
