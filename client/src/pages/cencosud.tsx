@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Map as GMap, AdvancedMarker, Polyline, useMap } from "@vis.gl/react-google-maps";
+import { Map as GMap, AdvancedMarker, Marker, Polyline, useMap } from "@vis.gl/react-google-maps";
 import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search, Flag, Gauge, Clock, Play, Pause } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
+import { MapErrorBoundary } from "@/components/map-fallback";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
@@ -2033,28 +2034,23 @@ function ViajeReconstructorPanel({ viajeId, onClose }: { viajeId: number; onClos
               <Polyline path={trailPath} strokeColor="#0055ff" strokeWeight={3} strokeOpacity={0.3} />
               <Polyline path={visiblePath} strokeColor="#0088ff" strokeWeight={4} strokeOpacity={0.9} />
 
-              <AdvancedMarker position={{ lat: trailPath[0].lat, lng: trailPath[0].lng }}>
-                <div style={{ background: "#00ff88", borderRadius: "50%", width: 14, height: 14, border: "2px solid #060d14", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Flag size={8} color="#060d14" />
-                </div>
-              </AdvancedMarker>
+              <Marker position={{ lat: trailPath[0].lat, lng: trailPath[0].lng }}
+                icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#060d14", strokeWeight: 2 }}
+                title="Origen" />
 
-              <AdvancedMarker position={{ lat: trailPath[trailPath.length - 1].lat, lng: trailPath[trailPath.length - 1].lng }}>
-                <div style={{ background: "#ff2244", borderRadius: "50%", width: 14, height: 14, border: "2px solid #060d14", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Flag size={8} color="#fff" />
-                </div>
-              </AdvancedMarker>
+              <Marker position={{ lat: trailPath[trailPath.length - 1].lat, lng: trailPath[trailPath.length - 1].lng }}
+                icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#060d14", strokeWeight: 2 }}
+                title="Destino" />
 
               {cursorPt && playing && (
-                <AdvancedMarker position={{ lat: cursorPt.lat, lng: cursorPt.lng }}>
-                  <div style={{ background: "#0088ff", borderRadius: "50%", width: 18, height: 18, border: "3px solid #fff", boxShadow: "0 0 12px #0088ff" }} />
-                </AdvancedMarker>
+                <Marker position={{ lat: cursorPt.lat, lng: cursorPt.lng }}
+                  icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#0088ff", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 }} />
               )}
 
               {paradas.map((p: any, i: number) => p.lat && p.lng && (
-                <AdvancedMarker key={`parada-${i}`} position={{ lat: p.lat, lng: p.lng }}>
-                  <div style={{ background: "#a855f7", borderRadius: "50%", width: 10, height: 10, border: "2px solid #060d14" }} title={p.nombre || `Parada ${i + 1}`} />
-                </AdvancedMarker>
+                <Marker key={`parada-${i}`} position={{ lat: p.lat, lng: p.lng }}
+                  icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: "#a855f7", fillOpacity: 1, strokeColor: "#060d14", strokeWeight: 2 }}
+                  title={p.nombre || `Parada ${i + 1}`} />
               ))}
             </GMap>
           ) : (
