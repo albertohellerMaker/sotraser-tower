@@ -22,20 +22,25 @@ router.get("/dashboard", async (req, res) => {
       `, [fecha]),
       // Rutas con cruce via alias
       pool.query(`
-        SELECT va.origen_nombre, va.destino_nombre,
-          ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato,
-          crt.tarifa, crt.lote, crt.clase,
-          COUNT(*)::int as viajes, COUNT(DISTINCT c.patente)::int as camiones,
-          ROUND(SUM(va.km_ecu)::numeric) as km,
-          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
-        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
-          AND va.origen_nombre IS NOT NULL AND va.destino_nombre IS NOT NULL
-          AND va.origen_nombre != 'Punto desconocido' AND va.destino_nombre != 'Punto desconocido'
-        GROUP BY va.origen_nombre, va.destino_nombre, ao.nombre_contrato, ad.nombre_contrato, crt.tarifa, crt.lote, crt.clase
+        WITH dedup AS (
+          SELECT DISTINCT ON (va.id) va.id, va.origen_nombre, va.destino_nombre, va.km_ecu, va.rendimiento_real, c.patente,
+            ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato,
+            crt.tarifa, crt.lote, crt.clase
+          FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+          WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
+            AND va.origen_nombre IS NOT NULL AND va.destino_nombre IS NOT NULL
+            AND va.origen_nombre != 'Punto desconocido' AND va.destino_nombre != 'Punto desconocido'
+          ORDER BY va.id, crt.tarifa DESC NULLS LAST
+        )
+        SELECT origen_nombre, destino_nombre, origen_contrato, destino_contrato, tarifa, lote, clase,
+          COUNT(*)::int as viajes, COUNT(DISTINCT patente)::int as camiones,
+          ROUND(SUM(km_ecu)::numeric) as km,
+          ROUND(AVG(rendimiento_real) FILTER (WHERE rendimiento_real > 0 AND rendimiento_real < 10)::numeric, 2) as rend
+        FROM dedup
+        GROUP BY origen_nombre, destino_nombre, origen_contrato, destino_contrato, tarifa, lote, clase
         ORDER BY viajes DESC
       `, [fecha]),
       pool.query(`
@@ -95,16 +100,20 @@ router.get("/resumen-mes", async (_req, res) => {
         WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
         GROUP BY DATE(va.fecha_inicio) ORDER BY dia
       `),
-      // Cruce financiero mes completo
       pool.query(`
+        WITH dedup AS (
+          SELECT DISTINCT ON (va.id) va.id, crt.tarifa
+          FROM viajes_aprendizaje va
+          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+          WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
+          ORDER BY va.id, crt.tarifa DESC NULLS LAST
+        )
         SELECT COUNT(*)::int as total_viajes,
-          COUNT(*) FILTER (WHERE crt.tarifa IS NOT NULL)::int as cruzados,
-          COALESCE(SUM(crt.tarifa) FILTER (WHERE crt.tarifa IS NOT NULL), 0)::bigint as ingreso_cruzado
-        FROM viajes_aprendizaje va
-        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND va.fecha_inicio >= DATE_TRUNC('month', CURRENT_DATE) AND va.km_ecu >= 15
+          COUNT(*) FILTER (WHERE tarifa IS NOT NULL)::int as cruzados,
+          COALESCE(SUM(tarifa) FILTER (WHERE tarifa IS NOT NULL), 0)::bigint as ingreso_cruzado
+        FROM dedup
       `),
     ]);
 
@@ -285,48 +294,62 @@ router.get("/err", async (req, res) => {
         ORDER BY va.id, crt.tarifa DESC NULLS LAST
       `, [fecha]),
 
-      // Resumen por ruta contrato
       pool.query(`
-        SELECT ao.nombre_contrato as origen, ad.nombre_contrato as destino,
-          crt.tarifa, crt.lote, crt.clase,
-          COUNT(*)::int as viajes, ROUND(SUM(va.km_ecu)::numeric) as km,
-          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend
-        FROM viajes_aprendizaje va
-        JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-        JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-        JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
-        GROUP BY ao.nombre_contrato, ad.nombre_contrato, crt.tarifa, crt.lote, crt.clase
+        WITH dedup AS (
+          SELECT DISTINCT ON (va.id) va.id, va.km_ecu, va.rendimiento_real, va.duracion_minutos, va.fecha_inicio, c.patente, va.conductor,
+            ao.nombre_contrato as origen_contrato, ad.nombre_contrato as destino_contrato, va.origen_nombre, va.destino_nombre,
+            crt.tarifa, crt.lote, crt.clase
+          FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+          WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
+          ORDER BY va.id, crt.tarifa DESC NULLS LAST
+        )
+        SELECT origen_contrato as origen, destino_contrato as destino, tarifa, lote, clase,
+          COUNT(*)::int as viajes, ROUND(SUM(km_ecu)::numeric) as km,
+          ROUND(AVG(rendimiento_real) FILTER (WHERE rendimiento_real > 0 AND rendimiento_real < 10)::numeric, 2) as rend
+        FROM dedup WHERE tarifa IS NOT NULL
+        GROUP BY origen_contrato, destino_contrato, tarifa, lote, clase
         ORDER BY viajes DESC
       `, [fecha]),
 
-      // Resumen por camión
       pool.query(`
-        SELECT c.patente, va.conductor, COUNT(*)::int as viajes,
-          ROUND(SUM(va.km_ecu)::numeric) as km,
-          ROUND(AVG(va.rendimiento_real) FILTER (WHERE va.rendimiento_real > 0 AND va.rendimiento_real < 10)::numeric, 2) as rend,
-          ROUND(SUM(va.duracion_minutos)::numeric / 60, 1) as horas,
-          COALESCE(SUM(crt.tarifa), 0)::bigint as ingreso
-        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
-        GROUP BY c.patente, va.conductor ORDER BY ingreso DESC
+        WITH dedup AS (
+          SELECT DISTINCT ON (va.id) va.id, va.km_ecu, va.rendimiento_real, va.duracion_minutos, c.patente, va.conductor, crt.tarifa
+          FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+          WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
+          ORDER BY va.id, crt.tarifa DESC NULLS LAST
+        )
+        SELECT patente, conductor, COUNT(*)::int as viajes,
+          ROUND(SUM(km_ecu)::numeric) as km,
+          ROUND(AVG(rendimiento_real) FILTER (WHERE rendimiento_real > 0 AND rendimiento_real < 10)::numeric, 2) as rend,
+          ROUND(SUM(duracion_minutos)::numeric / 60, 1) as horas,
+          COALESCE(SUM(tarifa), 0)::bigint as ingreso
+        FROM dedup GROUP BY patente, conductor ORDER BY ingreso DESC
       `, [fecha]),
 
-      // Circuitos: camiones con múltiples viajes = ida y vuelta
       pool.query(`
-        SELECT c.patente, va.conductor, COUNT(*)::int as viajes,
-          ARRAY_AGG(COALESCE(ao.nombre_contrato, va.origen_nombre) || ' → ' || COALESCE(ad.nombre_contrato, va.destino_nombre) ORDER BY va.fecha_inicio) as secuencia,
-          ROUND(SUM(va.km_ecu)::numeric) as km_circuito,
-          COALESCE(SUM(crt.tarifa), 0)::bigint as ingreso_circuito
-        FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
-        LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
-        LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
-        LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
-        WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
-        GROUP BY c.patente, va.conductor HAVING COUNT(*) >= 2
+        WITH dedup AS (
+          SELECT DISTINCT ON (va.id) va.id, va.km_ecu, va.fecha_inicio, c.patente, va.conductor,
+            COALESCE(ao.nombre_contrato, va.origen_nombre) as o_label,
+            COALESCE(ad.nombre_contrato, va.destino_nombre) as d_label,
+            crt.tarifa
+          FROM viajes_aprendizaje va JOIN camiones c ON c.id = va.camion_id
+          LEFT JOIN geocerca_alias_contrato ao ON ao.geocerca_nombre = va.origen_nombre AND ao.contrato = 'CENCOSUD'
+          LEFT JOIN geocerca_alias_contrato ad ON ad.geocerca_nombre = va.destino_nombre AND ad.contrato = 'CENCOSUD'
+          LEFT JOIN contrato_rutas_tarifas crt ON crt.origen = ao.nombre_contrato AND crt.destino = ad.nombre_contrato AND crt.contrato = 'CENCOSUD' AND crt.activo = true
+          WHERE va.contrato = 'CENCOSUD' AND va.fuente_viaje = 'T1_RECONSTRUCTOR' AND DATE(va.fecha_inicio) = $1 AND va.km_ecu > 0
+          ORDER BY va.id, crt.tarifa DESC NULLS LAST
+        )
+        SELECT patente, conductor, COUNT(*)::int as viajes,
+          ARRAY_AGG(o_label || ' → ' || d_label ORDER BY fecha_inicio) as secuencia,
+          ROUND(SUM(km_ecu)::numeric) as km_circuito,
+          COALESCE(SUM(tarifa), 0)::bigint as ingreso_circuito
+        FROM dedup GROUP BY patente, conductor HAVING COUNT(*) >= 2
         ORDER BY km_circuito DESC
       `, [fecha]),
     ]);
