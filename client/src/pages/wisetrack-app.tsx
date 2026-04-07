@@ -542,7 +542,6 @@ function WTFlotaMap() {
     <div className="flex gap-4 h-[calc(100vh-150px)]">
       <div className="flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
         <GMap
-          mapId="wt-fleet-map"
           center={mapCenter}
           zoom={mapZoom}
           onCameraChanged={(ev) => { setMapCenter(ev.detail.center); setMapZoom(ev.detail.zoom); }}

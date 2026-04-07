@@ -229,7 +229,6 @@ function ViajesEnVivo() {
                       || tracking.viaje.origen_lng || -70.65,
                   }}
                   defaultZoom={12}
-                  mapId="conductor-tracking"
                   style={{ width: "100%", height: "100%" }}
                   gestureHandling="greedy"
                 >

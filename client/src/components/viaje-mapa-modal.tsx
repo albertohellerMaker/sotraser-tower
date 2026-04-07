@@ -545,7 +545,6 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
             <GMap
               defaultCenter={center}
               defaultZoom={10}
-              mapId="sotraser-viaje-gps"
               style={{ height: "100%", width: "100%" }}
               gestureHandling="greedy"
               disableDefaultUI

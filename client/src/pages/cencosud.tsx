@@ -200,7 +200,6 @@ function MapeoInteractivo() {
           <div style={{ height: 200, background: "#0a1520" }}>
             {selected ? (
               <GMap
-                mapId="mapeo-interactivo"
                 center={mapCenter}
                 zoom={mapZoom}
                 gestureHandling="greedy"
@@ -595,7 +594,6 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                 <GMap
                   defaultCenter={{ lat: -33.45, lng: -70.65 }}
                   defaultZoom={6}
-                  mapId="cencosud-en-vivo"
                   style={{ width: "100%", height: "100%" }}
                   gestureHandling="greedy"
                 >
@@ -987,7 +985,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                       <button onClick={() => setAlertaMapOpen(null)} className="cursor-pointer" style={{ color: "#6a8fa8" }}><X size={16} /></button>
                     </div>
                     <div style={{ height: 400 }}>
-                      <GMap defaultCenter={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }} defaultZoom={15} mapId="alerta-velocidad-map" gestureHandling="greedy" disableDefaultUI={false} streetViewControl={true}>
+                      <GMap defaultCenter={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }} defaultZoom={15} gestureHandling="greedy" disableDefaultUI={false} streetViewControl={true}>
                         <AdvancedMarker position={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }}>
                           <div className="flex flex-col items-center">
                             <div className="px-2 py-1 rounded-lg font-space text-[10px] font-bold" style={{

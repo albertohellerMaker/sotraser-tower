@@ -216,7 +216,6 @@ function PanelEnVivo() {
       <div className="grid grid-cols-12 gap-3" style={{ height: "calc(100vh - 140px)" }}>
         <div className="col-span-8" style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #0d2035" }}>
           <GMap
-            mapId="envivo-map"
             defaultCenter={mapCenter}
             defaultZoom={viajesConGps.length > 0 ? 7 : 6}
             gestureHandling="greedy"
@@ -690,7 +689,6 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
       {showMap && (
         <div style={{ height: 280, borderRadius: 8, overflow: "hidden", border: "1px solid #0d2035" }}>
           <GMap
-            mapId="viaje-detail-map"
             defaultCenter={mapCenter}
             defaultZoom={10}
             gestureHandling="greedy"
