@@ -139,7 +139,8 @@ export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<num
           ]
         );
         saved++;
-      } catch {
+      } catch (e: any) {
+        if (saved === 0) console.error(`[WISETRACK-SAVE] telemetria insert error: ${e.message}`);
       }
 
       if (patente) {
@@ -160,7 +161,8 @@ export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<num
               r.NivelEstanque, r.RPM, r.TempMotor, "",
             ]
           );
-        } catch {
+        } catch (e2: any) {
+          if (saved === 0) console.error(`[WISETRACK-SAVE] posiciones insert error: ${e2.message}`);
         }
       }
     }
