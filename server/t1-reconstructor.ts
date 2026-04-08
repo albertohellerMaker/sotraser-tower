@@ -300,7 +300,16 @@ const basesSOTRASERSet = new Set([
 ]);
 
 function esCD(visita: Visita): boolean {
-  return visita.tipo === "CD";
+  if (visita.tipo === "CD") return true;
+  const n = visita.geocerca_nombre.toLowerCase();
+  if (n.startsWith("cd ") || n.includes("centro distribu")) return true;
+  return false;
+}
+
+function esOrigenValido(visita: Visita): boolean {
+  if (esCD(visita)) return true;
+  if (visita.tipo === "ZONA_ORIGEN" || visita.tipo === "BASE_ORIGEN") return true;
+  return false;
 }
 
 function esBaseSotraser(visita: Visita): boolean {
@@ -323,10 +332,7 @@ function construirViajes(
     const origen = visitasDestino[i];
     const origenNombre = origen.nombre_contrato || origen.geocerca_nombre;
 
-    if (!esCD(origen)) {
-      i++;
-      continue;
-    }
+    const origenEsCD = esCD(origen);
 
     const entregas: Visita[] = [];
     let vueltaIdx = -1;
@@ -341,12 +347,18 @@ function construirViajes(
         break;
       }
 
-      if (esCD(punto) && puntoNombre === origenNombre) {
+      if (origenEsCD && esCD(punto) && puntoNombre === origenNombre) {
         vueltaIdx = j;
         break;
       }
 
-      if (esCD(punto)) {
+      if (origenEsCD && esCD(punto)) {
+        vueltaIdx = j;
+        break;
+      }
+
+      if (!origenEsCD && esCD(punto)) {
+        entregas.push(punto);
         vueltaIdx = j;
         break;
       }
