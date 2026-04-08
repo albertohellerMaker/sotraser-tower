@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LeafletMap, MapPanner, FitBounds, DivMarker, CircleMarker, Polyline, useMap } from "@/components/leaflet-map";
-import { Marker } from "react-leaflet";
+
 import L from "leaflet";
 import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search, Flag, Gauge, Clock, Play, Pause } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";

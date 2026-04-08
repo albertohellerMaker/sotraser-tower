@@ -21,7 +21,7 @@ Fleet management system for Chilean trucking company SOTRASER. **WiseTrack offic
 - **Protection**: All `/api/*` routes require authenticated session (except `/api/auth/*`, `/api/conductor/*`)
 
 ## Tech Stack
-- **Frontend**: React 18, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Google Maps (`@vis.gl/react-google-maps`)
+- **Frontend**: React 18, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Leaflet maps (`react-leaflet@4.2.1` + `leaflet@1.9.4`)
 - **Backend**: Node.js, Express 5, TypeScript (ESM), Zod request validation middleware
 - **Database**: PostgreSQL with Drizzle ORM
 - **AI**: Anthropic Claude (fleet diagnostics and conversational assistant via BRAIN)

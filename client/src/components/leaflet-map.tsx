@@ -53,6 +53,7 @@ export function MapPanner({ lat, lng, zoom }: { lat: number | null; lng: number 
 
 export function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
+  const key = points.map(p => `${p[0].toFixed(4)},${p[1].toFixed(4)}`).join("|");
   useEffect(() => {
     if (points.length === 0) return;
     if (points.length === 1) {
@@ -61,7 +62,7 @@ export function FitBounds({ points }: { points: [number, number][] }) {
     }
     const bounds = L.latLngBounds(points);
     map.fitBounds(bounds, { padding: [40, 40] });
-  }, [points.length]);
+  }, [key]);
   return null;
 }
 
