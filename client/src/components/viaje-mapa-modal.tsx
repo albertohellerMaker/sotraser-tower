@@ -1,7 +1,7 @@
-/// <reference types="google.maps" />
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { X, Play, Pause, SkipBack, MapPin, Gauge, Clock, Route, CheckCircle, XCircle, Target, Flag, Navigation, ArrowRight, Eye, EyeOff, Layers, Info, Truck } from "lucide-react";
-import { Map as GMap, Polyline, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
+import { LeafletMap, DivMarker, FitBounds } from "@/components/leaflet-map";
+import { Polyline } from "react-leaflet";
 
 interface Props {
   viajeId: number;
@@ -40,55 +40,6 @@ const velColor = (v: number) => {
 
 const RC = (r: number | null) =>
   !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
-
-function FitToBounds({ puntos, extraPoints }: { puntos: PuntoGps[]; extraPoints?: { lat: number; lng: number }[] }) {
-  const map = useMap();
-  const fittedKey = useRef("");
-
-  useEffect(() => {
-    if (!map) return;
-    const allPts = [
-      ...puntos.map(p => ({ lat: p.lat, lng: p.lng })),
-      ...(extraPoints || []),
-    ].filter(p => p.lat !== 0 && p.lng !== 0);
-
-    if (allPts.length === 0) return;
-
-    const key = allPts.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join("|");
-    if (fittedKey.current === key) return;
-    fittedKey.current = key;
-
-    const bounds = new google.maps.LatLngBounds();
-    allPts.forEach(p => bounds.extend(p));
-    map.fitBounds(bounds, 60);
-  }, [map, puntos, extraPoints]);
-  return null;
-}
-
-function DashedPolyline({ origin, destination, color = "#ffcc00" }: { origin: google.maps.LatLngLiteral; destination: google.maps.LatLngLiteral; color?: string }) {
-  const map = useMap();
-  const lineRef = useRef<google.maps.Polyline | null>(null);
-
-  useEffect(() => {
-    if (!map) return;
-    if (lineRef.current) lineRef.current.setMap(null);
-
-    lineRef.current = new google.maps.Polyline({
-      path: [origin, destination],
-      strokeOpacity: 0,
-      icons: [{
-        icon: { path: "M 0,-1 0,1", strokeOpacity: 0.9, strokeWeight: 3, strokeColor: color, scale: 4 },
-        offset: "0",
-        repeat: "20px",
-      }],
-      map,
-    });
-
-    return () => { lineRef.current?.setMap(null); };
-  }, [map, origin.lat, origin.lng, destination.lat, destination.lng, color]);
-
-  return null;
-}
 
 export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const [data, setData] = useState<{ viaje: any; puntos: PuntoGps[]; corredor: CorredorData | null; has_real_gps?: boolean } | null>(null);
@@ -198,14 +149,14 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const hasOriginDest = v.olat != null && v.olng != null && v.dlat != null && v.dlng != null && v.olat !== 0 && v.dlat !== 0;
   const hasCorredor = corredor != null && corredor.olat != null && corredor.dlat != null && corredor.olng != null && corredor.dlng != null;
 
-  const segments = useMemo(() => {
+  const segments = (() => {
     if (!hasGps) return [];
-    const segs: { path: google.maps.LatLngLiteral[]; color: string }[] = [];
+    const segs: { path: [number, number][]; color: string }[] = [];
     let currentColor = velColor(puntos[0].vel || 0);
-    let currentPath: google.maps.LatLngLiteral[] = [{ lat: puntos[0].lat, lng: puntos[0].lng }];
+    let currentPath: [number, number][] = [[puntos[0].lat, puntos[0].lng]];
     for (let i = 1; i < puntos.length; i++) {
       const color = velColor(puntos[i].vel || 0);
-      const pt = { lat: puntos[i].lat, lng: puntos[i].lng };
+      const pt: [number, number] = [puntos[i].lat, puntos[i].lng];
       if (color === currentColor) {
         currentPath.push(pt);
       } else {
@@ -217,25 +168,22 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
     }
     if (currentPath.length > 1) segs.push({ path: currentPath, color: currentColor });
     return segs;
-  }, [data]);
+  })();
 
-  const center = useMemo(() => {
+  const center: [number, number] = (() => {
     if (hasRealGps && puntos.length > 0) {
       const midIdx = Math.floor(puntos.length / 2);
-      return { lat: puntos[midIdx].lat, lng: puntos[midIdx].lng };
+      return [puntos[midIdx].lat, puntos[midIdx].lng];
     }
-    if (hasOriginDest) return { lat: (v.olat + v.dlat) / 2, lng: (v.olng + v.dlng) / 2 };
-    if (hasCorredor) return { lat: (corredor.olat + corredor.dlat) / 2, lng: (corredor.olng + corredor.dlng) / 2 };
-    return { lat: -33.45, lng: -70.65 };
-  }, [data]);
+    if (hasOriginDest) return [(v.olat + v.dlat) / 2, (v.olng + v.dlng) / 2];
+    if (hasCorredor) return [(corredor.olat + corredor.dlat) / 2, (corredor.olng + corredor.dlng) / 2];
+    return [-33.45, -70.65];
+  })();
 
   const currentIdx = Math.min(Math.floor(progress * (puntos.length - 1)), puntos.length - 1);
   const currentPoint = puntos[currentIdx];
 
-  const trailPath = useMemo(() =>
-    puntos.slice(0, currentIdx + 1).map(p => ({ lat: p.lat, lng: p.lng })),
-    [currentIdx, data]
-  );
+  const trailPath: [number, number][] = puntos.slice(0, currentIdx + 1).map(p => [p.lat, p.lng]);
 
   const rend = parseFloat(v.rendimiento || 0);
   const durH = v.duracion ? Math.floor(v.duracion / 60) : 0;
@@ -252,9 +200,10 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
   const origenLabel = corredor?.origen_nombre || v.origen_nombre || "Origen";
   const destinoLabel = corredor?.destino_nombre || v.destino_nombre || "Destino";
 
-  const extraBoundsPoints: { lat: number; lng: number }[] = [];
-  if (showPropuesto && propuestoOrigin) extraBoundsPoints.push(propuestoOrigin);
-  if (showPropuesto && propuestoDest) extraBoundsPoints.push(propuestoDest);
+  const fitPoints: [number, number][] = [];
+  if (showGps && hasGps) puntos.forEach(p => fitPoints.push([p.lat, p.lng]));
+  if (showPropuesto && propuestoOrigin) fitPoints.push([propuestoOrigin.lat, propuestoOrigin.lng]);
+  if (showPropuesto && propuestoDest) fitPoints.push([propuestoDest.lat, propuestoDest.lng]);
 
   const gpsStartLabel = v.origen_nombre || "Inicio GPS";
   const gpsEndLabel = v.destino_nombre || "Fin GPS";
@@ -542,144 +491,65 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
 
           {/* MAP */}
           <div className="flex-1 relative">
-            <GMap
-              defaultCenter={center}
-              defaultZoom={10}
-              style={{ height: "100%", width: "100%" }}
-              gestureHandling="greedy"
-              disableDefaultUI
-              colorScheme="DARK"
-            >
-              <FitToBounds
-                puntos={showGps ? puntos : []}
-                extraPoints={extraBoundsPoints}
-              />
+            <LeafletMap center={center} zoom={10}>
+              {fitPoints.length > 0 && <FitBounds points={fitPoints} />}
 
               {/* GPS REAL ROUTE */}
               {showGps && hasGps && (
                 <>
                   {playing && progress > 0 ? (
                     <>
-                      <Polyline path={trailPath} strokeColor="#00d4ff" strokeWeight={5} strokeOpacity={0.9} />
+                      <Polyline positions={trailPath} pathOptions={{ color: "#00d4ff", weight: 5, opacity: 0.9 }} />
                       {currentPoint && (
-                        <AdvancedMarker position={{ lat: currentPoint.lat, lng: currentPoint.lng }}>
-                          <div style={{
-                            width: 20, height: 20, background: "#00d4ff",
-                            border: "3px solid #fff", borderRadius: "50%",
-                            boxShadow: "0 0 14px #00d4ff80",
-                          }} />
-                        </AdvancedMarker>
+                        <DivMarker position={[currentPoint.lat, currentPoint.lng]}
+                          html={`<div style="width:20px;height:20px;background:#00d4ff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 14px #00d4ff80"></div>`}
+                          size={[20, 20]} zIndexOffset={2000} />
                       )}
                     </>
                   ) : (
                     segments.map((seg, i) => (
                       <Polyline
                         key={`seg-${i}`}
-                        path={seg.path}
-                        strokeColor={seg.color}
-                        strokeWeight={showPropuesto ? 4 : 5}
-                        strokeOpacity={showPropuesto ? 0.7 : 0.85}
+                        positions={seg.path}
+                        pathOptions={{ color: seg.color, weight: showPropuesto ? 4 : 5, opacity: showPropuesto ? 0.7 : 0.85 }}
                       />
                     ))
                   )}
 
                   {/* GPS START marker */}
-                  <AdvancedMarker position={{ lat: puntos[0].lat, lng: puntos[0].lng }}>
-                    <div style={{ position: "relative" }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: 32, height: 32, background: "#00ff88", borderRadius: "50%",
-                        border: "3px solid #fff", boxShadow: "0 0 12px #00ff8860",
-                        fontSize: 13, fontWeight: "bold", color: "#020508",
-                      }}>A</div>
-                      <div style={{
-                        position: "absolute", top: -28, left: "50%", transform: "translateX(-50%)",
-                        whiteSpace: "nowrap", padding: "2px 8px", borderRadius: 4,
-                        background: "#060d14ee", border: "1px solid #00ff8840",
-                        fontSize: 9, color: "#00ff88", fontFamily: "Exo 2",
-                        letterSpacing: "0.05em",
-                      }}>{gpsStartLabel}</div>
-                    </div>
-                  </AdvancedMarker>
+                  <DivMarker position={[puntos[0].lat, puntos[0].lng]} zIndexOffset={1000}
+                    html={`<div style="position:relative"><div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#00ff88;border-radius:50%;border:3px solid #fff;box-shadow:0 0 12px #00ff8860;font-size:13px;font-weight:bold;color:#020508">A</div><div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 8px;border-radius:4px;background:#060d14ee;border:1px solid #00ff8840;font-size:9px;color:#00ff88;font-family:Exo 2;letter-spacing:0.05em">${gpsStartLabel}</div></div>`}
+                    size={[32, 32]} />
                   {/* GPS END marker */}
-                  <AdvancedMarker position={{ lat: puntos[puntos.length - 1].lat, lng: puntos[puntos.length - 1].lng }}>
-                    <div style={{ position: "relative" }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: 32, height: 32, background: "#ff2244", borderRadius: "50%",
-                        border: "3px solid #fff", boxShadow: "0 0 12px #ff224460",
-                        fontSize: 13, fontWeight: "bold", color: "#fff",
-                      }}>B</div>
-                      <div style={{
-                        position: "absolute", top: -28, left: "50%", transform: "translateX(-50%)",
-                        whiteSpace: "nowrap", padding: "2px 8px", borderRadius: 4,
-                        background: "#060d14ee", border: "1px solid #ff224440",
-                        fontSize: 9, color: "#ff2244", fontFamily: "Exo 2",
-                        letterSpacing: "0.05em",
-                      }}>{gpsEndLabel}</div>
-                    </div>
-                  </AdvancedMarker>
+                  <DivMarker position={[puntos[puntos.length - 1].lat, puntos[puntos.length - 1].lng]} zIndexOffset={1000}
+                    html={`<div style="position:relative"><div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#ff2244;border-radius:50%;border:3px solid #fff;box-shadow:0 0 12px #ff224460;font-size:13px;font-weight:bold;color:#fff">B</div><div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 8px;border-radius:4px;background:#060d14ee;border:1px solid #ff224440;font-size:9px;color:#ff2244;font-family:Exo 2;letter-spacing:0.05em">${gpsEndLabel}</div></div>`}
+                    size={[32, 32]} />
                 </>
               )}
 
-              {/* PROPOSED ROUTE */}
+              {/* PROPOSED ROUTE (dashed via dashArray) */}
               {showPropuesto && propuestoOrigin && propuestoDest && (
                 <>
-                  <DashedPolyline origin={propuestoOrigin} destination={propuestoDest} />
-                  <AdvancedMarker position={propuestoOrigin}>
-                    <div style={{ position: "relative" }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: 30, height: 30, background: "#ffcc00", borderRadius: 6,
-                        border: "2px solid #fff", boxShadow: "0 0 10px #ffcc0060",
-                      }}>
-                        <Flag style={{ width: 14, height: 14, color: "#020508" }} />
-                      </div>
-                      <div style={{
-                        position: "absolute", top: -28, left: "50%", transform: "translateX(-50%)",
-                        whiteSpace: "nowrap", padding: "2px 8px", borderRadius: 4,
-                        background: "#060d14ee", border: "1px solid #ffcc0040",
-                        fontSize: 9, color: "#ffcc00", fontFamily: "Exo 2",
-                        letterSpacing: "0.05em",
-                      }}>{origenLabel}</div>
-                    </div>
-                  </AdvancedMarker>
-                  <AdvancedMarker position={propuestoDest}>
-                    <div style={{ position: "relative" }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: 30, height: 30, background: "#ffcc00", borderRadius: 6,
-                        border: "2px solid #fff", boxShadow: "0 0 10px #ffcc0060",
-                      }}>
-                        <Target style={{ width: 14, height: 14, color: "#020508" }} />
-                      </div>
-                      <div style={{
-                        position: "absolute", top: -28, left: "50%", transform: "translateX(-50%)",
-                        whiteSpace: "nowrap", padding: "2px 8px", borderRadius: 4,
-                        background: "#060d14ee", border: "1px solid #ffcc0040",
-                        fontSize: 9, color: "#ffcc00", fontFamily: "Exo 2",
-                        letterSpacing: "0.05em",
-                      }}>{destinoLabel}</div>
-                    </div>
-                  </AdvancedMarker>
+                  <Polyline
+                    positions={[[propuestoOrigin.lat, propuestoOrigin.lng], [propuestoDest.lat, propuestoDest.lng]]}
+                    pathOptions={{ color: "#ffcc00", weight: 3, opacity: 0.9, dashArray: "10 8" }}
+                  />
+                  <DivMarker position={[propuestoOrigin.lat, propuestoOrigin.lng]} zIndexOffset={900}
+                    html={`<div style="position:relative"><div style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#ffcc00;border-radius:6px;border:2px solid #fff;box-shadow:0 0 10px #ffcc0060"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#020508" stroke-width="3"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg></div><div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 8px;border-radius:4px;background:#060d14ee;border:1px solid #ffcc0040;font-size:9px;color:#ffcc00;font-family:Exo 2;letter-spacing:0.05em">${origenLabel}</div></div>`}
+                    size={[30, 30]} />
+                  <DivMarker position={[propuestoDest.lat, propuestoDest.lng]} zIndexOffset={900}
+                    html={`<div style="position:relative"><div style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#ffcc00;border-radius:6px;border:2px solid #fff;box-shadow:0 0 10px #ffcc0060"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#020508" stroke-width="3"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div><div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 8px;border-radius:4px;background:#060d14ee;border:1px solid #ffcc0040;font-size:9px;color:#ffcc00;font-family:Exo 2;letter-spacing:0.05em">${destinoLabel}</div></div>`}
+                    size={[30, 30]} />
                 </>
               )}
 
               {/* NO GPS, NO PROPOSED - show message */}
               {!hasGps && !propuestoOrigin && (
-                <AdvancedMarker position={center}>
-                  <div style={{
-                    padding: "8px 16px", borderRadius: 8,
-                    background: "#060d14ee", border: "1px solid #ff224430",
-                    fontSize: 11, color: "#ff2244", fontFamily: "Exo 2",
-                    textAlign: "center",
-                  }}>
-                    Sin datos GPS ni coordenadas<br/>
-                    <span style={{ fontSize: 9, color: "#3a6080" }}>Este viaje no tiene puntos de rastreo</span>
-                  </div>
-                </AdvancedMarker>
+                <DivMarker position={center}
+                  html={`<div style="padding:8px 16px;border-radius:8px;background:#060d14ee;border:1px solid #ff224430;font-size:11px;color:#ff2244;font-family:Exo 2;text-align:center">Sin datos GPS ni coordenadas<br/><span style="font-size:9px;color:#3a6080">Este viaje no tiene puntos de rastreo</span></div>`}
+                  size={[200, 50]} />
               )}
-            </GMap>
+            </LeafletMap>
 
             {/* NO-GPS BANNER */}
             {!hasGps && (
@@ -688,61 +558,52 @@ export default function ViajeMapaModal({ viajeId, onClose }: Props) {
                 <span className="font-exo text-[10px] font-semibold" style={{ color: "#ff2244" }}>Sin puntos GPS — mostrando ubicaciones conocidas</span>
               </div>
             )}
-
-            {/* BOTTOM LEGEND when both active */}
-            {showGps && showPropuesto && hasGps && propuestoOrigin && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg flex items-center gap-3" style={{ background: "#060d14ee", border: "1px solid #0d2035", zIndex: 1000 }}>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-1 rounded-full" style={{ background: "#00ff88" }} />
-                  <span className="font-exo text-[8px]" style={{ color: "#00ff88" }}>Ruta Real (GPS)</span>
-                </div>
-                <div className="w-px h-3" style={{ background: "#0d2035" }} />
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 rounded-full" style={{ background: "#ffcc00" }} />
-                  <span className="font-exo text-[8px]" style={{ color: "#ffcc00" }}>Ruta Propuesta</span>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* PLAYBACK BAR */}
-        {hasGps && puntos.length > 2 && showGps && (
-          <div className="px-5 py-2.5 flex items-center gap-4" style={{ background: "#060d14", borderTop: "1px solid #0d2035" }}>
-            <button onClick={() => { setProgress(0); setPlaying(false); }} className="p-2 cursor-pointer rounded" style={{ background: "#0d2035" }}>
-              <SkipBack className="w-4 h-4" style={{ color: "#c8e8ff" }} />
-            </button>
-            <button onClick={() => setPlaying(!playing)} className="p-2 cursor-pointer rounded" style={{ background: playing ? "#ff224420" : "#00d4ff20", border: `1px solid ${playing ? "#ff224440" : "#00d4ff40"}` }}>
-              {playing ? <Pause className="w-4 h-4" style={{ color: "#ff2244" }} /> : <Play className="w-4 h-4" style={{ color: "#00d4ff" }} />}
-            </button>
-
-            <div className="flex-1 relative h-2 rounded-full cursor-pointer" style={{ background: "#0d2035" }}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = (e.clientX - rect.left) / rect.width;
-                setProgress(Math.max(0, Math.min(1, pct)));
-              }}>
-              <div className="absolute top-0 left-0 h-full rounded-full" style={{ width: `${progress * 100}%`, background: "linear-gradient(to right, #00d4ff, #00ff88)" }} />
-              <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full" style={{ left: `calc(${progress * 100}% - 8px)`, background: "#00d4ff", border: "2px solid #fff", boxShadow: "0 0 8px #00d4ff80" }} />
-            </div>
-
-            <div className="flex items-center gap-2">
-              {[1, 2, 5, 10].map(s => (
-                <button key={s} onClick={() => setSpeed(s)} className="font-exo text-[8px] px-2 py-1 cursor-pointer rounded"
-                  style={{ color: speed === s ? "#00d4ff" : "#3a6080", background: speed === s ? "#00d4ff15" : "transparent", border: `1px solid ${speed === s ? "#00d4ff30" : "#0d2035"}` }}>
-                  {s}x
+        {/* FOOTER — playback */}
+        {hasGps && (
+          <div className="px-4 py-2.5" style={{ background: "#060d14", borderTop: "2px solid #0d2035" }}>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { setProgress(0); setPlaying(false); }}
+                  className="p-1.5 rounded cursor-pointer" style={{ background: "#0d2035" }}
+                >
+                  <SkipBack className="w-3.5 h-3.5" style={{ color: "#c8e8ff" }} />
                 </button>
-              ))}
-            </div>
-
-            <div className="font-space text-[11px] font-bold" style={{ color: "#c8e8ff" }}>{currentTime}</div>
-            {currentPoint && (
-              <div className="flex items-center gap-1">
-                <Gauge className="w-3 h-3" style={{ color: velColor(currentPoint.vel) }} />
-                <span className="font-space text-[12px] font-bold" style={{ color: velColor(currentPoint.vel) }}>{Math.round(currentPoint.vel || 0)}</span>
-                <span className="font-exo text-[8px]" style={{ color: "#3a6080" }}>km/h</span>
+                <button
+                  onClick={() => setPlaying(!playing)}
+                  className="p-1.5 rounded cursor-pointer" style={{ background: playing ? "#ff224420" : "#00d4ff20", border: `1px solid ${playing ? "#ff224440" : "#00d4ff40"}` }}
+                >
+                  {playing ? <Pause className="w-3.5 h-3.5" style={{ color: "#ff2244" }} /> : <Play className="w-3.5 h-3.5" style={{ color: "#00d4ff" }} />}
+                </button>
               </div>
-            )}
+
+              <div className="flex-1 h-1.5 rounded-full cursor-pointer relative" style={{ background: "#0d2035" }}
+                onClick={e => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setProgress((e.clientX - rect.left) / rect.width);
+                }}>
+                <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: "#00d4ff" }} />
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-space text-[11px] font-bold" style={{ color: "#00d4ff" }}>{currentTime}</span>
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{currentPoint?.vel || 0} km/h</span>
+                <div className="flex gap-0.5">
+                  {[1, 2, 4].map(s => (
+                    <button key={s} onClick={() => setSpeed(s)}
+                      className="font-space text-[8px] px-1.5 py-0.5 rounded cursor-pointer"
+                      style={{
+                        background: speed === s ? "#00d4ff20" : "transparent",
+                        border: `1px solid ${speed === s ? "#00d4ff40" : "#0d2035"}`,
+                        color: speed === s ? "#00d4ff" : "#3a6080",
+                      }}>{s}x</button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

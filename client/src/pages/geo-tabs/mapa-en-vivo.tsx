@@ -1,21 +1,18 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { RefreshCw, Truck, Fuel, ChevronDown, ChevronUp, X } from "lucide-react";
 import { CamionLive, GeoBase } from "./types";
 import { CamionStatusDot } from "./shared-components";
-import { createDarkMap, addInfoWindow, fitBoundsToPoints, isGoogleMapsReady } from "@/lib/google-maps-utils";
+import { LeafletMap, DivMarker, CircleMarker, MapPanner } from "@/components/leaflet-map";
 
 export default function MapaEnVivo() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<any[]>([]);
-  const fuelMarkersRef = useRef<any[]>([]);
   const [filter, setFilter] = useState("todos");
   const [selectedCamion, setSelectedCamion] = useState<number | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [showFuelStations, setShowFuelStations] = useState(true);
   const [selectedEstacion, setSelectedEstacion] = useState<string | null>(null);
+  const [panTo, setPanTo] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
 
   const { data: camiones, refetch } = useQuery<CamionLive[]>({
     queryKey: ["/api/geo/camiones-live"],
@@ -43,118 +40,6 @@ export default function MapaEnVivo() {
     if (filter === "sinsenal") return camiones.filter(c => c.estado === "SIN_SEÑAL");
     return camiones;
   }, [camiones, filter]);
-
-  useEffect(() => {
-    if (!mapRef.current || mapInstance.current || !isGoogleMapsReady()) return;
-    mapInstance.current = createDarkMap(mapRef.current, {
-      center: { lat: -33.45, lng: -70.65 },
-      zoom: 6,
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!mapInstance.current || !isGoogleMapsReady() || !camiones) return;
-    const map = mapInstance.current;
-
-    markersRef.current.forEach((m: any) => { if (m.setMap) m.setMap(null); else if (m.map !== undefined) m.map = null; });
-    markersRef.current = [];
-
-    const statusColors: Record<string, string> = {
-      EN_MOVIMIENTO: "#00c97a",
-      DETENIDO_RECIENTE: "#ffcc00",
-      DETENIDO: "#ff2244",
-      "SIN_SEÑAL": "#3a6080",
-    };
-
-    for (const c of filtered) {
-      if (!c.lat || !c.lng) continue;
-      const color = statusColors[c.estado] || "#3a6080";
-
-      const el = document.createElement("div");
-      el.innerHTML = `<div style="width:24px;height:24px;background:${color};border:2px solid #020508;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transform:rotate(${c.rumbo}deg);cursor:pointer">&#9650;</div>`;
-
-      const popupContent = `
-        <div style="font-family:monospace;font-size:12px;min-width:180px">
-          <b>${c.patente}</b> ${c.conductor || ""}<br/>
-          ${c.velocidad} km/h · ${c.estado.replace(/_/g, " ")}<br/>
-          ${c.timestamp ? new Date(c.timestamp).toLocaleString("es-CL") : "Sin senal"}
-        </div>
-      `;
-
-      if (google.maps.marker?.AdvancedMarkerElement) {
-        const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: c.lat, lng: c.lng }, content: el });
-        addInfoWindow(map, marker, popupContent);
-        marker.addListener("click", () => setSelectedCamion(c.camionId));
-        markersRef.current.push(marker);
-      } else {
-        const marker = new google.maps.Marker({ map, position: { lat: c.lat, lng: c.lng } });
-        addInfoWindow(map, marker, popupContent);
-        marker.addListener("click", () => setSelectedCamion(c.camionId));
-        markersRef.current.push(marker);
-      }
-    }
-
-    if (bases) {
-      for (const b of bases) {
-        const bLat = parseFloat(b.lat);
-        const bLng = parseFloat(b.lng);
-        const circle = new google.maps.Circle({
-          map,
-          center: { lat: bLat, lng: bLng },
-          radius: b.radioMetros,
-          strokeColor: "#00d4ff",
-          strokeWeight: 1,
-          fillColor: "#00d4ff",
-          fillOpacity: 0.05,
-        });
-        markersRef.current.push(circle);
-
-        const bEl = document.createElement("div");
-        bEl.innerHTML = `<div style="width:8px;height:8px;background:#00d4ff;border-radius:2px;border:1px solid #020508"></div>`;
-        if (google.maps.marker?.AdvancedMarkerElement) {
-          const bMarker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: bLat, lng: bLng }, content: bEl });
-          addInfoWindow(map, bMarker, `<div style="font-family:monospace;font-size:11px">${b.nombre}</div>`);
-          markersRef.current.push(bMarker);
-        } else {
-          const bMarker = new google.maps.Marker({ map, position: { lat: bLat, lng: bLng } });
-          addInfoWindow(map, bMarker, `<div style="font-family:monospace;font-size:11px">${b.nombre}</div>`);
-          markersRef.current.push(bMarker);
-        }
-      }
-    }
-
-    fuelMarkersRef.current.forEach((m: any) => { if (m.setMap) m.setMap(null); else if (m.map !== undefined) m.map = null; });
-    fuelMarkersRef.current = [];
-    if (showFuelStations && fuelData?.estaciones) {
-      for (const est of fuelData.estaciones) {
-        if (!est.lat || !est.lng) continue;
-        const fEl = document.createElement("div");
-        fEl.innerHTML = `<div style="width:28px;height:28px;background:#ff6600;border:2px solid #020508;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:bold;cursor:pointer">&#9981;</div>`;
-
-        const popupContent = `
-          <div style="font-family:monospace;font-size:12px;min-width:200px">
-            <b style="color:#ff6600">${est.nombre}</b><br/>
-            <span style="color:#666">${est.ciudad}</span><br/>
-            <hr style="border-color:#eee;margin:4px 0"/>
-            <b>${est.cargas}</b> cargas -- <b>${est.litros.toLocaleString("es-CL")}</b> L<br/>
-            ${est.camiones} camiones -- Ult: ${est.ultimaCarga ? new Date(est.ultimaCarga).toLocaleDateString("es-CL") : "--"}
-          </div>
-        `;
-
-        if (google.maps.marker?.AdvancedMarkerElement) {
-          const fMarker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: est.lat, lng: est.lng }, content: fEl });
-          addInfoWindow(map, fMarker, popupContent);
-          fMarker.addListener("click", () => setSelectedEstacion(est.nombre));
-          fuelMarkersRef.current.push(fMarker);
-        } else {
-          const fMarker = new google.maps.Marker({ map, position: { lat: est.lat, lng: est.lng } });
-          addInfoWindow(map, fMarker, popupContent);
-          fMarker.addListener("click", () => setSelectedEstacion(est.nombre));
-          fuelMarkersRef.current.push(fMarker);
-        }
-      }
-    }
-  }, [filtered, bases, fuelData, showFuelStations]);
 
   const counts = useMemo(() => {
     if (!camiones) return { total: 0, mov: 0, det: 0, sin: 0 };
@@ -184,9 +69,52 @@ export default function MapaEnVivo() {
 
   const [expandedTruck, setExpandedTruck] = useState<string | null>(null);
 
+  const statusColors: Record<string, string> = {
+    EN_MOVIMIENTO: "#00c97a",
+    DETENIDO_RECIENTE: "#ffcc00",
+    DETENIDO: "#ff2244",
+    "SIN_SEÑAL": "#3a6080",
+  };
+
   return (
     <div className="relative" style={{ height: "calc(100vh - 120px)" }} data-testid="geo-mapa">
-      <div ref={mapRef} className="absolute inset-0 z-0 rounded" style={{ border: "1px solid #0d2035" }} />
+      <div className="absolute inset-0 z-0 rounded" style={{ border: "1px solid #0d2035" }}>
+        <LeafletMap center={[-33.45, -70.65]} zoom={6}>
+          {panTo && <MapPanner lat={panTo.lat} lng={panTo.lng} zoom={panTo.zoom} />}
+
+          {filtered.filter(c => c.lat && c.lng).map(c => {
+            const color = statusColors[c.estado] || "#3a6080";
+            return (
+              <DivMarker key={c.camionId} position={[c.lat, c.lng]}
+                onClick={() => setSelectedCamion(c.camionId)}
+                html={`<div style="width:24px;height:24px;background:${color};border:2px solid #020508;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transform:rotate(${c.rumbo}deg);cursor:pointer">&#9650;</div>`}
+                size={[24, 24]} />
+            );
+          })}
+
+          {(bases || []).map(b => (
+            <CircleMarker key={`base-${b.nombre}`}
+              center={[parseFloat(b.lat), parseFloat(b.lng)]}
+              radius={b.radioMetros}
+              color="#00d4ff" fillColor="#00d4ff" fillOpacity={0.05} weight={1} />
+          ))}
+
+          {(bases || []).map(b => (
+            <DivMarker key={`blabel-${b.nombre}`}
+              position={[parseFloat(b.lat), parseFloat(b.lng)]}
+              html={`<div style="width:8px;height:8px;background:#00d4ff;border-radius:2px;border:1px solid #020508"></div>`}
+              size={[8, 8]} />
+          ))}
+
+          {showFuelStations && (fuelData?.estaciones || []).filter((e: any) => e.lat && e.lng).map((est: any) => (
+            <DivMarker key={`fuel-${est.nombre}`}
+              position={[est.lat, est.lng]}
+              onClick={() => setSelectedEstacion(est.nombre)}
+              html={`<div style="width:28px;height:28px;background:#ff6600;border:2px solid #020508;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:bold;cursor:pointer">&#9981;</div>`}
+              size={[28, 28]} />
+          ))}
+        </LeafletMap>
+      </div>
 
       <div className="absolute top-3 left-3 z-10 flex gap-2">
         {[
@@ -242,9 +170,8 @@ export default function MapaEnVivo() {
               <div key={c.camionId}
                 onClick={() => {
                   setSelectedCamion(c.camionId);
-                  if (c.lat && c.lng && mapInstance.current) {
-                    mapInstance.current.panTo({ lat: c.lat, lng: c.lng });
-                    mapInstance.current.setZoom(12);
+                  if (c.lat && c.lng) {
+                    setPanTo({ lat: c.lat, lng: c.lng, zoom: 12 });
                   }
                 }}
                 className="flex items-center gap-2 p-2 rounded cursor-pointer transition-all"
