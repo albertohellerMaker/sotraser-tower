@@ -5,7 +5,7 @@ import {
   Send, CheckCircle, ExternalLink, Radio, Loader2, Megaphone,
   X, Plus, MapPin, Activity, Clock, Navigation
 } from "lucide-react";
-import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { LeafletMap, DivMarker } from "@/components/leaflet-map";
 
 type HubMode = "vista-app" | "gestion";
 type GestionTab = "envivo" | "viajes" | "conductores" | "comunicaciones" | "novedades";
@@ -215,56 +215,21 @@ function PanelEnVivo() {
 
       <div className="grid grid-cols-12 gap-3" style={{ height: "calc(100vh - 140px)" }}>
         <div className="col-span-8" style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #0d2035" }}>
-          <GMap
-            defaultCenter={mapCenter}
-            defaultZoom={viajesConGps.length > 0 ? 7 : 6}
-            gestureHandling="greedy"
-            disableDefaultUI={false}
-            style={{ width: "100%", height: "100%" }}
-            colorScheme="DARK"
-          >
-            {viajesConGps.map((v: any) => (
-              <AdvancedMarker
-                key={v.id}
-                position={{ lat: parseFloat(v.gps.lat), lng: parseFloat(v.gps.lng) }}
-                onClick={() => setSelectedViaje(v)}
-              >
-                <div style={{
-                  background: v.estado === "EN_RUTA" ? "#00ff88" : "#ffcc00",
-                  color: "#060d14",
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  fontFamily: "Exo 2",
-                  whiteSpace: "nowrap",
-                  boxShadow: `0 0 8px ${v.estado === "EN_RUTA" ? "#00ff8880" : "#ffcc0080"}`,
-                  border: `1px solid ${v.estado === "EN_RUTA" ? "#00ff88" : "#ffcc00"}`,
-                  cursor: "pointer",
-                }}>
-                  🚛 {v.patente || v.codigo}
-                  {v.gps.velocidad_kmh > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>{Math.round(v.gps.velocidad_kmh)} km/h</span>}
-                </div>
-              </AdvancedMarker>
-            ))}
-
+          <LeafletMap center={[mapCenter.lat, mapCenter.lng]} zoom={viajesConGps.length > 0 ? 7 : 6}>
+            {viajesConGps.map((v: any) => {
+              const bg = v.estado === "EN_RUTA" ? "#00ff88" : "#ffcc00";
+              return (
+                <DivMarker key={v.id} position={[parseFloat(v.gps.lat), parseFloat(v.gps.lng)]} onClick={() => setSelectedViaje(v)}
+                  html={`<div style="background:${bg};color:#060d14;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:800;font-family:Exo 2;white-space:nowrap;box-shadow:0 0 8px ${bg}80;border:1px solid ${bg};cursor:pointer">🚛 ${v.patente || v.codigo}${v.gps.velocidad_kmh > 0 ? `<span style="margin-left:4px;opacity:0.7">${Math.round(v.gps.velocidad_kmh)} km/h</span>` : ''}</div>`}
+                  size={[120, 24]} />
+              );
+            })}
             {viajes.filter((v: any) => v.origen_lat && v.origen_lng).map((v: any) => (
-              <AdvancedMarker
-                key={`orig-${v.id}`}
-                position={{ lat: parseFloat(v.origen_lat), lng: parseFloat(v.origen_lng) }}
-              >
-                <div style={{
-                  background: "#06b6d4",
-                  color: "#fff",
-                  width: 16, height: 16,
-                  borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 8, fontWeight: 800,
-                  border: "1px solid #06b6d4",
-                }}>O</div>
-              </AdvancedMarker>
+              <DivMarker key={`orig-${v.id}`} position={[parseFloat(v.origen_lat), parseFloat(v.origen_lng)]}
+                html={`<div style="background:#06b6d4;color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;border:1px solid #06b6d4">O</div>`}
+                size={[16, 16]} />
             ))}
-          </GMap>
+          </LeafletMap>
         </div>
 
         <div className="col-span-4 space-y-3 overflow-y-auto">
@@ -688,56 +653,23 @@ function ViajeDetalle({ tracking, onCambiarEstado }: { tracking: any; onCambiarE
 
       {showMap && (
         <div style={{ height: 280, borderRadius: 8, overflow: "hidden", border: "1px solid #0d2035" }}>
-          <GMap
-            defaultCenter={mapCenter}
-            defaultZoom={10}
-            gestureHandling="greedy"
-            disableDefaultUI={false}
-            style={{ width: "100%", height: "100%" }}
-            colorScheme="DARK"
-          >
+          <LeafletMap center={[mapCenter.lat, mapCenter.lng]} zoom={10}>
             {v.origen_lat && v.origen_lng && (
-              <AdvancedMarker position={{ lat: parseFloat(v.origen_lat), lng: parseFloat(v.origen_lng) }}>
-                <div style={{ background: "#06b6d4", color: "#fff", width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, border: "2px solid #fff" }}>O</div>
-              </AdvancedMarker>
+              <DivMarker position={[parseFloat(v.origen_lat), parseFloat(v.origen_lng)]}
+                html={`<div style="background:#06b6d4;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;border:2px solid #fff">O</div>`}
+                size={[20, 20]} />
             )}
-
             {paradas.filter((p: any) => p.lat && p.lng).map((p: any) => (
-              <AdvancedMarker key={p.id} position={{ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }}>
-                <div style={{
-                  background: ESTADO_COLORS[p.estado] || "#3a6080",
-                  color: "#fff",
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  fontSize: 8,
-                  fontWeight: 800,
-                  fontFamily: "Exo 2",
-                  whiteSpace: "nowrap",
-                  border: "1px solid #fff",
-                }}>
-                  {p.orden}. {p.nombre}
-                </div>
-              </AdvancedMarker>
+              <DivMarker key={p.id} position={[parseFloat(p.lat), parseFloat(p.lng)]}
+                html={`<div style="background:${ESTADO_COLORS[p.estado] || '#3a6080'};color:#fff;padding:2px 6px;border-radius:4px;font-size:8px;font-weight:800;font-family:Exo 2;white-space:nowrap;border:1px solid #fff">${p.orden}. ${p.nombre}</div>`}
+                size={[100, 20]} />
             ))}
-
             {trayectoria.length > 0 && (
-              <AdvancedMarker position={{ lat: parseFloat(trayectoria[trayectoria.length - 1].lat), lng: parseFloat(trayectoria[trayectoria.length - 1].lng) }}>
-                <div style={{
-                  background: "#00ff88",
-                  color: "#060d14",
-                  padding: "3px 8px",
-                  borderRadius: 4,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  fontFamily: "Exo 2",
-                  boxShadow: "0 0 10px #00ff8880",
-                  border: "1px solid #00ff88",
-                }}>
-                  🚛 {v.patente} (última pos.)
-                </div>
-              </AdvancedMarker>
+              <DivMarker position={[parseFloat(trayectoria[trayectoria.length - 1].lat), parseFloat(trayectoria[trayectoria.length - 1].lng)]}
+                html={`<div style="background:#00ff88;color:#060d14;padding:3px 8px;border-radius:4px;font-size:9px;font-weight:800;font-family:Exo 2;box-shadow:0 0 10px #00ff8880;border:1px solid #00ff88">🚛 ${v.patente} (última pos.)</div>`}
+                size={[140, 24]} />
             )}
-          </GMap>
+          </LeafletMap>
         </div>
       )}
 

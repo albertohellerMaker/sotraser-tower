@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Map as MapIcon, Truck, Settings, Search, Fuel, Gauge, Activity, ThermometerSun, BarChart3, AlertTriangle, TrendingDown, Clock, MapPin } from "lucide-react";
-import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { LeafletMap, DivMarker, MapPanner } from "@/components/leaflet-map";
 import CencosudView from "./cencosud";
 
 interface WTVehicle {
@@ -541,33 +541,19 @@ function WTFlotaMap() {
   return (
     <div className="flex gap-4 h-[calc(100vh-150px)]">
       <div className="flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid #0d2035" }}>
-        <GMap
-          center={mapCenter}
-          zoom={mapZoom}
-          onCameraChanged={(ev) => { setMapCenter(ev.detail.center); setMapZoom(ev.detail.zoom); }}
-          gestureHandling="greedy"
-          disableDefaultUI={true}
-          style={{ width: "100%", height: "100%" }}
-          colorScheme="DARK"
-        >
+        <LeafletMap center={[mapCenter.lat, mapCenter.lng]} zoom={mapZoom}>
+          <MapPanner lat={mapCenter.lat} lng={mapCenter.lng} zoom={mapZoom} />
           {(data?.vehiculos || []).filter(v => v.lat && v.lng).map((v) => {
             const cfg = ESTADO_CFG[v.estado] || ESTADO_CFG.sin_senal;
             const isSelected = v.patente === selectedPatente;
+            const label = (isSelected || mapZoom >= 10) ? `<div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:3px;background:#020508ee;border:1px solid ${cfg.dotColor}40"><span style="font-size:8px;font-weight:700;color:${cfg.dotColor};font-family:Space Grotesk">${v.etiqueta}</span>${v.velocidad > 0 ? `<span style="font-size:7px;margin-left:4px;color:#c8e8ff">${v.velocidad}km/h</span>` : ''}</div>` : '';
             return (
-              <AdvancedMarker key={v.patente} position={{ lat: v.lat, lng: v.lng }} onClick={() => selectVehicle(v)}>
-                <div className="relative cursor-pointer" style={{ transform: isSelected ? "scale(1.4)" : "scale(1)", transition: "transform 0.2s" }}>
-                  <div className="w-4 h-4 rounded-full border-2" style={{ background: cfg.dotColor, borderColor: isSelected ? "#fff" : cfg.dotColor, boxShadow: `0 0 ${isSelected ? 12 : 6}px ${cfg.dotColor}` }} />
-                  {(isSelected || mapZoom >= 10) && (
-                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded" style={{ background: "#020508ee", border: `1px solid ${cfg.dotColor}40` }}>
-                      <span className="font-space text-[8px] font-bold" style={{ color: cfg.dotColor }}>{v.etiqueta}</span>
-                      {v.velocidad > 0 && <span className="font-space text-[7px] ml-1" style={{ color: "#c8e8ff" }}>{v.velocidad}km/h</span>}
-                    </div>
-                  )}
-                </div>
-              </AdvancedMarker>
+              <DivMarker key={v.patente} position={[v.lat, v.lng]} onClick={() => selectVehicle(v)}
+                html={`<div style="position:relative;cursor:pointer;transform:${isSelected ? 'scale(1.4)' : 'scale(1)'};transition:transform 0.2s"><div style="width:16px;height:16px;border-radius:50%;border:2px solid ${isSelected ? '#fff' : cfg.dotColor};background:${cfg.dotColor};box-shadow:0 0 ${isSelected ? 12 : 6}px ${cfg.dotColor}"></div>${label}</div>`}
+                size={[16, 16]} zIndexOffset={isSelected ? 1000 : 0} />
             );
           })}
-        </GMap>
+        </LeafletMap>
       </div>
 
       <div className="w-[340px] flex flex-col" style={{ background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 }}>

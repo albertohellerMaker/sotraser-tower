@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, Layers, RefreshCw } from "lucide-react";
-import { createDarkMap, fitBoundsToPoints, addInfoWindow, isGoogleMapsReady } from "@/lib/google-maps-utils";
+import { LeafletMap, MapPanner, useMap } from "@/components/leaflet-map";
+import { Polygon, Popup } from "react-leaflet";
+import L from "leaflet";
+import { DivMarker } from "@/components/leaflet-map";
+import { useEffect, useRef } from "react";
 
 const TIPO_CONFIG: Record<string, { color: string; label: string; emoji: string }> = {
   CD:           { color: "#ff4444", label: "Centro de Distribución", emoji: "🏭" },
@@ -31,13 +35,25 @@ interface GeoKml {
   nombre_contrato: string | null;
 }
 
+function FitToGeos({ geos }: { geos: GeoKml[] }) {
+  const map = useMap();
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (fitted.current || geos.length === 0) return;
+    fitted.current = true;
+    const pts: [number, number][] = geos.flatMap(g => g.poligono.map(([lat, lng]) => [lat, lng] as [number, number]));
+    if (pts.length === 0) return;
+    const bounds = L.latLngBounds(pts);
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
+  }, [geos.length]);
+  return null;
+}
+
 export default function MapaGeocercasCencosud() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
-  const overlaysRef = useRef<Record<string, (google.maps.Polygon | google.maps.marker.AdvancedMarkerElement | google.maps.Marker)[]>>({});
   const [tiposActivos, setTiposActivos] = useState<Set<string>>(new Set(TODOS_LOS_TIPOS));
   const [seleccionada, setSeleccionada] = useState<GeoKml | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [zoomTo, setZoomTo] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
 
   const { data, isLoading, refetch } = useQuery<{ geocercas: GeoKml[]; total: number; por_tipo: Record<string, number>; mensaje?: string }>({
     queryKey: ["/api/cencosud/geocercas-mapa"],
@@ -45,122 +61,23 @@ export default function MapaGeocercasCencosud() {
     staleTime: 300000,
   });
 
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current || !isGoogleMapsReady()) return;
-    mapRef.current = createDarkMap(containerRef.current, {
-      center: { lat: -35.5, lng: -71.0 },
-      zoom: 6,
-    });
-    for (const tipo of TODOS_LOS_TIPOS) {
-      overlaysRef.current[tipo] = [];
-    }
-    return () => { mapRef.current = null; };
-  }, []);
-
-  useEffect(() => {
-    if (!mapRef.current || !data?.geocercas || !isGoogleMapsReady()) return;
-    const map = mapRef.current;
-
-    for (const arr of Object.values(overlaysRef.current)) {
-      arr.forEach((o: any) => { if (o.setMap) o.setMap(null); else if (o.map !== undefined) o.map = null; });
-      arr.length = 0;
-    }
-
-    const allPoints: { lat: number; lng: number }[] = [];
-
-    for (const geo of data.geocercas) {
-      const cfg = TIPO_CONFIG[geo.tipo] || TIPO_CONFIG.OTRO;
-      const coords = geo.poligono.map(([lat, lng]) => ({ lat, lng }));
-      if (coords.length < 3) continue;
-
-      const polygon = new google.maps.Polygon({
-        paths: coords,
-        strokeColor: cfg.color,
-        strokeWeight: 2,
-        strokeOpacity: 0.8,
-        fillColor: cfg.color,
-        fillOpacity: 0.15,
-        map: tiposActivos.has(geo.tipo) ? map : null,
-      });
-
-      const popupContent = `
-        <div style="font-family:monospace;min-width:200px">
-          <div style="font-weight:bold;font-size:13px;margin-bottom:4px">${cfg.emoji} ${geo.nombre}</div>
-          <div style="color:#888;font-size:11px;margin-bottom:6px">${cfg.label}</div>
-          ${geo.kml_id ? `<div style="font-size:10px;color:#aaa">ID KML: ${geo.kml_id}</div>` : ""}
-          <div style="font-size:10px;color:#aaa">Radio: ${geo.radio_m}m · ${coords.length} vértices</div>
-          ${geo.nombre_contrato ? `<div style="font-size:10px;color:#aaa">Contrato: ${geo.nombre_contrato}</div>` : ""}
-          <div style="font-size:10px;color:#aaa">Centroide: ${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}</div>
-        </div>
-      `;
-
-      const infoWindow = new google.maps.InfoWindow({ content: popupContent, maxWidth: 280 });
-      polygon.addListener("click", (e: any) => {
-        infoWindow.setPosition(e.latLng);
-        infoWindow.open(map);
-        setSeleccionada(geo);
-      });
-
-      const el = document.createElement("div");
-      el.innerHTML = `<div style="font-size:9px;font-family:monospace;font-weight:bold;color:${cfg.color};text-shadow:0 0 3px #000;white-space:nowrap;pointer-events:none;text-align:center;line-height:1.2;">${cfg.emoji}</div>`;
-      el.style.width = "16px";
-      el.style.height = "16px";
-
-      const tipoArr = overlaysRef.current[geo.tipo] || overlaysRef.current.OTRO;
-      tipoArr.push(polygon);
-
-      if (google.maps.marker?.AdvancedMarkerElement) {
-        const marker = new google.maps.marker.AdvancedMarkerElement({
-          map: tiposActivos.has(geo.tipo) ? map : null,
-          position: { lat: geo.lat, lng: geo.lng },
-          content: el,
-        });
-        tipoArr.push(marker);
-      } else {
-        const marker = new google.maps.Marker({
-          map: tiposActivos.has(geo.tipo) ? map : null,
-          position: { lat: geo.lat, lng: geo.lng },
-        });
-        tipoArr.push(marker);
-      }
-
-      for (const c of coords) allPoints.push(c);
-    }
-
-    if (allPoints.length > 0) {
-      fitBoundsToPoints(map, allPoints, 30, 9);
-    }
-  }, [data]);
-
-  useEffect(() => {
-    if (!mapRef.current || !isGoogleMapsReady()) return;
-    const map = mapRef.current;
-    for (const tipo of TODOS_LOS_TIPOS) {
-      const arr = overlaysRef.current[tipo] || [];
-      const visible = tiposActivos.has(tipo);
-      arr.forEach((o: any) => {
-        if (o.setMap) o.setMap(visible ? map : null);
-        else if (o.map !== undefined) o.map = visible ? map : null;
-      });
-    }
-  }, [tiposActivos]);
-
-  function zoomA(geo: GeoKml) {
-    if (!mapRef.current) return;
-    const coords = geo.poligono.map(([lat, lng]) => ({ lat, lng }));
-    fitBoundsToPoints(mapRef.current, coords, 40, 16);
-    setSeleccionada(geo);
-  }
-
   const geocercasFiltradas = (data?.geocercas || []).filter(g =>
     !busqueda || g.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  const visibleGeos = useMemo(() =>
+    (data?.geocercas || []).filter(g => tiposActivos.has(g.tipo)),
+    [data, tiposActivos]
+  );
+
+  function zoomA(geo: GeoKml) {
+    setZoomTo({ lat: geo.lat, lng: geo.lng, zoom: 16 });
+    setSeleccionada(geo);
+  }
+
   return (
     <div style={{ display: "flex", height: "calc(100vh - 160px)", gap: 0 }}>
-
       <div style={{ width: 280, background: "#060d14", borderRight: "1px solid #0d2035", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-
         <div style={{ padding: "10px 12px", borderBottom: "1px solid #0d2035" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -276,7 +193,42 @@ export default function MapaGeocercasCencosud() {
       </div>
 
       <div style={{ flex: 1, position: "relative" }}>
-        <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+        <LeafletMap center={[-35.5, -71.0]} zoom={6}>
+          <FitToGeos geos={data?.geocercas || []} />
+          {zoomTo && <MapPanner lat={zoomTo.lat} lng={zoomTo.lng} zoom={zoomTo.zoom} />}
+
+          {visibleGeos.map(geo => {
+            const cfg = TIPO_CONFIG[geo.tipo] || TIPO_CONFIG.OTRO;
+            const positions = geo.poligono.map(([lat, lng]) => [lat, lng] as [number, number]);
+            if (positions.length < 3) return null;
+            return (
+              <Polygon
+                key={geo.id}
+                positions={positions}
+                pathOptions={{
+                  color: cfg.color,
+                  weight: 2,
+                  opacity: 0.8,
+                  fillColor: cfg.color,
+                  fillOpacity: 0.15,
+                }}
+                eventHandlers={{ click: () => setSeleccionada(geo) }}
+              />
+            );
+          })}
+
+          {visibleGeos.map(geo => {
+            const cfg = TIPO_CONFIG[geo.tipo] || TIPO_CONFIG.OTRO;
+            return (
+              <DivMarker
+                key={`label-${geo.id}`}
+                position={[geo.lat, geo.lng]}
+                html={`<div style="font-size:9px;font-family:monospace;font-weight:bold;color:${cfg.color};text-shadow:0 0 3px #000;white-space:nowrap;text-align:center">${cfg.emoji}</div>`}
+                size={[16, 16]}
+              />
+            );
+          })}
+        </LeafletMap>
 
         {seleccionada && (
           <div style={{

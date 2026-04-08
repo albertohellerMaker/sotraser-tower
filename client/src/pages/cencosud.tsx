@@ -1,25 +1,15 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Map as GMap, AdvancedMarker, Marker, Polyline, useMap } from "@vis.gl/react-google-maps";
+import { LeafletMap, MapPanner, FitBounds, DivMarker, CircleMarker, Polyline, useMap } from "@/components/leaflet-map";
+import { Marker } from "react-leaflet";
+import L from "leaflet";
 import { Truck, TrendingUp, AlertTriangle, Fuel, Activity, MapPin, DollarSign, Target, ChevronLeft, Bot, RefreshCw, Send, Loader2, Settings, Brain, Route, Zap, Eye, Check, X, Map, ChevronDown, ChevronUp, Navigation, Search, Flag, Gauge, Clock, Play, Pause } from "lucide-react";
 import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
-import { MapErrorBoundary } from "@/components/map-fallback";
 
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
 type Tab = "EN_VIVO" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
-
-function MapPanner({ lat, lng, zoom }: { lat: number | null; lng: number | null; zoom: number }) {
-  const map = useMap();
-  useEffect(() => {
-    if (map && lat != null && lng != null) {
-      map.panTo({ lat, lng });
-      map.setZoom(zoom);
-    }
-  }, [map, lat, lng, zoom]);
-  return null;
-}
 
 function MapeoInteractivo() {
   const qc = useQueryClient();
@@ -200,28 +190,14 @@ function MapeoInteractivo() {
         <div className="flex flex-col">
           <div style={{ height: 200, background: "#0a1520" }}>
             {selected ? (
-              <GMap
-                center={mapCenter}
-                zoom={mapZoom}
-                gestureHandling="greedy"
-                disableDefaultUI={true}
-                style={{ width: "100%", height: "100%" }}
-              >
+              <LeafletMap center={[mapCenter.lat, mapCenter.lng]} zoom={mapZoom}>
                 {selected.origen_lat && selected.origen_lng && (
-                  <AdvancedMarker position={{ lat: selected.origen_lat, lng: selected.origen_lng }}>
-                    <div style={{ background: "#00ff88", borderRadius: "50%", width: 16, height: 16, border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ color: "#000", fontSize: 8, fontWeight: "bold" }}>O</span>
-                    </div>
-                  </AdvancedMarker>
+                  <DivMarker position={[selected.origen_lat, selected.origen_lng]} html={`<div style="background:#00ff88;border-radius:50%;width:16px;height:16px;border:2px solid #fff;display:flex;align-items:center;justify-content:center"><span style="color:#000;font-size:8px;font-weight:bold">O</span></div>`} size={[16, 16]} />
                 )}
                 {selected.destino_lat && selected.destino_lng && (
-                  <AdvancedMarker position={{ lat: selected.destino_lat, lng: selected.destino_lng }}>
-                    <div style={{ background: "#ff2244", borderRadius: "50%", width: 16, height: 16, border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ color: "#fff", fontSize: 8, fontWeight: "bold" }}>D</span>
-                    </div>
-                  </AdvancedMarker>
+                  <DivMarker position={[selected.destino_lat, selected.destino_lng]} html={`<div style="background:#ff2244;border-radius:50%;width:16px;height:16px;border:2px solid #fff;display:flex;align-items:center;justify-content:center"><span style="color:#fff;font-size:8px;font-weight:bold">D</span></div>`} size={[16, 16]} />
                 )}
-              </GMap>
+              </LeafletMap>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
@@ -608,153 +584,53 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
 
               {/* RIGHT: Map */}
               <div className="flex-1 rounded-lg overflow-hidden relative" style={{ border: "1px solid #0d2035" }}>
-                <GMap
-                  defaultCenter={{ lat: -33.45, lng: -70.65 }}
-                  defaultZoom={6}
-                  style={{ width: "100%", height: "100%" }}
-                  gestureHandling="greedy"
-                >
+                <LeafletMap center={[-33.45, -70.65]} zoom={6}>
                   <MapPanner lat={selCam?.lat || null} lng={selCam?.lng || null} zoom={selCam ? 10 : 6} />
 
-                  {/* Geocercas Cencosud — CDs big, tiendas small */}
                   {(!seguir) && geos.map((g: any) => {
                     const esCD = g.tipo === "cd";
-                    return (
-                      <AdvancedMarker key={`geo-${g.nombre}`} position={{ lat: g.lat, lng: g.lng }}>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                          {esCD ? (
-                            <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#00d4ff40", border: "2px solid #00d4ff80" }} />
-                          ) : (
-                            <div style={{ width: 6, height: 6, background: "#a855f730", border: "1px solid #a855f750", transform: "rotate(45deg)" }} />
-                          )}
-                          <span style={{ fontSize: esCD ? 8 : 6, color: esCD ? "#00d4ff80" : "#a855f750", fontFamily: "Space Grotesk", fontWeight: 600, whiteSpace: "nowrap", textShadow: "0 0 3px #000" }}>{g.nombre}</span>
-                        </div>
-                      </AdvancedMarker>
-                    );
+                    const html = esCD
+                      ? `<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:12px;height:12px;border-radius:50%;background:#00d4ff40;border:2px solid #00d4ff80"></div><span style="font-size:8px;color:#00d4ff80;font-family:Space Grotesk;font-weight:600;white-space:nowrap;text-shadow:0 0 3px #000">${g.nombre}</span></div>`
+                      : `<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:6px;height:6px;background:#a855f730;border:1px solid #a855f750;transform:rotate(45deg)"></div><span style="font-size:6px;color:#a855f750;font-family:Space Grotesk;font-weight:600;white-space:nowrap;text-shadow:0 0 3px #000">${g.nombre}</span></div>`;
+                    return <DivMarker key={`geo-${g.nombre}`} position={[g.lat, g.lng]} html={html} size={esCD ? [80, 30] : [60, 20]} />;
                   })}
 
-                  {/* Trucks en ruta */}
                   {ruta.map((cam: any) => {
                     const sel = seguir === cam.patente;
-                    return (
-                      <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(sel ? null : cam.patente)} zIndex={sel ? 100 : 10}>
-                        <div style={{
-                          background: sel ? "#00ff88" : "#060d14",
-                          border: `2px solid #00ff88`,
-                          borderRadius: 6, padding: sel ? "4px 8px" : "2px 6px",
-                          boxShadow: sel ? "0 0 20px rgba(0,255,136,0.6), 0 0 40px rgba(0,255,136,0.2)" : "0 1px 4px rgba(0,0,0,0.5)",
-                          display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
-                          transition: "all 0.3s ease",
-                          transform: sel ? "scale(1.2)" : "scale(1)",
-                        }}>
-                          <Truck style={{ width: sel ? 12 : 10, height: sel ? 12 : 10, color: sel ? "#060d14" : "#00ff88" }} />
-                          <span style={{ fontSize: sel ? 10 : 9, fontWeight: 700, color: sel ? "#060d14" : "#00ff88", fontFamily: "Space Grotesk" }}>{cam.patente}</span>
-                          {sel && cam.velocidad > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "#060d14", fontFamily: "Space Grotesk" }}>{Math.round(cam.velocidad)}km/h</span>}
-                        </div>
-                      </AdvancedMarker>
-                    );
+                    const html = `<div style="background:${sel ? '#00ff88' : '#060d14'};border:2px solid #00ff88;border-radius:6px;padding:${sel ? '4px 8px' : '2px 6px'};box-shadow:${sel ? '0 0 20px rgba(0,255,136,0.6)' : '0 1px 4px rgba(0,0,0,0.5)'};display:flex;align-items:center;gap:4px;cursor:pointer;transform:${sel ? 'scale(1.2)' : 'scale(1)'}"><svg xmlns="http://www.w3.org/2000/svg" width="${sel ? 12 : 10}" height="${sel ? 12 : 10}" viewBox="0 0 24 24" fill="none" stroke="${sel ? '#060d14' : '#00ff88'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg><span style="font-size:${sel ? 10 : 9}px;font-weight:700;color:${sel ? '#060d14' : '#00ff88'};font-family:Space Grotesk">${cam.patente}</span>${sel && cam.velocidad > 0 ? `<span style="font-size:8px;font-weight:700;color:#060d14;font-family:Space Grotesk">${Math.round(cam.velocidad)}km/h</span>` : ''}</div>`;
+                    return <DivMarker key={cam.patente} position={[cam.lat, cam.lng]} html={html} size={[120, 30]} onClick={() => setSeguir(sel ? null : cam.patente)} zIndexOffset={sel ? 1000 : 100} />;
                   })}
 
-                  {/* Trucks en CD */}
                   {cd.map((cam: any) => {
                     const sel = seguir === cam.patente;
-                    return (
-                      <AdvancedMarker key={cam.patente} position={{ lat: cam.lat, lng: cam.lng }} onClick={() => setSeguir(sel ? null : cam.patente)} zIndex={sel ? 100 : 5}>
-                        <div style={{
-                          background: sel ? "#00d4ff" : "#060d14",
-                          border: `2px solid #00d4ff`,
-                          borderRadius: 6, padding: sel ? "4px 8px" : "2px 6px",
-                          boxShadow: sel ? "0 0 20px rgba(0,212,255,0.5)" : "0 1px 3px rgba(0,0,0,0.5)",
-                          display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
-                          transition: "all 0.3s ease",
-                          transform: sel ? "scale(1.2)" : "scale(1)",
-                        }}>
-                          <MapPin style={{ width: sel ? 12 : 10, height: sel ? 12 : 10, color: sel ? "#060d14" : "#00d4ff" }} />
-                          <span style={{ fontSize: sel ? 10 : 9, fontWeight: 700, color: sel ? "#060d14" : "#00d4ff", fontFamily: "Space Grotesk" }}>{cam.patente}</span>
-                        </div>
-                      </AdvancedMarker>
-                    );
+                    const html = `<div style="background:${sel ? '#00d4ff' : '#060d14'};border:2px solid #00d4ff;border-radius:6px;padding:${sel ? '4px 8px' : '2px 6px'};box-shadow:${sel ? '0 0 20px rgba(0,212,255,0.5)' : '0 1px 3px rgba(0,0,0,0.5)'};display:flex;align-items:center;gap:4px;cursor:pointer;transform:${sel ? 'scale(1.2)' : 'scale(1)'}"><svg xmlns="http://www.w3.org/2000/svg" width="${sel ? 12 : 10}" height="${sel ? 12 : 10}" viewBox="0 0 24 24" fill="none" stroke="${sel ? '#060d14' : '#00d4ff'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg><span style="font-size:${sel ? 10 : 9}px;font-weight:700;color:${sel ? '#060d14' : '#00d4ff'};font-family:Space Grotesk">${cam.patente}</span></div>`;
+                    return <DivMarker key={cam.patente} position={[cam.lat, cam.lng]} html={html} size={[100, 30]} onClick={() => setSeguir(sel ? null : cam.patente)} zIndexOffset={sel ? 1000 : 50} />;
                   })}
 
-                  {/* Trail for followed truck — denser dots with opacity gradient */}
-                  {seguir && trail.length > 1 && trail.map((p: any, i: number) => {
-                    if (i % 2 !== 0) return null;
-                    const opacity = 0.15 + (i / trail.length) * 0.7;
-                    return (
-                      <AdvancedMarker key={`trail-${i}`} position={{ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }}>
-                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: `rgba(0,255,136,${opacity})`, border: "0.5px solid rgba(0,255,136,0.3)" }} />
-                      </AdvancedMarker>
-                    );
+                  {seguir && trail.length > 1 && trail.filter((_: any, i: number) => i % 2 === 0).map((p: any, i: number) => {
+                    const opacity = 0.15 + (i / (trail.length / 2)) * 0.7;
+                    return <DivMarker key={`trail-${i}`} position={[parseFloat(p.lat), parseFloat(p.lng)]} html={`<div style="width:5px;height:5px;border-radius:50%;background:rgba(0,255,136,${opacity});border:0.5px solid rgba(0,255,136,0.3)"></div>`} size={[5, 5]} />;
                   })}
 
-                  {/* Origin marker — where truck started */}
                   {seguir && isEnRuta && origenObj?.lat && (
-                    <AdvancedMarker position={{ lat: origenObj.lat, lng: origenObj.lng }} zIndex={50}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                        <div style={{
-                          background: "#00d4ff", border: "3px solid #fff", borderRadius: "50%",
-                          width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 12, color: "#060d14", fontWeight: 900, fontFamily: "Space Grotesk",
-                          boxShadow: "0 0 12px rgba(0,212,255,0.6), 0 2px 8px rgba(0,0,0,0.5)",
-                        }}>O</div>
-                        <div style={{
-                          background: "rgba(6,13,20,0.9)", border: "1px solid #00d4ff60", borderRadius: 4,
-                          padding: "2px 6px", whiteSpace: "nowrap",
-                        }}>
-                          <span style={{ fontSize: 8, color: "#00d4ff", fontWeight: 700, fontFamily: "Space Grotesk" }}>{origenObj.nombre}</span>
-                        </div>
-                      </div>
-                    </AdvancedMarker>
+                    <DivMarker position={[origenObj.lat, origenObj.lng]} zIndexOffset={500} html={`<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="background:#00d4ff;border:3px solid #fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#060d14;font-weight:900;font-family:Space Grotesk;box-shadow:0 0 12px rgba(0,212,255,0.6)">O</div><div style="background:rgba(6,13,20,0.9);border:1px solid #00d4ff60;border-radius:4px;padding:2px 6px;white-space:nowrap"><span style="font-size:8px;color:#00d4ff;font-weight:700;font-family:Space Grotesk">${origenObj.nombre}</span></div></div>`} size={[100, 50]} />
                   )}
 
-                  {/* Entrega marker — where truck delivered */}
                   {seguir && isEnRuta && entregaObj && (
-                    <AdvancedMarker position={{ lat: entregaObj.lat, lng: entregaObj.lng }} zIndex={50}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                        <div style={{
-                          background: "#00ff88", border: "3px solid #fff", borderRadius: "50%",
-                          width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-                          boxShadow: "0 0 12px rgba(0,255,136,0.6), 0 2px 8px rgba(0,0,0,0.5)",
-                        }}><Check style={{ width: 14, height: 14, color: "#060d14", strokeWidth: 3 }} /></div>
-                        <div style={{ background: "rgba(6,13,20,0.9)", border: "1px solid #00ff8860", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
-                          <span style={{ fontSize: 8, color: "#00ff88", fontWeight: 700, fontFamily: "Space Grotesk" }}>{entregaObj.nombre}</span>
-                        </div>
-                      </div>
-                    </AdvancedMarker>
+                    <DivMarker position={[entregaObj.lat, entregaObj.lng]} zIndexOffset={500} html={`<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="background:#00ff88;border:3px solid #fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(0,255,136,0.6)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#060d14" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div style="background:rgba(6,13,20,0.9);border:1px solid #00ff8860;border-radius:4px;padding:2px 6px;white-space:nowrap"><span style="font-size:8px;color:#00ff88;font-weight:700;font-family:Space Grotesk">${entregaObj.nombre}</span></div></div>`} size={[100, 50]} />
                   )}
 
-                  {/* Destination marker — purple for tienda (ida), blue for CD (vuelta) */}
-                  {seguir && isEnRuta && destObj && (
-                    <AdvancedMarker position={{ lat: destObj.lat, lng: destObj.lng }} zIndex={50}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                        <div style={{
-                          background: fase === "vuelta" ? "#00d4ff" : "#a855f7", border: "3px solid #fff", borderRadius: "50%",
-                          width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 12, color: fase === "vuelta" ? "#060d14" : "#fff", fontWeight: 900, fontFamily: "Space Grotesk",
-                          boxShadow: `0 0 12px ${fase === "vuelta" ? "rgba(0,212,255,0.6)" : "rgba(168,85,247,0.6)"}, 0 2px 8px rgba(0,0,0,0.5)`,
-                        }}>{fase === "vuelta" ? "CD" : "D"}</div>
-                        <div style={{
-                          background: "rgba(6,13,20,0.9)", border: `1px solid ${fase === "vuelta" ? "#00d4ff60" : "#a855f760"}`, borderRadius: 4,
-                          padding: "2px 6px", whiteSpace: "nowrap",
-                        }}>
-                          <span style={{ fontSize: 8, color: fase === "vuelta" ? "#00d4ff" : "#a855f7", fontWeight: 700, fontFamily: "Space Grotesk" }}>{destObj.nombre}</span>
-                          <span style={{ fontSize: 7, color: "#5a8090", fontFamily: "Exo 2", marginLeft: 4 }}>~{destObj.km_restante} km</span>
-                        </div>
-                      </div>
-                    </AdvancedMarker>
-                  )}
+                  {seguir && isEnRuta && destObj && (() => {
+                    const c = fase === "vuelta" ? "#00d4ff" : "#a855f7";
+                    const tc = fase === "vuelta" ? "#060d14" : "#fff";
+                    const label = fase === "vuelta" ? "CD" : "D";
+                    return <DivMarker position={[destObj.lat, destObj.lng]} zIndexOffset={500} html={`<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="background:${c};border:3px solid #fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;color:${tc};font-weight:900;font-family:Space Grotesk;box-shadow:0 0 12px ${c}99">${label}</div><div style="background:rgba(6,13,20,0.9);border:1px solid ${c}60;border-radius:4px;padding:2px 6px;white-space:nowrap"><span style="font-size:8px;color:${c};font-weight:700;font-family:Space Grotesk">${destObj.nombre}</span><span style="font-size:7px;color:#5a8090;font-family:Exo 2;margin-left:4px">~${destObj.km_restante} km</span></div></div>`} size={[120, 50]} />;
+                  })()}
 
-                  {/* Geocerca for CD truck when selected */}
                   {seguir && selCam?.geocerca && !isEnRuta && (
-                    <AdvancedMarker position={{ lat: selCam.lat, lng: selCam.lng }} zIndex={1}>
-                      <div style={{ position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap" }}>
-                        <div style={{ background: "rgba(6,13,20,0.9)", border: "1px solid #00d4ff60", borderRadius: 4, padding: "2px 6px" }}>
-                          <span style={{ fontSize: 8, color: "#00d4ff", fontWeight: 700, fontFamily: "Space Grotesk" }}>{selCam.geocerca}</span>
-                        </div>
-                      </div>
-                    </AdvancedMarker>
+                    <DivMarker position={[selCam.lat, selCam.lng]} html={`<div style="position:absolute;top:24px;left:50%;transform:translateX(-50%);white-space:nowrap"><div style="background:rgba(6,13,20,0.9);border:1px solid #00d4ff60;border-radius:4px;padding:2px 6px"><span style="font-size:8px;color:#00d4ff;font-weight:700;font-family:Space Grotesk">${selCam.geocerca}</span></div></div>`} size={[100, 40]} />
                   )}
-                </GMap>
+                </LeafletMap>
 
                 {/* Route info panel for followed truck */}
                 {seguir && selCam && (
@@ -1025,19 +901,9 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
                       <button onClick={() => setAlertaMapOpen(null)} className="cursor-pointer" style={{ color: "#6a8fa8" }}><X size={16} /></button>
                     </div>
                     <div style={{ height: 400 }}>
-                      <GMap defaultCenter={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }} defaultZoom={15} gestureHandling="greedy" disableDefaultUI={false} streetViewControl={true}>
-                        <AdvancedMarker position={{ lat: alertaMapOpen.lat, lng: alertaMapOpen.lng }}>
-                          <div className="flex flex-col items-center">
-                            <div className="px-2 py-1 rounded-lg font-space text-[10px] font-bold" style={{
-                              background: alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35",
-                              color: "#fff", boxShadow: `0 0 12px ${alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35"}`
-                            }}>
-                              {alertaMapOpen.velocidad} km/h
-                            </div>
-                            <div className="w-0 h-0" style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `6px solid ${alertaMapOpen.velocidad > 105 ? "#ff2244" : "#ff6b35"}` }} />
-                          </div>
-                        </AdvancedMarker>
-                      </GMap>
+                      <LeafletMap center={[alertaMapOpen.lat, alertaMapOpen.lng]} zoom={15}>
+                        <DivMarker position={[alertaMapOpen.lat, alertaMapOpen.lng]} html={`<div style="display:flex;flex-direction:column;align-items:center"><div style="padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;font-family:Space Grotesk;background:${alertaMapOpen.velocidad > 105 ? '#ff2244' : '#ff6b35'};color:#fff;box-shadow:0 0 12px ${alertaMapOpen.velocidad > 105 ? '#ff2244' : '#ff6b35'}">${alertaMapOpen.velocidad} km/h</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid ${alertaMapOpen.velocidad > 105 ? '#ff2244' : '#ff6b35'}"></div></div>`} size={[80, 30]} />
+                      </LeafletMap>
                     </div>
                     <div className="px-4 py-2 flex items-center justify-between" style={{ borderTop: "1px solid #0d2035" }}>
                       <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>
@@ -1937,9 +1803,8 @@ function FitBoundsRuta({ puntos, tripId }: { puntos: { lat: number; lng: number 
     const key = `${tripId}-${puntos.length}-${puntos[0]?.lat}-${last?.lat}`;
     if (fitted.current === key) return;
     fitted.current = key;
-    const bounds = new google.maps.LatLngBounds();
-    puntos.forEach(p => bounds.extend(p));
-    map.fitBounds(bounds, 50);
+    const bounds = L.latLngBounds(puntos.map(p => [p.lat, p.lng] as [number, number]));
+    map.fitBounds(bounds, { padding: [50, 50] });
   }, [map, puntos, tripId]);
   return null;
 }
@@ -2023,36 +1888,23 @@ function ViajeReconstructorPanel({ viajeId, onClose }: { viajeId: number; onClos
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
         <div className="lg:col-span-2" style={{ height: 400 }}>
           {puntos.length > 0 ? (
-            <GMap
-              defaultCenter={{ lat: puntos[0].lat, lng: puntos[0].lng }}
-              defaultZoom={10}
-              gestureHandling="greedy"
-              disableDefaultUI
-              style={{ width: "100%", height: "100%" }}
-            >
+            <LeafletMap center={[puntos[0].lat, puntos[0].lng]} zoom={10}>
               <FitBoundsRuta puntos={trailPath} tripId={viajeId} />
-              <Polyline path={trailPath} strokeColor="#0055ff" strokeWeight={3} strokeOpacity={0.3} />
-              <Polyline path={visiblePath} strokeColor="#0088ff" strokeWeight={4} strokeOpacity={0.9} />
+              <Polyline positions={trailPath.map((p: any) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#0055ff", weight: 3, opacity: 0.3 }} />
+              <Polyline positions={visiblePath.map((p: any) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#0088ff", weight: 4, opacity: 0.9 }} />
 
-              <Marker position={{ lat: trailPath[0].lat, lng: trailPath[0].lng }}
-                icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#00ff88", fillOpacity: 1, strokeColor: "#060d14", strokeWeight: 2 }}
-                title="Origen" />
+              <DivMarker position={[trailPath[0].lat, trailPath[0].lng]} html={`<div style="width:16px;height:16px;border-radius:50%;background:#00ff88;border:2px solid #060d14"></div>`} size={[16, 16]} />
 
-              <Marker position={{ lat: trailPath[trailPath.length - 1].lat, lng: trailPath[trailPath.length - 1].lng }}
-                icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#ff2244", fillOpacity: 1, strokeColor: "#060d14", strokeWeight: 2 }}
-                title="Destino" />
+              <DivMarker position={[trailPath[trailPath.length - 1].lat, trailPath[trailPath.length - 1].lng]} html={`<div style="width:16px;height:16px;border-radius:50%;background:#ff2244;border:2px solid #060d14"></div>`} size={[16, 16]} />
 
               {cursorPt && playing && (
-                <Marker position={{ lat: cursorPt.lat, lng: cursorPt.lng }}
-                  icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#0088ff", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 }} />
+                <DivMarker position={[cursorPt.lat, cursorPt.lng]} html={`<div style="width:20px;height:20px;border-radius:50%;background:#0088ff;border:3px solid #fff"></div>`} size={[20, 20]} />
               )}
 
               {paradas.map((p: any, i: number) => p.lat && p.lng && (
-                <Marker key={`parada-${i}`} position={{ lat: p.lat, lng: p.lng }}
-                  icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: "#a855f7", fillOpacity: 1, strokeColor: "#060d14", strokeWeight: 2 }}
-                  title={p.nombre || `Parada ${i + 1}`} />
+                <DivMarker key={`parada-${i}`} position={[p.lat, p.lng]} html={`<div style="width:12px;height:12px;border-radius:50%;background:#a855f7;border:2px solid #060d14"></div>`} size={[12, 12]} />
               ))}
-            </GMap>
+            </LeafletMap>
           ) : (
             <div className="h-full flex items-center justify-center" style={{ background: "#0a1520" }}>
               <div className="text-center">

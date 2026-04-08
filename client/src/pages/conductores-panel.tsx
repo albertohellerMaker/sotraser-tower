@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { LeafletMap, DivMarker } from "@/components/leaflet-map";
 import {
   Users, AlertTriangle, MapPin, CheckCircle, Clock, Truck, Search,
   Plus, Send, Eye, Radio, ChevronRight, X, Navigation, Loader2,
@@ -221,46 +221,31 @@ function ViajesEnVivo() {
             </div>
 
             <div className="flex-1 relative" style={{ minHeight: 400 }}>
-              <GMap
-                  defaultCenter={{
-                    lat: tracking.trayectoria?.[tracking.trayectoria.length - 1]?.lat
+              <LeafletMap center={[
+                    tracking.trayectoria?.[tracking.trayectoria.length - 1]?.lat
                       || tracking.viaje.origen_lat || -33.45,
-                    lng: tracking.trayectoria?.[tracking.trayectoria.length - 1]?.lng
+                    tracking.trayectoria?.[tracking.trayectoria.length - 1]?.lng
                       || tracking.viaje.origen_lng || -70.65,
-                  }}
-                  defaultZoom={12}
-                  style={{ width: "100%", height: "100%" }}
-                  gestureHandling="greedy"
-                >
+                  ]} zoom={12}>
                   {tracking.viaje.origen_lat && (
-                    <AdvancedMarker position={{ lat: Number(tracking.viaje.origen_lat), lng: Number(tracking.viaje.origen_lng) }}>
-                      <div className="flex items-center gap-1 px-2 py-1" style={{ background: "#060d14", border: "1px solid #00ff8840", borderRadius: 4 }}>
-                        <div className="w-2 h-2 rounded-full" style={{ background: "#00ff88" }} />
-                        <span className="font-exo text-[8px] font-bold" style={{ color: "#00ff88" }}>ORIGEN</span>
-                      </div>
-                    </AdvancedMarker>
+                    <DivMarker position={[Number(tracking.viaje.origen_lat), Number(tracking.viaje.origen_lng)]}
+                      html={`<div style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:#060d14;border:1px solid #00ff8840;border-radius:4px"><div style="width:8px;height:8px;border-radius:50%;background:#00ff88"></div><span style="font-size:8px;font-weight:700;color:#00ff88;font-family:Exo 2">ORIGEN</span></div>`}
+                      size={[80, 20]} />
                   )}
                   {(tracking.paradas || []).map((p: any) => p.lat && (
-                    <AdvancedMarker key={p.id} position={{ lat: Number(p.lat), lng: Number(p.lng) }}>
-                      <div className="flex items-center gap-1 px-2 py-1" style={{ background: "#060d14", border: `1px solid ${ESTADO_COLORS[p.estado]}40`, borderRadius: 4 }}>
-                        <div className="w-2 h-2 rounded-full" style={{ background: ESTADO_COLORS[p.estado] }} />
-                        <span className="font-exo text-[7px] font-bold" style={{ color: ESTADO_COLORS[p.estado] }}>{p.orden}. {p.nombre}</span>
-                      </div>
-                    </AdvancedMarker>
+                    <DivMarker key={p.id} position={[Number(p.lat), Number(p.lng)]}
+                      html={`<div style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:#060d14;border:1px solid ${ESTADO_COLORS[p.estado]}40;border-radius:4px"><div style="width:8px;height:8px;border-radius:50%;background:${ESTADO_COLORS[p.estado]}"></div><span style="font-size:7px;font-weight:700;color:${ESTADO_COLORS[p.estado]};font-family:Exo 2">${p.orden}. ${p.nombre}</span></div>`}
+                      size={[120, 20]} />
                   ))}
                   {tracking.trayectoria?.length > 0 && (
-                    <AdvancedMarker position={{
-                      lat: Number(tracking.trayectoria[tracking.trayectoria.length - 1].lat),
-                      lng: Number(tracking.trayectoria[tracking.trayectoria.length - 1].lng),
-                    }}>
-                      <div className="px-2 py-1" style={{ background: "#060d14", border: "1px solid #00d4ff40", borderRadius: 4 }}>
-                        <span className="font-exo text-[8px] font-bold" style={{ color: "#00d4ff" }}>
-                          🚛 {Math.round(tracking.trayectoria[tracking.trayectoria.length - 1].velocidad_kmh || 0)} km/h
-                        </span>
-                      </div>
-                    </AdvancedMarker>
+                    <DivMarker position={[
+                      Number(tracking.trayectoria[tracking.trayectoria.length - 1].lat),
+                      Number(tracking.trayectoria[tracking.trayectoria.length - 1].lng),
+                    ]}
+                      html={`<div style="padding:2px 8px;background:#060d14;border:1px solid #00d4ff40;border-radius:4px"><span style="font-size:8px;font-weight:700;color:#00d4ff;font-family:Exo 2">🚛 ${Math.round(tracking.trayectoria[tracking.trayectoria.length - 1].velocidad_kmh || 0)} km/h</span></div>`}
+                      size={[80, 20]} />
                   )}
-                </GMap>
+                </LeafletMap>
             </div>
 
             <div className="p-3 space-y-2" style={{ borderTop: "1px solid #0d2035", maxHeight: 200, overflowY: "auto" }}>
