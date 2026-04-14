@@ -36,3 +36,9 @@ id = "I8baLGgv5MKRDe45AH3LA"
 uri = "file://docs/METODOLOGIA_VIAJES_CERRADOS.md"
 type = "text"
 title = "Metodologia Viajes Cerrados - SOTRASER"
+
+[[outputs]]
+id = "B9culVknxJQRX3S8a03J9"
+uri = "file://RESUMEN-APP-SOTRASER.md"
+type = "text"
+title = "Resumen App SOTRASER por Unidad de Negocio"
