@@ -270,8 +270,47 @@ export function getWiseTrackStatus() {
   };
 }
 
+let bufferDrainMode = true;
+let drainTotal = 0;
+
 async function doApiSync() {
   try {
+    if (bufferDrainMode) {
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      let drained = 0;
+      while (true) {
+        const records = await fetchTelemetriaAPI();
+        if (records.length === 0) {
+          bufferDrainMode = false;
+          console.log(`[WISETRACK-API] Buffer drenado: ${drainTotal} registros viejos descartados. Modo tiempo real activo.`);
+          lastApiSyncAt = new Date();
+          lastApiSyncError = null;
+          return;
+        }
+        const newest = records.reduce((max, r) => {
+          const d = r.Fecha_Hora || "";
+          return d > max ? d : max;
+        }, "");
+        const newestDate = new Date(newest.replace(" ", "T") + "-04:00");
+        if (newestDate >= cutoff) {
+          bufferDrainMode = false;
+          const saved = await saveTelemetria(records);
+          totalApiRecords += saved;
+          console.log(`[WISETRACK-API] Buffer alcanzó presente. Descartados: ${drainTotal}. Guardados: ${saved}. Modo tiempo real activo.`);
+          lastApiSyncAt = new Date();
+          lastApiSyncCount = records.length;
+          lastApiSyncError = null;
+          return;
+        }
+        drained += records.length;
+        drainTotal += records.length;
+        if (drained % 10000 === 0 || drained <= 1000) {
+          console.log(`[WISETRACK-API] Drenando buffer: ${drainTotal} descartados | Fecha: ${newest}`);
+        }
+        if (drained >= 50000) return;
+      }
+    }
+
     const records = await fetchTelemetriaAPI();
     if (records.length === 0) {
       lastApiSyncAt = new Date();
@@ -293,13 +332,21 @@ async function doApiSync() {
 export function startWiseTrackSync(apiIntervalMs = 60_000) {
   if (apiInterval) return;
 
-  console.log(`[WISETRACK] Starting API sync every ${apiIntervalMs / 1000}s (official API only)`);
+  console.log(`[WISETRACK] Starting API sync (drain mode: fast, then every ${apiIntervalMs / 1000}s)`);
 
   loadVehiculoMapFromDB().then(() => {
     doApiSync();
   });
 
-  apiInterval = setInterval(doApiSync, apiIntervalMs);
+  const drainInterval = setInterval(async () => {
+    if (!bufferDrainMode) {
+      clearInterval(drainInterval);
+      apiInterval = setInterval(doApiSync, apiIntervalMs);
+      console.log(`[WISETRACK] Modo tiempo real: sync cada ${apiIntervalMs / 1000}s`);
+      return;
+    }
+    doApiSync();
+  }, 5000);
 }
 
 export function stopWiseTrackSync() {
