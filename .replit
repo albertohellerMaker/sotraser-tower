@@ -19,6 +19,7 @@ SIGETRA_PASSWORD = "Cris5141."
 ANTHROPIC_API_KEY = "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"
 CONDUCTOR_API_KEY = "bc2d8dc94231ee1fdc5211ab32d7d92561ec71f07ec5aaef"
 WISETRACK_API_TOKEN = "77b95789-a047-3186-86cf-90c83583b352"
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_Tv9HoDxLha1N@ep-icy-moon-akes36no.c-3.us-west-2.aws.neon.tech/neondb"
 
 [workflows]
 runButton = "Project"
