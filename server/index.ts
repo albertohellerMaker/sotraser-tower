@@ -4,7 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { iniciarWorkers } from "./worker-manager";
-import { iniciarGitSync } from "./github-sync";
+
 import { db } from "./db";
 import { geoBases } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -167,7 +167,6 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
 
       inicializarContratos();
-      iniciarGitSync();
 
       iniciarWorkers();
       startWiseTrackSync(60_000);
