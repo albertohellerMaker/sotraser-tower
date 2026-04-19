@@ -900,6 +900,107 @@ router.get("/t1-resultado", async (req, res) => {
 });
 
 
+router.get("/brecha", async (req, res) => {
+  try {
+    const dias = parseInt((req.query.dias as string) || "30");
+    const esperadoMes = parseInt((req.query.esperado_mes as string) || "800000000");
+
+    const facturado = await pool.query(`
+      SELECT
+        COUNT(*) as total_viajes,
+        COUNT(*) FILTER (WHERE estado = 'FACTURADO') as facturados,
+        COUNT(*) FILTER (WHERE estado != 'FACTURADO') as sin_tarifa,
+        COALESCE(SUM(ingreso_tarifa), 0)::bigint as monto_detectado
+      FROM viajes_aprendizaje
+      WHERE contrato = 'CENCOSUD'
+        AND fecha_inicio >= CURRENT_DATE - ($1::int || ' days')::interval
+    `, [dias]);
+
+    const stats = facturado.rows[0] as any;
+    const montoDetectado = Number(stats.monto_detectado || 0);
+    const factorMes = 30 / dias;
+    const detectadoMensualizado = Math.round(montoDetectado * factorMes);
+    const brecha = Math.max(0, esperadoMes - detectadoMensualizado);
+    const pctCaptura = esperadoMes > 0 ? Math.round((detectadoMensualizado / esperadoMes) * 100) : 0;
+
+    const topSinTarifa = await pool.query(`
+      SELECT origen_nombre, destino_nombre, COUNT(*) as veces,
+             ROUND(AVG(km_ecu)) as km_promedio
+      FROM viajes_aprendizaje
+      WHERE contrato = 'CENCOSUD'
+        AND fecha_inicio >= CURRENT_DATE - ($1::int || ' days')::interval
+        AND (estado IS NULL OR estado != 'FACTURADO')
+        AND ingreso_tarifa IS NULL OR ingreso_tarifa = 0
+      GROUP BY origen_nombre, destino_nombre
+      ORDER BY veces DESC
+      LIMIT 15
+    `, [dias]);
+
+    const camionesSinViaje = await pool.query(`
+      SELECT wp.patente,
+             ROUND(SUM(haversine_dist)::numeric, 0) as km_aprox,
+             COUNT(*) as puntos
+      FROM (
+        SELECT patente,
+               LAG(lat) OVER (PARTITION BY patente ORDER BY fecha) as plat,
+               LAG(lng) OVER (PARTITION BY patente ORDER BY fecha) as plng,
+               lat, lng,
+               CASE WHEN LAG(lat) OVER (PARTITION BY patente ORDER BY fecha) IS NOT NULL
+                    THEN 6371 * 2 * asin(sqrt(
+                      power(sin(radians((lat - LAG(lat) OVER (PARTITION BY patente ORDER BY fecha))/2)), 2) +
+                      cos(radians(LAG(lat) OVER (PARTITION BY patente ORDER BY fecha))) * cos(radians(lat)) *
+                      power(sin(radians((lng - LAG(lng) OVER (PARTITION BY patente ORDER BY fecha))/2)), 2)
+                    ))
+                    ELSE 0 END as haversine_dist
+        FROM wisetrack_posiciones
+        WHERE grupo1 = 'CENCOSUD'
+          AND fecha >= CURRENT_DATE - ($1::int || ' days')::interval
+      ) wp
+      WHERE wp.haversine_dist < 5
+      GROUP BY wp.patente
+      HAVING SUM(haversine_dist) > 100
+        AND wp.patente NOT IN (
+          SELECT DISTINCT c.patente FROM viajes_aprendizaje va
+          JOIN camiones c ON c.id = va.camion_id
+          WHERE va.contrato = 'CENCOSUD'
+            AND va.fecha_inicio >= CURRENT_DATE - ($1::int || ' days')::interval
+        )
+      ORDER BY km_aprox DESC
+      LIMIT 20
+    `, [dias]).catch(() => ({ rows: [] }));
+
+    const origenNoCD = await pool.query(`
+      SELECT origen_nombre, COUNT(*) as veces
+      FROM viajes_aprendizaje
+      WHERE contrato = 'CENCOSUD'
+        AND fecha_inicio >= CURRENT_DATE - ($1::int || ' days')::interval
+        AND origen_nombre NOT ILIKE 'CD %'
+        AND origen_nombre NOT ILIKE 'CT %'
+        AND origen_nombre NOT ILIKE '%base sotraser%'
+      GROUP BY origen_nombre
+      ORDER BY veces DESC
+      LIMIT 10
+    `, [dias]);
+
+    res.json({
+      periodo_dias: dias,
+      esperado_mes: esperadoMes,
+      detectado_periodo: montoDetectado,
+      detectado_mensualizado: detectadoMensualizado,
+      brecha_mensual: brecha,
+      pct_captura: pctCaptura,
+      total_viajes: Number(stats.total_viajes),
+      viajes_facturados: Number(stats.facturados),
+      viajes_sin_tarifa: Number(stats.sin_tarifa),
+      top_sin_tarifa: topSinTarifa.rows,
+      camiones_sin_viaje: camionesSinViaje.rows,
+      origen_no_cd: origenNoCD.rows,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post("/pl/calcular", async (req, res) => {
   try {
     const fecha = req.body?.fecha as string | undefined;

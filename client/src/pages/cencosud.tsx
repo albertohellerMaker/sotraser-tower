@@ -9,7 +9,7 @@ import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "EN_VIVO" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
+type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
 
 function MapeoInteractivo() {
   const qc = useQueryClient();
@@ -313,6 +313,178 @@ function MapeoInteractivo() {
   );
 }
 
+function BrechaTab() {
+  const qc = useQueryClient();
+  const [dias, setDias] = useState(30);
+  const [esperadoMes, setEsperadoMes] = useState(800_000_000);
+  const [reprocesando, setReprocesando] = useState(false);
+  const [reprocResult, setReprocResult] = useState<any>(null);
+
+  const { data, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/cencosud/brecha", dias, esperadoMes],
+    queryFn: () => fetch(`/api/cencosud/brecha?dias=${dias}&esperado_mes=${esperadoMes}`).then(r => r.json()),
+    staleTime: 60000,
+  });
+
+  const reprocesar = async (dd: number) => {
+    setReprocesando(true);
+    setReprocResult(null);
+    try {
+      const hasta = new Date().toISOString().slice(0, 10);
+      const desde = new Date(Date.now() - dd * 86400000).toISOString().slice(0, 10);
+      const r = await fetch("/api/cencosud/t1-reconstruir", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desde, hasta }),
+      }).then(r => r.json());
+      setReprocResult(r);
+      await refetch();
+      qc.invalidateQueries({ queryKey: ["/api/cencosud/viajes-mes"] });
+    } catch (e: any) {
+      setReprocResult({ error: e.message });
+    } finally {
+      setReprocesando(false);
+    }
+  };
+
+  if (isLoading || !data) {
+    return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Calculando brecha...</div>;
+  }
+
+  const pctBar = Math.min(100, data.pct_captura || 0);
+  const colorBar = pctBar < 30 ? "#ff2244" : pctBar < 60 ? "#ff6b35" : pctBar < 90 ? "#ffcc00" : "#00ff88";
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="font-space text-[10px] tracking-wider" style={{ color: "#3a6080" }}>PERIODO:</div>
+        {[7, 15, 30, 60].map(d => (
+          <button key={d} onClick={() => setDias(d)}
+            className="font-space text-[10px] px-3 py-1 rounded cursor-pointer"
+            style={{
+              background: dias === d ? "#ff224420" : "#0a1520",
+              border: `1px solid ${dias === d ? "#ff2244" : "#0d2035"}`,
+              color: dias === d ? "#ff2244" : "#c8e8ff"
+            }}>{d}d</button>
+        ))}
+        <div className="font-space text-[10px] tracking-wider ml-4" style={{ color: "#3a6080" }}>ESPERADO/MES:</div>
+        <input type="number" value={esperadoMes} onChange={e => setEsperadoMes(parseInt(e.target.value) || 0)}
+          className="font-exo text-[10px] px-2 py-1 rounded outline-none w-32"
+          style={{ background: "#0a1520", border: "1px solid #0d2035", color: "#c8e8ff" }} />
+        <button onClick={() => reprocesar(dias)} disabled={reprocesando}
+          className="ml-auto font-space text-[10px] tracking-wider px-4 py-1.5 rounded cursor-pointer"
+          style={{ background: reprocesando ? "#0d2035" : "#a855f720", border: "1px solid #a855f7", color: "#a855f7" }}>
+          {reprocesando ? <><Loader2 size={11} className="inline animate-spin mr-1" />REPROCESANDO {dias}d...</> : `↻ REPROCESAR ÚLTIMOS ${dias}D`}
+        </button>
+      </div>
+
+      {reprocResult && (
+        <div className="p-3 rounded font-exo text-[10px]" style={{ background: reprocResult.error ? "#ff224410" : "#00ff8810", border: `1px solid ${reprocResult.error ? "#ff2244" : "#00ff88"}`, color: reprocResult.error ? "#ff2244" : "#00ff88" }}>
+          {reprocResult.error
+            ? `Error: ${reprocResult.error}`
+            : `✓ Reprocesado: ${(reprocResult.resultados || []).reduce((s: number, r: any) => s + (r.viajes_creados || 0), 0)} viajes en ${(reprocResult.resultados || []).length} días`}
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-4 rounded" style={{ background: "#0a1520", border: "1px solid #ff2244" }}>
+          <div className="font-space text-[9px] tracking-wider mb-1" style={{ color: "#ff2244" }}>BRECHA MENSUAL</div>
+          <div className="font-exo text-2xl font-bold" style={{ color: "#ff2244" }}>{fP(data.brecha_mensual)}</div>
+          <div className="font-space text-[9px] mt-1" style={{ color: "#3a6080" }}>NO FACTURADO</div>
+        </div>
+        <div className="p-4 rounded" style={{ background: "#0a1520", border: "1px solid #00ff88" }}>
+          <div className="font-space text-[9px] tracking-wider mb-1" style={{ color: "#00ff88" }}>DETECTADO/MES</div>
+          <div className="font-exo text-2xl font-bold" style={{ color: "#00ff88" }}>{fP(data.detectado_mensualizado)}</div>
+          <div className="font-space text-[9px] mt-1" style={{ color: "#3a6080" }}>EN ÚLTIMOS {data.periodo_dias}D × FACTOR {(30/data.periodo_dias).toFixed(2)}</div>
+        </div>
+        <div className="p-4 rounded" style={{ background: "#0a1520", border: "1px solid #00d4ff" }}>
+          <div className="font-space text-[9px] tracking-wider mb-1" style={{ color: "#00d4ff" }}>ESPERADO/MES</div>
+          <div className="font-exo text-2xl font-bold" style={{ color: "#00d4ff" }}>{fP(data.esperado_mes)}</div>
+          <div className="font-space text-[9px] mt-1" style={{ color: "#3a6080" }}>OBJETIVO CONTRATO</div>
+        </div>
+      </div>
+
+      <div className="p-4 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
+        <div className="flex justify-between mb-2 font-space text-[10px]">
+          <span style={{ color: "#c8e8ff" }}>CAPTURA DE FACTURACIÓN</span>
+          <span style={{ color: colorBar }}>{data.pct_captura}%</span>
+        </div>
+        <div className="w-full h-3 rounded" style={{ background: "#0a1218" }}>
+          <div className="h-full rounded transition-all" style={{ width: `${pctBar}%`, background: colorBar, boxShadow: `0 0 10px ${colorBar}` }} />
+        </div>
+        <div className="flex justify-between mt-2 font-space text-[9px]" style={{ color: "#3a6080" }}>
+          <span>{data.viajes_facturados} con tarifa</span>
+          <span>{data.viajes_sin_tarifa} sin tarifa</span>
+          <span>{data.total_viajes} total</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-3 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[10px] tracking-wider mb-2" style={{ color: "#ff6b35" }}>
+            <AlertTriangle size={11} className="inline mr-1" />TOP RUTAS SIN TARIFA ({(data.top_sin_tarifa || []).length})
+          </div>
+          <table className="w-full text-left font-exo text-[10px]">
+            <thead>
+              <tr style={{ color: "#3a6080" }}>
+                <th className="py-1">ORIGEN → DESTINO</th>
+                <th className="py-1 text-right">VECES</th>
+                <th className="py-1 text-right">KM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.top_sin_tarifa || []).map((r: any, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #0d2035", color: "#c8e8ff" }}>
+                  <td className="py-1">{r.origen_nombre} → {r.destino_nombre}</td>
+                  <td className="py-1 text-right" style={{ color: "#ff6b35" }}>{r.veces}</td>
+                  <td className="py-1 text-right" style={{ color: "#3a6080" }}>{r.km_promedio}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="p-3 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[10px] tracking-wider mb-2" style={{ color: "#ff2244" }}>
+            <Truck size={11} className="inline mr-1" />CAMIONES SIN VIAJE DETECTADO ({(data.camiones_sin_viaje || []).length})
+          </div>
+          <div className="font-space text-[9px] mb-2" style={{ color: "#3a6080" }}>Camiones con km en GPS pero sin viaje en últimos {data.periodo_dias}d</div>
+          <table className="w-full text-left font-exo text-[10px]">
+            <thead>
+              <tr style={{ color: "#3a6080" }}>
+                <th className="py-1">PATENTE</th>
+                <th className="py-1 text-right">KM APROX</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.camiones_sin_viaje || []).map((r: any, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #0d2035", color: "#c8e8ff" }}>
+                  <td className="py-1 font-mono">{r.patente}</td>
+                  <td className="py-1 text-right" style={{ color: "#ff2244" }}>{Number(r.km_aprox).toLocaleString("es-CL")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="p-3 rounded" style={{ background: "#0a1520", border: "1px solid #0d2035" }}>
+        <div className="font-space text-[10px] tracking-wider mb-2" style={{ color: "#ffcc00" }}>
+          <AlertTriangle size={11} className="inline mr-1" />ORÍGENES QUE NO SON CD ({(data.origen_no_cd || []).length})
+        </div>
+        <div className="font-space text-[9px] mb-2" style={{ color: "#3a6080" }}>El reglamento dice "los CD mandan" — orígenes que NO son CD/CT/Base son señal de viaje mal detectado</div>
+        <div className="grid grid-cols-2 gap-1 font-exo text-[10px]">
+          {(data.origen_no_cd || []).map((r: any, i: number) => (
+            <div key={i} className="flex justify-between py-1" style={{ borderTop: "1px solid #0d2035" }}>
+              <span style={{ color: "#c8e8ff" }}>{r.origen_nombre}</span>
+              <span style={{ color: "#ffcc00" }}>{r.veces}×</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CencosudView({ onBack, gpsSource = "wisetrack", onNavigate }: { onBack: () => void; gpsSource?: "wisetrack"; onNavigate?: (tab: string) => void }) {
   const [tab, setTab] = useState<Tab>("EN_VIVO");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -405,6 +577,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
         <div className="flex gap-0 overflow-x-auto">
           {([
             { t: "EN_VIVO" as Tab, icon: <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />, label: "EN VIVO", color: "#00ff88" },
+            { t: "BRECHA" as Tab, icon: <DollarSign size={11} />, label: "BRECHA", color: "#ff2244" },
             { t: "CONTROL" as Tab, icon: <Activity size={11} />, label: "CONTROL", color: "#ffcc00" },
             { t: "RESUMEN" as Tab, icon: <TrendingUp size={11} />, label: "RESUMEN", color: "#00d4ff" },
             { t: "VIAJES" as Tab, icon: <Route size={11} />, label: "VIAJES", color: "#a855f7" },
@@ -705,6 +878,9 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
             </div>
           );
         })()}
+
+        {/* ═══ BRECHA DE FACTURACIÓN ═══ */}
+        {tab === "BRECHA" && <BrechaTab />}
 
         {/* ═══ CONTROL OPERACIONAL DIARIO ═══ */}
         {tab === "CONTROL" && (() => {
