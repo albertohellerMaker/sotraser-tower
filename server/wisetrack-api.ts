@@ -111,62 +111,103 @@ function resolvePatente(movil: string): string | null {
   return null;
 }
 
+/**
+ * Bulk INSERT optimizado: una sola query con múltiples filas.
+ * 10-50× más rápido que INSERT fila-por-fila.
+ */
 export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<number> {
   if (records.length === 0) return 0;
 
+  const valid = records.filter(r => r.Lat && r.Lon);
+  if (valid.length === 0) return 0;
+
   const client = await pool.connect();
   try {
-    let saved = 0;
-    for (const r of records) {
-      if (!r.Lat || !r.Lon) continue;
-      const patente = resolvePatente(r.Movil);
+    // ── BULK INSERT 1: wisetrack_telemetria ──
+    const telCols = 24;
+    const telValues: any[] = [];
+    const telPlaceholders: string[] = [];
+    valid.forEach((r, i) => {
+      const base = i * telCols;
+      telPlaceholders.push(
+        `(${Array.from({ length: telCols }, (_, k) => `$${base + k + 1}`).join(",")})`
+      );
+      telValues.push(
+        r.Id, r.Movil, resolvePatente(r.Movil), r.Fecha_Hora, r.Lat, r.Lon,
+        r.Direccion, r.Kms, r.Kms_Total, r.Horometro,
+        r.NivelEstanque, r.ConsumoLitros_Conduccion, r.ConsumoLitros_Ralenti,
+        r.ConsumoLitros_Total, r.Tiempo_Conduccion, r.Tiempo_Ralenti,
+        r.TempMotor, r.Velocidad, r.RPM, r.Torque,
+        r.Presion_Aceite, r.Id_Energia, r.Id_Partida, r.Fecha_Insercion,
+      );
+    });
+
+    let savedTel = 0;
+    try {
+      const res = await client.query(
+        `INSERT INTO wisetrack_telemetria
+         (wt_id, movil, patente, fecha_hora, lat, lng, direccion, kms, kms_total,
+          horometro, nivel_estanque, consumo_conduccion, consumo_ralenti, consumo_total,
+          tiempo_conduccion, tiempo_ralenti, temp_motor, velocidad, rpm, torque,
+          presion_aceite, id_energia, id_partida, fecha_insercion)
+         VALUES ${telPlaceholders.join(",")}
+         ON CONFLICT (wt_id) DO NOTHING`,
+        telValues,
+      );
+      savedTel = res.rowCount || 0;
+    } catch (e: any) {
+      console.error(`[WISETRACK-SAVE] bulk telemetria error: ${e.message}`);
+    }
+
+    // ── BULK INSERT 2: wisetrack_posiciones (solo los que tienen patente) ──
+    const validPos = valid.filter(r => resolvePatente(r.Movil));
+    if (validPos.length > 0) {
+      const posCols = 16;
+      const posValues: any[] = [];
+      const posPlaceholders: string[] = [];
+
+      // dedupe in-batch por (patente, fecha) para evitar conflicts dentro de la misma query
+      const seen = new Set<string>();
+      const dedup = validPos.filter(r => {
+        const key = `${resolvePatente(r.Movil)}|${r.Fecha_Hora}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      dedup.forEach((r, i) => {
+        const base = i * posCols;
+        posPlaceholders.push(
+          `(${Array.from({ length: posCols }, (_, k) => `$${base + k + 1}`).join(",")})`
+        );
+        const patente = resolvePatente(r.Movil)!;
+        const v = vehiculoMap.get(r.Movil);
+        posValues.push(
+          patente, r.Movil, r.Fecha_Hora, r.Lat, r.Lon,
+          r.Velocidad || 0, r.Direccion || 0, true,
+          v?.grupo1 || "",
+          v?.conductor || "",
+          r.Kms_Total, r.ConsumoLitros_Total,
+          r.NivelEstanque, r.RPM, r.TempMotor, "",
+        );
+      });
+
       try {
         await client.query(
-          `INSERT INTO wisetrack_telemetria 
-           (wt_id, movil, patente, fecha_hora, lat, lng, direccion, kms, kms_total,
-            horometro, nivel_estanque, consumo_conduccion, consumo_ralenti, consumo_total,
-            tiempo_conduccion, tiempo_ralenti, temp_motor, velocidad, rpm, torque,
-            presion_aceite, id_energia, id_partida, fecha_insercion)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
-           ON CONFLICT (wt_id) DO NOTHING`,
-          [
-            r.Id, r.Movil, patente, r.Fecha_Hora, r.Lat, r.Lon,
-            r.Direccion, r.Kms, r.Kms_Total, r.Horometro,
-            r.NivelEstanque, r.ConsumoLitros_Conduccion, r.ConsumoLitros_Ralenti,
-            r.ConsumoLitros_Total, r.Tiempo_Conduccion, r.Tiempo_Ralenti,
-            r.TempMotor, r.Velocidad, r.RPM, r.Torque,
-            r.Presion_Aceite, r.Id_Energia, r.Id_Partida, r.Fecha_Insercion,
-          ]
+          `INSERT INTO wisetrack_posiciones
+           (patente, etiqueta, fecha, lat, lng, velocidad, direccion, ignicion,
+            grupo1, conductor, kms_total, consumo_litros, nivel_estanque,
+            rpm, temp_motor, estado_operacion)
+           VALUES ${posPlaceholders.join(",")}
+           ON CONFLICT (patente, fecha) DO NOTHING`,
+          posValues,
         );
-        saved++;
       } catch (e: any) {
-        if (saved === 0) console.error(`[WISETRACK-SAVE] telemetria insert error: ${e.message}`);
-      }
-
-      if (patente) {
-        try {
-          await client.query(
-            `INSERT INTO wisetrack_posiciones 
-             (patente, etiqueta, fecha, lat, lng, velocidad, direccion, ignicion,
-              grupo1, conductor, kms_total, consumo_litros, nivel_estanque,
-              rpm, temp_motor, estado_operacion)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-             ON CONFLICT (patente, fecha) DO NOTHING`,
-            [
-              patente, r.Movil, r.Fecha_Hora, r.Lat, r.Lon,
-              r.Velocidad || 0, r.Direccion || 0, true,
-              vehiculoMap.get(r.Movil)?.grupo1 || "",
-              vehiculoMap.get(r.Movil)?.conductor || "",
-              r.Kms_Total, r.ConsumoLitros_Total,
-              r.NivelEstanque, r.RPM, r.TempMotor, "",
-            ]
-          );
-        } catch (e2: any) {
-          if (saved === 0) console.error(`[WISETRACK-SAVE] posiciones insert error: ${e2.message}`);
-        }
+        console.error(`[WISETRACK-SAVE] bulk posiciones error: ${e.message}`);
       }
     }
-    return saved;
+
+    return savedTel;
   } finally {
     client.release();
   }
@@ -231,6 +272,21 @@ async function ensureTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_wp_patente ON wisetrack_posiciones (patente)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_wp_fecha ON wisetrack_posiciones (fecha)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_wp_creado ON wisetrack_posiciones (creado_at)');
+
+    // Estado persistente del sync (sobrevive a restarts)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wisetrack_sync_log (
+        id SERIAL PRIMARY KEY,
+        ts TIMESTAMP NOT NULL DEFAULT NOW(),
+        records_fetched INTEGER NOT NULL DEFAULT 0,
+        records_saved INTEGER NOT NULL DEFAULT 0,
+        latency_ms INTEGER NOT NULL DEFAULT 0,
+        newest_record_ts TIMESTAMP,
+        mode TEXT NOT NULL DEFAULT 'realtime',
+        error TEXT
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wsl_ts ON wisetrack_sync_log (ts DESC)');
   } finally {
     client.release();
   }
@@ -249,13 +305,34 @@ async function loadVehiculoMapFromDB() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// SYNC ENGINE - Adaptive interval + watchdog + persistent state
+// ═══════════════════════════════════════════════════════════════════
+
 let apiInterval: NodeJS.Timeout | null = null;
+let watchdogInterval: NodeJS.Timeout | null = null;
 let lastApiSyncAt: Date | null = null;
 let lastApiSyncCount = 0;
 let lastApiSyncError: string | null = null;
 let totalApiRecords = 0;
+let lastNewestRecordAt: Date | null = null;
+let currentIntervalMs = 30_000;
+let syncInFlight = false;
+let consecutiveErrors = 0;
+
+const MIN_INTERVAL = 5_000;     // 5s cuando hay backlog
+const MAX_INTERVAL = 60_000;    // 60s en steady-state
+const TARGET_LAG_S = 90;        // queremos data ≤90s vieja
+const WATCHDOG_STALL_MS = 3 * 60_000; // si no hay sync exitoso en 3min, alerta
 
 export function getWiseTrackStatus() {
+  const now = Date.now();
+  const lagSec = lastNewestRecordAt
+    ? Math.floor((now - lastNewestRecordAt.getTime()) / 1000)
+    : null;
+  const sinceSyncSec = lastApiSyncAt
+    ? Math.floor((now - lastApiSyncAt.getTime()) / 1000)
+    : null;
   return {
     api: {
       lastSyncAt: lastApiSyncAt,
@@ -267,92 +344,180 @@ export function getWiseTrackStatus() {
     lastSyncAt: lastApiSyncAt,
     lastSyncCount: lastApiSyncCount,
     lastSyncError: lastApiSyncError,
+    // Nuevo: salud en tiempo real
+    health: {
+      lagSec,                       // antigüedad del último GPS recibido
+      sinceLastSyncSec: sinceSyncSec,
+      currentIntervalMs,
+      consecutiveErrors,
+      mode: bufferDrainMode ? "drain" : "realtime",
+      ok: sinceSyncSec !== null && sinceSyncSec < 180 && consecutiveErrors < 5,
+    },
   };
 }
 
 let bufferDrainMode = true;
 let drainTotal = 0;
 
+async function logSync(opts: {
+  fetched: number; saved: number; latencyMs: number;
+  newest: Date | null; mode: string; error: string | null;
+}) {
+  try {
+    await pool.query(
+      `INSERT INTO wisetrack_sync_log (records_fetched, records_saved, latency_ms, newest_record_ts, mode, error)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [opts.fetched, opts.saved, opts.latencyMs, opts.newest, opts.mode, opts.error],
+    );
+  } catch {
+    // no bloquear el sync por fallo de logging
+  }
+}
+
+function adaptInterval() {
+  // si tenemos backlog (lag > target), aceleramos
+  if (!lastNewestRecordAt) {
+    currentIntervalMs = 15_000;
+    return;
+  }
+  const lagSec = (Date.now() - lastNewestRecordAt.getTime()) / 1000;
+
+  if (lagSec > 300) currentIntervalMs = MIN_INTERVAL;        // muy atrás: 5s
+  else if (lagSec > 120) currentIntervalMs = 10_000;         // atrás: 10s
+  else if (lagSec > TARGET_LAG_S) currentIntervalMs = 20_000; // ligero: 20s
+  else currentIntervalMs = MAX_INTERVAL;                      // al día: 60s
+}
+
 async function doApiSync() {
+  if (syncInFlight) return;
+  syncInFlight = true;
+  const t0 = Date.now();
+  let fetched = 0;
+  let saved = 0;
+  let newest: Date | null = null;
+  let mode = bufferDrainMode ? "drain" : "realtime";
+  let errMsg: string | null = null;
+
   try {
     if (bufferDrainMode) {
+      // En drain mode descartamos data >48h vieja, paramos al alcanzar presente.
       const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
       let drained = 0;
       while (true) {
         const records = await fetchTelemetriaAPI();
+        fetched += records.length;
         if (records.length === 0) {
           bufferDrainMode = false;
-          console.log(`[WISETRACK-API] Buffer drenado: ${drainTotal} registros viejos descartados. Modo tiempo real activo.`);
-          lastApiSyncAt = new Date();
-          lastApiSyncError = null;
-          return;
+          mode = "realtime";
+          console.log(`[WISETRACK-API] Buffer drenado: ${drainTotal} viejos descartados. Modo tiempo real activo.`);
+          break;
         }
-        const newest = records.reduce((max, r) => {
+        const newestStr = records.reduce((max, r) => {
           const d = r.Fecha_Hora || "";
           return d > max ? d : max;
         }, "");
-        const newestDate = new Date(newest.replace(" ", "T") + "-04:00");
+        const newestDate = new Date(newestStr.replace(" ", "T") + "-04:00");
         if (newestDate >= cutoff) {
           bufferDrainMode = false;
-          const saved = await saveTelemetria(records);
-          totalApiRecords += saved;
-          console.log(`[WISETRACK-API] Buffer alcanzó presente. Descartados: ${drainTotal}. Guardados: ${saved}. Modo tiempo real activo.`);
-          lastApiSyncAt = new Date();
-          lastApiSyncCount = records.length;
-          lastApiSyncError = null;
-          return;
+          mode = "realtime";
+          saved += await saveTelemetria(records);
+          newest = newestDate;
+          console.log(`[WISETRACK-API] Buffer alcanzó presente. Descartados: ${drainTotal}. Guardados: ${saved}.`);
+          break;
         }
         drained += records.length;
         drainTotal += records.length;
         if (drained % 10000 === 0 || drained <= 1000) {
-          console.log(`[WISETRACK-API] Drenando buffer: ${drainTotal} descartados | Fecha: ${newest}`);
+          console.log(`[WISETRACK-API] Drenando: ${drainTotal} descartados | Fecha: ${newestStr}`);
         }
-        if (drained >= 50000) return;
+        if (drained >= 50000) break; // evita loop infinito en un solo ciclo
+      }
+    } else {
+      const records = await fetchTelemetriaAPI();
+      fetched = records.length;
+      if (records.length > 0) {
+        saved = await saveTelemetria(records);
+        const newestStr = records.reduce((max, r) => {
+          const d = r.Fecha_Hora || "";
+          return d > max ? d : max;
+        }, "");
+        if (newestStr) newest = new Date(newestStr.replace(" ", "T") + "-04:00");
       }
     }
 
-    const records = await fetchTelemetriaAPI();
-    if (records.length === 0) {
-      lastApiSyncAt = new Date();
-      lastApiSyncError = null;
-      return;
-    }
-    const saved = await saveTelemetria(records);
+    if (newest) lastNewestRecordAt = newest;
     totalApiRecords += saved;
     lastApiSyncAt = new Date();
-    lastApiSyncCount = records.length;
+    lastApiSyncCount = fetched;
     lastApiSyncError = null;
-    console.log(`[WISETRACK-API] Consumed ${records.length} records from buffer, ${saved} saved to DB`);
+    consecutiveErrors = 0;
+
+    if (saved > 0 || fetched > 0) {
+      const lag = lastNewestRecordAt
+        ? Math.floor((Date.now() - lastNewestRecordAt.getTime()) / 1000)
+        : -1;
+      console.log(`[WISETRACK-API] sync: ${fetched} fetched / ${saved} saved | lag ${lag}s | next ${currentIntervalMs / 1000}s`);
+    }
   } catch (err: any) {
+    errMsg = err.message;
     lastApiSyncError = err.message;
-    console.error(`[WISETRACK-API] Sync error: ${err.message}`);
+    consecutiveErrors++;
+    console.error(`[WISETRACK-API] Sync error #${consecutiveErrors}: ${err.message}`);
+  } finally {
+    syncInFlight = false;
+    const latencyMs = Date.now() - t0;
+    adaptInterval();
+    rescheduleInterval();
+    void logSync({ fetched, saved, latencyMs, newest, mode, error: errMsg });
   }
 }
 
-export function startWiseTrackSync(apiIntervalMs = 60_000) {
+function rescheduleInterval() {
+  if (apiInterval) {
+    clearInterval(apiInterval);
+  }
+  apiInterval = setInterval(doApiSync, currentIntervalMs);
+}
+
+function startWatchdog() {
+  if (watchdogInterval) return;
+  watchdogInterval = setInterval(() => {
+    const now = Date.now();
+    const since = lastApiSyncAt ? now - lastApiSyncAt.getTime() : Infinity;
+    if (since > WATCHDOG_STALL_MS) {
+      console.error(`[WISETRACK-WATCHDOG] Sync detenido hace ${Math.floor(since / 1000)}s. Reactivando...`);
+      // Forzar restart del interval
+      if (apiInterval) clearInterval(apiInterval);
+      apiInterval = null;
+      currentIntervalMs = MIN_INTERVAL;
+      rescheduleInterval();
+      doApiSync();
+    }
+  }, 60_000); // chequea cada 60s
+}
+
+export function startWiseTrackSync(_apiIntervalMs = 60_000) {
   if (apiInterval) return;
 
-  console.log(`[WISETRACK] Starting API sync (drain mode: fast, then every ${apiIntervalMs / 1000}s)`);
+  console.log(`[WISETRACK] Sync engine iniciando (adaptativo ${MIN_INTERVAL / 1000}s–${MAX_INTERVAL / 1000}s + watchdog)`);
 
   loadVehiculoMapFromDB().then(() => {
     doApiSync();
   });
 
-  const drainInterval = setInterval(async () => {
-    if (!bufferDrainMode) {
-      clearInterval(drainInterval);
-      apiInterval = setInterval(doApiSync, apiIntervalMs);
-      console.log(`[WISETRACK] Modo tiempo real: sync cada ${apiIntervalMs / 1000}s`);
-      return;
-    }
-    doApiSync();
-  }, 5000);
+  // Schedule inicial; doApiSync llamará rescheduleInterval con el intervalo adaptado
+  apiInterval = setInterval(doApiSync, currentIntervalMs);
+  startWatchdog();
 }
 
 export function stopWiseTrackSync() {
   if (apiInterval) {
     clearInterval(apiInterval);
     apiInterval = null;
+  }
+  if (watchdogInterval) {
+    clearInterval(watchdogInterval);
+    watchdogInterval = null;
   }
 }
 
