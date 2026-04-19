@@ -326,6 +326,13 @@ function BrechaTab() {
     staleTime: 60000,
   });
 
+  const { data: wtStatus } = useQuery<any>({
+    queryKey: ["/api/wisetrack/status"],
+    queryFn: () => fetch("/api/wisetrack/status").then(r => r.json()),
+    refetchInterval: 15000,
+    staleTime: 10000,
+  });
+
   const reprocesar = async (dd: number) => {
     setReprocesando(true);
     setReprocResult(null);
@@ -353,8 +360,57 @@ function BrechaTab() {
   const pctBar = Math.min(100, data.pct_captura || 0);
   const colorBar = pctBar < 30 ? "#ff2244" : pctBar < 60 ? "#ff6b35" : pctBar < 90 ? "#ffcc00" : "#00ff88";
 
+  const wtHealth = wtStatus?.health;
+  const wtLag = wtHealth?.lagSec;
+  const wtSince = wtHealth?.sinceLastSyncSec;
+  const wtMode = wtHealth?.mode;
+  const wtErrors = wtHealth?.consecutiveErrors || 0;
+  const wtOk = wtHealth?.ok;
+  const wtColor = wtOk === false ? "#ff2244"
+    : wtMode === "drain" ? "#ffcc00"
+    : (wtLag != null && wtLag > 180) ? "#ff6b35"
+    : "#00ff88";
+  const wtLabel = wtOk === false ? "🔴 SYNC DETENIDO"
+    : wtMode === "drain" ? "🟡 DRENANDO BUFFER"
+    : "🟢 SYNC OK";
+  const fmtSec = (s: number | null | undefined) => {
+    if (s == null) return "—";
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  };
+
   return (
     <div className="p-4 space-y-4">
+      <div className="p-3 rounded flex items-center gap-4 flex-wrap"
+        style={{ background: "#0a1520", border: `1px solid ${wtColor}` }}>
+        <div className="font-space text-[10px] tracking-wider font-bold" style={{ color: wtColor }}>
+          WISETRACK · {wtLabel}
+        </div>
+        <div className="flex items-center gap-3 ml-auto flex-wrap">
+          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+            GPS lag: <span style={{ color: "#c8e8ff" }}>{fmtSec(wtLag)}</span>
+          </div>
+          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+            Último sync: <span style={{ color: "#c8e8ff" }}>{fmtSec(wtSince)}</span>
+          </div>
+          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+            Modo: <span style={{ color: "#c8e8ff" }}>{wtMode || "—"}</span>
+          </div>
+          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+            Intervalo: <span style={{ color: "#c8e8ff" }}>{wtHealth?.currentIntervalMs ? Math.round(wtHealth.currentIntervalMs / 1000) + "s" : "—"}</span>
+          </div>
+          {wtErrors > 0 && (
+            <div className="font-exo text-[10px]" style={{ color: "#ff6b35" }}>
+              Errores seguidos: <span style={{ color: "#ff2244" }}>{wtErrors}</span>
+            </div>
+          )}
+          <div className="font-exo text-[10px]" style={{ color: "#3a6080" }}>
+            Total: <span style={{ color: "#c8e8ff" }}>{(wtStatus?.api?.totalRecords || 0).toLocaleString("es-CL")} rec</span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center gap-3 flex-wrap">
         <div className="font-space text-[10px] tracking-wider" style={{ color: "#3a6080" }}>PERIODO:</div>
         {[7, 15, 30, 60].map(d => (

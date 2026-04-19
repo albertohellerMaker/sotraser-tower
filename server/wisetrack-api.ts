@@ -111,103 +111,145 @@ function resolvePatente(movil: string): string | null {
   return null;
 }
 
+export interface SaveResult {
+  saved: number;        // filas insertadas en wisetrack_telemetria
+  attempted: number;    // filas válidas que intentamos guardar
+  failed: number;       // filas perdidas por errores de DB (no por conflict)
+  failedBatches: number;
+}
+
+const BATCH_SIZE = 400; // 400 × 24 cols = 9,600 params (lejos del límite 65k de Postgres)
+
+async function insertChunk(
+  client: any,
+  table: "telemetria" | "posiciones",
+  rows: any[][],
+  cols: string[],
+  conflictClause: string,
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const colCount = cols.length;
+  const placeholders = rows.map((_, i) =>
+    `(${Array.from({ length: colCount }, (_, k) => `$${i * colCount + k + 1}`).join(",")})`
+  ).join(",");
+  const flat = rows.flat();
+  const sql = `INSERT INTO wisetrack_${table} (${cols.join(",")}) VALUES ${placeholders} ${conflictClause}`;
+  const res = await client.query(sql, flat);
+  return res.rowCount || 0;
+}
+
+async function insertWithFallback(
+  client: any,
+  table: "telemetria" | "posiciones",
+  rows: any[][],
+  cols: string[],
+  conflictClause: string,
+): Promise<{ saved: number; failed: number; failedBatches: number }> {
+  if (rows.length === 0) return { saved: 0, failed: 0, failedBatches: 0 };
+  let saved = 0;
+  let failed = 0;
+  let failedBatches = 0;
+
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const chunk = rows.slice(i, i + BATCH_SIZE);
+    try {
+      saved += await insertChunk(client, table, chunk, cols, conflictClause);
+    } catch (e: any) {
+      // Bisecar: si el chunk falla, reintentamos en pedazos más pequeños hasta aislar la fila mala
+      console.error(`[WISETRACK-SAVE] bulk ${table} chunk ${chunk.length} falló: ${e.message}. Bisectando...`);
+      failedBatches++;
+      const result = await bisectInsert(client, table, chunk, cols, conflictClause);
+      saved += result.saved;
+      failed += result.failed;
+    }
+  }
+  return { saved, failed, failedBatches };
+}
+
+async function bisectInsert(
+  client: any,
+  table: "telemetria" | "posiciones",
+  rows: any[][],
+  cols: string[],
+  conflictClause: string,
+): Promise<{ saved: number; failed: number }> {
+  if (rows.length === 0) return { saved: 0, failed: 0 };
+  if (rows.length === 1) {
+    try {
+      const n = await insertChunk(client, table, rows, cols, conflictClause);
+      return { saved: n, failed: 0 };
+    } catch (e: any) {
+      console.error(`[WISETRACK-SAVE] fila descartada en ${table}: ${e.message}`);
+      return { saved: 0, failed: 1 };
+    }
+  }
+  const mid = Math.floor(rows.length / 2);
+  const a = await bisectInsert(client, table, rows.slice(0, mid), cols, conflictClause);
+  const b = await bisectInsert(client, table, rows.slice(mid), cols, conflictClause);
+  return { saved: a.saved + b.saved, failed: a.failed + b.failed };
+}
+
 /**
- * Bulk INSERT optimizado: una sola query con múltiples filas.
- * 10-50× más rápido que INSERT fila-por-fila.
+ * Bulk INSERT con chunking de 400 filas + bisect-on-error.
+ * Reporta saved/failed/failedBatches para señalización honesta de salud.
  */
-export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<number> {
-  if (records.length === 0) return 0;
+export async function saveTelemetria(records: WTTelemetriaRecord[]): Promise<SaveResult> {
+  if (records.length === 0) return { saved: 0, attempted: 0, failed: 0, failedBatches: 0 };
 
   const valid = records.filter(r => r.Lat && r.Lon);
-  if (valid.length === 0) return 0;
+  if (valid.length === 0) return { saved: 0, attempted: 0, failed: 0, failedBatches: 0 };
 
   const client = await pool.connect();
   try {
     // ── BULK INSERT 1: wisetrack_telemetria ──
-    const telCols = 24;
-    const telValues: any[] = [];
-    const telPlaceholders: string[] = [];
-    valid.forEach((r, i) => {
-      const base = i * telCols;
-      telPlaceholders.push(
-        `(${Array.from({ length: telCols }, (_, k) => `$${base + k + 1}`).join(",")})`
-      );
-      telValues.push(
-        r.Id, r.Movil, resolvePatente(r.Movil), r.Fecha_Hora, r.Lat, r.Lon,
-        r.Direccion, r.Kms, r.Kms_Total, r.Horometro,
-        r.NivelEstanque, r.ConsumoLitros_Conduccion, r.ConsumoLitros_Ralenti,
-        r.ConsumoLitros_Total, r.Tiempo_Conduccion, r.Tiempo_Ralenti,
-        r.TempMotor, r.Velocidad, r.RPM, r.Torque,
-        r.Presion_Aceite, r.Id_Energia, r.Id_Partida, r.Fecha_Insercion,
-      );
-    });
+    const telCols = [
+      "wt_id", "movil", "patente", "fecha_hora", "lat", "lng", "direccion", "kms", "kms_total",
+      "horometro", "nivel_estanque", "consumo_conduccion", "consumo_ralenti", "consumo_total",
+      "tiempo_conduccion", "tiempo_ralenti", "temp_motor", "velocidad", "rpm", "torque",
+      "presion_aceite", "id_energia", "id_partida", "fecha_insercion",
+    ];
+    const telRows = valid.map(r => [
+      r.Id, r.Movil, resolvePatente(r.Movil), r.Fecha_Hora, r.Lat, r.Lon,
+      r.Direccion, r.Kms, r.Kms_Total, r.Horometro,
+      r.NivelEstanque, r.ConsumoLitros_Conduccion, r.ConsumoLitros_Ralenti,
+      r.ConsumoLitros_Total, r.Tiempo_Conduccion, r.Tiempo_Ralenti,
+      r.TempMotor, r.Velocidad, r.RPM, r.Torque,
+      r.Presion_Aceite, r.Id_Energia, r.Id_Partida, r.Fecha_Insercion,
+    ]);
+    const telRes = await insertWithFallback(client, "telemetria", telRows, telCols, "ON CONFLICT (wt_id) DO NOTHING");
 
-    let savedTel = 0;
-    try {
-      const res = await client.query(
-        `INSERT INTO wisetrack_telemetria
-         (wt_id, movil, patente, fecha_hora, lat, lng, direccion, kms, kms_total,
-          horometro, nivel_estanque, consumo_conduccion, consumo_ralenti, consumo_total,
-          tiempo_conduccion, tiempo_ralenti, temp_motor, velocidad, rpm, torque,
-          presion_aceite, id_energia, id_partida, fecha_insercion)
-         VALUES ${telPlaceholders.join(",")}
-         ON CONFLICT (wt_id) DO NOTHING`,
-        telValues,
-      );
-      savedTel = res.rowCount || 0;
-    } catch (e: any) {
-      console.error(`[WISETRACK-SAVE] bulk telemetria error: ${e.message}`);
+    // ── BULK INSERT 2: wisetrack_posiciones (dedup intra-batch) ──
+    const posCols = [
+      "patente", "etiqueta", "fecha", "lat", "lng", "velocidad", "direccion", "ignicion",
+      "grupo1", "conductor", "kms_total", "consumo_litros", "nivel_estanque",
+      "rpm", "temp_motor", "estado_operacion",
+    ];
+    const seen = new Set<string>();
+    const posRows: any[][] = [];
+    for (const r of valid) {
+      const patente = resolvePatente(r.Movil);
+      if (!patente) continue;
+      const key = `${patente}|${r.Fecha_Hora}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const v = vehiculoMap.get(r.Movil);
+      posRows.push([
+        patente, r.Movil, r.Fecha_Hora, r.Lat, r.Lon,
+        r.Velocidad || 0, r.Direccion || 0, true,
+        v?.grupo1 || "",
+        v?.conductor || "",
+        r.Kms_Total, r.ConsumoLitros_Total,
+        r.NivelEstanque, r.RPM, r.TempMotor, "",
+      ]);
     }
+    const posRes = await insertWithFallback(client, "posiciones", posRows, posCols, "ON CONFLICT (patente, fecha) DO NOTHING");
 
-    // ── BULK INSERT 2: wisetrack_posiciones (solo los que tienen patente) ──
-    const validPos = valid.filter(r => resolvePatente(r.Movil));
-    if (validPos.length > 0) {
-      const posCols = 16;
-      const posValues: any[] = [];
-      const posPlaceholders: string[] = [];
-
-      // dedupe in-batch por (patente, fecha) para evitar conflicts dentro de la misma query
-      const seen = new Set<string>();
-      const dedup = validPos.filter(r => {
-        const key = `${resolvePatente(r.Movil)}|${r.Fecha_Hora}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-
-      dedup.forEach((r, i) => {
-        const base = i * posCols;
-        posPlaceholders.push(
-          `(${Array.from({ length: posCols }, (_, k) => `$${base + k + 1}`).join(",")})`
-        );
-        const patente = resolvePatente(r.Movil)!;
-        const v = vehiculoMap.get(r.Movil);
-        posValues.push(
-          patente, r.Movil, r.Fecha_Hora, r.Lat, r.Lon,
-          r.Velocidad || 0, r.Direccion || 0, true,
-          v?.grupo1 || "",
-          v?.conductor || "",
-          r.Kms_Total, r.ConsumoLitros_Total,
-          r.NivelEstanque, r.RPM, r.TempMotor, "",
-        );
-      });
-
-      try {
-        await client.query(
-          `INSERT INTO wisetrack_posiciones
-           (patente, etiqueta, fecha, lat, lng, velocidad, direccion, ignicion,
-            grupo1, conductor, kms_total, consumo_litros, nivel_estanque,
-            rpm, temp_motor, estado_operacion)
-           VALUES ${posPlaceholders.join(",")}
-           ON CONFLICT (patente, fecha) DO NOTHING`,
-          posValues,
-        );
-      } catch (e: any) {
-        console.error(`[WISETRACK-SAVE] bulk posiciones error: ${e.message}`);
-      }
-    }
-
-    return savedTel;
+    return {
+      saved: telRes.saved,
+      attempted: valid.length,
+      failed: telRes.failed + posRes.failed,
+      failedBatches: telRes.failedBatches + posRes.failedBatches,
+    };
   } finally {
     client.release();
   }
@@ -394,13 +436,13 @@ async function doApiSync() {
   const t0 = Date.now();
   let fetched = 0;
   let saved = 0;
+  let totalFailed = 0;
   let newest: Date | null = null;
   let mode = bufferDrainMode ? "drain" : "realtime";
   let errMsg: string | null = null;
 
   try {
     if (bufferDrainMode) {
-      // En drain mode descartamos data >48h vieja, paramos al alcanzar presente.
       const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
       let drained = 0;
       while (true) {
@@ -420,9 +462,11 @@ async function doApiSync() {
         if (newestDate >= cutoff) {
           bufferDrainMode = false;
           mode = "realtime";
-          saved += await saveTelemetria(records);
+          const r = await saveTelemetria(records);
+          saved += r.saved;
+          totalFailed += r.failed;
           newest = newestDate;
-          console.log(`[WISETRACK-API] Buffer alcanzó presente. Descartados: ${drainTotal}. Guardados: ${saved}.`);
+          console.log(`[WISETRACK-API] Buffer alcanzó presente. Descartados: ${drainTotal}. Guardados: ${r.saved}/${r.attempted}.`);
           break;
         }
         drained += records.length;
@@ -430,15 +474,17 @@ async function doApiSync() {
         if (drained % 10000 === 0 || drained <= 1000) {
           console.log(`[WISETRACK-API] Drenando: ${drainTotal} descartados | Fecha: ${newestStr}`);
         }
-        if (drained >= 50000) break; // evita loop infinito en un solo ciclo
+        if (drained >= 50000) break;
       }
     } else {
       const records = await fetchTelemetriaAPI();
       fetched = records.length;
       if (records.length > 0) {
-        saved = await saveTelemetria(records);
-        const newestStr = records.reduce((max, r) => {
-          const d = r.Fecha_Hora || "";
+        const r = await saveTelemetria(records);
+        saved = r.saved;
+        totalFailed = r.failed;
+        const newestStr = records.reduce((max, rr) => {
+          const d = rr.Fecha_Hora || "";
           return d > max ? d : max;
         }, "");
         if (newestStr) newest = new Date(newestStr.replace(" ", "T") + "-04:00");
@@ -449,14 +495,22 @@ async function doApiSync() {
     totalApiRecords += saved;
     lastApiSyncAt = new Date();
     lastApiSyncCount = fetched;
-    lastApiSyncError = null;
-    consecutiveErrors = 0;
 
-    if (saved > 0 || fetched > 0) {
-      const lag = lastNewestRecordAt
-        ? Math.floor((Date.now() - lastNewestRecordAt.getTime()) / 1000)
-        : -1;
-      console.log(`[WISETRACK-API] sync: ${fetched} fetched / ${saved} saved | lag ${lag}s | next ${currentIntervalMs / 1000}s`);
+    // Señalización honesta: si tuvimos filas perdidas por DB error, marcamos como sync degradado
+    if (totalFailed > 0) {
+      errMsg = `${totalFailed} filas descartadas por errores de DB`;
+      lastApiSyncError = errMsg;
+      consecutiveErrors++;
+      console.error(`[WISETRACK-API] sync DEGRADADO: ${fetched} fetched / ${saved} saved / ${totalFailed} FAILED | err#${consecutiveErrors}`);
+    } else {
+      lastApiSyncError = null;
+      consecutiveErrors = 0;
+      if (saved > 0 || fetched > 0) {
+        const lag = lastNewestRecordAt
+          ? Math.floor((Date.now() - lastNewestRecordAt.getTime()) / 1000)
+          : -1;
+        console.log(`[WISETRACK-API] sync OK: ${fetched} fetched / ${saved} saved | lag ${lag}s | next ${currentIntervalMs / 1000}s`);
+      }
     }
   } catch (err: any) {
     errMsg = err.message;
