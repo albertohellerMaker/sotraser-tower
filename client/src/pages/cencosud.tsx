@@ -9,7 +9,7 @@ import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS";
+type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS" | "AUTO";
 
 function MapeoInteractivo() {
   const qc = useQueryClient();
@@ -562,6 +562,232 @@ function PropuestasTab() {
   );
 }
 
+function AutomatizacionTab() {
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
+  const [aprobando, setAprobando] = useState<string | null>(null);
+  const [editandoNombre, setEditandoNombre] = useState<string | null>(null);
+  const [nombreCustom, setNombreCustom] = useState("");
+  const { data: estado, refetch } = useQuery<any>({
+    queryKey: ["/api/cencosud/auto-cierre/estado"],
+    queryFn: () => fetch("/api/cencosud/auto-cierre/estado").then(r => r.json()),
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+
+  const ejecutar = async (autoCrear = false) => {
+    setRunning(true);
+    try {
+      const r = await fetch("/api/cencosud/auto-cierre/ejecutar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dias_atras: 14, auto_crear: autoCrear, umbral_confianza: 0.85 }),
+      }).then(r => r.json());
+      setLastResult(r);
+      refetch();
+    } finally { setRunning(false); }
+  };
+
+  const cruzarHistorico = async () => {
+    setRunning(true);
+    try {
+      const r = await fetch("/api/cencosud/auto-cierre/cruzar-rango", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dias: 60 }),
+      }).then(r => r.json());
+      alert(`✓ ${r.total_cruces} cruces aplicados, ${fN(r.total_litros)} L cruzados en ${r.dias_procesados} días`);
+      refetch();
+    } finally { setRunning(false); }
+  };
+
+  const aprobarGeocerca = async (p: any, nombre: string) => {
+    if (!nombre || nombre.trim().length < 3) { alert("Nombre inválido"); return; }
+    setAprobando(`${p.lat}-${p.lng}`);
+    try {
+      const r = await fetch("/api/cencosud/auto-cierre/aprobar-geocerca", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: nombre.trim(), lat: p.lat, lng: p.lng, radio_m: 200 }),
+      }).then(r => r.json());
+      if (r.ok) {
+        alert(`✓ Geocerca "${r.geocerca.nombre}" creada (id ${r.geocerca.id})`);
+        // remueve de la lista local
+        if (lastResult) {
+          setLastResult({
+            ...lastResult,
+            geocercas_propuestas: lastResult.geocercas_propuestas.filter((x: any) =>
+              !(Math.abs(x.lat - p.lat) < 0.0001 && Math.abs(x.lng - p.lng) < 0.0001)
+            ),
+          });
+        }
+        refetch();
+        setEditandoNombre(null);
+      } else alert("Error: " + (r.error || "desconocido"));
+    } finally { setAprobando(null); }
+  };
+
+  const cruces = estado?.cruces_30d || {};
+  const pctCruzados = cruces.total > 0 ? Math.round((cruces.cruzados || 0) * 100 / cruces.total) : 0;
+
+  return (
+    <div className="space-y-3">
+      {/* HERO */}
+      <div className="rounded-lg p-4" style={{ background: "linear-gradient(135deg, #003322, #006644)", border: "1px solid #00ffcc" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-space text-[10px] tracking-wider" style={{ color: "#00ffcc" }}>AGENTE DE CIERRE DE BRECHA · IA</div>
+            <div className="font-exo text-[11px] text-[#94a3b8] mt-0.5">Cruza Sigetra automáticamente y propone geocercas nuevas detectando paradas recurrentes</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={cruzarHistorico} disabled={running} className="px-3 py-1.5 rounded font-space text-[9px] font-bold disabled:opacity-50"
+              style={{ background: "#ff880020", color: "#ff8800", border: "1px solid #ff8800" }}>
+              {running ? "..." : "REPROCESAR 60 DÍAS"}
+            </button>
+            <button onClick={() => ejecutar(false)} disabled={running} className="px-3 py-1.5 rounded font-space text-[9px] font-bold disabled:opacity-50"
+              style={{ background: "#00ffcc20", color: "#00ffcc", border: "1px solid #00ffcc" }}>
+              {running ? "EJECUTANDO..." : "▶ EJECUTAR CICLO"}
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">VIAJES CRUZADOS / 30D</div>
+            <div className="font-space text-2xl font-bold mt-1" style={{ color: pctCruzados > 30 ? "#00ff88" : "#ff6b35" }}>
+              {fN(cruces.cruzados || 0)}<span className="text-[#3a6080] text-base">/{fN(cruces.total || 0)}</span>
+            </div>
+            <div className="font-exo text-[9px] mt-0.5" style={{ color: pctCruzados > 30 ? "#00ff88" : "#ff6b35" }}>{pctCruzados}% cobertura</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">LITROS CRUZADOS</div>
+            <div className="font-space text-2xl font-bold text-[#ff8800] mt-1">{fN(cruces.litros || 0)}</div>
+            <div className="font-exo text-[9px] text-[#94a3b8] mt-0.5">L Sigetra ↔ ECU</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">KM SIGETRA</div>
+            <div className="font-space text-2xl font-bold text-[#00d4ff] mt-1">{fN(cruces.km || 0)}</div>
+            <div className="font-exo text-[9px] text-[#94a3b8] mt-0.5">declarados conductor</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">PARADAS HUÉRFANAS</div>
+            <div className="font-space text-2xl font-bold text-[#a855f7] mt-1">{estado?.paradas_huerfanas_actuales ?? "..."}</div>
+            <div className="font-exo text-[9px] text-[#94a3b8] mt-0.5">candidatas a geocerca</div>
+          </div>
+        </div>
+      </div>
+
+      {/* RESULTADO ÚLTIMA EJECUCIÓN */}
+      {lastResult && (
+        <div className="rounded-lg p-3" style={{ background: "#0a1218", border: "1px solid #00ffcc40" }}>
+          <div className="font-space text-[9px] tracking-wider mb-2" style={{ color: "#00ffcc" }}>
+            ✓ ÚLTIMA EJECUCIÓN · {lastResult.fecha} · {lastResult.duracion_seg}s
+          </div>
+          <div className="flex gap-4 font-exo text-[10px] text-[#94a3b8]">
+            <div>Cruces nuevos: <span className="text-[#00ff88] font-bold">{lastResult.cruces_aplicados}</span></div>
+            <div>Litros: <span className="text-[#ff8800] font-bold">{fN(lastResult.litros_cruzados)}</span></div>
+            <div>Km: <span className="text-[#00d4ff] font-bold">{fN(lastResult.km_cruzado)}</span></div>
+            <div>Geocercas auto-creadas: <span className="text-[#00ffcc] font-bold">{lastResult.geocercas_creadas}</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* PARADAS HUÉRFANAS — pendientes de aprobar como geocercas */}
+      <div className="rounded-lg p-4" style={{ background: "#0a1218", border: "1px solid #a855f7" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-space text-[10px] tracking-wider" style={{ color: "#a855f7" }}>
+              📍 PARADAS HUÉRFANAS · CANDIDATAS A GEOCERCA
+            </div>
+            <div className="font-exo text-[9px] text-[#3a6080] mt-0.5">Lugares donde varios camiones distintos paran ≥20min y no hay geocerca registrada — destinos reales sin nombrar</div>
+          </div>
+        </div>
+        {(lastResult?.geocercas_propuestas?.length > 0 || estado?.paradas_huerfanas_top?.length > 0) ? (
+          <div className="space-y-2">
+            {(lastResult?.geocercas_propuestas || estado?.paradas_huerfanas_top?.map((p: any) => ({
+              ...p, nombre: `Parada (${Number(p.lat).toFixed(4)}, ${Number(p.lng).toFixed(4)})`, confianza: 0,
+            })) || []).map((p: any, i: number) => {
+              const id = `${p.lat}-${p.lng}`;
+              const isEditing = editandoNombre === id;
+              return (
+                <div key={i} className="rounded p-3" style={{ background: "#060d14", border: "1px solid #1a2842" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-space text-[11px] font-bold text-white">
+                          {isEditing ? (
+                            <input autoFocus value={nombreCustom} onChange={e => setNombreCustom(e.target.value)}
+                              className="font-space text-[11px] px-2 py-0.5 rounded outline-none w-64"
+                              style={{ background: "#0a1218", color: "white", border: "1px solid #00ffcc" }}
+                              onKeyDown={e => { if (e.key === "Enter") aprobarGeocerca(p, nombreCustom); }}/>
+                          ) : (
+                            p.nombre || `Parada (${Number(p.lat).toFixed(4)}, ${Number(p.lng).toFixed(4)})`
+                          )}
+                        </span>
+                        {p.confianza > 0 && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: p.confianza >= 0.85 ? "#00ff8830" : "#ffcc0030", color: p.confianza >= 0.85 ? "#00ff88" : "#ffcc00" }}>
+                            IA {Math.round(p.confianza * 100)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-exo text-[9px] text-[#94a3b8] mt-1 flex gap-3">
+                        <span>{p.camiones} camiones</span>
+                        <span>{p.visitas} visitas</span>
+                        {p.duracion_promedio_min && <span>{p.duracion_promedio_min} min/parada</span>}
+                        <span className="text-[#3a6080]">({Number(p.lat).toFixed(5)}, {Number(p.lng).toFixed(5)})</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {isEditing ? (
+                        <>
+                          <button onClick={() => aprobarGeocerca(p, nombreCustom)} disabled={aprobando === id}
+                            className="px-2 py-1 rounded font-space text-[9px] font-bold"
+                            style={{ background: "#00ff8820", color: "#00ff88", border: "1px solid #00ff88" }}>
+                            {aprobando === id ? "..." : "✓ CREAR"}
+                          </button>
+                          <button onClick={() => setEditandoNombre(null)}
+                            className="px-2 py-1 rounded font-space text-[9px]"
+                            style={{ background: "#0d2035", color: "#94a3b8" }}>X</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => { setEditandoNombre(id); setNombreCustom(p.nombre?.startsWith("Parada (") ? "" : (p.nombre || "")); }}
+                            className="px-2 py-1 rounded font-space text-[9px] font-bold"
+                            style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f7" }}>
+                            ✎ NOMBRAR
+                          </button>
+                          {p.confianza >= 0.85 && (
+                            <button onClick={() => aprobarGeocerca(p, p.nombre)} disabled={aprobando === id}
+                              className="px-2 py-1 rounded font-space text-[9px] font-bold"
+                              style={{ background: "#00ff8820", color: "#00ff88", border: "1px solid #00ff88" }}>
+                              {aprobando === id ? "..." : "✓ APROBAR"}
+                            </button>
+                          )}
+                          <a href={`https://www.google.com/maps?q=${p.lat},${p.lng}`} target="_blank" rel="noreferrer"
+                            className="px-2 py-1 rounded font-space text-[9px]"
+                            style={{ background: "#0d2035", color: "#00d4ff" }}>🗺</a>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 font-exo text-[#3a6080] text-[11px]">
+            ✓ No hay paradas huérfanas — ejecutá el ciclo para detectar nuevas
+          </div>
+        )}
+      </div>
+
+      {/* INFO */}
+      <div className="rounded-lg p-3" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+        <div className="font-exo text-[9px] text-[#94a3b8] leading-relaxed">
+          <span className="font-bold text-[#00ffcc]">¿Cómo funciona?</span> El agente cruza automáticamente cada carga de combustible Sigetra con el viaje WiseTrack más cercano (±12h, misma patente normalizada). Después escanea las posiciones GPS buscando lugares donde ≥3 camiones distintos paran ≥20min y NO hay geocerca registrada — esos son destinos reales sin nombrar. Las propuestas se muestran arriba para que las apruebes manualmente. Si configurás API key de IA válida, Claude sugiere nombres automáticamente con score de confianza.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BrechaTab() {
   const qc = useQueryClient();
   const [dias, setDias] = useState(30);
@@ -885,6 +1111,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
             { t: "BRECHA" as Tab, icon: <DollarSign size={11} />, label: "BRECHA", color: "#ff2244" },
             { t: "CRUCE" as Tab, icon: <Activity size={11} />, label: "CRUCE", color: "#ff8800" },
             { t: "PROPUESTAS" as Tab, icon: <Target size={11} />, label: "PROPUESTAS", color: "#a855f7" },
+            { t: "AUTO" as Tab, icon: <Brain size={11} />, label: "AUTOMATIZACIÓN", color: "#00ffcc" },
             { t: "CONTROL" as Tab, icon: <Activity size={11} />, label: "CONTROL", color: "#ffcc00" },
             { t: "RESUMEN" as Tab, icon: <TrendingUp size={11} />, label: "RESUMEN", color: "#00d4ff" },
             { t: "VIAJES" as Tab, icon: <Route size={11} />, label: "VIAJES", color: "#a855f7" },
@@ -1194,6 +1421,9 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
 
         {/* ═══ VIAJES PROPUESTOS (sin viaje detectado) ═══ */}
         {tab === "PROPUESTAS" && <PropuestasTab />}
+
+        {/* ═══ AUTOMATIZACIÓN: cierre de brecha + IA ═══ */}
+        {tab === "AUTO" && <AutomatizacionTab />}
 
         {/* ═══ CONTROL OPERACIONAL DIARIO ═══ */}
         {tab === "CONTROL" && (() => {

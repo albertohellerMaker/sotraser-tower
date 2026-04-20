@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { pool } from "./db";
 import { calcularPLViajes, calcularPLResumenDiario, calcularPLResumenMes } from "./pl-engine";
+import { ejecutarAutoCierre, cruzarSigetra, detectarParadasHuerfanas, nombrarParadasConIA } from "./auto-cierre-brecha";
 
 const router = Router();
 
@@ -1736,6 +1737,89 @@ router.post("/geocerca-desde-punto", async (req, res) => {
     res.json({ ok: true, geocerca: r.rows[0] });
   } catch (e: any) {
     console.error("[geocerca-desde-punto]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══ AUTO-CIERRE DE BRECHA: cruza Sigetra + propone geocercas con IA ═══
+router.post("/auto-cierre/ejecutar", async (req, res) => {
+  try {
+    const fecha = (req.body.fecha as string) || new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const diasAtras = parseInt(req.body.dias_atras) || 14;
+    const autoCrear = !!req.body.auto_crear;
+    const umbral = parseFloat(req.body.umbral_confianza) || 0.85;
+    const result = await ejecutarAutoCierre({
+      fecha, diasAtras, autoCrearGeocercas: autoCrear, umbralConfianza: umbral,
+    });
+    res.json(result);
+  } catch (e: any) {
+    console.error("[auto-cierre/ejecutar]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get("/auto-cierre/estado", async (_req, res) => {
+  try {
+    const [crucesUlt, geocercasIA, paradas] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE sigetra_cruzado = true)::int AS cruzados,
+          COUNT(*)::int AS total,
+          ROUND(COALESCE(SUM(litros_cargados_sigetra) FILTER (WHERE sigetra_cruzado = true), 0)::numeric)::int AS litros,
+          ROUND(COALESCE(SUM(km_declarado_sigetra) FILTER (WHERE sigetra_cruzado = true), 0)::numeric)::int AS km
+        FROM viajes_aprendizaje
+        WHERE contrato='CENCOSUD' AND fecha_inicio >= CURRENT_DATE - 30
+      `),
+      pool.query(`
+        SELECT id, nombre, lat, lng, radio_metros, creado_at
+        FROM geo_bases
+        WHERE contrato='CENCOSUD' AND activa=true AND nombre LIKE 'IA:%'
+        ORDER BY id DESC LIMIT 50
+      `).catch(() => ({ rows: [] })),
+      detectarParadasHuerfanas(14),
+    ]);
+    res.json({
+      cruces_30d: crucesUlt.rows[0],
+      geocercas_ia_creadas: geocercasIA.rows,
+      paradas_huerfanas_actuales: paradas.length,
+      paradas_huerfanas_top: paradas.slice(0, 10),
+    });
+  } catch (e: any) {
+    console.error("[auto-cierre/estado]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/auto-cierre/cruzar-rango", async (req, res) => {
+  try {
+    const dias = Math.min(parseInt(req.body.dias) || 30, 90);
+    const fechaHasta = new Date().toISOString().slice(0, 10);
+    const fechaDesde = new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+    const r = await cruzarSigetra({ fechaDesde, fechaHasta });
+    res.json({
+      dias_procesados: dias,
+      desde: fechaDesde,
+      hasta: fechaHasta,
+      total_cruces: r.cruces,
+      total_litros: Math.round(r.litros),
+      total_km: Math.round(r.km),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/auto-cierre/aprobar-geocerca", async (req, res) => {
+  try {
+    const { lat, lng, nombre, radio_m } = req.body;
+    if (!lat || !lng || !nombre) return res.status(400).json({ error: "lat, lng, nombre requeridos" });
+    const r = await pool.query(
+      `INSERT INTO geo_bases (nombre, lat, lng, radio_metros, contrato, activa)
+       VALUES ($1, $2, $3, $4, 'CENCOSUD', true) RETURNING id, nombre`,
+      [nombre, lat, lng, radio_m || 200]
+    );
+    res.json({ ok: true, geocerca: r.rows[0] });
+  } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });

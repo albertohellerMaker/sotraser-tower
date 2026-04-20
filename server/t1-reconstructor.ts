@@ -1,5 +1,6 @@
 import { db, pool } from "./db";
 import { sql } from "drizzle-orm";
+import { cruzarSigetra } from "./auto-cierre-brecha";
 
 const MIN_DWELL_CD = 15;
 const MIN_DWELL_OTHER = 10;
@@ -777,6 +778,17 @@ export async function reconstruirDiaT1(fecha: string): Promise<{
     throw new Error(`T1 transaction failed: ${txErr.message}`);
   } finally {
     client.release();
+  }
+
+  // ═══ Auto-cruce Sigetra: enlaza cargas combustible con viajes recién creados ═══
+  let cruceSigetra = { cruces: 0, litros: 0, km: 0 };
+  try {
+    cruceSigetra = await cruzarSigetra({ fechaDesde: fecha, fechaHasta: fecha });
+    if (cruceSigetra.cruces > 0) {
+      console.log(`[T1] ⛽ Cruzados ${cruceSigetra.cruces} viajes con Sigetra: ${Math.round(cruceSigetra.litros)}L, ${Math.round(cruceSigetra.km)}km declarados`);
+    }
+  } catch (cErr: any) {
+    console.error(`[T1] auto-cruce Sigetra falló: ${cErr.message}`);
   }
 
   const durSeg = Math.round((Date.now() - inicio) / 1000);
