@@ -9,7 +9,7 @@ import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA";
+type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS";
 
 function MapeoInteractivo() {
   const qc = useQueryClient();
@@ -308,6 +308,255 @@ function MapeoInteractivo() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CruceSigetraTab() {
+  const [dias, setDias] = useState(30);
+  const { data, isLoading, refetch, isFetching } = useQuery<any>({
+    queryKey: ["/api/cencosud/cruce-sigetra", dias],
+    queryFn: () => fetch(`/api/cencosud/cruce-sigetra?dias=${dias}`).then(r => r.json()),
+    staleTime: 60000,
+  });
+
+  if (isLoading) return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Cruzando Sigetra × WiseTrack...</div>;
+  if (!data || data.error) return <div className="text-center py-20 font-exo" style={{ color: "#ff6b35" }}>Error: {data?.error || "sin datos"}</div>;
+
+  const r = data.resumen || {};
+  return (
+    <div className="space-y-3">
+      {/* HERO */}
+      <div className="rounded-lg p-4" style={{ background: "linear-gradient(135deg, #1a0f00, #2a1500)", border: "1px solid #ff8800" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-space text-[10px] tracking-wider" style={{ color: "#ff8800" }}>CRUCE SIGETRA × WISETRACK</div>
+            <div className="font-exo text-[11px] text-[#94a3b8] mt-0.5">Cargas de combustible vs viajes detectados</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <select value={dias} onChange={e => setDias(parseInt(e.target.value))} className="font-space text-[10px] px-2 py-1 rounded outline-none" style={{ background: "#0a1218", color: "#ff8800", border: "1px solid #ff8800" }}>
+              <option value={7}>7 días</option>
+              <option value={30}>30 días</option>
+              <option value={90}>90 días</option>
+            </select>
+            <button onClick={() => refetch()} className="px-3 py-1.5 rounded font-space text-[9px]" style={{ background: "#ff880020", color: "#ff8800", border: "1px solid #ff8800" }}>{isFetching ? "..." : "REFRESCAR"}</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">VIAJES TOTAL</div>
+            <div className="font-space text-2xl font-bold text-[#00d4ff] mt-1">{fN(r.viajes_total || 0)}</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">VIAJES CRUZADOS</div>
+            <div className="font-space text-2xl font-bold mt-1" style={{ color: r.pct_cruzados > 50 ? "#00ff88" : "#ff6b35" }}>{fN(r.viajes_cruzados || 0)}</div>
+            <div className="font-exo text-[9px] mt-0.5" style={{ color: r.pct_cruzados > 50 ? "#00ff88" : "#ff6b35" }}>{r.pct_cruzados || 0}%</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">CARGAS CENCOSUD</div>
+            <div className="font-space text-2xl font-bold text-[#ff8800] mt-1">{fN(r.cargas_cenco || 0)}</div>
+            <div className="font-exo text-[9px] text-[#94a3b8] mt-0.5">{fN(Math.round(r.litros_cenco || 0))} L</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">PATENTES CON CARGAS</div>
+            <div className="font-space text-2xl font-bold text-[#a855f7] mt-1">{r.patentes_con_cargas || 0}</div>
+            <div className="font-exo text-[9px] text-[#94a3b8] mt-0.5">de {r.patentes_cenco || 0} flota</div>
+          </div>
+        </div>
+      </div>
+
+      {/* TOP DESVIACIONES */}
+      {(data.top_desviaciones?.length > 0) && (
+        <div className="rounded-lg p-4" style={{ background: "#0a1218", border: "1px solid #ff224430" }}>
+          <div className="font-space text-[10px] tracking-wider mb-3" style={{ color: "#ff2244" }}>⚠ TOP DESVIACIONES km ECU vs SIGETRA</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px] font-exo">
+              <thead><tr className="text-[#3a6080] border-b border-[#0d2035]">
+                <th className="text-left py-1.5 px-2">Patente</th><th className="text-left">Fecha</th><th className="text-left">Origen</th><th className="text-left">Destino</th>
+                <th className="text-right">km ECU</th><th className="text-right">km Sig</th><th className="text-right">Δ%</th>
+              </tr></thead>
+              <tbody>
+                {data.top_desviaciones.map((v: any, i: number) => (
+                  <tr key={i} className="border-b border-[#0d2035]/50 hover:bg-[#0d2035]/30">
+                    <td className="py-1.5 px-2 text-[#00d4ff] font-bold">{v.patente}</td>
+                    <td>{new Date(v.fecha_inicio).toLocaleDateString("es-CL")}</td>
+                    <td className="text-[#94a3b8]">{v.origen_nombre}</td>
+                    <td className="text-[#94a3b8]">{v.destino_nombre}</td>
+                    <td className="text-right text-[#00d4ff]">{Math.round(v.km_ecu || 0)}</td>
+                    <td className="text-right text-[#ff8800]">{Math.round(v.km_declarado_sigetra || 0)}</td>
+                    <td className="text-right font-bold" style={{ color: Math.abs(v.delta_cuadratura) > 30 ? "#ff2244" : "#ff6b35" }}>{Math.round(v.delta_cuadratura)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CARGAS SIN VIAJE */}
+      {(data.cargas_sin_viaje?.length > 0) && (
+        <div className="rounded-lg p-4" style={{ background: "#0a1218", border: "1px solid #ff8800" }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-space text-[10px] tracking-wider" style={{ color: "#ff8800" }}>⛽ CARGAS SIN VIAJE MATCHEADO ({data.cargas_sin_viaje.length})</div>
+            <div className="font-exo text-[9px] text-[#94a3b8]">Cargas de combustible que no se pudieron cruzar con un viaje detectado</div>
+          </div>
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+            <table className="w-full text-[10px] font-exo">
+              <thead className="sticky top-0" style={{ background: "#0a1218" }}><tr className="text-[#3a6080] border-b border-[#0d2035]">
+                <th className="text-left py-1.5 px-2">Fecha</th><th className="text-left">Patente</th>
+                <th className="text-right">Litros</th><th className="text-right">km Δ</th>
+                <th className="text-left">Lugar</th><th className="text-left">Conductor</th>
+              </tr></thead>
+              <tbody>
+                {data.cargas_sin_viaje.map((c: any) => (
+                  <tr key={c.id} className="border-b border-[#0d2035]/50">
+                    <td className="py-1 px-2 text-[#94a3b8]">{new Date(c.fecha).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="text-[#00d4ff] font-bold">{c.patente}</td>
+                    <td className="text-right text-[#ff8800]">{Math.round(c.litros_surtidor)}</td>
+                    <td className="text-right text-[#a855f7]">{(c.km_actual && c.km_anterior) ? fN(c.km_actual - c.km_anterior) : "-"}</td>
+                    <td className="text-[#94a3b8]">{c.lugar_consumo}</td>
+                    <td className="text-[#94a3b8]">{c.conductor}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PATENTES NO MATCH (diagnóstico) */}
+      {(data.patentes_no_match?.length > 0) && (
+        <div className="rounded-lg p-4" style={{ background: "#0a1218", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[10px] tracking-wider mb-3 text-[#3a6080]">DIAGNÓSTICO · Patentes en Sigetra que NO matchean con flota CENCOSUD ({data.patentes_no_match.length})</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            {data.patentes_no_match.map((p: any, i: number) => (
+              <div key={i} className="rounded p-2" style={{ background: "#060d14", border: "1px solid #0d2035" }}>
+                <div className="font-space text-[10px] font-bold text-[#94a3b8]">{p.patente}</div>
+                <div className="font-exo text-[8px] text-[#3a6080] mt-0.5">{p.cargas} cargas · {Math.round(p.litros)} L</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PropuestasTab() {
+  const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(ayer);
+  const [creando, setCreando] = useState<string | null>(null);
+  const { data, isLoading, refetch, isFetching } = useQuery<any>({
+    queryKey: ["/api/cencosud/viajes-propuestos", fecha],
+    queryFn: () => fetch(`/api/cencosud/viajes-propuestos?fecha=${fecha}`).then(r => r.json()),
+    staleTime: 60000,
+  });
+
+  const crearGeocerca = async (parada: any, patente: string) => {
+    const nombre = prompt(`Nombre para la geocerca en (${parada.lat?.toFixed(4)}, ${parada.lng?.toFixed(4)})?\nCamión: ${patente}\nDuración: ${Math.round(parada.duracion_min)} min`);
+    if (!nombre) return;
+    setCreando(`${patente}-${parada.desde}`);
+    try {
+      const r = await fetch("/api/cencosud/geocerca-desde-punto", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre, lat: parada.lat, lng: parada.lng, radio_m: 200 })
+      }).then(r => r.json());
+      if (r.ok) { alert(`✓ Geocerca "${r.geocerca.nombre}" creada (id ${r.geocerca.id})`); refetch(); }
+      else alert("Error: " + (r.error || "desconocido"));
+    } finally { setCreando(null); }
+  };
+
+  if (isLoading) return <div className="text-center py-20 font-exo text-[#3a6080]"><Loader2 className="animate-spin mx-auto mb-2" size={24} />Detectando viajes propuestos...</div>;
+  if (!data) return <div className="text-center py-20 font-exo" style={{ color: "#ff6b35" }}>Sin datos</div>;
+
+  const conSugerencia = data.propuestos?.filter((p: any) => p.viaje_sugerido) || [];
+  const sinParadas = data.propuestos?.filter((p: any) => !p.paradas?.length) || [];
+
+  return (
+    <div className="space-y-3">
+      {/* HERO */}
+      <div className="rounded-lg p-4" style={{ background: "linear-gradient(135deg, #1a0033, #2a0055)", border: "1px solid #a855f7" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-space text-[10px] tracking-wider" style={{ color: "#a855f7" }}>VIAJES PROPUESTOS · CAMIONES SIN VIAJE DETECTADO</div>
+            <div className="font-exo text-[11px] text-[#94a3b8] mt-0.5">Camiones con movimiento GPS pero el reconstructor no detectó viaje</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="font-exo text-[10px] px-3 py-1 rounded outline-none" style={{ background: "#0a1218", color: "#a855f7", border: "1px solid #a855f7" }} />
+            <button onClick={() => refetch()} className="px-3 py-1.5 rounded font-space text-[9px]" style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f7" }}>{isFetching ? "..." : "REFRESCAR"}</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">CAMIONES SIN VIAJE</div>
+            <div className="font-space text-2xl font-bold text-[#ff6b35] mt-1">{data.total || 0}</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">CON VIAJE SUGERIDO</div>
+            <div className="font-space text-2xl font-bold text-[#00ff88] mt-1">{conSugerencia.length}</div>
+          </div>
+          <div className="rounded p-3" style={{ background: "#060d14" }}>
+            <div className="font-space text-[8px] tracking-wider text-[#3a6080]">SIN PARADAS CLARAS</div>
+            <div className="font-space text-2xl font-bold text-[#ffcc00] mt-1">{sinParadas.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* LISTA */}
+      <div className="space-y-2">
+        {(data.propuestos || []).map((p: any) => (
+          <div key={p.patente} className="rounded-lg p-3" style={{ background: "#0a1218", border: `1px solid ${p.viaje_sugerido ? "#00ff8830" : "#0d2035"}` }}>
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-space text-[14px] font-bold text-[#00d4ff]">{p.patente}</span>
+                  <span className="font-exo text-[9px] text-[#94a3b8]">{p.puntos} puntos GPS · {p.horas_activas}h activas</span>
+                </div>
+                <div className="font-exo text-[9px] text-[#3a6080] mt-0.5">
+                  {new Date(p.primer_pt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} → {new Date(p.ultimo_pt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+              {p.viaje_sugerido && (
+                <div className="rounded px-3 py-1.5" style={{ background: "#00ff8810", border: "1px solid #00ff88" }}>
+                  <div className="font-space text-[9px] font-bold text-[#00ff88]">VIAJE SUGERIDO</div>
+                  <div className="font-exo text-[10px] text-white mt-0.5">{p.viaje_sugerido.origen} → {p.viaje_sugerido.destino}</div>
+                </div>
+              )}
+            </div>
+            {p.paradas?.length > 0 ? (
+              <div className="space-y-1.5 mt-2">
+                {p.paradas.map((pa: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-[10px] font-exo rounded px-2 py-1" style={{ background: "#060d14" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#3a6080]">#{i + 1}</span>
+                      <span className={pa.lugar_sugerido ? "text-[#00ff88] font-bold" : "text-[#ff6b35]"}>
+                        {pa.lugar_sugerido || `(${Number(pa.lat).toFixed(4)}, ${Number(pa.lng).toFixed(4)})`}
+                      </span>
+                      {pa.dist_m !== null && pa.lugar_sugerido && <span className="text-[#3a6080] text-[8px]">{pa.dist_m}m</span>}
+                      <span className="text-[#94a3b8]">· {Math.round(pa.duracion_min)}min</span>
+                      <span className="text-[#3a6080] text-[9px]">
+                        {new Date(pa.desde).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    {!pa.lugar_sugerido && (
+                      <button onClick={() => crearGeocerca(pa, p.patente)} disabled={creando === `${p.patente}-${pa.desde}`}
+                        className="px-2 py-0.5 rounded font-space text-[8px] font-bold"
+                        style={{ background: "#a855f720", color: "#a855f7", border: "1px solid #a855f7" }}>
+                        {creando === `${p.patente}-${pa.desde}` ? "..." : "+ GEOCERCA"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="font-exo text-[9px] text-[#3a6080] italic mt-1">Sin paradas significativas (&gt;20min) detectadas — camión en movimiento continuo o GPS errático</div>
+            )}
+          </div>
+        ))}
+        {data.total === 0 && (
+          <div className="text-center py-12 font-exo text-[#3a6080]">✓ Todos los camiones CENCOSUD activos tienen viaje detectado este día</div>
+        )}
       </div>
     </div>
   );
@@ -634,6 +883,8 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
           {([
             { t: "EN_VIVO" as Tab, icon: <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />, label: "EN VIVO", color: "#00ff88" },
             { t: "BRECHA" as Tab, icon: <DollarSign size={11} />, label: "BRECHA", color: "#ff2244" },
+            { t: "CRUCE" as Tab, icon: <Activity size={11} />, label: "CRUCE", color: "#ff8800" },
+            { t: "PROPUESTAS" as Tab, icon: <Target size={11} />, label: "PROPUESTAS", color: "#a855f7" },
             { t: "CONTROL" as Tab, icon: <Activity size={11} />, label: "CONTROL", color: "#ffcc00" },
             { t: "RESUMEN" as Tab, icon: <TrendingUp size={11} />, label: "RESUMEN", color: "#00d4ff" },
             { t: "VIAJES" as Tab, icon: <Route size={11} />, label: "VIAJES", color: "#a855f7" },
@@ -937,6 +1188,12 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
 
         {/* ═══ BRECHA DE FACTURACIÓN ═══ */}
         {tab === "BRECHA" && <BrechaTab />}
+
+        {/* ═══ CRUCE SIGETRA × WISETRACK ═══ */}
+        {tab === "CRUCE" && <CruceSigetraTab />}
+
+        {/* ═══ VIAJES PROPUESTOS (sin viaje detectado) ═══ */}
+        {tab === "PROPUESTAS" && <PropuestasTab />}
 
         {/* ═══ CONTROL OPERACIONAL DIARIO ═══ */}
         {tab === "CONTROL" && (() => {

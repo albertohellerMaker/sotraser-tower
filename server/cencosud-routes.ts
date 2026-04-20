@@ -1504,4 +1504,240 @@ router.post("/alias-fix", async (_req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ CRUCE SIGETRA: cargas combustible ↔ viajes WiseTrack ═══
+router.get("/cruce-sigetra", async (req, res) => {
+  try {
+    const dias = parseInt(req.query.dias as string) || 30;
+
+    const [resumen, viajesConCarga, cargasSinViaje, deltasTop, patentesNoMatch] = await Promise.all([
+      // Resumen global de cruce — normalizamos patentes (quitamos guiones)
+      pool.query(`
+        WITH cenco AS (
+          SELECT DISTINCT REPLACE(patente, '-', '') AS pat_norm
+          FROM wisetrack_posiciones WHERE grupo1='CENCOSUD'
+        ),
+        viajes AS (
+          SELECT v.* FROM viajes_aprendizaje v
+          WHERE v.contrato='CENCOSUD' AND v.fecha_inicio >= CURRENT_DATE - $1::int
+        ),
+        cargas_cenco AS (
+          SELECT c.* FROM cargas c
+          WHERE REPLACE(c.patente, '-', '') IN (SELECT pat_norm FROM cenco)
+            AND c.fecha::timestamp >= (CURRENT_DATE - $1::int)::timestamp
+        )
+        SELECT
+          (SELECT COUNT(*) FROM viajes) AS viajes_total,
+          (SELECT COUNT(*) FROM viajes WHERE sigetra_cruzado=true) AS viajes_cruzados,
+          (SELECT COUNT(*) FROM cargas_cenco) AS cargas_cenco,
+          (SELECT COALESCE(SUM(litros_surtidor), 0) FROM cargas_cenco) AS litros_cenco,
+          (SELECT COUNT(*) FROM cargas WHERE fecha::timestamp >= (CURRENT_DATE - $1::int)::timestamp) AS cargas_total_sistema,
+          (SELECT COUNT(DISTINCT patente) FROM cargas_cenco) AS patentes_con_cargas,
+          (SELECT COUNT(*) FROM cenco) AS patentes_cenco
+      `, [dias]),
+      // Viajes con cruce Sigetra (top deltas)
+      pool.query(`
+        SELECT v.id, v.fecha_inicio, v.origen_nombre, v.destino_nombre,
+               v.km_ecu, v.km_declarado_sigetra,
+               v.litros_consumidos_ecu, v.litros_cargados_sigetra,
+               v.delta_cuadratura, v.rendimiento_real,
+               (SELECT patente FROM camiones WHERE id=v.camion_id) as patente
+        FROM viajes_aprendizaje v
+        WHERE v.contrato='CENCOSUD' AND v.fecha_inicio >= CURRENT_DATE - $1::int
+          AND v.sigetra_cruzado=true
+        ORDER BY ABS(COALESCE(v.delta_cuadratura, 0)) DESC LIMIT 20
+      `, [dias]),
+      // Cargas Sigetra de patentes CENCOSUD sin viaje matcheado (normalizado)
+      pool.query(`
+        SELECT c.id, c.fecha, c.patente, c.litros_surtidor, c.km_anterior, c.km_actual,
+               c.lugar_consumo, c.proveedor, c.conductor
+        FROM cargas c
+        WHERE REPLACE(c.patente, '-', '') IN (
+            SELECT DISTINCT REPLACE(patente, '-', '')
+            FROM wisetrack_posiciones WHERE grupo1='CENCOSUD'
+          )
+          AND c.fecha::timestamp >= (CURRENT_DATE - $1::int)::timestamp
+          AND NOT EXISTS (
+            SELECT 1 FROM viajes_aprendizaje v
+            JOIN camiones cam ON cam.id = v.camion_id
+            WHERE v.contrato='CENCOSUD'
+              AND ABS(EXTRACT(EPOCH FROM (v.fecha_inicio - c.fecha::timestamp))) < 86400
+              AND REPLACE(cam.patente, '-', '') = REPLACE(c.patente, '-', '')
+          )
+        ORDER BY c.fecha DESC LIMIT 30
+      `, [dias]),
+      // Top desviaciones (alertas)
+      pool.query(`
+        SELECT v.id, v.fecha_inicio, v.origen_nombre, v.destino_nombre,
+               v.delta_cuadratura, v.km_ecu, v.km_declarado_sigetra,
+               (SELECT patente FROM camiones WHERE id=v.camion_id) as patente
+        FROM viajes_aprendizaje v
+        WHERE v.contrato='CENCOSUD' AND v.fecha_inicio >= CURRENT_DATE - $1::int
+          AND ABS(v.delta_cuadratura) > 20
+        ORDER BY ABS(v.delta_cuadratura) DESC LIMIT 15
+      `, [dias]),
+      // Patentes Sigetra que NO matchean con flota CENCOSUD (normalizado)
+      pool.query(`
+        SELECT c.patente, COUNT(*) as cargas, SUM(c.litros_surtidor) as litros
+        FROM cargas c
+        WHERE c.fecha::timestamp >= (CURRENT_DATE - $1::int)::timestamp
+          AND REPLACE(c.patente, '-', '') NOT IN (
+            SELECT DISTINCT REPLACE(patente, '-', '')
+            FROM wisetrack_posiciones WHERE grupo1='CENCOSUD'
+          )
+        GROUP BY c.patente ORDER BY cargas DESC LIMIT 20
+      `, [dias]),
+    ]);
+
+    const r = resumen.rows[0] || {};
+    const viajesT = Number(r.viajes_total) || 0;
+    const cruzados = Number(r.viajes_cruzados) || 0;
+    res.json({
+      dias,
+      resumen: {
+        viajes_total: viajesT,
+        viajes_cruzados: cruzados,
+        pct_cruzados: viajesT > 0 ? Math.round(cruzados * 100 / viajesT) : 0,
+        cargas_cenco: Number(r.cargas_cenco) || 0,
+        litros_cenco: Number(r.litros_cenco) || 0,
+        cargas_total_sistema: Number(r.cargas_total_sistema) || 0,
+        patentes_con_cargas: Number(r.patentes_con_cargas) || 0,
+        patentes_cenco: Number(r.patentes_cenco) || 0,
+      },
+      viajes_cruzados: viajesConCarga.rows,
+      cargas_sin_viaje: cargasSinViaje.rows,
+      top_desviaciones: deltasTop.rows,
+      patentes_no_match: patentesNoMatch.rows,
+    });
+  } catch (e: any) {
+    console.error("[cruce-sigetra]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══ VIAJES PROPUESTOS: camiones con km GPS sin viaje detectado ═══
+router.get("/viajes-propuestos", async (req, res) => {
+  try {
+    const fecha = (req.query.fecha as string) || new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    // 1) Patentes CENCOSUD con movimiento GPS pero sin viaje detectado ese día
+    const sinViaje = await pool.query(`
+      WITH movimiento AS (
+        SELECT patente,
+               COUNT(*) as puntos,
+               COUNT(DISTINCT date_trunc('hour', fecha)) as horas_activas,
+               MIN(fecha) as primer_pt, MAX(fecha) as ultimo_pt
+        FROM wisetrack_posiciones
+        WHERE grupo1='CENCOSUD'
+          AND fecha::date = $1::date
+        GROUP BY patente
+        HAVING COUNT(*) > 50
+      ),
+      con_viaje AS (
+        SELECT DISTINCT (SELECT patente FROM camiones WHERE id=v.camion_id) as patente
+        FROM viajes_aprendizaje v
+        WHERE v.contrato='CENCOSUD' AND v.fecha_inicio::date = $1::date
+      )
+      SELECT m.* FROM movimiento m
+      WHERE m.patente NOT IN (SELECT patente FROM con_viaje WHERE patente IS NOT NULL)
+      ORDER BY m.puntos DESC
+    `, [fecha]);
+
+    // 2) Para cada uno, calcular paradas (clusters de >20min sin moverse) → destinos candidatos
+    const propuestos = [];
+    for (const row of sinViaje.rows) {
+      // Gap-and-island: islas de puntos con vel<=5 separados por movimientos
+      const paradas = await pool.query(`
+        WITH pts AS (
+          SELECT fecha, lat, lng, velocidad,
+                 SUM(CASE WHEN velocidad > 8 THEN 1 ELSE 0 END)
+                   OVER (ORDER BY fecha) AS island_id
+          FROM wisetrack_posiciones
+          WHERE patente = $1 AND fecha::date = $2::date
+        )
+        SELECT
+          AVG(lat) AS lat, AVG(lng) AS lng,
+          MIN(fecha) AS desde, MAX(fecha) AS hasta,
+          EXTRACT(EPOCH FROM (MAX(fecha) - MIN(fecha)))/60 AS duracion_min,
+          COUNT(*) AS puntos
+        FROM pts
+        WHERE velocidad <= 8
+        GROUP BY island_id
+        HAVING EXTRACT(EPOCH FROM (MAX(fecha) - MIN(fecha)))/60 >= 20
+           AND COUNT(*) >= 5
+        ORDER BY desde
+        LIMIT 8
+      `, [row.patente, fecha]);
+
+      // 3) Para cada parada, buscar geocerca cercana (<2km) via haversine
+      const paradasConNombre = await Promise.all(paradas.rows.map(async (p: any) => {
+        const geo = await pool.query(`
+          SELECT nombre,
+            (6371000 * acos(LEAST(1, GREATEST(-1,
+              cos(radians($2)) * cos(radians(lat)) *
+              cos(radians(lng) - radians($1)) +
+              sin(radians($2)) * sin(radians(lat))
+            )))) as dist_m
+          FROM geo_bases
+          WHERE lat IS NOT NULL AND lng IS NOT NULL AND activa=true
+          ORDER BY dist_m ASC LIMIT 1
+        `, [p.lng, p.lat]).catch(() => ({ rows: [] as any[] }));
+        const cercana = geo.rows[0];
+        return {
+          ...p,
+          lugar_sugerido: cercana && cercana.dist_m < 2000 ? cercana.nombre : null,
+          dist_m: cercana?.dist_m ? Math.round(cercana.dist_m) : null,
+        };
+      }));
+
+      // Sugerir viaje: primera parada significativa = origen, última = destino
+      const significativas = paradasConNombre.filter(p => p.duracion_min >= 30);
+      const origen = significativas[0];
+      const destino = significativas[significativas.length - 1];
+
+      propuestos.push({
+        patente: row.patente,
+        puntos: Number(row.puntos),
+        horas_activas: Number(row.horas_activas),
+        primer_pt: row.primer_pt,
+        ultimo_pt: row.ultimo_pt,
+        paradas: paradasConNombre,
+        viaje_sugerido: origen && destino && origen !== destino ? {
+          origen: origen.lugar_sugerido || `(${origen.lat?.toFixed(4)}, ${origen.lng?.toFixed(4)})`,
+          destino: destino.lugar_sugerido || `(${destino.lat?.toFixed(4)}, ${destino.lng?.toFixed(4)})`,
+          origen_lat: origen.lat, origen_lng: origen.lng,
+          destino_lat: destino.lat, destino_lng: destino.lng,
+          duracion_origen_min: Math.round(origen.duracion_min),
+          duracion_destino_min: Math.round(destino.duracion_min),
+          requiere_geocerca_origen: !origen.lugar_sugerido,
+          requiere_geocerca_destino: !destino.lugar_sugerido,
+        } : null,
+      });
+    }
+
+    res.json({ fecha, total: propuestos.length, propuestos });
+  } catch (e: any) {
+    console.error("[viajes-propuestos]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══ Crear geocerca desde un punto sugerido ═══
+router.post("/geocerca-desde-punto", async (req, res) => {
+  try {
+    const { nombre, lat, lng, radio_m, tipo } = req.body;
+    if (!nombre || !lat || !lng) {
+      return res.status(400).json({ error: "nombre, lat, lng requeridos" });
+    }
+    const r = await pool.query(`
+      INSERT INTO geo_bases (nombre, lat, lng, radio_metros, contrato, activa)
+      VALUES ($1, $2, $3, $4, $5, true)
+      RETURNING id, nombre
+    `, [nombre, lat, lng, radio_m || 200, "CENCOSUD"]);
+    res.json({ ok: true, geocerca: r.rows[0] });
+  } catch (e: any) {
+    console.error("[geocerca-desde-punto]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
