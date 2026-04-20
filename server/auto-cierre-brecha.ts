@@ -1,9 +1,4 @@
 import { pool } from "./db";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
 
 export interface AutoCierreResult {
   fecha: string;
@@ -130,16 +125,16 @@ export async function detectarParadasHuerfanas(diasAtras: number = 14): Promise<
       HAVING COUNT(DISTINCT patente) >= 3
         AND COUNT(*) >= 5
     ),
-    -- Excluye los que ya tienen geocerca cerca (<300m via haversine)
+    -- Excluye los que ya tienen geocerca cerca (<300m via haversine) en cualquier tabla
     huerfanas AS (
       SELECT c.* FROM clusters c
       WHERE NOT EXISTS (
-        SELECT 1 FROM geo_bases gb
-        WHERE gb.lat IS NOT NULL AND gb.lng IS NOT NULL AND gb.activa = true
+        SELECT 1 FROM geo_lugares gl
+        WHERE gl.lat IS NOT NULL AND gl.lng IS NOT NULL AND gl.activo = true
           AND (6371000 * acos(LEAST(1, GREATEST(-1,
-            cos(radians(c.lat)) * cos(radians(gb.lat)) *
-            cos(radians(gb.lng) - radians(c.lng)) +
-            sin(radians(c.lat)) * sin(radians(gb.lat))
+            cos(radians(c.lat)) * cos(radians(gl.lat)) *
+            cos(radians(gl.lng) - radians(c.lng)) +
+            sin(radians(c.lat)) * sin(radians(gl.lat))
           )))) < 300
       )
     )
@@ -162,22 +157,58 @@ export async function detectarParadasHuerfanas(diasAtras: number = 14): Promise<
 }
 
 /**
- * Usa Claude para sugerir nombres de geocercas basado en el contexto:
- * coordenadas, ciudad cercana, lugares comerciales típicos del contrato CENCOSUD
- * (JUMBO, Santa Isabel, CD VESPUCIO, CD NOVICIADO, etc).
+ * Reverse geocoding via Nominatim (OpenStreetMap, gratis, sin API key).
+ * Devuelve {comuna, calle, tipo_lugar} para una coordenada.
+ */
+async function reverseGeocode(lat: number, lng: number): Promise<{
+  comuna?: string; calle?: string; nombre?: string; tipo?: string;
+} | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&namedetails=1`;
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "SOTRASER-Fleet/1.0 (logistica@sotraser.cl)" }
+    });
+    if (!resp.ok) return null;
+    const j: any = await resp.json();
+    const a = j.address || {};
+    return {
+      comuna: a.city || a.town || a.village || a.county || a.suburb,
+      calle: a.road,
+      nombre: j.namedetails?.name || j.name,
+      tipo: a.shop || a.amenity || a.industrial || a.building,
+    };
+  } catch { return null; }
+}
+
+/**
+ * Inferir tipo de lugar por duración promedio + densidad de visitas.
+ */
+function inferirTipoPorPatron(p: { duracion_promedio_min: number; camiones: number; visitas: number }): {
+  tipo: string; confianza_base: number;
+} {
+  const d = p.duracion_promedio_min;
+  if (d >= 90) return { tipo: "CD/Centro Logístico", confianza_base: 0.85 };  // larga = carga/descarga
+  if (d >= 45) return { tipo: "Tienda/Punto Entrega", confianza_base: 0.75 };
+  if (d >= 25) return { tipo: "Punto Carga Combustible", confianza_base: 0.70 };
+  return { tipo: "Parada Operacional", confianza_base: 0.60 };
+}
+
+/**
+ * Nombra paradas usando: (1) geocerca CENCOSUD vecina, (2) reverse-geocoding OSM,
+ * (3) heurística por patrón. NO requiere API key. 100% autónomo.
  */
 export async function nombrarParadasConIA(
   paradas: Array<{ lat: number; lng: number; visitas: number; camiones: number; duracion_promedio_min: number }>
 ): Promise<Array<{ lat: number; lng: number; nombre_sugerido: string; confianza: number; razon: string }>> {
-  if (!anthropic || paradas.length === 0) return [];
+  if (paradas.length === 0) return [];
 
-  // Top 10 para no gastar tokens en exceso
-  const top = paradas.slice(0, 10);
+  const top = paradas.slice(0, 15);
+  const out: Array<{ lat: number; lng: number; nombre_sugerido: string; confianza: number; razon: string }> = [];
 
-  // Para cada parada, busco geocerca CENCOSUD más cercana (aunque esté >300m) como pista
-  const enriquecidas = await Promise.all(top.map(async (p) => {
-    const cercana = await pool.query(`
-      SELECT nombre, lat, lng,
+  for (const p of top) {
+    // 1) ¿Hay una geocerca vecina (300m–2km)? Si sí, naming derivado
+    const vecina = await pool.query(`
+      SELECT nombre,
         (6371000 * acos(LEAST(1, GREATEST(-1,
           cos(radians($1)) * cos(radians(lat)) *
           cos(radians(lng) - radians($2)) +
@@ -185,50 +216,51 @@ export async function nombrarParadasConIA(
         )))) AS dist_m
       FROM geo_bases
       WHERE lat IS NOT NULL AND lng IS NOT NULL AND activa = true
-      ORDER BY dist_m ASC LIMIT 3
+      ORDER BY dist_m ASC LIMIT 1
     `, [p.lat, p.lng]);
-    return { ...p, vecinas: cercana.rows };
-  }));
+    const v = vecina.rows[0];
 
-  const prompt = `Eres analista de logística de SOTRASER (transporte para CENCOSUD en Chile).
-Tu tarea: nombrar paradas GPS recurrentes de camiones CENCOSUD para crear geocercas.
+    // 2) Reverse geocoding OSM
+    const geo = await reverseGeocode(p.lat, p.lng);
+    // Throttle: Nominatim pide <1 req/s
+    await new Promise(r => setTimeout(r, 1100));
 
-CONTEXTO DEL CONTRATO CENCOSUD:
-- Centros de distribución (CD): CD VESPUCIO (Santiago), CD NOVICIADO, CD CHILLÁN, CD CONCEPCIÓN
-- Tiendas JUMBO, Santa Isabel, Easy en distintas ciudades de Chile
-- Rutas típicas: Santiago → sur (Chillán, Concepción, Temuco, Valdivia, Osorno, Puerto Montt) y norte (La Serena, Coquimbo)
-- Estaciones de servicio (Copec, Petrobras, Enex) — paradas cortas
-- Bases Sotraser: SOTRASER SANTIAGO, SOTRASER CONCEPCIÓN
+    const patron = inferirTipoPorPatron(p);
+    let nombre = "";
+    let confianza = patron.confianza_base;
+    let razon = "";
 
-Para cada parada propón un nombre conciso y técnico. Si no estás seguro, marca confianza baja.
+    if (v && Number(v.dist_m) < 1500) {
+      // Cerca de geocerca conocida — nombre derivado
+      const distKm = (Number(v.dist_m) / 1000).toFixed(1);
+      nombre = `Zona ${v.nombre} (${distKm}km)`;
+      confianza = Math.min(0.95, confianza + 0.10);
+      razon = `A ${Math.round(Number(v.dist_m))}m de "${v.nombre}", patrón ${patron.tipo}`;
+    } else if (geo?.nombre && geo.tipo) {
+      nombre = `${geo.nombre} - ${geo.comuna || ""}`.trim().slice(0, 50);
+      confianza = Math.min(0.92, confianza + 0.05);
+      razon = `OSM identificó "${geo.tipo}: ${geo.nombre}" en ${geo.comuna}`;
+    } else if (geo?.calle && geo?.comuna) {
+      nombre = `${patron.tipo.split("/")[0]} ${geo.comuna} (${geo.calle})`.slice(0, 50);
+      razon = `OSM ubica en ${geo.calle}, ${geo.comuna} — duración ${p.duracion_promedio_min}min`;
+    } else if (geo?.comuna) {
+      nombre = `${patron.tipo.split("/")[0]} ${geo.comuna}`.slice(0, 50);
+      confianza -= 0.10;
+      razon = `Comuna ${geo.comuna}, sin calle exacta`;
+    } else {
+      nombre = `${patron.tipo} (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`;
+      confianza = 0.40;
+      razon = `Sin datos OSM, solo coords`;
+    }
 
-PARADAS A NOMBRAR (en JSON):
-${JSON.stringify(enriquecidas, null, 2)}
+    // Bonus por densidad: muchos camiones distintos = alta certeza que es lugar real
+    if (p.camiones >= 8) confianza = Math.min(0.97, confianza + 0.08);
+    else if (p.camiones >= 5) confianza = Math.min(0.93, confianza + 0.04);
 
-Responde EXCLUSIVAMENTE con JSON válido, array de objetos con esta forma:
-[
-  {"lat": -33.44, "lng": -70.78, "nombre_sugerido": "Estación Servicio Copec Ruta 5", "confianza": 0.85, "razon": "cerca de Copec Los Vilos Sur a 600m, parada media 30min típica de carga combustible"},
-  ...
-]
-- nombre_sugerido: máximo 50 caracteres, en MAYÚSCULAS si es CD/JUMBO, formato natural si es otro
-- confianza: 0.0 a 1.0
-- razon: 1 frase explicando por qué`;
-
-  try {
-    const resp = await anthropic.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-    const m = text.match(/\[[\s\S]*\]/);
-    if (!m) return [];
-    const arr = JSON.parse(m[0]);
-    return arr.filter((x: any) => x.lat && x.lng && x.nombre_sugerido);
-  } catch (e: any) {
-    console.error("[auto-cierre] IA error:", e.message);
-    return [];
+    out.push({ lat: p.lat, lng: p.lng, nombre_sugerido: nombre, confianza: Math.round(confianza * 100) / 100, razon });
   }
+
+  return out;
 }
 
 /**
@@ -241,8 +273,11 @@ export async function ejecutarAutoCierre(opts: {
   umbralConfianza?: number;
 }): Promise<AutoCierreResult> {
   const t0 = Date.now();
-  const cruce = await cruzarSigetra({ fechaDesde: opts.fecha, fechaHasta: opts.fecha });
-  const huerfanas = await detectarParadasHuerfanas(opts.diasAtras || 14);
+  // Cruce: usa rango de N días hasta opts.fecha para no perder cargas con timezone shift
+  const dias = opts.diasAtras || 14;
+  const fechaDesde = new Date(new Date(opts.fecha).getTime() - dias * 86400000).toISOString().slice(0, 10);
+  const cruce = await cruzarSigetra({ fechaDesde, fechaHasta: opts.fecha });
+  const huerfanas = await detectarParadasHuerfanas(dias);
   const sugerencias = await nombrarParadasConIA(huerfanas);
 
   const propuestas = huerfanas.map((p) => {
@@ -265,14 +300,27 @@ export async function ejecutarAutoCierre(opts: {
     for (const p of propuestas) {
       if (p.confianza >= umbral) {
         try {
+          // Doble inserción: geo_lugares (sistema activo) + geo_bases (compat).
+          // ON CONFLICT-safe: chequea distancia <100m para evitar duplicados muy cercanos.
+          const dup = await pool.query(`
+            SELECT id FROM geo_lugares
+            WHERE activo = true
+              AND (6371000 * acos(LEAST(1, GREATEST(-1,
+                cos(radians($1)) * cos(radians(lat)) *
+                cos(radians(lng) - radians($2)) +
+                sin(radians($1)) * sin(radians(lat))
+              )))) < 100 LIMIT 1
+          `, [p.lat, p.lng]);
+          if (dup.rows.length > 0) continue;
+
           await pool.query(
-            `INSERT INTO geo_bases (nombre, lat, lng, radio_metros, contrato, activa)
-             VALUES ($1, $2, $3, 200, 'CENCOSUD', true)`,
-            [p.nombre, p.lat, p.lng]
+            `INSERT INTO geo_lugares (nombre, lat, lng, radio_metros, tipo, detectado_via, confianza_pct, veces_visitado, activo, confirmado, ultima_visita, primera_visita)
+             VALUES ($1, $2, $3, 200, 'auto-detectado', 'gps-cluster-ia', $4, $5, true, false, CURRENT_DATE, CURRENT_DATE)`,
+            [p.nombre, p.lat, p.lng, Math.round(p.confianza * 100), p.visitas]
           );
           creadas++;
         } catch (e: any) {
-          if (!String(e.message).includes("duplicate")) console.error("[auto-cierre] insert error:", e.message);
+          console.error("[auto-cierre] insert error:", e.message, "| nombre:", p.nombre, "| lat,lng:", p.lat, p.lng);
         }
       }
     }
@@ -290,4 +338,35 @@ export async function ejecutarAutoCierre(opts: {
     geocercas_creadas: creadas,
     duracion_seg: dur,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SCHEDULER AUTÓNOMO: corre cada hora sin intervención humana
+// ═══════════════════════════════════════════════════════════════════════
+let _schedulerStarted = false;
+
+export function iniciarSchedulerAutoCierre() {
+  if (_schedulerStarted) return;
+  _schedulerStarted = true;
+
+  const correrCiclo = async () => {
+    try {
+      const fecha = new Date().toISOString().slice(0, 10);
+      const r = await ejecutarAutoCierre({
+        fecha,
+        diasAtras: 14,
+        autoCrearGeocercas: true,    // crea geocercas con confianza ≥0.85 sin pedir aprobación
+        umbralConfianza: 0.85,
+      });
+      console.log(`[scheduler-auto-cierre] ciclo OK: ${r.cruces_aplicados} cruces, ${r.geocercas_creadas} geocercas auto-creadas, ${r.geocercas_propuestas.length} propuestas pendientes`);
+    } catch (e: any) {
+      console.error(`[scheduler-auto-cierre] error:`, e.message);
+    }
+  };
+
+  // Primer ciclo a los 60s del arranque (deja que la app termine init)
+  setTimeout(correrCiclo, 60_000);
+  // Después cada 1 hora
+  setInterval(correrCiclo, 60 * 60 * 1000);
+  console.log("[scheduler-auto-cierre] activo: ciclo cada 60min");
 }

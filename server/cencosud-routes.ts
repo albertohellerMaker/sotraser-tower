@@ -1002,6 +1002,31 @@ router.get("/brecha", async (req, res) => {
   }
 });
 
+router.post("/t1-reprocesar-rango", async (req, res) => {
+  try {
+    const dias = parseInt(req.body?.dias || "30");
+    const hoy = new Date();
+    const ayer = new Date(hoy.getTime() - 86400000);
+    const desde = new Date(ayer.getTime() - (dias - 1) * 86400000);
+    const fmt = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
+    const { reconstruirRango } = await import("./t1-reconstructor");
+    const inicio = Date.now();
+    const resultados = await reconstruirRango(fmt(desde), fmt(ayer));
+    const totales = resultados.reduce((acc: any, r: any) => ({
+      viajes: acc.viajes + (r.viajes_creados || 0),
+      facturados: acc.facturados + (r.viajes_facturados || 0),
+      camiones: acc.camiones + (r.camiones_procesados || 0),
+    }), { viajes: 0, facturados: 0, camiones: 0 });
+    res.json({
+      ok: true,
+      desde: fmt(desde), hasta: fmt(ayer), dias_procesados: resultados.length,
+      duracion_seg: Math.round((Date.now() - inicio) / 1000),
+      totales,
+      por_dia: resultados,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 router.post("/pl/calcular", async (req, res) => {
   try {
     const fecha = req.body?.fecha as string | undefined;
@@ -1814,8 +1839,9 @@ router.post("/auto-cierre/aprobar-geocerca", async (req, res) => {
     const { lat, lng, nombre, radio_m } = req.body;
     if (!lat || !lng || !nombre) return res.status(400).json({ error: "lat, lng, nombre requeridos" });
     const r = await pool.query(
-      `INSERT INTO geo_bases (nombre, lat, lng, radio_metros, contrato, activa)
-       VALUES ($1, $2, $3, $4, 'CENCOSUD', true) RETURNING id, nombre`,
+      `INSERT INTO geo_lugares (nombre, lat, lng, radio_metros, tipo, detectado_via, confianza_pct, veces_visitado, activo, confirmado, ultima_visita, primera_visita)
+       VALUES ($1, $2, $3, $4, 'manual', 'aprobacion-humana', 100, 0, true, true, CURRENT_DATE, CURRENT_DATE)
+       RETURNING id, nombre`,
       [nombre, lat, lng, radio_m || 200]
     );
     res.json({ ok: true, geocerca: r.rows[0] });

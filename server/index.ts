@@ -171,6 +171,8 @@ app.use((req, res, next) => {
       iniciarWorkers();
       startWiseTrackSync(60_000);
 
+      import("./auto-cierre-brecha").then(m => m.iniciarSchedulerAutoCierre());
+
       setTimeout(async () => {
         try {
           const result = await db.select({ count: sql<number>`count(*)` })
