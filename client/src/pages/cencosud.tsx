@@ -1016,6 +1016,397 @@ function BrechaTab() {
   );
 }
 
+function ResumenEjecutivoTab({ goTab }: { goTab: (t: Tab) => void }) {
+  const qc = useQueryClient();
+  const mesActual = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const hoy = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [accionEnCurso, setAccionEnCurso] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const { data: brecha } = useQuery<any>({ queryKey: ["/api/cencosud/brecha", 30], queryFn: () => fetch(`/api/cencosud/brecha?dias=30&esperado_mes=800000000`).then(r => r.json()), staleTime: 60000, refetchInterval: 120000 });
+  const { data: mes } = useQuery<any>({ queryKey: ["/api/cencosud/resumen-mes"], queryFn: () => fetch("/api/cencosud/resumen-mes").then(r => r.json()), staleTime: 120000 });
+  const { data: plMes } = useQuery<any>({ queryKey: ["/api/cencosud/pl/mes", mesActual], queryFn: () => fetch(`/api/cencosud/pl/mes?mes=${mesActual}`).then(r => r.json()), staleTime: 120000 });
+  const { data: enVivo } = useQuery<any>({ queryKey: ["/api/wisetrack/tms/en-vivo"], queryFn: () => fetch("/api/wisetrack/tms/en-vivo").then(r => r.json()), refetchInterval: 30000 });
+  const { data: ctrl } = useQuery<any>({ queryKey: ["/api/cencosud/control-diario", hoy], queryFn: () => fetch(`/api/cencosud/control-diario?fecha=${hoy}`).then(r => r.json()), staleTime: 60000 });
+  const { data: wt } = useQuery<any>({ queryKey: ["/api/wisetrack/status"], queryFn: () => fetch("/api/wisetrack/status").then(r => r.json()), refetchInterval: 15000 });
+  const { data: intel } = useQuery<any>({ queryKey: ["/api/cencosud/agente/inteligencia"], queryFn: () => fetch("/api/cencosud/agente/inteligencia").then(r => r.json()), staleTime: 120000 });
+  const { data: sinMapear } = useQuery<any>({ queryKey: ["/api/cencosud/sin-mapear"], queryFn: () => fetch("/api/cencosud/sin-mapear").then(r => r.json()), staleTime: 300000 });
+
+  const ejecutar = async (tipo: string, fn: () => Promise<any>) => {
+    setAccionEnCurso(tipo);
+    setFeedback(null);
+    try {
+      const r = await fn();
+      setFeedback({ msg: r?.mensaje || r?.message || "Listo", ok: true });
+      qc.invalidateQueries();
+    } catch (e: any) {
+      setFeedback({ msg: e.message || "Error", ok: false });
+    } finally {
+      setAccionEnCurso(null);
+      setTimeout(() => setFeedback(null), 6000);
+    }
+  };
+
+  const pct = brecha?.pct_captura || 0;
+  const detectado = brecha?.detectado_mensualizado || 0;
+  const esperado = brecha?.esperado_mes || 800_000_000;
+  const brechaMonto = brecha?.brecha_mensual || 0;
+  const colorPct = pct < 30 ? "#ff2244" : pct < 60 ? "#ff6b35" : pct < 90 ? "#ffcc00" : "#00ff88";
+
+  const enRuta = enVivo?.resumen?.en_ruta || 0;
+  const enCD = enVivo?.resumen?.en_cd || 0;
+  const sinGPS = enVivo?.resumen?.sin_gps || 0;
+  const totalActivo = enRuta + enCD + sinGPS;
+
+  const wtHealth = wt?.health;
+  const wtOK = wtHealth?.ok && wtHealth?.mode !== "drain";
+  const wtLag = wtHealth?.lagSec;
+
+  const f = mes?.flota || {};
+  const fi = mes?.financiero || {};
+  const ingresoMes = plMes?.ingreso_total || fi.ingreso_acumulado || 0;
+  const costoMes = plMes?.costo_total || 0;
+  const margen = plMes?.margen_total || 0;
+  const margenPct = plMes?.margen_pct || 0;
+
+  const topRutas = (brecha?.top_sin_tarifa || []).slice(0, 6);
+  const camionesSinViaje = (brecha?.camiones_sin_viaje || []).slice(0, 6);
+  const alertas = (intel?.alertas || []).slice(0, 5);
+  const sinMap = (sinMapear?.sin_mapear || []).slice(0, 5);
+
+  const ctrlResumen = ctrl?.resumen || {};
+  const cumplimiento = ctrlResumen.pct_cumplimiento ?? null;
+
+  const sectionStyle = { background: "#060d14", border: "1px solid #0d2035", borderRadius: 8 };
+
+  return (
+    <div className="space-y-3">
+      {/* HERO BANNER */}
+      <div className="rounded-lg p-5 relative overflow-hidden" style={{
+        background: `linear-gradient(135deg, #060d14 0%, ${colorPct}10 100%)`,
+        border: `1px solid ${colorPct}40`,
+      }}>
+        <div className="flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-5">
+            <div className="relative" style={{ width: 110, height: 110 }}>
+              <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#0d2035" strokeWidth="10" />
+                <circle cx="60" cy="60" r="50" fill="none" stroke={colorPct} strokeWidth="10"
+                  strokeDasharray={`${(pct / 100) * 314} 314`} strokeLinecap="round"
+                  style={{ filter: `drop-shadow(0 0 6px ${colorPct})`, transition: "stroke-dasharray 1s" }} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="font-space text-[28px] font-bold leading-none" style={{ color: colorPct }}>{pct}%</div>
+                <div className="font-exo text-[7px] tracking-widest uppercase mt-0.5" style={{ color: "#5a8090" }}>CAPTURA</div>
+              </div>
+            </div>
+            <div>
+              <div className="font-exo text-[9px] tracking-[0.2em] uppercase mb-1" style={{ color: "#5a8090" }}>CONTRATO CENCOSUD · OBJETIVO MENSUAL</div>
+              <div className="flex items-baseline gap-3 mb-1">
+                <span className="font-space text-[32px] font-bold leading-none" style={{ color: "#00d4ff" }}>{fP(esperado)}</span>
+                <span className="font-exo text-[10px]" style={{ color: "#3a6080" }}>esperado</span>
+              </div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="font-space text-[16px] font-bold" style={{ color: "#00ff88" }}>+{fP(detectado)}</span>
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>detectado</span>
+                <span className="font-space text-[16px] font-bold ml-3" style={{ color: "#ff2244" }}>−{fP(brechaMonto)}</span>
+                <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>brecha</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden w-[420px] max-w-full" style={{ background: "#0a1218" }}>
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: colorPct, boxShadow: `0 0 8px ${colorPct}` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: wtOK ? "#00ff8810" : "#ff224410", border: `1px solid ${wtOK ? "#00ff8840" : "#ff224440"}` }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: wtOK ? "#00ff88" : "#ff2244", animation: "blink 2s infinite" }} />
+              <span className="font-space text-[9px] font-bold tracking-wider" style={{ color: wtOK ? "#00ff88" : "#ff2244" }}>
+                WISETRACK {wtOK ? "OK" : "DEGRADADO"}
+              </span>
+              {wtLag != null && <span className="font-exo text-[9px]" style={{ color: "#5a8090" }}>· lag {wtLag}s</span>}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => goTab("BRECHA")} className="font-space text-[9px] tracking-wider px-3 py-1.5 rounded cursor-pointer hover:brightness-125 transition"
+                style={{ background: "#ff224420", border: "1px solid #ff2244", color: "#ff2244" }}>
+                <DollarSign size={10} className="inline mr-1" />ANALIZAR BRECHA
+              </button>
+              <button onClick={() => goTab("EN_VIVO")} className="font-space text-[9px] tracking-wider px-3 py-1.5 rounded cursor-pointer hover:brightness-125 transition"
+                style={{ background: "#00ff8820", border: "1px solid #00ff88", color: "#00ff88" }}>
+                <Activity size={10} className="inline mr-1" />OPERACIÓN EN VIVO
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI ROW */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+        {[
+          { l: "INGRESO MES", v: fP(ingresoMes), c: "#00ff88", icon: DollarSign, sub: `${plMes?.viajes_facturables || 0}/${plMes?.total_viajes || 0} viajes`, go: "ERR" as Tab },
+          { l: "MARGEN", v: fP(margen), c: margen >= 0 ? "#00ff88" : "#ff2244", icon: TrendingUp, sub: `${margenPct}%` },
+          { l: "COSTO MES", v: fP(costoMes), c: "#ff6b35", icon: Fuel, sub: plMes?.rend_promedio ? `${plMes.rend_promedio} km/L` : "—" },
+          { l: "FLOTA ACTIVA", v: `${totalActivo}/83`, c: "#00d4ff", icon: Truck, sub: `${enRuta} ruta · ${enCD} CD`, go: "FLOTA" as Tab },
+          { l: "EN RUTA AHORA", v: enRuta, c: "#00ff88", icon: Navigation, sub: `${sinGPS} sin GPS`, go: "EN_VIVO" as Tab },
+          { l: "VIAJES MES", v: f.viajes || plMes?.total_viajes || 0, c: "#a855f7", icon: Route, sub: `${f.km ? fN(parseFloat(f.km)) : 0} km`, go: "VIAJES" as Tab },
+          { l: "CUMPLIM HOY", v: cumplimiento != null ? `${cumplimiento}%` : "—", c: cumplimiento >= 80 ? "#00ff88" : cumplimiento >= 50 ? "#ffcc00" : "#ff6b35", icon: Target, sub: `${ctrlResumen.cumplidos || 0}/${ctrlResumen.total || 0}`, go: "CONTROL" as Tab },
+          { l: "SIN MAPEAR", v: sinMapear?.sin_mapear?.length || 0, c: (sinMapear?.sin_mapear?.length || 0) > 20 ? "#ffcc00" : "#3a6080", icon: AlertTriangle, sub: "geocercas faltantes", go: "AGENTE" as Tab },
+        ].map(k => {
+          const Icon = k.icon;
+          return (
+            <div key={k.l} onClick={() => k.go && goTab(k.go)}
+              className={`rounded-lg p-3 ${k.go ? "cursor-pointer hover:brightness-125 transition" : ""}`}
+              style={{ background: "#060d14", borderTop: `2px solid ${k.c}`, border: "1px solid #0d2035" }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <Icon className="w-3.5 h-3.5" style={{ color: `${k.c}80` }} />
+                {k.go && <span className="font-space text-[7px]" style={{ color: "#3a6080" }}>›</span>}
+              </div>
+              <div className="font-space text-[15px] font-bold leading-tight" style={{ color: k.c }}>{k.v}</div>
+              <div className="font-exo text-[7px] tracking-wider uppercase mt-1 truncate" style={{ color: "#3a6080" }}>{k.l}</div>
+              <div className="font-exo text-[8px] truncate" style={{ color: "#5a8090" }}>{k.sub}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* TRES COLUMNAS: OPERACIÓN + OPORTUNIDADES + ALERTAS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* OPERACIÓN HOY */}
+        <div className="p-4" style={sectionStyle}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-exo text-[8px] tracking-[0.2em] uppercase font-bold" style={{ color: "#00ff88" }}>
+              <Activity size={10} className="inline mr-1.5" />OPERACIÓN AHORA
+            </div>
+            <button onClick={() => goTab("EN_VIVO")} className="font-space text-[8px]" style={{ color: "#00d4ff" }}>VER MAPA ›</button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {[
+              { l: "EN RUTA", v: enRuta, c: "#00ff88" },
+              { l: "EN CD", v: enCD, c: "#00d4ff" },
+              { l: "SIN GPS", v: sinGPS, c: sinGPS > 0 ? "#ff6b35" : "#3a6080" },
+            ].map(k => (
+              <div key={k.l} className="text-center py-2 rounded" style={{ background: "#0a1218" }}>
+                <div className="font-space text-[22px] font-bold leading-none" style={{ color: k.c }}>{k.v}</div>
+                <div className="font-exo text-[7px] tracking-wider uppercase mt-1" style={{ color: "#3a6080" }}>{k.l}</div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1.5 max-h-[220px] overflow-auto">
+            {(enVivo?.en_ruta || []).slice(0, 6).map((c: any) => (
+              <div key={c.patente} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "#0a1218" }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Truck className="w-3 h-3 flex-shrink-0" style={{ color: "#00ff88" }} />
+                  <span className="font-space text-[10px] font-bold truncate" style={{ color: "#c8e8ff" }}>{c.patente}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="font-exo text-[9px]" style={{ color: "#5a8090" }}>{c.destino_probable?.nombre || c.entrega?.nombre || "—"}</span>
+                  <span className="font-space text-[9px] font-bold" style={{ color: c.velocidad > 0 ? "#00ff88" : "#ff6b35" }}>{Math.round(c.velocidad || 0)}</span>
+                </div>
+              </div>
+            ))}
+            {(enVivo?.en_ruta || []).length === 0 && (
+              <div className="text-center py-6 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin camiones en ruta ahora</div>
+            )}
+          </div>
+        </div>
+
+        {/* TOP OPORTUNIDADES */}
+        <div className="p-4" style={sectionStyle}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-exo text-[8px] tracking-[0.2em] uppercase font-bold" style={{ color: "#ffcc00" }}>
+              <Target size={10} className="inline mr-1.5" />OPORTUNIDADES $$
+            </div>
+            <button onClick={() => goTab("BRECHA")} className="font-space text-[8px]" style={{ color: "#00d4ff" }}>VER TODO ›</button>
+          </div>
+          <div className="font-exo text-[8px] mb-2" style={{ color: "#3a6080" }}>RUTAS SIN TARIFA — cargar al contrato recupera $$ inmediato</div>
+          <div className="space-y-1">
+            {topRutas.length === 0 && <div className="text-center py-6 font-exo text-[9px]" style={{ color: "#3a6080" }}>Sin oportunidades detectadas</div>}
+            {topRutas.map((r: any, i: number) => (
+              <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded" style={{ background: "#0a1218" }}>
+                <div className="min-w-0 flex-1">
+                  <div className="font-exo text-[10px] truncate" style={{ color: "#c8e8ff" }}>
+                    {r.origen_nombre} → {r.destino_nombre}
+                  </div>
+                  <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>{r.km_promedio || 0} km · {r.veces}× en 30d</div>
+                </div>
+                <div className="font-space text-[11px] font-bold ml-2" style={{ color: "#ffcc00" }}>{r.veces}×</div>
+              </div>
+            ))}
+          </div>
+          {camionesSinViaje.length > 0 && (
+            <div className="mt-3 pt-3" style={{ borderTop: "1px solid #0d2035" }}>
+              <div className="font-exo text-[8px] mb-2" style={{ color: "#ff6b35" }}>CAMIONES CON KM PERO SIN VIAJE: {camionesSinViaje.length}</div>
+              <div className="flex flex-wrap gap-1">
+                {camionesSinViaje.map((c: any, i: number) => (
+                  <span key={i} className="font-space text-[8px] px-1.5 py-0.5 rounded" style={{ background: "#ff224415", color: "#ff6b35" }}>{c.patente}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ALERTAS + SALUD */}
+        <div className="p-4" style={sectionStyle}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-exo text-[8px] tracking-[0.2em] uppercase font-bold" style={{ color: "#ff2244" }}>
+              <AlertTriangle size={10} className="inline mr-1.5" />ALERTAS Y SALUD
+            </div>
+            <button onClick={() => goTab("AGENTE")} className="font-space text-[8px]" style={{ color: "#00d4ff" }}>AGENTE ›</button>
+          </div>
+          <div className="space-y-1.5 max-h-[260px] overflow-auto">
+            {alertas.length === 0 && sinMap.length === 0 && (
+              <div className="text-center py-4 font-exo text-[9px]" style={{ color: "#00ff88" }}>
+                <Check size={14} className="inline mr-1" />Sin alertas críticas
+              </div>
+            )}
+            {alertas.map((a: any, i: number) => (
+              <div key={i} className="px-2 py-1.5 rounded" style={{ background: "#ff224410", borderLeft: "2px solid #ff2244" }}>
+                <div className="font-space text-[9px] font-bold" style={{ color: "#ff6b35" }}>{a.tipo || a.titulo || "Alerta"}</div>
+                <div className="font-exo text-[9px]" style={{ color: "#c8e8ff" }}>{a.descripcion || a.mensaje || a.detalle || ""}</div>
+              </div>
+            ))}
+            {sinMap.length > 0 && (
+              <div className="px-2 py-1.5 rounded" style={{ background: "#ffcc0010", borderLeft: "2px solid #ffcc00" }}>
+                <div className="font-space text-[9px] font-bold" style={{ color: "#ffcc00" }}>{sinMapear.sin_mapear.length} geocercas sin mapear</div>
+                <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>Top: {sinMap.map((s: any) => s.geocerca || s.nombre).filter(Boolean).slice(0, 3).join(", ")}</div>
+              </div>
+            )}
+            {brecha?.origen_no_cd?.length > 0 && (
+              <div className="px-2 py-1.5 rounded" style={{ background: "#ff6b3510", borderLeft: "2px solid #ff6b35" }}>
+                <div className="font-space text-[9px] font-bold" style={{ color: "#ff6b35" }}>Viajes con origen no-CD: {brecha.origen_no_cd.length}</div>
+                <div className="font-exo text-[8px]" style={{ color: "#5a8090" }}>Top: {brecha.origen_no_cd.slice(0, 2).map((o: any) => `${o.origen_nombre} (${o.veces}×)`).join(", ")}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* P&L + TENDENCIA */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="p-4" style={sectionStyle}>
+          <div className="font-exo text-[8px] tracking-[0.2em] uppercase font-bold mb-3" style={{ color: "#00ff88" }}>
+            <DollarSign size={10} className="inline mr-1.5" />P&L DEL MES
+          </div>
+          {plMes ? (
+            <div className="space-y-1.5">
+              {[
+                { l: "Ingreso tarifa", v: fP(plMes.ingreso_total || 0), c: "#00ff88" },
+                { l: "Costo diésel", v: fP(plMes.costo_diesel_total || 0), c: "#ff6b35" },
+                { l: "Costo CVM", v: fP(plMes.costo_cvm_total || 0), c: "#ff6b35" },
+                { l: "Costo total", v: fP(plMes.costo_total || 0), c: "#ff6b35" },
+                { l: "Viajes facturables", v: `${plMes.viajes_facturables || 0} / ${plMes.total_viajes || 0}`, c: "#c8e8ff" },
+                { l: "KM total", v: fN(plMes.km_total || 0), c: "#c8e8ff" },
+                { l: "KM/L promedio", v: plMes.rend_promedio || "—", c: RC(parseFloat(plMes.rend_promedio) || 0) },
+              ].map(k => (
+                <div key={k.l} className="flex justify-between items-center py-0.5">
+                  <span className="font-exo text-[9px]" style={{ color: "#3a6080" }}>{k.l}</span>
+                  <span className="font-space text-[10px] font-bold" style={{ color: k.c }}>{k.v}</span>
+                </div>
+              ))}
+              <div className="pt-2 mt-2 flex justify-between items-baseline" style={{ borderTop: "1px solid #0d2035" }}>
+                <span className="font-exo text-[10px] font-bold tracking-wider" style={{ color: "#3a6080" }}>MARGEN BRUTO</span>
+                <div className="text-right">
+                  <div className="font-space text-[16px] font-bold" style={{ color: margen >= 0 ? "#00ff88" : "#ff2244" }}>{fP(margen)}</div>
+                  <div className="font-space text-[9px]" style={{ color: margen >= 0 ? "#00ff88" : "#ff2244" }}>{margenPct}%</div>
+                </div>
+              </div>
+            </div>
+          ) : <div className="font-exo text-[9px] text-center py-8" style={{ color: "#3a6080" }}>Cargando P&L…</div>}
+        </div>
+
+        <div className="p-4" style={sectionStyle}>
+          <div className="font-exo text-[8px] tracking-[0.2em] uppercase font-bold mb-3" style={{ color: "#00d4ff" }}>
+            <TrendingUp size={10} className="inline mr-1.5" />TENDENCIA DIARIA · KM Y RENDIMIENTO
+          </div>
+          {(mes?.tendencia || []).length > 0 ? (
+            <>
+              <div className="flex items-end gap-0.5" style={{ height: 110 }}>
+                {(mes?.tendencia || []).map((d: any) => {
+                  const maxKm = Math.max(...(mes?.tendencia || []).map((t: any) => parseFloat(t.km) || 0));
+                  const h = maxKm > 0 ? (parseFloat(d.km) / maxKm) * 100 : 5;
+                  const c = RC(parseFloat(d.rend) || 0);
+                  return (
+                    <div key={d.dia} className="flex-1 flex flex-col items-center gap-0.5 group" title={`${d.dia}: ${fN(parseFloat(d.km) || 0)} km · ${d.rend} km/L`}>
+                      <span className="font-space text-[6px] opacity-0 group-hover:opacity-100" style={{ color: c }}>{d.rend}</span>
+                      <div className="w-full rounded-t transition-all" style={{ height: Math.max(3, h), background: c, opacity: 0.85 }} />
+                      <span className="font-exo text-[6px]" style={{ color: "#3a6080" }}>{d.dia.slice(8)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-2" style={{ borderTop: "1px solid #0d2035" }}>
+                <div className="text-center">
+                  <div className="font-space text-[14px] font-bold" style={{ color: "#00d4ff" }}>{fN(parseFloat(f.km) || 0)}</div>
+                  <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>KM mes</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-space text-[14px] font-bold" style={{ color: RC(parseFloat(f.rend) || 0) }}>{f.rend || "—"}</div>
+                  <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>KM/L</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-space text-[14px] font-bold" style={{ color: "#a855f7" }}>{f.viajes || 0}</div>
+                  <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>VIAJES</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-space text-[14px] font-bold" style={{ color: "#ffcc00" }}>{mes?.dia_actual || "—"}/{mes?.dias_mes || "—"}</div>
+                  <div className="font-exo text-[7px] tracking-wider uppercase" style={{ color: "#3a6080" }}>DÍA</div>
+                </div>
+              </div>
+            </>
+          ) : <div className="font-exo text-[9px] text-center py-8" style={{ color: "#3a6080" }}>Sin datos de tendencia</div>}
+        </div>
+      </div>
+
+      {/* ACCIONES RÁPIDAS */}
+      <div className="p-4" style={sectionStyle}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-exo text-[8px] tracking-[0.2em] uppercase font-bold" style={{ color: "#a855f7" }}>
+            <Zap size={10} className="inline mr-1.5" />ACCIONES RÁPIDAS
+          </div>
+          {feedback && (
+            <span className="font-exo text-[9px] px-2 py-1 rounded" style={{ background: feedback.ok ? "#00ff8815" : "#ff224415", color: feedback.ok ? "#00ff88" : "#ff2244" }}>
+              {feedback.ok ? "✓" : "✕"} {feedback.msg}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button disabled={!!accionEnCurso} onClick={() => ejecutar("reproc", async () => {
+            const hasta = new Date().toISOString().slice(0, 10);
+            const desde = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+            const r = await fetch("/api/cencosud/t1-reconstruir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ desde, hasta }) }).then(r => r.json());
+            const tot = (r.resultados || []).reduce((s: number, x: any) => s + (x.viajes_creados || 0), 0);
+            return { mensaje: `${tot} viajes en ${(r.resultados || []).length} días` };
+          })} className="px-3 py-2 rounded font-space text-[9px] font-bold tracking-wider cursor-pointer hover:brightness-125 transition disabled:opacity-50"
+            style={{ background: "#a855f720", border: "1px solid #a855f7", color: "#a855f7" }}>
+            {accionEnCurso === "reproc" ? <Loader2 size={11} className="inline animate-spin mr-1" /> : <RefreshCw size={11} className="inline mr-1" />}
+            REPROCESAR 30D
+          </button>
+          <button disabled={!!accionEnCurso} onClick={() => ejecutar("pl", async () => {
+            await fetch("/api/cencosud/pl/calcular", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+            return { mensaje: "P&L recalculado" };
+          })} className="px-3 py-2 rounded font-space text-[9px] font-bold tracking-wider cursor-pointer hover:brightness-125 transition disabled:opacity-50"
+            style={{ background: "#00ff8820", border: "1px solid #00ff88", color: "#00ff88" }}>
+            {accionEnCurso === "pl" ? <Loader2 size={11} className="inline animate-spin mr-1" /> : <DollarSign size={11} className="inline mr-1" />}
+            RECALCULAR P&L
+          </button>
+          <button disabled={!!accionEnCurso} onClick={() => ejecutar("autocierre", async () => {
+            const r = await fetch("/api/cencosud/auto-cierre/ejecutar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }).then(r => r.json());
+            return { mensaje: r.mensaje || `Procesado` };
+          })} className="px-3 py-2 rounded font-space text-[9px] font-bold tracking-wider cursor-pointer hover:brightness-125 transition disabled:opacity-50"
+            style={{ background: "#ffcc0020", border: "1px solid #ffcc00", color: "#ffcc00" }}>
+            {accionEnCurso === "autocierre" ? <Loader2 size={11} className="inline animate-spin mr-1" /> : <Brain size={11} className="inline mr-1" />}
+            AUTO-CIERRE BRECHA
+          </button>
+          <button onClick={() => goTab("CRUCE")} className="px-3 py-2 rounded font-space text-[9px] font-bold tracking-wider cursor-pointer hover:brightness-125 transition"
+            style={{ background: "#ff880020", border: "1px solid #ff8800", color: "#ff8800" }}>
+            <Activity size={11} className="inline mr-1" />CRUZAR SIGETRA
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CencosudView({ onBack, gpsSource = "wisetrack", onNavigate }: { onBack: () => void; gpsSource?: "wisetrack"; onNavigate?: (tab: string) => void }) {
   const [tab, setTab] = useState<Tab>("EN_VIVO");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -1641,8 +2032,11 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
           );
         })()}
 
-        {/* ═══ RESUMEN ═══ */}
-        {tab === "RESUMEN" && (
+        {/* ═══ RESUMEN EJECUTIVO ═══ */}
+        {tab === "RESUMEN" && <ResumenEjecutivoTab goTab={setTab} />}
+
+        {/* ═══ RESUMEN LEGACY (oculto) ═══ */}
+        {false && (
           <>
             {/* KPIs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">

@@ -542,8 +542,6 @@ const EQUIVALENCIAS: Record<string, string[]> = {
   "Castro": ["CT Castro"],
   "Coyhaique": ["CT Coyhaique"],
   "Punta Arenas": ["CT Punta Arenas"],
-  "Lo Aguirre": ["CD Lo Aguirre", "Centro de distribución Lo Aguirre"],
-  "Pudahuel": ["CD Pudahuel", "CD CENCOSUD Pudahuel"],
   "CD Pudahuel": ["Pudahuel", "CD CENCOSUD Pudahuel"],
 };
 
