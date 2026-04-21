@@ -85,7 +85,7 @@ export default function MapaEnVivo() {
           {filtered.filter(c => c.lat && c.lng).map(c => {
             const color = statusColors[c.estado] || "#3a6080";
             return (
-              <DivMarker key={c.camionId} position={[c.lat, c.lng]}
+              <DivMarker key={c.camionId} position={[c.lat as number, c.lng as number]}
                 onClick={() => setSelectedCamion(c.camionId)}
                 html={`<div style="width:24px;height:24px;background:${color};border:2px solid #020508;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transform:rotate(${c.rumbo}deg);cursor:pointer">&#9650;</div>`}
                 size={[24, 24]} />

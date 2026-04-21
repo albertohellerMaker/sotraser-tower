@@ -45,7 +45,7 @@ export async function registerRoutes(
 
   app.get("/api/contratos", async (req, res) => {
     try {
-      const contracts = await getAllContracts(false);
+      const contracts = await getAllContracts();
       res.json(contracts);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -79,7 +79,7 @@ export async function registerRoutes(
   app.get("/api/camiones", async (req, res) => {
     const cams = await storage.getCamiones();
     const faenaIdFilter = req.query.faenaId ? parseInt(req.query.faenaId as string) : null;
-    let filtered = cams.filter(c => c.activo !== false);
+    let filtered = cams.filter(c => (c as any).activo !== false);
     if (faenaIdFilter) {
       filtered = filtered.filter(c => c.faenaId === faenaIdFilter);
     }
@@ -481,7 +481,7 @@ export async function registerRoutes(
             estado: v.estado,
             km: parseFloat(v.kmRecorridos || "0") || 0,
             rendimiento: parseFloat(v.rendimientoReal || "0") || 0,
-            litros: parseFloat(v.litrosCargadosSigetra || v.kmRecorridos || "0") || 0,
+            litros: parseFloat((v as any).litrosCargadosSigetra || v.kmRecorridos || "0") || 0,
           }));
       }
 

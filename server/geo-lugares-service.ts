@@ -314,12 +314,12 @@ export async function generarAnalisisIA(): Promise<{ resumen: string; datos: any
   })).filter(l => (l.vecesVisitado || 0) > 0).sort((a, b) => (b.vecesVisitado || 0) - (a.vecesVisitado || 0));
 
   const anomaliasKm = cencosudViajes
-    .filter(v => v.cargaKmDeltaPct && Math.abs(parseFloat(v.cargaKmDeltaPct)) > 10)
+    .filter(v => (v as any).cargaKmDeltaPct && Math.abs(parseFloat((v as any).cargaKmDeltaPct)) > 10)
     .map(v => ({
       patente: v.patente,
       fecha: v.origenTimestamp,
       kmGps: v.kmGps,
-      deltaPct: v.cargaKmDeltaPct,
+      deltaPct: (v as any).cargaKmDeltaPct,
     }));
 
   const validacionResumen = {

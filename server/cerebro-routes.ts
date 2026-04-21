@@ -45,7 +45,7 @@ Datos del sistema:
 - Rutas conocidas: ${estado.total_corredores_conocidos}
 - Conductores analizados: ${estado.total_conductores_analizados}
 - Camiones perfilados: ${estado.total_camiones_perfilados}
-- Posiciones WiseTrack: ${estado.total_posiciones_wisetrack || 0}
+- Posiciones WiseTrack: ${(estado as any).total_posiciones_wisetrack || 0}
 - Confianza global: ${estado.confianza_global}
 - Alertas de patron activas: ${estado.alertas_patron_activas}
 
