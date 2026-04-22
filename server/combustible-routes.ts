@@ -99,4 +99,129 @@ router.get("/ranking-camiones", async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ANTIFRAUDE — cruces para detectar robos
+router.get("/antifraude", async (req, res) => {
+  try {
+    const dias = parseInt((req.query.dias as string) || "30");
+    const contrato = (req.query.contrato as string) || "TODOS";
+    const PRECIO_DIESEL = parseFloat((req.query.precio as string) || "1100");
+
+    const [duplicadas, surtidorVsEcu, sinMovimiento, sobreCapacidad, rendBajo] = await Promise.all([
+      // A) Cargas duplicadas: misma patente, < 6h entre cargas
+      pool.query(`
+        SELECT c1.id as id1, c2.id as id2, c1.patente, c1.fecha::text as fecha1, c2.fecha::text as fecha2,
+          c1.litros_surtidor as litros1, c2.litros_surtidor as litros2,
+          c1.lugar_consumo as lugar1, c2.lugar_consumo as lugar2, c1.conductor,
+          EXTRACT(EPOCH FROM (c2.fecha::timestamp - c1.fecha::timestamp))/3600 as horas_diff,
+          (c1.litros_surtidor + c2.litros_surtidor) as litros_total
+        FROM cargas c1 JOIN cargas c2 ON c2.patente = c1.patente AND c2.id > c1.id
+          AND c2.fecha::timestamp > c1.fecha::timestamp
+          AND c2.fecha::timestamp <= c1.fecha::timestamp + INTERVAL '6 hours'
+        WHERE c1.fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND c1.litros_surtidor >= 30 AND c2.litros_surtidor >= 30
+          AND ($2 = 'TODOS' OR c1.faena = $2)
+        ORDER BY litros_total DESC LIMIT 100
+      `, [dias, contrato]),
+
+      // B) Surtidor >> ECU: combustible cargado al ticket pero no entró al estanque
+      pool.query(`
+        SELECT id, patente, fecha::text, litros_surtidor, litros_ecu,
+          (litros_surtidor - litros_ecu) as diff_litros,
+          ROUND(((litros_surtidor - litros_ecu) / NULLIF(litros_surtidor,0) * 100)::numeric, 1) as diff_pct,
+          lugar_consumo, conductor, faena
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND litros_surtidor >= 50 AND litros_ecu > 0
+          AND (litros_surtidor - litros_ecu) > 25
+          AND ((litros_surtidor - litros_ecu) / NULLIF(litros_surtidor,0)) > 0.10
+          AND ($2 = 'TODOS' OR faena = $2)
+        ORDER BY (litros_surtidor - litros_ecu) DESC LIMIT 100
+      `, [dias, contrato]),
+
+      // C) Carga sin movimiento de km: cargó >100L pero camión casi no se movió
+      pool.query(`
+        SELECT id, patente, fecha::text, litros_surtidor, km_anterior, km_actual,
+          (km_actual - km_anterior) as km_recorridos,
+          lugar_consumo, conductor, faena
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND litros_surtidor >= 100
+          AND (km_actual - km_anterior) BETWEEN 0 AND 30
+          AND km_anterior > 0
+          AND ($2 = 'TODOS' OR faena = $2)
+        ORDER BY litros_surtidor DESC LIMIT 100
+      `, [dias, contrato]),
+
+      // D) Carga > capacidad típica (umbral 700L = camión sin estanque doble)
+      pool.query(`
+        SELECT id, patente, fecha::text, litros_surtidor,
+          700 as capacidad,
+          (litros_surtidor - 700) as exceso,
+          lugar_consumo, conductor, faena
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND litros_surtidor > 700
+          AND ($2 = 'TODOS' OR faena = $2)
+        ORDER BY litros_surtidor DESC LIMIT 50
+      `, [dias, contrato]),
+
+      // E) Rendimiento real muy bajo vs promedio histórico del camión (consumo excesivo)
+      pool.query(`
+        WITH promedios AS (
+          SELECT patente, AVG(rend_real) as rend_avg, COUNT(*) as n
+          FROM cargas WHERE rend_real > 0 AND rend_real < 10
+            AND fecha::timestamp >= NOW() - INTERVAL '180 days'
+          GROUP BY patente HAVING COUNT(*) >= 5
+        )
+        SELECT c.id, c.patente, c.fecha::text, c.litros_surtidor, c.rend_real,
+          ROUND(p.rend_avg::numeric, 2) as rend_adn,
+          ROUND(((p.rend_avg - c.rend_real) / NULLIF(p.rend_avg,0) * 100)::numeric, 1) as caida_pct,
+          (c.km_actual - c.km_anterior) as km_recorridos,
+          (c.litros_surtidor - (c.km_actual - c.km_anterior) / NULLIF(p.rend_avg,0)) as litros_extra,
+          c.lugar_consumo, c.conductor, c.faena
+        FROM cargas c JOIN promedios p ON p.patente = c.patente
+        WHERE c.fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND c.rend_real > 0 AND c.rend_real < p.rend_avg * 0.75
+          AND (c.km_actual - c.km_anterior) >= 100
+          AND ($2 = 'TODOS' OR c.faena = $2)
+        ORDER BY (p.rend_avg - c.rend_real) DESC LIMIT 100
+      `, [dias, contrato]),
+    ]);
+
+    const litrosDup = duplicadas.rows.reduce((s: number, r: any) => s + Math.min(parseFloat(r.litros1), parseFloat(r.litros2)), 0);
+    const litrosSurtVsEcu = surtidorVsEcu.rows.reduce((s: number, r: any) => s + parseFloat(r.diff_litros), 0);
+    const litrosSinMov = sinMovimiento.rows.reduce((s: number, r: any) => s + parseFloat(r.litros_surtidor), 0);
+    const litrosSobreCap = sobreCapacidad.rows.reduce((s: number, r: any) => s + parseFloat(r.exceso), 0);
+    const litrosRendBajo = rendBajo.rows.reduce((s: number, r: any) => s + Math.max(0, parseFloat(r.litros_extra) || 0), 0);
+
+    const totalLitros = litrosDup + litrosSurtVsEcu + litrosSinMov + litrosSobreCap + litrosRendBajo;
+    const totalCLP = Math.round(totalLitros * PRECIO_DIESEL);
+
+    res.json({
+      periodo_dias: dias,
+      precio_diesel: PRECIO_DIESEL,
+      resumen: {
+        total_alertas: duplicadas.rows.length + surtidorVsEcu.rows.length + sinMovimiento.rows.length + sobreCapacidad.rows.length + rendBajo.rows.length,
+        litros_perdidos_estimados: Math.round(totalLitros),
+        clp_perdidos_estimados: totalCLP,
+        por_categoria: {
+          duplicadas: { casos: duplicadas.rows.length, litros: Math.round(litrosDup), clp: Math.round(litrosDup * PRECIO_DIESEL) },
+          surtidor_vs_ecu: { casos: surtidorVsEcu.rows.length, litros: Math.round(litrosSurtVsEcu), clp: Math.round(litrosSurtVsEcu * PRECIO_DIESEL) },
+          sin_movimiento: { casos: sinMovimiento.rows.length, litros: Math.round(litrosSinMov), clp: Math.round(litrosSinMov * PRECIO_DIESEL) },
+          sobre_capacidad: { casos: sobreCapacidad.rows.length, litros: Math.round(litrosSobreCap), clp: Math.round(litrosSobreCap * PRECIO_DIESEL) },
+          rendimiento_bajo: { casos: rendBajo.rows.length, litros: Math.round(litrosRendBajo), clp: Math.round(litrosRendBajo * PRECIO_DIESEL) },
+        },
+      },
+      duplicadas: duplicadas.rows,
+      surtidor_vs_ecu: surtidorVsEcu.rows,
+      sin_movimiento: sinMovimiento.rows,
+      sobre_capacidad: sobreCapacidad.rows,
+      rendimiento_bajo: rendBajo.rows,
+    });
+  } catch (e: any) {
+    console.error("[antifraude]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

@@ -9,7 +9,7 @@ import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS" | "AUTO";
+type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS" | "AUTO" | "ANTIFRAUDE";
 
 function MapeoInteractivo() {
   const qc = useQueryClient();
@@ -788,6 +788,199 @@ function AutomatizacionTab() {
   );
 }
 
+function AntifraudeTab() {
+  const [dias, setDias] = useState(30);
+  const [contrato, setContrato] = useState("TODOS");
+  const { data, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/combustible/antifraude", dias, contrato],
+    queryFn: () => fetch(`/api/combustible/antifraude?dias=${dias}&contrato=${contrato}`).then(r => r.json()),
+    staleTime: 60000,
+  });
+
+  if (isLoading) return <div className="p-8 text-center font-space text-xs" style={{ color: "#3a6080" }}>ANALIZANDO CRUCES…</div>;
+  if (!data || !data.resumen) return <div className="p-8 text-center font-space text-xs" style={{ color: "#ff2244" }}>SIN DATOS</div>;
+
+  const r = data.resumen;
+  const cats: { key: keyof typeof r.por_categoria; label: string; color: string; desc: string }[] = [
+    { key: "duplicadas", label: "CARGAS DUPLICADAS", color: "#ff0066", desc: "Misma patente, 2+ cargas en <6h" },
+    { key: "surtidor_vs_ecu", label: "SURTIDOR > ECU", color: "#ff2244", desc: "Cargado al ticket pero no entró al estanque (>10%)" },
+    { key: "sin_movimiento", label: "CARGA SIN MOVIMIENTO", color: "#ff8800", desc: "Cargó >100L pero camión no se movió (<30km)" },
+    { key: "sobre_capacidad", label: "SOBRE CAPACIDAD", color: "#ffcc00", desc: "Carga > capacidad real del estanque" },
+    { key: "rendimiento_bajo", label: "CONSUMO ANÓMALO", color: "#a855f7", desc: "Rendimiento <75% del histórico (litros se evaporan)" },
+  ];
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-space text-sm font-bold tracking-widest" style={{ color: "#ff0066" }}>AUDITORÍA ANTIFRAUDE COMBUSTIBLE</h2>
+          <div className="font-space text-[9px] mt-1" style={{ color: "#3a6080" }}>5 cruces automáticos · pérdida estimada en CLP a precio diésel ${data.precio_diesel}/L</div>
+        </div>
+        <div className="flex gap-2 items-center">
+          <select value={dias} onChange={e => setDias(parseInt(e.target.value))} className="font-space text-[10px] px-2 py-1" style={{ background: "#0a1218", color: "#00d4ff", border: "1px solid #0d2035" }}>
+            <option value={7}>7 días</option><option value={30}>30 días</option><option value={90}>90 días</option>
+          </select>
+          <select value={contrato} onChange={e => setContrato(e.target.value)} className="font-space text-[10px] px-2 py-1" style={{ background: "#0a1218", color: "#00d4ff", border: "1px solid #0d2035" }}>
+            <option value="TODOS">TODOS</option><option value="CENCOSUD">CENCOSUD</option><option value="WALMART">WALMART</option>
+          </select>
+          <button onClick={() => refetch()} className="font-space text-[10px] px-3 py-1 font-bold" style={{ background: "#ff006615", color: "#ff0066", border: "1px solid #ff0066" }}>ACTUALIZAR</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-4" style={{ background: "#1a0510", border: "2px solid #ff0066" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#ff0066" }}>PÉRDIDA ESTIMADA TOTAL</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: "#ff0066" }}>${fN(r.clp_perdidos_estimados)}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#ff6699" }}>{fN(r.litros_perdidos_estimados)} L · últimos {data.periodo_dias} días</div>
+        </div>
+        <div className="p-4" style={{ background: "#0a1218", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#3a6080" }}>ALERTAS DETECTADAS</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: "#ff8800" }}>{r.total_alertas}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#3a6080" }}>casos sospechosos</div>
+        </div>
+        <div className="p-4" style={{ background: "#0a1218", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#3a6080" }}>PROYECCIÓN ANUAL</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: "#ffcc00" }}>${fN(Math.round(r.clp_perdidos_estimados * 365 / data.periodo_dias))}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#3a6080" }}>si la tendencia continúa</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-5 gap-2">
+        {cats.map(c => {
+          const v = r.por_categoria[c.key];
+          return (
+            <div key={String(c.key)} className="p-3" style={{ background: "#0a1218", borderTop: `2px solid ${c.color}`, border: "1px solid #0d2035" }}>
+              <div className="font-space text-[8px] tracking-widest" style={{ color: c.color }}>{c.label}</div>
+              <div className="font-orbitron text-lg font-bold mt-1" style={{ color: "#fff" }}>{v.casos}</div>
+              <div className="font-space text-[9px]" style={{ color: c.color }}>${fN(v.clp)}</div>
+              <div className="font-space text-[8px] mt-1" style={{ color: "#3a6080" }}>{v.litros} L</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {data.duplicadas.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ff006640" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ff0066", borderBottom: "1px solid #ff006640" }}>
+            CARGAS DUPLICADAS — {data.duplicadas.length} casos
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">CARGA 1</th><th className="text-left p-2">CARGA 2</th><th className="text-right p-2">HRS</th><th className="text-right p-2">L TOTAL</th><th className="text-left p-2">CONDUCTOR</th><th className="text-left p-2">LUGAR</th>
+            </tr></thead>
+            <tbody>{data.duplicadas.slice(0, 30).map((d: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{d.patente}</td>
+                <td className="p-2">{d.fecha1?.slice(0, 16)} <span style={{ color: "#ff8800" }}>({d.litros1}L)</span></td>
+                <td className="p-2">{d.fecha2?.slice(0, 16)} <span style={{ color: "#ff8800" }}>({d.litros2}L)</span></td>
+                <td className="p-2 text-right" style={{ color: "#ffcc00" }}>{parseFloat(d.horas_diff).toFixed(1)}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ff0066" }}>{Math.round(d.litros_total)}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.conductor || "—"}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.lugar1 || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {data.surtidor_vs_ecu.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ff224440" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ff2244", borderBottom: "1px solid #ff224440" }}>
+            SURTIDOR vs ECU — {data.surtidor_vs_ecu.length} cargas no entraron al estanque
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">FECHA</th><th className="text-right p-2">SURTIDOR</th><th className="text-right p-2">ECU</th><th className="text-right p-2">DIFF L</th><th className="text-right p-2">DIFF %</th><th className="text-left p-2">ESTACIÓN</th><th className="text-left p-2">CONDUCTOR</th>
+            </tr></thead>
+            <tbody>{data.surtidor_vs_ecu.slice(0, 30).map((d: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{d.patente}</td>
+                <td className="p-2">{d.fecha?.slice(0, 16)}</td>
+                <td className="p-2 text-right">{d.litros_surtidor}</td>
+                <td className="p-2 text-right" style={{ color: "#7a90a8" }}>{d.litros_ecu}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ff2244" }}>{Math.round(d.diff_litros)}</td>
+                <td className="p-2 text-right" style={{ color: "#ff8800" }}>{d.diff_pct}%</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.lugar_consumo || "—"}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.conductor || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {data.sin_movimiento.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ff880040" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ff8800", borderBottom: "1px solid #ff880040" }}>
+            CARGAS SIN MOVIMIENTO — {data.sin_movimiento.length} casos
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">FECHA</th><th className="text-right p-2">LITROS</th><th className="text-right p-2">KM REC.</th><th className="text-left p-2">LUGAR</th><th className="text-left p-2">CONDUCTOR</th>
+            </tr></thead>
+            <tbody>{data.sin_movimiento.slice(0, 20).map((d: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{d.patente}</td>
+                <td className="p-2">{d.fecha?.slice(0, 16)}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ff8800" }}>{d.litros_surtidor}</td>
+                <td className="p-2 text-right" style={{ color: "#ff2244" }}>{d.km_recorridos}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.lugar_consumo || "—"}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.conductor || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {data.sobre_capacidad.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ffcc0040" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ffcc00", borderBottom: "1px solid #ffcc0040" }}>
+            CARGA SOBRE CAPACIDAD — {data.sobre_capacidad.length} casos (cargó más que el estanque)
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">FECHA</th><th className="text-right p-2">CARGÓ</th><th className="text-right p-2">CAPACIDAD</th><th className="text-right p-2">EXCESO</th><th className="text-left p-2">LUGAR</th>
+            </tr></thead>
+            <tbody>{data.sobre_capacidad.slice(0, 20).map((d: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{d.patente}</td>
+                <td className="p-2">{d.fecha?.slice(0, 16)}</td>
+                <td className="p-2 text-right">{d.litros_surtidor}</td>
+                <td className="p-2 text-right" style={{ color: "#7a90a8" }}>{Math.round(d.capacidad)}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ffcc00" }}>+{Math.round(d.exceso)}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.lugar_consumo || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {data.rendimiento_bajo.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #a855f740" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#a855f7", borderBottom: "1px solid #a855f740" }}>
+            CONSUMO ANÓMALO — {data.rendimiento_bajo.length} viajes con rendimiento sospechosamente bajo
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">FECHA</th><th className="text-right p-2">REND REAL</th><th className="text-right p-2">REND ADN</th><th className="text-right p-2">CAÍDA</th><th className="text-right p-2">L EXTRA</th><th className="text-left p-2">CONDUCTOR</th>
+            </tr></thead>
+            <tbody>{data.rendimiento_bajo.slice(0, 20).map((d: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{d.patente}</td>
+                <td className="p-2">{d.fecha?.slice(0, 16)}</td>
+                <td className="p-2 text-right" style={{ color: "#ff2244" }}>{parseFloat(d.rend_real).toFixed(2)}</td>
+                <td className="p-2 text-right" style={{ color: "#7a90a8" }}>{parseFloat(d.rend_adn).toFixed(2)}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#a855f7" }}>−{d.caida_pct}%</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ff2244" }}>{Math.round(parseFloat(d.litros_extra) || 0)}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{d.conductor || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BrechaTab() {
   const qc = useQueryClient();
   const [dias, setDias] = useState(30);
@@ -1500,6 +1693,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
           {([
             { t: "EN_VIVO" as Tab, icon: <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />, label: "EN VIVO", color: "#00ff88" },
             { t: "BRECHA" as Tab, icon: <DollarSign size={11} />, label: "BRECHA", color: "#ff2244" },
+            { t: "ANTIFRAUDE" as Tab, icon: <Activity size={11} />, label: "ANTIFRAUDE", color: "#ff0066" },
             { t: "CRUCE" as Tab, icon: <Activity size={11} />, label: "CRUCE", color: "#ff8800" },
             { t: "PROPUESTAS" as Tab, icon: <Target size={11} />, label: "PROPUESTAS", color: "#a855f7" },
             { t: "AUTO" as Tab, icon: <Brain size={11} />, label: "AUTOMATIZACIÓN", color: "#00ffcc" },
@@ -1806,6 +2000,8 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
 
         {/* ═══ BRECHA DE FACTURACIÓN ═══ */}
         {tab === "BRECHA" && <BrechaTab />}
+
+        {tab === "ANTIFRAUDE" && <AntifraudeTab />}
 
         {/* ═══ CRUCE SIGETRA × WISETRACK ═══ */}
         {tab === "CRUCE" && <CruceSigetraTab />}
