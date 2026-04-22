@@ -224,4 +224,163 @@ router.get("/antifraude", async (req, res) => {
   }
 });
 
+// CRUCE TARJETAS — SIGETRA TST × SHELL CARD × EVC × otros
+router.get("/cruce-tarjetas", async (req, res) => {
+  try {
+    const dias = parseInt((req.query.dias as string) || "30");
+    const PRECIO = parseFloat((req.query.precio as string) || "1100");
+
+    // Clasificación: EVC = red interna Sotraser; estaciones SHELL/Sigetra/Copec por nombre conocido
+    const clasif = (col: string) => `
+      CASE
+        WHEN UPPER(${col}) LIKE 'EVC%' THEN 'EVC'
+        WHEN UPPER(${col}) LIKE '%SHELL%' THEN 'SHELL'
+        WHEN UPPER(${col}) LIKE '%SIGETRA%' OR UPPER(${col}) LIKE '%COPEC%' THEN 'SIGETRA'
+        WHEN UPPER(${col}) LIKE '%PETROBRAS%' THEN 'PETROBRAS'
+        WHEN UPPER(${col}) LIKE '%RUTA%' OR UPPER(${col}) LIKE '%PANAM%' OR UPPER(${col}) LIKE '%CARRETERA%' OR UPPER(${col}) LIKE '%KM%' THEN 'RUTA_EXTERNA'
+        WHEN UPPER(${col}) IN ('QUILICURA','LOS ANGELES 3','LOS ANGELES','OSORNO','TEMUCO') THEN 'EVC'
+        ELSE 'OTRO'
+      END
+    `;
+    const SQL_CLASIF = clasif("lugar_consumo");
+    const SQL_CLASIF_C = clasif("c.lugar_consumo");
+
+    const [porSistema, porCamion, anomalias, sinGuia, guiaDuplicada, lugaresUnicos] = await Promise.all([
+      // Resumen por sistema de pago
+      pool.query(`
+        SELECT ${SQL_CLASIF} as sistema,
+          COUNT(*)::int as cargas,
+          SUM(litros_surtidor)::int as litros,
+          ROUND(AVG(litros_surtidor)::numeric, 1) as litros_avg,
+          COUNT(DISTINCT patente)::int as camiones,
+          COUNT(CASE WHEN num_guia IS NULL THEN 1 END)::int as sin_guia
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+        GROUP BY ${SQL_CLASIF} ORDER BY litros DESC
+      `, [dias]),
+
+      // Por camión: red preferente y fidelidad (% cargas en su red principal)
+      pool.query(`
+        WITH cls AS (
+          SELECT patente, ${SQL_CLASIF} as sistema, litros_surtidor
+          FROM cargas WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+        ),
+        por_cam AS (
+          SELECT patente, sistema, COUNT(*)::int as n_sis, SUM(litros_surtidor)::int as l_sis
+          FROM cls GROUP BY patente, sistema
+        ),
+        principal AS (
+          SELECT DISTINCT ON (patente) patente, sistema as sistema_principal, n_sis as n_principal, l_sis as l_principal
+          FROM por_cam ORDER BY patente, n_sis DESC
+        ),
+        totales AS (
+          SELECT patente, COUNT(*)::int as n_total, SUM(litros_surtidor)::int as l_total, COUNT(DISTINCT sistema)::int as redes_distintas
+          FROM cls GROUP BY patente
+        )
+        SELECT t.patente, p.sistema_principal, t.n_total, t.l_total, p.n_principal,
+          ROUND((p.n_principal::numeric / t.n_total * 100), 1) as fidelidad_pct,
+          (t.n_total - p.n_principal) as cargas_fuera_red,
+          (t.l_total - p.l_principal) as litros_fuera_red,
+          t.redes_distintas
+        FROM totales t JOIN principal p ON p.patente = t.patente
+        WHERE t.n_total >= 3 AND p.n_principal::numeric / t.n_total < 0.85
+        ORDER BY (t.l_total - p.l_principal) DESC LIMIT 50
+      `, [dias]),
+
+      // Saltos de red (mismo camión cambia de sistema en cargas consecutivas)
+      pool.query(`
+        WITH ord AS (
+          SELECT id, patente, fecha, litros_surtidor, lugar_consumo, conductor,
+            ${SQL_CLASIF} as sistema,
+            LAG(${SQL_CLASIF}) OVER (PARTITION BY patente ORDER BY fecha) as sistema_prev,
+            LAG(fecha) OVER (PARTITION BY patente ORDER BY fecha) as fecha_prev
+          FROM cargas WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+        )
+        SELECT patente, fecha::text, litros_surtidor, sistema, sistema_prev, lugar_consumo, conductor,
+          EXTRACT(EPOCH FROM (fecha::timestamp - fecha_prev::timestamp))/3600 as horas_desde_anterior
+        FROM ord WHERE sistema_prev IS NOT NULL AND sistema != sistema_prev
+          AND fecha_prev::timestamp >= fecha::timestamp - INTERVAL '24 hours'
+          AND litros_surtidor >= 50
+        ORDER BY litros_surtidor DESC LIMIT 50
+      `, [dias]),
+
+      // Cargas sin número de guía (transacción no rastreable)
+      pool.query(`
+        SELECT id, patente, fecha::text, litros_surtidor, lugar_consumo, conductor, ${SQL_CLASIF} as sistema
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND num_guia IS NULL AND litros_surtidor >= 30
+        ORDER BY litros_surtidor DESC LIMIT 50
+      `, [dias]),
+
+      // num_guia duplicada en el mismo proveedor (doble cobro)
+      pool.query(`
+        SELECT num_guia, COUNT(*)::int as veces, STRING_AGG(DISTINCT patente, ', ') as patentes,
+          SUM(litros_surtidor)::int as litros_total, MIN(fecha)::text as primera, MAX(fecha)::text as ultima,
+          ARRAY_AGG(DISTINCT lugar_consumo) as lugares
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND num_guia IS NOT NULL
+        GROUP BY num_guia HAVING COUNT(*) > 1
+        ORDER BY COUNT(*) DESC, SUM(litros_surtidor) DESC LIMIT 30
+      `, [dias]),
+
+      // Estaciones visitadas solo 1 vez (fuera de red habitual = posible desvío)
+      pool.query(`
+        WITH freq AS (
+          SELECT lugar_consumo, COUNT(*)::int as visitas, SUM(litros_surtidor)::int as litros
+          FROM cargas WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          GROUP BY lugar_consumo
+        )
+        SELECT c.id, c.patente, c.fecha::text, c.litros_surtidor, c.lugar_consumo, c.conductor, ${SQL_CLASIF_C} as sistema
+        FROM cargas c JOIN freq f ON f.lugar_consumo = c.lugar_consumo
+        WHERE c.fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND f.visitas = 1 AND c.litros_surtidor >= 100
+        ORDER BY c.litros_surtidor DESC LIMIT 30
+      `, [dias]),
+    ]);
+
+    const totalLitros = porSistema.rows.reduce((s: number, r: any) => s + (r.litros || 0), 0);
+    const litrosFueraRed = porCamion.rows.reduce((s: number, r: any) => s + (r.litros_fuera_red || 0), 0);
+    const litrosSinGuia = sinGuia.rows.reduce((s: number, r: any) => s + parseFloat(r.litros_surtidor || 0), 0);
+    const litrosGuiaDup = guiaDuplicada.rows.reduce((s: number, r: any) => s + (r.litros_total || 0), 0);
+
+    // Sistema dominante de la flota (red Sotraser oficial)
+    const dominante = porSistema.rows[0]?.sistema || "EVC";
+    const cargasDominante = porSistema.rows[0]?.cargas || 0;
+    const totalCargas = porSistema.rows.reduce((s: number, r: any) => s + (r.cargas || 0), 0);
+
+    res.json({
+      periodo_dias: dias,
+      precio_diesel: PRECIO,
+      resumen: {
+        total_cargas: totalCargas,
+        total_litros: totalLitros,
+        total_clp: Math.round(totalLitros * PRECIO),
+        red_dominante: dominante,
+        fidelidad_red_pct: totalCargas > 0 ? Math.round(cargasDominante / totalCargas * 100) : 0,
+        litros_fuera_red: Math.round(litrosFueraRed),
+        clp_fuera_red: Math.round(litrosFueraRed * PRECIO),
+        cargas_sin_guia: sinGuia.rows.length,
+        litros_sin_guia: Math.round(litrosSinGuia),
+        guias_duplicadas: guiaDuplicada.rows.length,
+        litros_duplicados: litrosGuiaDup,
+        clp_duplicados: Math.round(litrosGuiaDup * PRECIO),
+        camiones_baja_fidelidad: porCamion.rows.length,
+        saltos_red_24h: anomalias.rows.length,
+        cargas_estacion_unica: lugaresUnicos.rows.length,
+      },
+      por_sistema: porSistema.rows,
+      camiones_baja_fidelidad: porCamion.rows,
+      saltos_red: anomalias.rows,
+      sin_guia: sinGuia.rows,
+      guias_duplicadas: guiaDuplicada.rows,
+      estaciones_unicas: lugaresUnicos.rows,
+    });
+  } catch (e: any) {
+    console.error("[cruce-tarjetas]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

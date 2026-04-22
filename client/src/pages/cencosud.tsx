@@ -9,7 +9,7 @@ import MapaGeocercasCencosud from "@/components/mapa-geocercas-cencosud";
 const RC = (r: number | null) => !r ? "#3a6080" : r >= 3.5 ? "#00ffcc" : r >= 2.85 ? "#00ff88" : r >= 2.3 ? "#ffcc00" : r >= 2.0 ? "#ff6b35" : "#ff2244";
 const fN = (n: number) => Math.round(n).toLocaleString("es-CL");
 const fP = (n: number) => `$${fN(n)}`;
-type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS" | "AUTO" | "ANTIFRAUDE";
+type Tab = "EN_VIVO" | "BRECHA" | "CONTROL" | "RESUMEN" | "VIAJES" | "ERR" | "RUTAS" | "FLOTA" | "AGENTE" | "TARIFAS" | "MAPA" | "CRUCE" | "PROPUESTAS" | "AUTO" | "ANTIFRAUDE" | "TARJETAS";
 
 function MapeoInteractivo() {
   const qc = useQueryClient();
@@ -784,6 +784,194 @@ function AutomatizacionTab() {
           <span className="font-bold text-[#00ffcc]">¿Cómo funciona?</span> El agente cruza automáticamente cada carga de combustible Sigetra con el viaje WiseTrack más cercano (±12h, misma patente normalizada). Después escanea las posiciones GPS buscando lugares donde ≥3 camiones distintos paran ≥20min y NO hay geocerca registrada — esos son destinos reales sin nombrar. Las propuestas se muestran arriba para que las apruebes manualmente. Si configurás API key de IA válida, Claude sugiere nombres automáticamente con score de confianza.
         </div>
       </div>
+    </div>
+  );
+}
+
+const COLORES_SISTEMA: Record<string, string> = {
+  EVC: "#00ff88", SHELL: "#ffaa00", SIGETRA: "#ff2244", PETROBRAS: "#00d4ff",
+  RUTA_EXTERNA: "#a855f7", OTRO: "#7a90a8",
+};
+
+function CruceTarjetasTab() {
+  const [dias, setDias] = useState(30);
+  const { data, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/combustible/cruce-tarjetas", dias],
+    queryFn: () => fetch(`/api/combustible/cruce-tarjetas?dias=${dias}`).then(r => r.json()),
+    staleTime: 60000,
+  });
+
+  if (isLoading) return <div className="p-8 text-center font-space text-xs" style={{ color: "#3a6080" }}>CRUZANDO TARJETAS…</div>;
+  if (!data?.resumen) return <div className="p-8 text-center font-space text-xs" style={{ color: "#ff2244" }}>SIN DATOS</div>;
+
+  const r = data.resumen;
+  const maxLitros = Math.max(...data.por_sistema.map((s: any) => s.litros || 0));
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-space text-sm font-bold tracking-widest" style={{ color: "#ffaa00" }}>CRUCE TARJETAS · SIGETRA TST × SHELL CARD × EVC</h2>
+          <div className="font-space text-[9px] mt-1" style={{ color: "#3a6080" }}>
+            Clasificación por estación · {r.total_cargas} cargas · {fN(r.total_litros)} L · ${fN(r.total_clp)} en {data.periodo_dias} días
+          </div>
+        </div>
+        <div className="flex gap-2 items-center">
+          <select value={dias} onChange={e => setDias(parseInt(e.target.value))} className="font-space text-[10px] px-2 py-1" style={{ background: "#0a1218", color: "#00d4ff", border: "1px solid #0d2035" }}>
+            <option value={7}>7 días</option><option value={30}>30 días</option><option value={90}>90 días</option>
+          </select>
+          <button onClick={() => refetch()} className="font-space text-[10px] px-3 py-1 font-bold" style={{ background: "#ffaa0015", color: "#ffaa00", border: "1px solid #ffaa00" }}>ACTUALIZAR</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-3">
+        <div className="p-4" style={{ background: "#0a1218", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#00ff88" }}>RED DOMINANTE</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: COLORES_SISTEMA[r.red_dominante] || "#fff" }}>{r.red_dominante}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#7a90a8" }}>{r.fidelidad_red_pct}% de las cargas</div>
+        </div>
+        <div className="p-4" style={{ background: "#1a1505", border: "2px solid #ffaa00" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#ffaa00" }}>FUERA DE RED PREFERENTE</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: "#ffaa00" }}>${fN(r.clp_fuera_red)}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#ffd866" }}>{fN(r.litros_fuera_red)} L · ahorro potencial al consolidar</div>
+        </div>
+        <div className="p-4" style={{ background: "#1a0510", border: "2px solid #ff0066" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#ff0066" }}>GUÍAS DUPLICADAS</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: "#ff0066" }}>{r.guias_duplicadas}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#ff6699" }}>${fN(r.clp_duplicados)} doble cobro</div>
+        </div>
+        <div className="p-4" style={{ background: "#0a1218", border: "1px solid #0d2035" }}>
+          <div className="font-space text-[9px] tracking-widest" style={{ color: "#7a90a8" }}>CARGAS SIN GUÍA</div>
+          <div className="font-orbitron text-2xl font-bold mt-1" style={{ color: "#ff8800" }}>{r.cargas_sin_guia}</div>
+          <div className="font-space text-[10px] mt-1" style={{ color: "#3a6080" }}>{fN(r.litros_sin_guia)} L sin trazabilidad</div>
+        </div>
+      </div>
+
+      {/* Distribución por sistema de pago */}
+      <div style={{ background: "#0a1218", border: "1px solid #0d2035" }}>
+        <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ffaa00", borderBottom: "1px solid #0d2035" }}>
+          DISTRIBUCIÓN POR SISTEMA DE PAGO
+        </div>
+        <div className="p-3 space-y-2">
+          {data.por_sistema.map((s: any) => {
+            const color = COLORES_SISTEMA[s.sistema] || "#7a90a8";
+            const pct = maxLitros > 0 ? (s.litros / maxLitros * 100) : 0;
+            return (
+              <div key={s.sistema} className="flex items-center gap-3">
+                <div className="font-space text-[10px] font-bold w-32" style={{ color }}>{s.sistema}</div>
+                <div className="flex-1 h-6 relative" style={{ background: "#060d14" }}>
+                  <div className="h-full" style={{ width: `${pct}%`, background: color, opacity: 0.3 }} />
+                  <div className="absolute inset-0 flex items-center px-2 font-space text-[10px]" style={{ color: "#fff" }}>
+                    {fN(s.litros)} L · {s.cargas} cargas · {s.camiones} camiones · ${fN(s.litros * data.precio_diesel)}
+                    {s.sin_guia > 0 && <span className="ml-2" style={{ color: "#ff2244" }}>· {s.sin_guia} sin guía</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Camiones con baja fidelidad */}
+      {data.camiones_baja_fidelidad.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ffaa0040" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ffaa00", borderBottom: "1px solid #ffaa0040" }}>
+            {`CAMIONES CON BAJA FIDELIDAD A SU RED — ${data.camiones_baja_fidelidad.length} casos (cargan en >15% en otra red)`}
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">RED PRINC.</th><th className="text-right p-2">FIDELIDAD</th><th className="text-right p-2">REDES</th><th className="text-right p-2">CARGAS</th><th className="text-right p-2">CARGAS FUERA</th><th className="text-right p-2">LITROS FUERA</th><th className="text-right p-2">$ FUERA</th>
+            </tr></thead>
+            <tbody>{data.camiones_baja_fidelidad.slice(0, 30).map((c: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{c.patente}</td>
+                <td className="p-2" style={{ color: COLORES_SISTEMA[c.sistema_principal] || "#fff" }}>{c.sistema_principal}</td>
+                <td className="p-2 text-right font-bold" style={{ color: parseFloat(c.fidelidad_pct) < 60 ? "#ff2244" : "#ffaa00" }}>{c.fidelidad_pct}%</td>
+                <td className="p-2 text-right" style={{ color: c.redes_distintas > 2 ? "#ff2244" : "#7a90a8" }}>{c.redes_distintas}</td>
+                <td className="p-2 text-right" style={{ color: "#7a90a8" }}>{c.n_total}</td>
+                <td className="p-2 text-right" style={{ color: "#ff8800" }}>{c.cargas_fuera_red}</td>
+                <td className="p-2 text-right" style={{ color: "#ffaa00" }}>{c.litros_fuera_red}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ffaa00" }}>${fN(c.litros_fuera_red * data.precio_diesel)}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {/* Saltos de red en <24h */}
+      {data.saltos_red.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ff006640" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ff0066", borderBottom: "1px solid #ff006640" }}>
+            {`SALTOS DE RED EN <24H — ${data.saltos_red.length} casos (mismo camión cambió de sistema)`}
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">FECHA</th><th className="text-left p-2">DE</th><th className="text-left p-2">A</th><th className="text-right p-2">HRS</th><th className="text-right p-2">LITROS</th><th className="text-left p-2">LUGAR</th><th className="text-left p-2">CONDUCTOR</th>
+            </tr></thead>
+            <tbody>{data.saltos_red.slice(0, 25).map((s: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{s.patente}</td>
+                <td className="p-2">{s.fecha?.slice(0, 16)}</td>
+                <td className="p-2" style={{ color: COLORES_SISTEMA[s.sistema_prev] || "#fff" }}>{s.sistema_prev}</td>
+                <td className="p-2 font-bold" style={{ color: COLORES_SISTEMA[s.sistema] || "#fff" }}>→ {s.sistema}</td>
+                <td className="p-2 text-right" style={{ color: "#ffaa00" }}>{parseFloat(s.horas_desde_anterior).toFixed(1)}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ff0066" }}>{s.litros_surtidor}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{s.lugar_consumo || "—"}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{s.conductor || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {/* Guías duplicadas */}
+      {data.guias_duplicadas.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ff224440" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#ff2244", borderBottom: "1px solid #ff224440" }}>
+            NÚMEROS DE GUÍA DUPLICADOS — {data.guias_duplicadas.length} casos (posible doble cobro)
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">N° GUÍA</th><th className="text-right p-2">VECES</th><th className="text-left p-2">PATENTES</th><th className="text-right p-2">L TOTAL</th><th className="text-left p-2">PRIMERA</th><th className="text-left p-2">ÚLTIMA</th><th className="text-left p-2">LUGARES</th>
+            </tr></thead>
+            <tbody>{data.guias_duplicadas.slice(0, 20).map((g: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold" style={{ color: "#ff2244" }}>{g.num_guia}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#ff0066" }}>{g.veces}</td>
+                <td className="p-2">{g.patentes}</td>
+                <td className="p-2 text-right">{g.litros_total}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{g.primera?.slice(0, 16)}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{g.ultima?.slice(0, 16)}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{Array.isArray(g.lugares) ? g.lugares.join(" / ") : ""}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
+      {/* Estaciones únicas (carga grande en lugar visitado solo 1 vez) */}
+      {data.estaciones_unicas.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #a855f740" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest" style={{ color: "#a855f7", borderBottom: "1px solid #a855f740" }}>
+            CARGAS EN ESTACIONES VISITADAS UNA SOLA VEZ — {data.estaciones_unicas.length} casos (desvío atípico)
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th><th className="text-left p-2">FECHA</th><th className="text-right p-2">LITROS</th><th className="text-left p-2">SISTEMA</th><th className="text-left p-2">LUGAR</th><th className="text-left p-2">CONDUCTOR</th>
+            </tr></thead>
+            <tbody>{data.estaciones_unicas.slice(0, 20).map((e: any, i: number) => (
+              <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                <td className="p-2 font-bold">{e.patente}</td>
+                <td className="p-2">{e.fecha?.slice(0, 16)}</td>
+                <td className="p-2 text-right font-bold" style={{ color: "#a855f7" }}>{e.litros_surtidor}</td>
+                <td className="p-2" style={{ color: COLORES_SISTEMA[e.sistema] || "#fff" }}>{e.sistema}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{e.lugar_consumo || "—"}</td>
+                <td className="p-2" style={{ color: "#7a90a8" }}>{e.conductor || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1694,6 +1882,7 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
             { t: "EN_VIVO" as Tab, icon: <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#00ff88", boxShadow: "0 0 6px #00ff88", animation: "blink 2s infinite" }} />, label: "EN VIVO", color: "#00ff88" },
             { t: "BRECHA" as Tab, icon: <DollarSign size={11} />, label: "BRECHA", color: "#ff2244" },
             { t: "ANTIFRAUDE" as Tab, icon: <Activity size={11} />, label: "ANTIFRAUDE", color: "#ff0066" },
+            { t: "TARJETAS" as Tab, icon: <DollarSign size={11} />, label: "SIGETRA × SHELL", color: "#ffaa00" },
             { t: "CRUCE" as Tab, icon: <Activity size={11} />, label: "CRUCE", color: "#ff8800" },
             { t: "PROPUESTAS" as Tab, icon: <Target size={11} />, label: "PROPUESTAS", color: "#a855f7" },
             { t: "AUTO" as Tab, icon: <Brain size={11} />, label: "AUTOMATIZACIÓN", color: "#00ffcc" },
@@ -2002,6 +2191,8 @@ export default function CencosudView({ onBack, gpsSource = "wisetrack", onNaviga
         {tab === "BRECHA" && <BrechaTab />}
 
         {tab === "ANTIFRAUDE" && <AntifraudeTab />}
+
+        {tab === "TARJETAS" && <CruceTarjetasTab />}
 
         {/* ═══ CRUCE SIGETRA × WISETRACK ═══ */}
         {tab === "CRUCE" && <CruceSigetraTab />}
