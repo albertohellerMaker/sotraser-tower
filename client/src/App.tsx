@@ -34,7 +34,7 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
     startedRef.current = true;
 
     let alive = true;
-    const push = (l: BootLine) => alive && setLines(prev => [...prev, l]);
+    const push = (l: BootLine) => { if (alive) setLines(prev => [...prev, l]); };
 
     const seq: Array<() => Promise<void> | void> = [
       () => push({ t: Date.now(), label: "INICIANDO KERNEL SOTRASER", status: "ok" }),

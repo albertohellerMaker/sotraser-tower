@@ -972,6 +972,101 @@ function CruceTarjetasTab() {
           </table></div>
         </div>
       )}
+
+      {/* MAPA DE BOMBAS */}
+      {data.bombas && data.bombas.length > 0 && (() => {
+        const lats = data.bombas.map((b: any) => b.lat);
+        const lngs = data.bombas.map((b: any) => b.lng);
+        const cLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+        const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+        const maxL = Math.max(...data.bombas.map((b: any) => b.litros || 0));
+        return (
+          <div style={{ background: "#0a1218", border: "1px solid #00d4ff40" }}>
+            <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest flex items-center justify-between" style={{ color: "#00d4ff", borderBottom: "1px solid #00d4ff40" }}>
+              <span>MAPA DE BOMBAS · {data.bombas.length} estaciones geocodificadas (de {data.resumen.bombas_total})</span>
+              <div className="flex gap-3 text-[9px]">
+                <span style={{ color: "#00ff88" }}>● EVC</span>
+                <span style={{ color: "#ffd700" }}>● SHELL</span>
+                <span style={{ color: "#0066ff" }}>● SIGETRA/COPEC</span>
+                <span style={{ color: "#ff6600" }}>● PETROBRAS</span>
+                <span style={{ color: "#ff2244" }}>● RUTA EXT.</span>
+              </div>
+            </div>
+            <div style={{ height: 480 }}>
+              <LeafletMap center={[cLat, cLng]} zoom={5}>
+                {data.bombas.map((b: any, i: number) => {
+                  const color = COLORES_SISTEMA[b.sistema] || "#7a90a8";
+                  const radius = Math.max(6, Math.round((b.litros / maxL) * 28));
+                  const html = `<div style="background:${color};border-radius:50%;width:${radius*2}px;height:${radius*2}px;border:1.5px solid #fff;opacity:0.85;box-shadow:0 0 ${radius}px ${color}80"></div>`;
+                  return (
+                    <DivMarker
+                      key={i}
+                      position={[b.lat, b.lng]}
+                      html={html}
+                      size={[radius * 2, radius * 2]}
+                    />
+                  );
+                })}
+              </LeafletMap>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ANOMALIAS DE RENDIMIENTO entre cargas */}
+      {data.secuencia_anomalias && data.secuencia_anomalias.length > 0 && (
+        <div style={{ background: "#0a1218", border: "1px solid #ff006640" }}>
+          <div className="px-3 py-2 font-space text-[10px] font-bold tracking-widest flex items-center justify-between" style={{ color: "#ff0066", borderBottom: "1px solid #ff006640" }}>
+            <span>{`KM RECORRIDOS vs RENDIMIENTO — ${data.secuencia_anomalias.length} anomalías`}</span>
+            <span style={{ color: "#ffaa00" }}>{`Pérdida estimada: $${fN(data.resumen.clp_extra_estimado || 0)} (${fN(data.resumen.litros_extra_estimado || 0)} L sospechosos)`}</span>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full font-space text-[10px]">
+            <thead><tr style={{ color: "#3a6080", borderBottom: "1px solid #0d2035" }}>
+              <th className="text-left p-2">PATENTE</th>
+              <th className="text-left p-2">FECHA</th>
+              <th className="text-right p-2">KM ENTRE</th>
+              <th className="text-right p-2">LITROS</th>
+              <th className="text-right p-2">REND REAL</th>
+              <th className="text-right p-2">REND ESPERADO</th>
+              <th className="text-right p-2">L EXTRA</th>
+              <th className="text-left p-2">FLAG</th>
+              <th className="text-left p-2">LUGAR</th>
+            </tr></thead>
+            <tbody>{data.secuencia_anomalias.slice(0, 50).map((a: any, i: number) => {
+              const flagColor: Record<string, string> = {
+                CONSUMO_EXCESIVO: "#ff0066",
+                KM_FANTASMA: "#ffaa00",
+                CARGA_GRANDE_SIN_KM: "#ff6600",
+                KM_NO_AVANZA: "#a855f7",
+              };
+              const c = flagColor[a.flag] || "#7a90a8";
+              const rendCalc = a.km_entre_cargas > 0 && a.litros_surtidor > 0
+                ? (a.km_entre_cargas / a.litros_surtidor).toFixed(2) : "—";
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #0d2035", color: "#fff" }}>
+                  <td className="p-2 font-bold">{a.patente}</td>
+                  <td className="p-2">{a.fecha?.slice(0, 16)}</td>
+                  <td className="p-2 text-right">{a.km_entre_cargas != null ? fN(a.km_entre_cargas) : "—"}</td>
+                  <td className="p-2 text-right font-bold">{a.litros_surtidor}</td>
+                  <td className="p-2 text-right" style={{ color: c }}>{rendCalc}</td>
+                  <td className="p-2 text-right" style={{ color: "#7a90a8" }}>{a.rend_median ?? "—"}</td>
+                  <td className="p-2 text-right font-bold" style={{ color: a.litros_extra_estimado > 0 ? "#ff0066" : "#7a90a8" }}>
+                    {a.litros_extra_estimado != null ? a.litros_extra_estimado : "—"}
+                  </td>
+                  <td className="p-2 font-bold" style={{ color: c }}>{a.flag}</td>
+                  <td className="p-2" style={{ color: "#7a90a8" }}>{a.lugar_consumo || "—"}</td>
+                </tr>
+              );
+            })}</tbody>
+          </table></div>
+          <div className="px-3 py-2 font-space text-[9px]" style={{ color: "#3a6080", borderTop: "1px solid #0d2035" }}>
+            <b style={{ color: "#ff0066" }}>CONSUMO_EXCESIVO</b>: rend &lt; 60% del histórico del camión ·
+            <b style={{ color: "#ffaa00" }}> KM_FANTASMA</b>: rend &gt; 160% (km no reales o carga incompleta) ·
+            <b style={{ color: "#ff6600" }}> CARGA_GRANDE_SIN_KM</b>: ≥100 L con &lt;20 km recorridos ·
+            <b style={{ color: "#a855f7" }}> KM_NO_AVANZA</b>: odómetro retrocedió o quedó igual
+          </div>
+        </div>
+      )}
     </div>
   );
 }

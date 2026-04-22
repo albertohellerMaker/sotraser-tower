@@ -224,6 +224,96 @@ router.get("/antifraude", async (req, res) => {
   }
 });
 
+// Geocoding heurístico de estaciones por nombre de lugar_consumo
+// Bases conocidas + interpolación de Ruta 5 / Panamericana por KM
+function geocodeLugar(raw: string | null): { lat: number; lng: number; tipo: string } | null {
+  if (!raw) return null;
+  const s = raw.toUpperCase().trim();
+
+  const fixed: Record<string, [number, number, string]> = {
+    "QUILICURA": [-33.3680, -70.7234, "EVC"],
+    "LOS ANGELES 3": [-37.4730, -72.3470, "EVC"],
+    "LOS ANGELES": [-37.4690, -72.3539, "EVC"],
+    "OSORNO": [-40.5713, -73.1336, "EVC"],
+    "TEMUCO": [-38.7397, -72.5984, "EVC"],
+    "EVC COLORADO": [-33.4150, -70.6100, "EVC"],
+    "EVC VESPUCIO": [-33.5150, -70.6850, "EVC"],
+    "EVC SAN BERNARDO": [-33.5950, -70.7050, "EVC"],
+    "EVC MAIPU": [-33.5100, -70.7580, "EVC"],
+    "EVC CONCEPCION": [-36.8270, -73.0500, "EVC"],
+    "EVC PUERTO MONTT": [-41.4720, -72.9360, "EVC"],
+  };
+  for (const [k, [lat, lng, tipo]] of Object.entries(fixed)) {
+    if (s === k || s.startsWith(k + " ") || s.includes(k)) return { lat, lng, tipo };
+  }
+
+  // Ruta 5 / Panamericana — extraer KM
+  const isNorte = /(NORTE|PANAM\.?\s*NORTE|PANAMERICANA NORTE|RUTA\s*5\s*NORTE)/.test(s);
+  const isSur = /(SUR|PANAM\.?\s*SUR|PANAMERICANA SUR|RUTA\s*5\s*SUR)/.test(s);
+  const km = (() => {
+    const m = s.match(/KM\.?\s*(\d{1,4}(?:[.,]\d+)?)/);
+    if (!m) return null;
+    return parseFloat(m[1].replace(",", "."));
+  })();
+
+  if (km !== null && (isNorte || isSur || /RUTA\s*5|PANAM/.test(s))) {
+    // Puntos de calibración Ruta 5 (km desde Santiago, lat, lng)
+    const ptsNorte: Array<[number, number, number]> = [
+      [0, -33.45, -70.65],
+      [100, -32.85, -70.93],
+      [200, -32.05, -71.10],
+      [300, -31.05, -71.30],
+      [400, -30.30, -71.40],
+      [500, -29.55, -71.25],
+      [700, -27.70, -70.40],
+      [900, -26.00, -69.95],
+      [1100, -24.00, -69.50],
+      [1400, -22.50, -69.00],
+      [1800, -19.50, -69.70],
+      [2100, -18.50, -70.30],
+    ];
+    const ptsSur: Array<[number, number, number]> = [
+      [0, -33.45, -70.65],
+      [100, -34.20, -71.00],
+      [200, -34.85, -71.25],
+      [300, -35.55, -71.55],
+      [400, -36.30, -72.10],
+      [500, -37.20, -72.20],
+      [600, -37.85, -72.45],
+      [700, -38.74, -72.60],
+      [800, -39.80, -73.00],
+      [900, -40.57, -73.13],
+      [1000, -41.00, -73.05],
+      [1100, -41.47, -72.94],
+      [1300, -42.50, -73.80],
+    ];
+    const pts = isSur ? ptsSur : ptsNorte;
+    let i = 0;
+    while (i < pts.length - 1 && pts[i + 1][0] < km) i++;
+    if (i >= pts.length - 1) return { lat: pts[pts.length - 1][1], lng: pts[pts.length - 1][2], tipo: "RUTA" };
+    const [k0, lat0, lng0] = pts[i];
+    const [k1, lat1, lng1] = pts[i + 1];
+    const t = (km - k0) / (k1 - k0);
+    return { lat: lat0 + (lat1 - lat0) * t, lng: lng0 + (lng1 - lng0) * t, tipo: "RUTA" };
+  }
+
+  // Comunas conocidas en lugar_consumo (e.g. "LOS CARRERA, ESQ. LAUTARO" en Santiago, fallback aproximado)
+  const comunas: Record<string, [number, number]> = {
+    "QUILICURA": [-33.36, -70.72], "MAIPU": [-33.51, -70.76], "PUDAHUEL": [-33.44, -70.78],
+    "SAN BERNARDO": [-33.59, -70.70], "ANTOFAGASTA": [-23.65, -70.40],
+    "CALAMA": [-22.46, -68.93], "IQUIQUE": [-20.21, -70.15], "ARICA": [-18.48, -70.32],
+    "VALPARAISO": [-33.05, -71.62], "RANCAGUA": [-34.17, -70.74],
+    "TALCA": [-35.43, -71.66], "CHILLAN": [-36.61, -72.10], "CONCEPCION": [-36.83, -73.05],
+    "PUERTO MONTT": [-41.47, -72.94], "VALDIVIA": [-39.81, -73.24],
+    "COQUIMBO": [-29.95, -71.34], "LA SERENA": [-29.91, -71.25], "COPIAPO": [-27.36, -70.34],
+  };
+  for (const [c, [lat, lng]] of Object.entries(comunas)) {
+    if (s.includes(c)) return { lat, lng, tipo: "COMUNA" };
+  }
+
+  return null;
+}
+
 // CRUCE TARJETAS — SIGETRA TST × SHELL CARD × EVC × otros
 router.get("/cruce-tarjetas", async (req, res) => {
   try {
@@ -245,7 +335,7 @@ router.get("/cruce-tarjetas", async (req, res) => {
     const SQL_CLASIF = clasif("lugar_consumo");
     const SQL_CLASIF_C = clasif("c.lugar_consumo");
 
-    const [porSistema, porCamion, anomalias, sinGuia, guiaDuplicada, lugaresUnicos] = await Promise.all([
+    const [porSistema, porCamion, anomalias, sinGuia, guiaDuplicada, lugaresUnicos, bombasRaw, secuencia] = await Promise.all([
       // Resumen por sistema de pago
       pool.query(`
         SELECT ${SQL_CLASIF} as sistema,
@@ -338,6 +428,66 @@ router.get("/cruce-tarjetas", async (req, res) => {
           AND f.visitas = 1 AND c.litros_surtidor >= 100
         ORDER BY c.litros_surtidor DESC LIMIT 30
       `, [dias]),
+
+      // Bombas/estaciones agregadas (para mapa)
+      pool.query(`
+        SELECT lugar_consumo, ${SQL_CLASIF} as sistema,
+          COUNT(*)::int as cargas, SUM(litros_surtidor)::int as litros,
+          COUNT(DISTINCT patente)::int as camiones,
+          MIN(fecha)::text as primera, MAX(fecha)::text as ultima
+        FROM cargas
+        WHERE fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+          AND lugar_consumo IS NOT NULL AND lugar_consumo != ''
+        GROUP BY lugar_consumo, ${SQL_CLASIF}
+        ORDER BY litros DESC
+      `, [dias]),
+
+      // Secuencia rendimiento por camión: km recorridos entre cargas vs rendimiento esperado
+      pool.query(`
+        WITH cargas_p AS (
+          SELECT c.id, c.patente, c.fecha::timestamp as fecha, c.litros_surtidor,
+            c.km_anterior, c.km_actual, c.lugar_consumo, c.conductor, c.rend_real,
+            ${SQL_CLASIF_C} as sistema,
+            (c.km_actual - c.km_anterior) as km_carga,
+            LAG(c.km_actual) OVER (PARTITION BY c.patente ORDER BY c.fecha) as km_prev,
+            LAG(c.fecha::timestamp) OVER (PARTITION BY c.patente ORDER BY c.fecha) as fecha_prev,
+            LAG(c.lugar_consumo) OVER (PARTITION BY c.patente ORDER BY c.fecha) as lugar_prev
+          FROM cargas c
+          WHERE c.fecha::timestamp >= NOW() - ($1::text || ' days')::interval
+            AND c.km_actual > 0
+        ),
+        hist AS (
+          SELECT patente,
+            ROUND(AVG(rend_real)::numeric, 2) as rend_avg,
+            ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY rend_real)::numeric, 2) as rend_median,
+            COUNT(*)::int as n_hist
+          FROM cargas
+          WHERE rend_real > 0 AND rend_real < 10
+            AND fecha::timestamp >= NOW() - INTERVAL '180 days'
+          GROUP BY patente HAVING COUNT(*) >= 5
+        )
+        SELECT cp.id, cp.patente, cp.fecha::text as fecha, cp.litros_surtidor,
+          cp.km_actual, cp.km_carga, cp.lugar_consumo, cp.conductor, cp.sistema,
+          cp.rend_real,
+          (cp.km_actual - cp.km_prev) as km_entre_cargas,
+          EXTRACT(EPOCH FROM (cp.fecha - cp.fecha_prev))/3600 as horas_entre_cargas,
+          cp.lugar_prev,
+          h.rend_avg, h.rend_median,
+          CASE WHEN h.rend_median > 0 THEN
+            ROUND((cp.litros_surtidor - (cp.km_actual - cp.km_prev) / NULLIF(h.rend_median,0))::numeric, 1)
+          END as litros_extra_estimado,
+          CASE
+            WHEN cp.km_prev IS NULL THEN 'PRIMERA'
+            WHEN (cp.km_actual - cp.km_prev) <= 0 THEN 'KM_NO_AVANZA'
+            WHEN (cp.km_actual - cp.km_prev) < 20 AND cp.litros_surtidor >= 100 THEN 'CARGA_GRANDE_SIN_KM'
+            WHEN h.rend_median IS NULL THEN 'SIN_HISTORICO'
+            WHEN cp.litros_surtidor > 0 AND ((cp.km_actual - cp.km_prev) / cp.litros_surtidor) < h.rend_median * 0.6 THEN 'CONSUMO_EXCESIVO'
+            WHEN cp.litros_surtidor > 0 AND ((cp.km_actual - cp.km_prev) / cp.litros_surtidor) > h.rend_median * 1.6 THEN 'KM_FANTASMA'
+            ELSE 'OK'
+          END as flag
+        FROM cargas_p cp LEFT JOIN hist h ON h.patente = cp.patente
+        ORDER BY cp.patente, cp.fecha
+      `, [dias]),
     ]);
 
     const totalLitros = porSistema.rows.reduce((s: number, r: any) => s + (r.litros || 0), 0);
@@ -349,6 +499,23 @@ router.get("/cruce-tarjetas", async (req, res) => {
     const dominante = porSistema.rows[0]?.sistema || "EVC";
     const cargasDominante = porSistema.rows[0]?.cargas || 0;
     const totalCargas = porSistema.rows.reduce((s: number, r: any) => s + (r.cargas || 0), 0);
+
+    // Geocodificar bombas (para mapa)
+    const bombas = (bombasRaw.rows || [])
+      .map((b: any) => {
+        const g = geocodeLugar(b.lugar_consumo);
+        return g ? { ...b, lat: g.lat, lng: g.lng, geo_tipo: g.tipo, clp: Math.round((b.litros || 0) * PRECIO) } : null;
+      })
+      .filter(Boolean);
+
+    // Anomalías de secuencia (rendimiento)
+    const seqRows = secuencia.rows || [];
+    const anomaliasSec = seqRows.filter((r: any) =>
+      ["CONSUMO_EXCESIVO", "KM_FANTASMA", "CARGA_GRANDE_SIN_KM", "KM_NO_AVANZA"].includes(r.flag)
+    );
+    const litrosExtraTotal = anomaliasSec
+      .filter((r: any) => r.flag === "CONSUMO_EXCESIVO" && r.litros_extra_estimado > 0)
+      .reduce((s: number, r: any) => s + parseFloat(r.litros_extra_estimado || 0), 0);
 
     res.json({
       periodo_dias: dias,
@@ -369,6 +536,11 @@ router.get("/cruce-tarjetas", async (req, res) => {
         camiones_baja_fidelidad: porCamion.rows.length,
         saltos_red_24h: anomalias.rows.length,
         cargas_estacion_unica: lugaresUnicos.rows.length,
+        bombas_geocodificadas: bombas.length,
+        bombas_total: bombasRaw.rows.length,
+        anomalias_rendimiento: anomaliasSec.length,
+        litros_extra_estimado: Math.round(litrosExtraTotal),
+        clp_extra_estimado: Math.round(litrosExtraTotal * PRECIO),
       },
       por_sistema: porSistema.rows,
       camiones_baja_fidelidad: porCamion.rows,
@@ -376,6 +548,8 @@ router.get("/cruce-tarjetas", async (req, res) => {
       sin_guia: sinGuia.rows,
       guias_duplicadas: guiaDuplicada.rows,
       estaciones_unicas: lugaresUnicos.rows,
+      bombas,
+      secuencia_anomalias: anomaliasSec.slice(0, 100),
     });
   } catch (e: any) {
     console.error("[cruce-tarjetas]", e);
