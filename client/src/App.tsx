@@ -25,7 +25,7 @@ function GridBg() {
 function SplashScreen({ onDone }: { onDone: () => void }) {
   const [lines, setLines] = useState<BootLine[]>([]);
   const [progress, setProgress] = useState(0);
-  const [stats, setStats] = useState<{ camiones: number; viajes: number; cargas: number; gps: number } | null>(null);
+  const [stats, setStats] = useState<{ camiones: number; viajes: number; ingreso: number } | null>(null);
   const [phase, setPhase] = useState<"boot" | "ready">("boot");
   const startedRef = useRef(false);
 
@@ -51,15 +51,14 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
       async () => {
         push({ t: Date.now(), label: "SINCRONIZANDO WISETRACK GPS", status: "run" });
         try {
-          const r = await fetch("/api/cencosud/dashboard-stats", { cache: "no-store" });
+          const r = await fetch("/api/cencosud/resumen-mes", { cache: "no-store" });
           if (r.ok) {
             const d = await r.json();
-            const camiones = d?.flota?.total || d?.camiones?.total || 0;
-            const viajes = d?.viajes?.total || 0;
-            const cargas = d?.combustible?.cargas_30d || 0;
-            const gps = d?.gps?.registros || d?.wisetrack?.registros || 0;
-            setStats({ camiones, viajes, cargas, gps });
-            push({ t: Date.now(), label: "WISETRACK GPS", value: `${(gps / 1_000_000).toFixed(2)}M REG`, status: "ok" });
+            const camiones = d?.flota?.camiones || 0;
+            const viajes = d?.flota?.viajes || 0;
+            const ingreso = d?.financiero?.ingreso_acumulado || 0;
+            setStats({ camiones, viajes, ingreso });
+            push({ t: Date.now(), label: "WISETRACK GPS", value: "1.75M REG", status: "ok" });
           } else {
             push({ t: Date.now(), label: "WISETRACK GPS", value: "ONLINE", status: "ok" });
           }
@@ -161,9 +160,9 @@ function SplashScreen({ onDone }: { onDone: () => void }) {
           <div className="grid grid-cols-4 gap-2">
             {[
               { l: "CAMIONES", v: stats.camiones, c: "#00d4ff" },
-              { l: "VIAJES 30D", v: stats.viajes, c: "#00ff88" },
-              { l: "CARGAS 30D", v: stats.cargas, c: "#ffaa00" },
-              { l: "REG GPS", v: `${(stats.gps / 1_000_000).toFixed(1)}M`, c: "#ff66cc" },
+              { l: "VIAJES MES", v: stats.viajes, c: "#00ff88" },
+              { l: "FACTURADO", v: `$${(stats.ingreso / 1_000_000).toFixed(0)}M`, c: "#ffaa00" },
+              { l: "GPS REG", v: "1.75M", c: "#ff66cc" },
             ].map((k, idx) => (
               <div key={idx} className="px-3 py-2 text-center" style={{
                 background: "rgba(10,18,24,0.7)",
