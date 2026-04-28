@@ -37,6 +37,15 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "sotraser-platform",
+    ts: new Date().toISOString(),
+    uptime_s: Math.round(process.uptime()),
+  });
+});
+
 const isProd = process.env.NODE_ENV === "production";
 const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 if (isProd && !process.env.SESSION_SECRET) {
